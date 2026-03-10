@@ -153,7 +153,7 @@
     font-family: inherit; font-size: 11px;
     color: rgba(0,0,0,0.3); white-space: nowrap; flex-shrink: 0;
   }
-  .model-desc { font-size: 11px; color: rgba(0,0,0,0.35); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .model-desc { font-size: 11px; color: rgba(0,0,0,0.35); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   /* Test area */
   .test-bar {
@@ -298,7 +298,7 @@
     .prov-panel { padding: 14px; }
     .model-item { padding: 10px 12px; }
     .model-id { font-size: 12px; }
-    .model-desc { font-size: 11px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .model-desc { font-size: 11px; -webkit-line-clamp: 2; }
     .chat-entry { padding: 14px; font-size: 15px; }
   }
 </style>
