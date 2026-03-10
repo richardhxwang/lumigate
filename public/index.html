@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AI Gateway</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    min-height: 100vh; min-height: 100dvh;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 820px; margin: 0 auto;
+    padding: 24px 20px max(24px, env(safe-area-inset-bottom, 24px));
+    padding-top: max(24px, env(safe-area-inset-top, 24px));
+  }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .header-text { flex: 1; }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; color: rgba(0,0,0,0.85); }
+  .header .sub { font-size: 13px; color: rgba(0,0,0,0.35); margin-top: 2px; }
+
+  /* Stats row */
+  .stats { display: flex; gap: 10px; margin-bottom: 16px; }
+  .stat {
+    flex: 1; padding: 14px 16px;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.8);
+    border-radius: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  }
+  .stat .label { font-size: 11px; color: rgba(0,0,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .stat .val { font-size: 20px; font-weight: 700; color: rgba(0,0,0,0.7); margin-top: 3px; }
+  .stat .val.green { color: #34c759; }
+
+  /* Chat entry */
+  .chat-entry {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 16px; margin-bottom: 16px;
+    background: rgba(0,122,255,0.08); border-radius: 16px;
+    border: 1.5px solid rgba(0,122,255,0.15);
+    color: #007aff; font-size: 16px; font-weight: 600;
+    text-decoration: none; transition: all 0.15s;
+  }
+  .chat-entry:hover { background: rgba(0,122,255,0.14); }
+
+  /* Glass card */
+  .glass {
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 18px;
+    box-shadow: 0 1px 12px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+
+  /* Provider tabs */
+  .prov-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid rgba(0,0,0,0.06);
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .prov-tabs::-webkit-scrollbar { display: none; }
+  .prov-tab {
+    flex: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 20px; cursor: pointer;
+    border-bottom: 2.5px solid transparent;
+    transition: all 0.15s; position: relative;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    color: rgba(0,0,0,0.4);
+  }
+  .prov-tab:hover { background: rgba(0,0,0,0.02); }
+  .prov-tab.active {
+    color: #007aff; border-bottom-color: #007aff; font-weight: 600;
+  }
+  .prov-tab img { width: 24px; height: 24px; border-radius: 0; object-fit: contain; flex-shrink: 0; }
+  .prov-tab .tab-name { white-space: nowrap; text-transform: capitalize; }
+  .prov-tab .tab-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .prov-tab .tab-dot.on { background: #34c759; }
+  .prov-tab .tab-dot.off { background: rgba(0,0,0,0.15); }
+
+  /* Provider detail panel */
+  .prov-panel { padding: 16px; }
+  .prov-info-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    padding: 8px 12px; border-radius: 10px; background: rgba(0,0,0,0.02);
+  }
+  .prov-url {
+    flex: 1; font-size: 11px; color: rgba(0,0,0,0.3);
+    font-family: inherit;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tag { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .tag.on { background: rgba(52,199,89,0.12); color: #1a7f37; }
+  .tag.off { background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.3); }
+
+  .btn {
+    padding: 6px 14px; border-radius: 10px; border: none;
+    background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.6);
+    font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .btn:hover { background: rgba(0,0,0,0.08); }
+  .btn.pri { background: rgba(0,113,227,0.85); color: #fff; box-shadow: 0 2px 8px rgba(0,113,227,0.15); }
+  .btn.pri:hover { background: rgba(0,113,227,0.95); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Model list */
+  .model-list { display: flex; flex-direction: column; gap: 6px; }
+  .model-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-radius: 12px; cursor: pointer;
+    border: 1.5px solid transparent; background: rgba(0,0,0,0.02);
+    transition: all 0.15s;
+  }
+  .model-item:hover { background: rgba(0,0,0,0.04); }
+  .model-item.selected { border-color: rgba(0,113,227,0.4); background: rgba(0,113,227,0.04); }
+  .model-main { flex: 1; min-width: 0; }
+  .model-row1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .model-id {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    color: rgba(0,0,0,0.75);
+  }
+  .tier {
+    padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.3px; white-space: nowrap; text-transform: uppercase; flex-shrink: 0;
+  }
+  .tier.economy { background: rgba(52,199,89,0.1); color: #1a7f37; }
+  .tier.standard { background: rgba(0,113,227,0.08); color: #0051a8; }
+  .tier.flagship { background: rgba(175,82,222,0.1); color: #7c3aed; }
+  .cap {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 16px; border-radius: 3px; flex-shrink: 0;
+    background: rgba(0,0,0,0.05);
+  }
+  .cap svg { width: 11px; height: 11px; fill: none; stroke: rgba(0,0,0,0.4); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .model-row2 {
+    display: flex; align-items: baseline; gap: 8px; margin-top: 3px;
+  }
+  .model-price {
+    font-family: inherit; font-size: 11px;
+    color: rgba(0,0,0,0.3); white-space: nowrap; flex-shrink: 0;
+  }
+  .model-desc { font-size: 11px; color: rgba(0,0,0,0.35); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Test area */
+  .test-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+  .test-bar .btn { flex-shrink: 0; }
+  .result {
+    margin-top: 8px; padding: 10px 12px; border-radius: 10px;
+    font-size: 12px; font-family: inherit; display: none;
+    word-break: break-all;
+  }
+  .result.ok { display: block; background: rgba(52,199,89,0.08); color: #166534; }
+  .result.err { display: block; background: rgba(255,59,48,0.08); color: #991b1b; }
+  .result.load { display: block; background: rgba(0,113,227,0.06); color: #1e40af; }
+
+  /* Projects */
+  .glass + .glass { margin-top: 16px; }
+  .card-head {
+    padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .card-head h2 { font-size: 14px; font-weight: 600; color: rgba(0,0,0,0.5); }
+  .proj-list { padding: 8px 16px; }
+  .proj-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .proj-item:last-child { border-bottom: none; }
+  .proj-name { font-size: 15px; font-weight: 600; color: rgba(0,0,0,0.8); }
+  .proj-key {
+    font-size: 12px; color: rgba(0,0,0,0.3); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;
+    cursor: pointer;
+  }
+  .proj-key:hover { color: rgba(0,0,0,0.5); }
+  .proj-info { flex: 1; min-width: 0; }
+  .proj-acts { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .proj-toggle {
+    width: 44px; height: 26px; border-radius: 13px; border: none;
+    cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;
+  }
+  .proj-toggle.on { background: #34c759; }
+  .proj-toggle.off { background: rgba(0,0,0,0.12); }
+  .proj-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: transform 0.2s;
+  }
+  .proj-toggle.on::after { transform: translateX(18px); }
+  .proj-empty { padding: 24px; text-align: center; color: rgba(0,0,0,0.25); font-size: 13px; }
+  .proj-date { font-size: 11px; color: rgba(0,0,0,0.2); margin-top: 2px; }
+
+  /* Usage */
+  .usage-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .usage-head h2 { font-size: 14px; font-weight: 600; color: rgba(0,0,0,0.5); flex: 1; }
+  .usage-head select { padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.06); font-size: 12px; font-family: inherit; background: rgba(255,255,255,0.6); color: rgba(0,0,0,0.6); }
+  .usage-body { padding: 12px 16px; }
+  .usage-total {
+    display: flex; gap: 12px; margin-bottom: 14px;
+  }
+  .usage-stat {
+    flex: 1; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,0.02);
+  }
+  .usage-stat .u-label { font-size: 10px; color: rgba(0,0,0,0.3); text-transform: uppercase; font-weight: 600; }
+  .usage-stat .u-val { font-size: 22px; font-weight: 700; color: rgba(0,0,0,0.7); margin-top: 2px; }
+  .usage-stat .u-val.cost { color: #ff9500; font-size: 26px; }
+  .usage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .usage-table th {
+    text-align: left; padding: 6px 8px; color: rgba(0,0,0,0.35); font-weight: 600;
+    border-bottom: 1px solid rgba(0,0,0,0.06); font-size: 10px; text-transform: uppercase;
+  }
+  .usage-table td { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.03); color: rgba(0,0,0,0.6); }
+  .usage-table tr:last-child td { border-bottom: none; }
+  .usage-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .usage-table .proj-badge { font-weight: 600; color: rgba(0,0,0,0.75); }
+  .usage-table .cost-cell { color: #ff9500; font-weight: 700; font-size: 14px; }
+  .usage-empty { padding: 24px; text-align: center; color: rgba(0,0,0,0.2); font-size: 13px; }
+
+  /* Project group in usage */
+  .usage-proj-group { margin-bottom: 8px; }
+  .usage-proj-header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 10px; background: rgba(0,0,0,0.025); cursor: pointer;
+    transition: background 0.15s; user-select: none;
+  }
+  .usage-proj-header:hover { background: rgba(0,0,0,0.05); }
+  .usage-proj-arrow {
+    font-size: 10px; color: rgba(0,0,0,0.3); transition: transform 0.2s;
+    width: 16px; text-align: center; flex-shrink: 0;
+  }
+  .usage-proj-arrow.open { transform: rotate(90deg); }
+  .usage-proj-name { font-size: 14px; font-weight: 600; color: rgba(0,0,0,0.75); flex: 1; }
+  .usage-proj-summary { display: flex; gap: 14px; font-size: 12px; color: rgba(0,0,0,0.4); flex-shrink: 0; }
+  .usage-proj-summary .cost-val { color: #ff9500; font-weight: 600; font-size: 13px; }
+  .usage-proj-detail { overflow: hidden; transition: max-height 0.25s ease; }
+  .usage-proj-detail.collapsed { max-height: 0 !important; }
+  .usage-proj-detail table { margin-top: 4px; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; align-items: center; justify-content: center; }
+  .overlay.show { display: flex; }
+  .modal {
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(50px) saturate(200%); -webkit-backdrop-filter: blur(50px) saturate(200%);
+    border: 1px solid rgba(255,255,255,0.8); border-radius: 20px; padding: 24px;
+    width: 400px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+  }
+  .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 18px; }
+  .fg { margin-bottom: 12px; }
+  .fg label { display: block; font-size: 11px; color: rgba(0,0,0,0.35); margin-bottom: 4px; font-weight: 500; }
+  .fg input, .fg select {
+    width: 100%; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.06); font-size: 14px;
+    font-family: inherit;
+    color: rgba(0,0,0,0.7); background: rgba(255,255,255,0.6);
+  }
+  .fg input:focus, .fg select:focus { outline: none; border-color: rgba(0,113,227,0.3); }
+  .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  .toast {
+    position: fixed; bottom: 28px; right: 28px; padding: 12px 20px; border-radius: 14px;
+    font-size: 13px; font-weight: 500; z-index: 200; opacity: 0; transform: translateY(8px);
+    transition: all 0.3s; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { background: rgba(52,199,89,0.92); }
+  .toast.error { background: rgba(255,59,48,0.92); }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    .container { padding: 20px 16px; }
+    .header h1 { font-size: 22px; }
+    .header .sub { font-size: 12px; }
+    .stats { gap: 8px; }
+    .stat { padding: 12px 14px; }
+    .stat .val { font-size: 18px; }
+    .stat .label { font-size: 10px; }
+    .prov-tab { padding: 12px 14px; gap: 7px; }
+    .prov-tab img { width: 22px; height: 22px; }
+    .prov-tab .tab-name { font-size: 13px; }
+    .prov-panel { padding: 14px; }
+    .model-item { padding: 10px 12px; }
+    .model-id { font-size: 12px; }
+    .model-desc { font-size: 11px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .chat-entry { padding: 14px; font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-text">
+      <h1>AI Gateway</h1>
+      <div class="sub">API Proxy Dashboard</div>
+    </div>
+    <button class="btn sm" onclick="openM()" style="flex-shrink:0">+ Key</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Status</div><div class="val green" id="sStatus">--</div></div>
+    <div class="stat"><div class="label">Providers</div><div class="val" id="sCount">--</div></div>
+    <div class="stat"><div class="label">Uptime</div><div class="val" id="sUp" style="font-size:16px">--</div></div>
+  </div>
+
+  <a href="/chat" class="chat-entry">Start Chat &rarr;</a>
+
+  <div class="glass">
+    <div class="prov-tabs" id="provTabs"></div>
+    <div class="prov-panel" id="provPanel">
+      <div style="padding:20px;color:rgba(0,0,0,0.3);text-align:center;font-size:13px">Loading...</div>
+    </div>
+  </div>
+
+  <div class="glass">
+    <div class="card-head">
+      <h2>Project Keys</h2>
+      <button class="btn sm pri" onclick="openProjM()">+ Project</button>
+    </div>
+    <div class="proj-list" id="projList">
+      <div class="proj-empty">Loading...</div>
+    </div>
+  </div>
+
+  <div class="glass">
+    <div class="usage-head">
+      <h2>Usage & Cost</h2>
+      <select id="usageCurrency" onchange="loadUsage()" style="margin-right:4px">
+        <option value="USD">USD $</option>
+        <option value="CNY">CNY ¥</option>
+      </select>
+      <select id="usageDays" onchange="loadUsage()">
+        <option value="1">Today</option>
+        <option value="7" selected>7 days</option>
+        <option value="30">30 days</option>
+      </select>
+    </div>
+    <div class="usage-body" id="usageBody">
+      <div class="usage-empty">Loading...</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3 id="mTitle">Add API Key</h3>
+    <div class="fg"><label>Provider</label><select id="mProv"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></div>
+    <div class="fg"><label>API Key</label><input type="password" id="mKey" placeholder="sk-..."></div>
+    <div class="fg"><label>Base URL (optional)</label><input type="text" id="mUrl" placeholder="Default if empty"></div>
+    <div class="modal-foot"><button class="btn" onclick="closeM()">Cancel</button><button class="btn pri" onclick="saveK()">Save</button></div>
+  </div>
+</div>
+<div class="overlay" id="projOverlay">
+  <div class="modal">
+    <h3>Add Project</h3>
+    <div class="fg"><label>Project Name</label><input type="text" id="projName" placeholder="e.g. MyApp"></div>
+    <div class="modal-foot"><button class="btn" onclick="closeProjM()">Cancel</button><button class="btn pri" onclick="addProj()">Create</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const B = location.origin;
+const modelsCache = {};
+let providers = [];
+let activeProv = '';
+let selectedModel = '';
+
+async function load() {
+  try {
+    const [h, p] = await Promise.all([
+      fetch(B + '/health').then(r => r.json()),
+      fetch(B + '/providers').then(r => r.json())
+    ]);
+    providers = p;
+
+    const s = document.getElementById('sStatus');
+    s.textContent = h.status === 'ok' ? 'Online' : 'Error';
+    s.className = 'val ' + (h.status === 'ok' ? 'green' : '');
+    const a = p.filter(x => x.available).length;
+    document.getElementById('sCount').textContent = `${a}/${p.length}`;
+
+    fetch(B + '/admin/uptime').then(r => r.json()).then(d => {
+      document.getElementById('sUp').textContent = d.uptime;
+    }).catch(() => {});
+
+    renderTabs();
+    if (!activeProv || !p.find(x => x.name === activeProv)) {
+      activeProv = (p.find(x => x.available) || p[0])?.name || '';
+    }
+    switchProv(activeProv);
+  } catch (e) {
+    document.getElementById('sStatus').textContent = 'Offline';
+    document.getElementById('sStatus').className = 'val';
+  }
+}
+
+function renderTabs() {
+  document.getElementById('provTabs').innerHTML = providers.map(p => `
+    <button class="prov-tab${p.name === activeProv ? ' active' : ''}" onclick="switchProv('${p.name}')">
+      <img src="/logos/${p.name}.png" alt="${p.name}">
+      <span class="tab-name">${p.name}</span>
+      <span class="tab-dot ${p.available ? 'on' : 'off'}"></span>
+    </button>
+  `).join('');
+}
+
+async function switchProv(name) {
+  activeProv = name;
+  renderTabs();
+  const prov = providers.find(p => p.name === name);
+  if (!prov) return;
+
+  const panel = document.getElementById('provPanel');
+
+  if (!prov.available) {
+    panel.innerHTML = `
+      <div class="prov-info-bar">
+        <span class="prov-url">${prov.baseUrl}</span>
+        <span class="tag off">No Key</span>
+        <button class="btn sm" onclick="openM('${name}')">Add Key</button>
+      </div>
+      <div style="padding:20px;text-align:center;color:rgba(0,0,0,0.25);font-size:13px">
+        Configure API key to enable this provider
+      </div>`;
+    return;
+  }
+
+  const models = await loadModels(name);
+  selectedModel = models.length ? models[0].id : '';
+
+  const capSvg = {
+    image: '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.5" cy="6.5" r="1.2"/><path d="M2 11l3.5-3 2.5 2 2.5-2L14 11"/></svg>',
+    audio: '<svg viewBox="0 0 16 16"><path d="M8 2v12M5 5v6M11 5v6M2 7v2M14 7v2"/></svg>',
+    video: '<svg viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="9" height="9" rx="1.5"/><path d="M10.5 6.5L14 4.5v7l-3.5-2"/></svg>',
+    pdf:   '<svg viewBox="0 0 16 16"><path d="M4 2h5l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M9 2v4h4"/></svg>',
+  };
+  const capLabel = { image: 'Img', audio: 'Aud', video: 'Vid', pdf: 'PDF' };
+
+  panel.innerHTML = `
+    <div class="prov-info-bar">
+      <span class="prov-url">${prov.baseUrl}</span>
+      <span class="tag on">Active</span>
+      <button class="btn sm" onclick="openM('${name}')">Edit</button>
+    </div>
+    <div class="model-list">
+      ${models.map((m, i) => `
+        <div class="model-item${i === 0 ? ' selected' : ''}" data-id="${m.id}" onclick="selectModel('${m.id}')">
+          <div class="model-main">
+            <div class="model-row1">
+              <span class="model-id">${m.id}</span>
+              <span class="tier ${m.tier}">${m.tier}</span>
+              ${(m.caps || []).filter(c => c !== 'text').map(c => `<span class="cap" title="${capLabel[c] || c}">${capSvg[c] || ''}</span>`).join('')}
+              <span class="model-price">${m.price ? '$'+m.price.in+' / $'+m.price.out : ''}</span>
+            </div>
+            <div class="model-row2">
+              <span class="model-desc">${m.desc}</span>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="test-bar">
+      <button class="btn pri" onclick="testConn()">Test Selected</button>
+      <span style="font-size:12px;color:rgba(0,0,0,0.3)" id="testHint">${selectedModel}</span>
+    </div>
+    <div class="result" id="tRes"></div>`;
+}
+
+async function loadModels(provider) {
+  if (modelsCache[provider]) return modelsCache[provider];
+  try {
+    const models = await fetch(`${B}/models/${provider}`).then(r => r.json());
+    modelsCache[provider] = models;
+    return models;
+  } catch { return []; }
+}
+
+function selectModel(id) {
+  selectedModel = id;
+  document.querySelectorAll('.model-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  const hint = document.getElementById('testHint');
+  if (hint) hint.textContent = id;
+}
+
+async function testConn() {
+  if (!activeProv || !selectedModel) return;
+  const el = document.getElementById('tRes');
+  if (!el) return;
+  el.className = 'result load'; el.style.display = 'block';
+  el.textContent = `Testing ${selectedModel}...`;
+  try {
+    const d = await fetch(`${B}/admin/test/${activeProv}?model=${encodeURIComponent(selectedModel)}`).then(r => r.json());
+    if (d.success) {
+      el.className = 'result ok';
+      el.textContent = `${d.model} — "${d.reply}" (${d.latency}ms)`;
+    } else {
+      el.className = 'result err';
+      el.textContent = `${selectedModel}: ${d.error}`;
+    }
+  } catch (e) { el.className = 'result err'; el.textContent = e.message; }
+}
+
+function openM(p) {
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('mTitle').textContent = p ? `Edit ${p}` : 'Add API Key';
+  if (p) document.getElementById('mProv').value = p;
+  document.getElementById('mKey').value = '';
+  document.getElementById('mUrl').value = '';
+}
+function closeM() { document.getElementById('overlay').classList.remove('show'); }
+
+async function saveK() {
+  const prov = document.getElementById('mProv').value;
+  const key = document.getElementById('mKey').value;
+  const url = document.getElementById('mUrl').value;
+  if (!key) { showT('Please enter a key', 'error'); return; }
+  try {
+    const d = await fetch(B + '/admin/key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: prov, apiKey: key, baseUrl: url || undefined })
+    }).then(r => r.json());
+    if (d.success) { showT(`${prov} updated`, 'success'); closeM(); load(); }
+    else showT(d.error, 'error');
+  } catch (e) { showT(e.message, 'error'); }
+}
+
+function showT(m, t) {
+  const e = document.getElementById('toast');
+  e.textContent = m; e.className = `toast ${t} show`;
+  setTimeout(() => e.classList.remove('show'), 2500);
+}
+
+// --- Projects ---
+async function loadProjects() {
+  try {
+    const projs = await fetch(B + '/admin/projects').then(r => r.json());
+    const list = document.getElementById('projList');
+    if (!projs.length) {
+      list.innerHTML = '<div class="proj-empty">No projects yet. Add one to generate an API key.</div>';
+      return;
+    }
+    list.innerHTML = projs.map(p => {
+      const masked = p.key.slice(0, 6) + '...' + p.key.slice(-6);
+      const date = new Date(p.createdAt).toLocaleDateString();
+      return `
+        <div class="proj-item">
+          <button class="proj-toggle ${p.enabled ? 'on' : 'off'}" onclick="toggleProj('${p.name}', ${!p.enabled})"></button>
+          <div class="proj-info">
+            <div class="proj-name">${p.name}</div>
+            <div class="proj-key" onclick="copyKey('${p.key}')" title="Click to copy">${masked}</div>
+            <div class="proj-date">Created ${date}</div>
+          </div>
+          <div class="proj-acts">
+            <button class="btn sm" onclick="copyKey('${p.key}')">Copy</button>
+            <button class="btn sm" onclick="regenProj('${p.name}')">Regen</button>
+            <button class="btn sm" onclick="delProj('${p.name}')" style="color:#ff3b30">Del</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch {}
+}
+
+function openProjM() {
+  document.getElementById('projOverlay').classList.add('show');
+  document.getElementById('projName').value = '';
+}
+function closeProjM() { document.getElementById('projOverlay').classList.remove('show'); }
+
+async function addProj() {
+  const name = document.getElementById('projName').value.trim();
+  if (!name) { showT('Enter project name', 'error'); return; }
+  const d = await fetch(B + '/admin/projects', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  }).then(r => r.json());
+  if (d.success) {
+    showT(`${name} created`, 'success');
+    closeProjM();
+    loadProjects();
+  } else showT(d.error, 'error');
+}
+
+async function toggleProj(name, enabled) {
+  await fetch(`${B}/admin/projects/${encodeURIComponent(name)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled })
+  });
+  loadProjects();
+}
+
+async function regenProj(name) {
+  const d = await fetch(`${B}/admin/projects/${encodeURIComponent(name)}/regenerate`, { method: 'POST' }).then(r => r.json());
+  if (d.success) { showT('Key regenerated', 'success'); loadProjects(); }
+  else showT(d.error, 'error');
+}
+
+async function delProj(name) {
+  const d = await fetch(`${B}/admin/projects/${encodeURIComponent(name)}`, { method: 'DELETE' }).then(r => r.json());
+  if (d.success) { showT(`${name} deleted`, 'success'); loadProjects(); }
+  else showT(d.error, 'error');
+}
+
+function copyKey(key) {
+  navigator.clipboard.writeText(key).then(() => showT('Key copied', 'success'));
+}
+
+// --- Usage ---
+let rateData = { USD_CNY: 7.24, updatedAt: null };
+fetch(B + '/admin/rate').then(r => r.json()).then(d => { rateData = d; }).catch(() => {});
+
+function fmtTokens(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function fmtCost(c, currency) {
+  const sym = currency === 'CNY' ? '¥' : '$';
+  const val = currency === 'CNY' ? c * rateData.USD_CNY : c;
+  if (val >= 100) return sym + val.toFixed(1);
+  if (val >= 1) return sym + val.toFixed(2);
+  if (val >= 0.01) return sym + val.toFixed(3);
+  if (val > 0) return sym + val.toFixed(4);
+  return sym + '0';
+}
+
+const usageOpenState = {}; // track which projects are expanded
+
+function projDisplayName(name) {
+  if (name === '_chat') return 'Built-in Chat';
+  if (name === '_test') return 'Dashboard Test';
+  return name;
+}
+
+async function loadUsage() {
+  const days = document.getElementById('usageDays').value;
+  const currency = document.getElementById('usageCurrency').value;
+  const body = document.getElementById('usageBody');
+  try {
+    const d = await fetch(`${B}/admin/usage/summary?days=${days}`).then(r => r.json());
+    if (d.totalRequests === 0) {
+      body.innerHTML = '<div class="usage-empty">No usage data yet</div>';
+      return;
+    }
+
+    const rateNote = currency === 'CNY' ? `<span style="font-size:10px;color:rgba(0,0,0,0.25);margin-left:6px">1 USD = ${rateData.USD_CNY.toFixed(2)} CNY</span>` : '';
+
+    // Build per-project collapsible groups
+    let groups = '';
+    const projEntries = Object.entries(d.byProject).sort((a, b) => b[1].cost - a[1].cost);
+    for (const [projName, p] of projEntries) {
+      const isOpen = usageOpenState[projName] !== false; // default open
+      const modelEntries = Object.entries(p.models).sort((a, b) => b[1].cost - a[1].cost);
+
+      let rows = '';
+      for (const [modelKey, m] of modelEntries) {
+        const cacheRate = m.inputTokens > 0 ? Math.round((m.cacheHitTokens / m.inputTokens) * 100) : 0;
+        rows += `<tr>
+          <td>${modelKey}</td>
+          <td class="num">${m.count}</td>
+          <td class="num">${fmtTokens(m.inputTokens)}${cacheRate > 0 ? ' <span style="color:#34c759;font-size:10px">(' + cacheRate + '%hit)</span>' : ''}</td>
+          <td class="num">${fmtTokens(m.outputTokens)}</td>
+          <td class="num cost-cell">${fmtCost(m.cost, currency)}</td>
+        </tr>`;
+      }
+
+      groups += `
+        <div class="usage-proj-group">
+          <div class="usage-proj-header" onclick="toggleUsageProj('${projName}')">
+            <span class="usage-proj-arrow${isOpen ? ' open' : ''}" id="arrow_${projName}">&#9654;</span>
+            <span class="usage-proj-name">${projDisplayName(projName)}</span>
+            <div class="usage-proj-summary">
+              <span>${p.requests} reqs</span>
+              <span class="cost-val">${fmtCost(p.cost, currency)}</span>
+            </div>
+          </div>
+          <div class="usage-proj-detail${isOpen ? '' : ' collapsed'}" id="detail_${projName}">
+            <table class="usage-table">
+              <thead><tr><th>Model</th><th style="text-align:right">Reqs</th><th style="text-align:right">Input</th><th style="text-align:right">Output</th><th style="text-align:right">Cost</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    body.innerHTML = `
+      <div class="usage-total">
+        <div class="usage-stat"><div class="u-label">Requests</div><div class="u-val">${d.totalRequests}</div></div>
+        <div class="usage-stat"><div class="u-label">Est. Cost${rateNote}</div><div class="u-val cost">${fmtCost(d.totalCost, currency)}</div></div>
+      </div>
+      ${groups}`;
+  } catch { body.innerHTML = '<div class="usage-empty">Failed to load usage</div>'; }
+}
+
+function toggleUsageProj(name) {
+  const isOpen = usageOpenState[name] !== false;
+  usageOpenState[name] = !isOpen;
+  const detail = document.getElementById('detail_' + name);
+  const arrow = document.getElementById('arrow_' + name);
+  if (detail) detail.classList.toggle('collapsed', isOpen);
+  if (arrow) arrow.classList.toggle('open', !isOpen);
+}
+
+load();
+loadProjects();
+loadUsage();
+setInterval(load, 30000);
+setInterval(loadUsage, 10000);
+</script>
+</body>
+</html>

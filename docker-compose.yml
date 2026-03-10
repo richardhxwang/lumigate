@@ -1,0 +1,21 @@
+services:
+  ai-api-proxy:
+    build: .
+    container_name: ai-api-proxy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+
+  cloudflare-aigateway:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-aigateway
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN_AIGATEWAY}
+    env_file:
+      - .env
+    depends_on:
+      - ai-api-proxy
+    restart: unless-stopped
