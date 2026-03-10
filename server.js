@@ -3,9 +3,13 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const dns = require("dns");
+const { promisify } = require("util");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
+
+const dnsLookup = promisify(dns.lookup);
 
 function safeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -52,6 +56,46 @@ function validateProjectName(name) {
   if (/[<>"';&|`$\\]/.test(name)) return false;
   return true;
 }
+
+// F-03: Check if hostname resolves to a private/internal IP
+function isPrivateIP(ip) {
+  if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.0\.0\.0|169\.254\.)/.test(ip)) return true;
+  if (ip === "::1" || ip === "[::1]" || ip.startsWith("fe80:") || ip.startsWith("fc00:") || ip.startsWith("fd")) return true;
+  if (ip === "169.254.169.254") return true;
+  return false;
+}
+
+// F-06: Normalize IP for rate-limit keying (handle IPv6-mapped IPv4)
+function normalizeIP(req) {
+  const forwarded = req.headers["x-forwarded-for"]?.split(",")[0]?.trim();
+  const ip = forwarded || req.ip || "unknown";
+  if (ip.startsWith("::ffff:")) return ip.slice(7);
+  return ip;
+}
+
+// F-03: Provider hostname allowlist for baseUrl validation
+const PROVIDER_HOST_ALLOWLIST = new Set([
+  "api.openai.com",
+  "api.anthropic.com",
+  "generativelanguage.googleapis.com",
+  "api.deepseek.com",
+  "api.moonshot.cn",
+  "ark.cn-beijing.volces.com",
+  "dashscope.aliyuncs.com",
+  "api.minimax.chat",
+]);
+
+// F-04: Allowed upstream paths per provider (prefix match)
+const ALLOWED_UPSTREAM_PATHS = {
+  openai:     ["/v1/chat/completions", "/v1/embeddings", "/v1/audio/", "/v1/images/", "/v1/models"],
+  anthropic:  ["/v1/messages"],
+  gemini:     ["/v1beta/openai/chat/completions", "/v1beta/openai/embeddings"],
+  deepseek:   ["/v1/chat/completions"],
+  kimi:       ["/v1/chat/completions"],
+  doubao:     ["/chat/completions", "/embeddings"],
+  qwen:       ["/v1/chat/completions", "/v1/embeddings"],
+  minimax:    ["/v1/chat/completions"],
+};
 
 // --- Data layer ---
 const DATA_DIR = path.join(__dirname, "data");
@@ -329,34 +373,35 @@ app.use(cors({
 }));
 
 // 3. Rate limiting
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 600, // 600 req/min per IP — sized for AI-driven apps with burst traffic
+const rateLimitOpts = {
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
+  keyGenerator: normalizeIP,
+  validate: { keyGeneratorIpFallback: false }, // F-06: our normalizeIP handles IPv6
+};
+
+const apiLimiter = rateLimit({
+  ...rateLimitOpts,
+  windowMs: 60 * 1000,
+  max: 600, // 600 req/min per IP — sized for AI-driven apps with burst traffic
   message: { error: "Too many requests, please try again later" },
 });
 
 const adminLimiter = rateLimit({
+  ...rateLimitOpts,
   windowMs: 60 * 1000,
   max: 120, // 120 req/min for admin endpoints
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
 });
 
 const loginLimiter = rateLimit({
+  ...rateLimitOpts,
   windowMs: 15 * 60 * 1000,
   max: 10, // 10 login attempts per 15 min
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
   message: { error: "Too many login attempts" },
 });
 
-// 4. Body parser with size limit
-app.use(express.json({ limit: "100mb" }));
+// 4. Body parser with size limit (F-09: reduced from 100mb)
+app.use(express.json({ limit: "10mb" }));
 
 // 5. Request timeout
 app.use((req, res, next) => {
@@ -370,7 +415,13 @@ app.use((req, res, next) => {
 function adminAuth(req, res, next) {
   const cookies = parseCookies(req);
   const token = cookies.admin_token || req.headers["x-admin-token"];
-  if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  // F-07: Accept raw ADMIN_SECRET directly (for CLI/TUI)
+  if (safeEqual(token, ADMIN_SECRET)) return next();
+
+  // Accept session token
+  if (!sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
   const created = sessions.get(token);
   const maxAge = 24 * 60 * 60 * 1000;
   if (Date.now() - created > maxAge) {
@@ -382,6 +433,17 @@ function adminAuth(req, res, next) {
     if (Date.now() - v > maxAge) sessions.delete(k);
   }
   return next();
+}
+
+// Check if request has valid admin session (non-middleware, returns boolean)
+function hasAdminSession(req) {
+  const cookies = parseCookies(req);
+  const token = cookies.admin_token;
+  if (!token) return false;
+  if (safeEqual(token, ADMIN_SECRET)) return true;
+  if (!sessions.has(token)) return false;
+  const created = sessions.get(token);
+  return (Date.now() - created) <= 24 * 60 * 60 * 1000;
 }
 
 // ============================================================
@@ -418,12 +480,13 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Serve chat — inject internal chat key so it can call /v1 without project key
-const chatHtml = fs.readFileSync(path.join(__dirname, "public", "chat.html"), "utf8")
-  .replace("__INTERNAL_CHAT_KEY__", INTERNAL_CHAT_KEY);
+// F-02: Serve chat — requires admin session (no key exposed to browser)
 app.get("/chat", (req, res) => {
+  if (!hasAdminSession(req)) {
+    return res.redirect("/");
+  }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.type("html").send(chatHtml);
+  res.sendFile(path.join(__dirname, "public", "chat.html"));
 });
 
 // ============================================================
@@ -693,7 +756,7 @@ app.get("/admin/usage/summary", (req, res) => {
 });
 
 // Update API key at runtime + persist to .env (sanitized)
-app.post("/admin/key", (req, res) => {
+app.post("/admin/key", async (req, res) => {
   const { provider, apiKey, baseUrl } = req.body;
   if (!provider || !apiKey) {
     return res.json({ success: false, error: "provider and apiKey required" });
@@ -708,14 +771,34 @@ app.post("/admin/key", (req, res) => {
   if (!/^[a-zA-Z0-9_\-\.]+$/.test(safeKey)) {
     return res.status(400).json({ success: false, error: "Invalid API key format — only alphanumeric, underscore, hyphen, and dot allowed" });
   }
+  // F-03: Validate baseUrl with URL parsing, hostname allowlist, and DNS resolution
   if (safeUrl) {
-    if (!(safeUrl.startsWith("https://") || safeUrl.startsWith("http://localhost"))) {
-      return res.status(400).json({ success: false, error: "Invalid baseUrl — must start with https:// or http://localhost" });
+    let parsed;
+    try {
+      parsed = new URL(safeUrl);
+    } catch {
+      return res.status(400).json({ success: false, error: "Invalid baseUrl — malformed URL" });
     }
-    // Block private/internal IPs and cloud metadata endpoints
-    const blocked = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|127\.|0\.0\.0\.0|localhost:\d+\/admin|\[::1\]|metadata\.google|169\.254\.169\.254)/i;
-    if (blocked.test(safeUrl)) {
-      return res.status(400).json({ success: false, error: "Invalid baseUrl — private/internal addresses are not allowed" });
+    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") {
+      return res.status(400).json({ success: false, error: "Invalid baseUrl — must use https:// (except localhost)" });
+    }
+    // Hostname allowlist: only known provider hosts or localhost
+    if (parsed.hostname !== "localhost" && !PROVIDER_HOST_ALLOWLIST.has(parsed.hostname)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid baseUrl — hostname '${parsed.hostname}' is not in the provider allowlist. Allowed: ${[...PROVIDER_HOST_ALLOWLIST].join(", ")}`,
+      });
+    }
+    // DNS resolution check: block private IPs (prevents DNS rebinding)
+    if (parsed.hostname !== "localhost") {
+      try {
+        const { address } = await dnsLookup(parsed.hostname);
+        if (isPrivateIP(address)) {
+          return res.status(400).json({ success: false, error: "Invalid baseUrl — resolves to a private/internal IP address" });
+        }
+      } catch {
+        return res.status(400).json({ success: false, error: "Invalid baseUrl — DNS resolution failed" });
+      }
     }
   }
 
@@ -741,7 +824,8 @@ app.post("/admin/key", (req, res) => {
         envContent += `\n${urlName}=${safeUrl}`;
       }
     }
-    fs.writeFileSync(envPath, envContent);
+    // F-05: Write with strict permissions (owner read/write only)
+    fs.writeFileSync(envPath, envContent, { mode: 0o600 });
   } catch (e) {
     console.error("Failed to persist .env:", e.message);
   }
@@ -819,15 +903,20 @@ const proxyMiddleware = createProxyMiddleware({
 });
 
 app.use("/v1/:provider", apiLimiter, (req, res, next) => {
-  // Identify project: internal chat key, project key, or reject
-  let projectName = "_chat";
+  // Identify project: internal chat key, admin session, project key, or reject
+  let projectName;
   const projectKey =
     req.headers["x-project-key"] ||
     (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
 
-  if (projectKey === INTERNAL_CHAT_KEY) {
+  if (safeEqual(projectKey, INTERNAL_CHAT_KEY)) {
+    // Server-internal chat key (never exposed to browser)
     projectName = "_chat";
-  } else if (projects.length > 0) {
+  } else if (hasAdminSession(req)) {
+    // F-02: Admin session cookie (from /chat page)
+    projectName = "_chat";
+  } else {
+    // F-01: Always enforce project-key validation (removed projects.length bypass)
     const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
     if (!proj) {
       return res.status(401).json({
@@ -841,11 +930,19 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
   const providerName = req.params.provider.toLowerCase();
   const provider = PROVIDERS[providerName];
 
+  // F-10: Don't leak provider list in error response
   if (!provider) {
-    return res.status(404).json({ error: `Unknown provider: ${providerName}`, available: Object.keys(PROVIDERS) });
+    return res.status(404).json({ error: "Unknown provider" });
   }
   if (!provider.apiKey) {
-    return res.status(403).json({ error: `Provider '${providerName}' has no API key configured` });
+    return res.status(403).json({ error: "Provider has no API key configured" });
+  }
+
+  // F-04: Validate upstream path against allowlist
+  const incomingSubpath = req.path.replace(new RegExp(`^/v1/${providerName}`, "i"), "");
+  const allowedPaths = ALLOWED_UPSTREAM_PATHS[providerName];
+  if (allowedPaths && !allowedPaths.some(p => incomingSubpath.startsWith(p))) {
+    return res.status(403).json({ error: "Requested API path is not allowed for this provider" });
   }
 
   // Stash project name for onProxyRes
