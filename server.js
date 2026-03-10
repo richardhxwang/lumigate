@@ -399,7 +399,8 @@ app.get("/health", (req, res) => {
 app.get("/providers", (req, res) => {
   res.json(Object.entries(PROVIDERS).map(([name, cfg]) => ({
     name,
-    configured: !!cfg.apiKey,
+    baseUrl: cfg.baseUrl,
+    available: !!cfg.apiKey,
   })));
 });
 
