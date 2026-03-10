@@ -20,7 +20,7 @@ Nginx + Express.js. All your AI providers behind a single endpoint with hot main
 - **Dashboard** — 4-tab SPA with Canvas charts, mobile responsive, Apple HIG style
 - **Built-in Chat** — SSE streaming chat interface supporting all providers
 - **CLI & TUI** — Terminal tools (`cli.sh` for quick commands, `tui.js` for full-screen interface)
-- **Security** — Admin auth (cookie + token), rate limiting, CORS restriction, input sanitization, graceful shutdown
+- **Security** — Session-based auth, timing-safe key comparison, SSRF protection, rate limiting, CORS, input sanitization
 - **Docker-Native** — Nginx + Express + Cloudflare Tunnel, healthcheck, volume-persisted data
 - **Zero-Downtime Config** — Change API keys, add providers via dashboard without restart
 
@@ -158,14 +158,57 @@ newprovider: [
 | Layer | Protection |
 |-------|-----------|
 | **Cloudflare Access** | Google OAuth for dashboard, bypass for `/v1/*` API paths |
-| **Admin Auth** | Cookie + `X-Admin-Token` header, bcrypt-equivalent secret |
+| **Session Auth** | Random session tokens (not raw secret), 24h expiry, HttpOnly + Secure + SameSite cookies |
+| **Timing-Safe Auth** | `crypto.timingSafeEqual` for all secret and key comparisons |
 | **Project Keys** | 48-char random hex per project, enable/disable/regenerate |
 | **Rate Limiting** | 600 req/min proxy, 120 req/min admin, 10/15min login |
+| **Anti-Spoofing** | Nginx overrides `X-Forwarded-For` with `$remote_addr`, prevents rate limit bypass |
+| **SSRF Protection** | Private IPs, cloud metadata, and internal addresses blocked in baseUrl |
 | **CORS** | Same-origin only |
-| **Input Sanitization** | Project names validated, .env writes sanitized against injection |
-| **XSS Prevention** | HTML-escaped user data in dashboard |
-| **Graceful Shutdown** | Connection draining, data flush on SIGTERM |
-| **Docker Healthcheck** | HTTP `/health` every 30s |
+| **Input Sanitization** | Project names validated, `.env` writes sanitized, JSON body capped at 100MB |
+| **XSS Prevention** | HTML-escaped user data, no stack traces in error responses |
+| **Security Headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, no `X-Powered-By` |
+| **Docker Hardening** | Non-root user, `.dockerignore` excludes secrets, `server_tokens off` |
+| **Graceful Shutdown** | Connection draining, atomic data flush on SIGTERM |
+
+### Penetration Test Results
+
+All endpoints tested against authentication bypass, injection, path traversal, SSRF, rate limit bypass, and information leakage. Results:
+
+| Category | Tests | Result |
+|----------|-------|--------|
+| Authentication (brute force, fake tokens, SQL injection) | 5 | All PASS |
+| Rate limit bypass (X-Forwarded-For spoofing) | 2 | All PASS |
+| Path traversal & injection (XSS, command injection) | 3 | All PASS |
+| Information leakage (API keys, stack traces, CORS) | 5 | All PASS |
+| SSRF via baseUrl | 1 | PASS (private IP blocklist) |
+| Cookie security (HttpOnly, Secure, SameSite) | 2 | All PASS |
+| Input validation (oversized payload, prototype pollution) | 4 | All PASS |
+
+## Performance
+
+Designed to run on lightweight hardware (NAS, mini PC) while supporting enterprise-grade traffic (~10k DAU).
+
+### Optimizations
+
+- **Single proxy instance** — One shared `http-proxy-middleware` with connection pooling, not per-request
+- **SSE tail buffer** — Only retains last 8KB of streaming responses for usage parsing (not full body)
+- **Gzip compression** — 70% size reduction (62KB → 19KB dashboard)
+- **In-memory caching** — Chat HTML cached at startup, one-time data directory check
+- **Atomic writes** — All data files use tmp+rename pattern to prevent corruption
+- **Auto-pruning** — Usage data older than 365 days is automatically cleaned up
+- **Nginx keepalive** — Connection pool to upstream, eliminates per-request TCP handshake
+
+### Benchmark (Apple Mac mini M4, Docker)
+
+| Scenario | Concurrency | QPS | Avg Latency | Errors |
+|----------|-------------|-----|-------------|--------|
+| Health check | 200 | 4,270 | 47ms | 0% |
+| Dashboard (62KB gzipped) | 200 | 2,087 | 96ms | 0% |
+| Peak burst | 500 | 4,978 | 100ms | 0% |
+| Auth rejection (proxy path) | 200 | 4,240 | 47ms | 0% |
+
+**Resource usage:** ~93MB total (App 83MB + Nginx 10MB). Stable under sustained load with no memory leaks.
 
 ## Project Structure
 
