@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -362,7 +362,7 @@
 <div class="overlay" id="overlay">
   <div class="modal">
     <h3 id="mTitle">Add API Key</h3>
-    <div class="fg"><label>Provider</label><select id="mProv"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></div>
+    <div class="fg"><label>Provider</label><select id="mProv"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="kimi">Kimi</option><option value="doubao">Doubao</option><option value="qwen">Qwen</option><option value="minimax">MiniMax</option></select></div>
     <div class="fg"><label>API Key</label><input type="password" id="mKey" placeholder="sk-..."></div>
     <div class="fg"><label>Base URL (optional)</label><input type="text" id="mUrl" placeholder="Default if empty"></div>
     <div class="modal-foot"><button class="btn" onclick="closeM()">Cancel</button><button class="btn pri" onclick="saveK()">Save</button></div>
@@ -375,6 +375,13 @@
     <div class="modal-foot"><button class="btn" onclick="closeProjM()">Cancel</button><button class="btn pri" onclick="addProj()">Create</button></div>
   </div>
 </div>
+<div class="overlay" id="loginOverlay">
+  <div class="modal">
+    <h3>Admin Login</h3>
+    <div class="fg"><label>Admin Secret</label><input type="password" id="loginSecret" placeholder="Enter ADMIN_SECRET"></div>
+    <div class="modal-foot"><button class="btn pri" onclick="doLogin()">Login</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -383,6 +390,45 @@ const modelsCache = {};
 let providers = [];
 let activeProv = '';
 let selectedModel = '';
+let adminAuthed = false;
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Admin auth
+async function checkAuth() {
+  try {
+    const d = await fetch(B + '/admin/auth').then(r => r.json());
+    adminAuthed = d.authenticated;
+    if (!adminAuthed) document.getElementById('loginOverlay').classList.add('show');
+    return adminAuthed;
+  } catch { return false; }
+}
+
+async function doLogin() {
+  const secret = document.getElementById('loginSecret').value;
+  if (!secret) return;
+  try {
+    const r = await fetch(B + '/admin/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret })
+    });
+    if (r.ok) {
+      document.getElementById('loginOverlay').classList.remove('show');
+      adminAuthed = true;
+      load(); loadProjects(); loadUsage();
+    } else {
+      showT('Invalid admin secret', 'error');
+    }
+  } catch (e) { showT(e.message, 'error'); }
+}
+
+document.getElementById('loginSecret').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
 
 async function load() {
   try {
@@ -563,18 +609,20 @@ async function loadProjects() {
     list.innerHTML = projs.map(p => {
       const masked = p.key.slice(0, 6) + '...' + p.key.slice(-6);
       const date = new Date(p.createdAt).toLocaleDateString();
+      const safeName = esc(p.name);
+      const safeKey = esc(p.key);
       return `
         <div class="proj-item">
-          <button class="proj-toggle ${p.enabled ? 'on' : 'off'}" onclick="toggleProj('${p.name}', ${!p.enabled})"></button>
+          <button class="proj-toggle ${p.enabled ? 'on' : 'off'}" onclick="toggleProj('${safeName}', ${!p.enabled})"></button>
           <div class="proj-info">
-            <div class="proj-name">${p.name}</div>
-            <div class="proj-key" onclick="copyKey('${p.key}')" title="Click to copy">${masked}</div>
-            <div class="proj-date">Created ${date}</div>
+            <div class="proj-name">${safeName}</div>
+            <div class="proj-key" onclick="copyKey('${safeKey}')" title="Click to copy">${esc(masked)}</div>
+            <div class="proj-date">Created ${esc(date)}</div>
           </div>
           <div class="proj-acts">
-            <button class="btn sm" onclick="copyKey('${p.key}')">Copy</button>
-            <button class="btn sm" onclick="regenProj('${p.name}')">Regen</button>
-            <button class="btn sm" onclick="delProj('${p.name}')" style="color:#ff3b30">Del</button>
+            <button class="btn sm" onclick="copyKey('${safeKey}')">Copy</button>
+            <button class="btn sm" onclick="regenProj('${safeName}')">Regen</button>
+            <button class="btn sm" onclick="delProj('${safeName}')" style="color:#ff3b30">Del</button>
           </div>
         </div>`;
     }).join('');
@@ -687,9 +735,9 @@ async function loadUsage() {
 
       groups += `
         <div class="usage-proj-group">
-          <div class="usage-proj-header" onclick="toggleUsageProj('${projName}')">
-            <span class="usage-proj-arrow${isOpen ? ' open' : ''}" id="arrow_${projName}">&#9654;</span>
-            <span class="usage-proj-name">${projDisplayName(projName)}</span>
+          <div class="usage-proj-header" onclick="toggleUsageProj('${esc(projName)}')">
+            <span class="usage-proj-arrow${isOpen ? ' open' : ''}" id="arrow_${esc(projName)}">&#9654;</span>
+            <span class="usage-proj-name">${esc(projDisplayName(projName))}</span>
             <div class="usage-proj-summary">
               <span>${p.requests} reqs</span>
               <span class="cost-val">${fmtCost(p.cost, currency)}</span>
@@ -722,11 +770,17 @@ function toggleUsageProj(name) {
   if (arrow) arrow.classList.toggle('open', !isOpen);
 }
 
-load();
-loadProjects();
-loadUsage();
+// Init: check auth first, then load everything
+(async () => {
+  await load(); // health/providers are public
+  const authed = await checkAuth();
+  if (authed) {
+    loadProjects();
+    loadUsage();
+  }
+})();
 setInterval(load, 30000);
-setInterval(loadUsage, 10000);
+setInterval(() => { if (adminAuthed) loadUsage(); }, 10000);
 </script>
 </body>
 </html>

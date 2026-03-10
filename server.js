@@ -2,22 +2,62 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
-const { createProxyMiddleware } = require("http-proxy-middleware");
-require("dotenv").config();
-
 const crypto = require("crypto");
+const { createProxyMiddleware } = require("http-proxy-middleware");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const startTime = Date.now();
 
-// Project keys storage
-const PROJECTS_FILE = path.join(__dirname, "data", "projects.json");
+// --- Security: Admin secret & internal chat key ---
+const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(20).toString("hex");
+const INTERNAL_CHAT_KEY = crypto.randomBytes(20).toString("hex"); // rotates on restart
+
+if (!process.env.ADMIN_SECRET) {
+  console.log(`\n⚠  No ADMIN_SECRET in .env — generated temporary: ${ADMIN_SECRET}`);
+  console.log(`   Set ADMIN_SECRET in .env to persist across restarts\n`);
+}
+
+// --- Helpers ---
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || "").split(";").forEach((c) => {
+    const [k, ...v] = c.trim().split("=");
+    if (k) cookies[k.trim()] = decodeURIComponent(v.join("="));
+  });
+  return cookies;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function sanitizeEnvValue(v) {
+  return String(v).replace(/[\r\n]/g, "").trim();
+}
+
+function validateProjectName(name) {
+  if (!name || typeof name !== "string") return false;
+  if (name.length > 64) return false;
+  if (/[<>"';&|`$\\]/.test(name)) return false;
+  return true;
+}
+
+// --- Data layer ---
+const DATA_DIR = path.join(__dirname, "data");
+const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
+const USAGE_FILE = path.join(DATA_DIR, "usage.json");
+const RATE_FILE = path.join(DATA_DIR, "exchange-rate.json");
+
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 function loadProjects() {
   try {
-    const dir = path.dirname(PROJECTS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    ensureDataDir();
     if (fs.existsSync(PROJECTS_FILE)) {
       return JSON.parse(fs.readFileSync(PROJECTS_FILE, "utf8"));
     }
@@ -27,16 +67,14 @@ function loadProjects() {
   return [];
 }
 
-function saveProjects(projects) {
-  const dir = path.dirname(PROJECTS_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2));
+function saveProjects(list) {
+  ensureDataDir();
+  fs.writeFileSync(PROJECTS_FILE, JSON.stringify(list, null, 2));
 }
 
 let projects = loadProjects();
 
 // --- Exchange rate ---
-const RATE_FILE = path.join(__dirname, "data", "exchange-rate.json");
 let exchangeRate = { USD_CNY: 7.24, updatedAt: null };
 
 function loadRate() {
@@ -55,8 +93,7 @@ async function fetchExchangeRate() {
     const data = await resp.json();
     if (data.result === "success" && data.rates?.CNY) {
       exchangeRate = { USD_CNY: data.rates.CNY, updatedAt: new Date().toISOString() };
-      const dir = path.dirname(RATE_FILE);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      ensureDataDir();
       fs.writeFileSync(RATE_FILE, JSON.stringify(exchangeRate, null, 2));
       console.log(`Exchange rate updated: 1 USD = ${exchangeRate.USD_CNY} CNY`);
     }
@@ -65,7 +102,6 @@ async function fetchExchangeRate() {
   }
 }
 
-// Fetch on startup if stale (>7 days), then weekly
 (function initRate() {
   const age = exchangeRate.updatedAt ? Date.now() - new Date(exchangeRate.updatedAt).getTime() : Infinity;
   if (age > 7 * 24 * 60 * 60 * 1000) fetchExchangeRate();
@@ -73,8 +109,6 @@ async function fetchExchangeRate() {
 setInterval(fetchExchangeRate, 7 * 24 * 60 * 60 * 1000);
 
 // --- Usage tracking ---
-const USAGE_FILE = path.join(__dirname, "data", "usage.json");
-
 function loadUsage() {
   try {
     if (fs.existsSync(USAGE_FILE)) {
@@ -91,8 +125,7 @@ let usageDirty = false;
 
 function saveUsage() {
   try {
-    const dir = path.dirname(USAGE_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    ensureDataDir();
     fs.writeFileSync(USAGE_FILE, JSON.stringify(usageData, null, 2));
     usageDirty = false;
   } catch (e) {
@@ -100,7 +133,6 @@ function saveUsage() {
   }
 }
 
-// Flush usage to disk every 30s if dirty
 setInterval(() => { if (usageDirty) saveUsage(); }, 30000);
 
 function recordUsage(project, provider, model, tokens) {
@@ -124,12 +156,9 @@ function getModelInfo(provider, modelId) {
   return models.find((x) => x.id === modelId) || null;
 }
 
-// calcCost: freeRPD = free requests/day for this model, dailyCount = how many used today
 function calcCost(price, stats, freeRPD, dailyCount) {
   if (!price) return 0;
-  // If all requests fall within free tier, cost is 0
   if (freeRPD && dailyCount <= freeRPD) return 0;
-  // If partially free: ratio of paid requests
   let paidRatio = 1;
   if (freeRPD && dailyCount > freeRPD && stats.count > 0) {
     const paidCount = Math.max(0, stats.count - Math.max(0, freeRPD - (dailyCount - stats.count)));
@@ -142,35 +171,22 @@ function calcCost(price, stats, freeRPD, dailyCount) {
   return raw * paidRatio;
 }
 
-// Extract token usage from provider API response body
 function extractTokens(providerName, body) {
   try {
     const j = typeof body === "string" ? JSON.parse(body) : body;
     if (providerName === "anthropic") {
       const u = j.usage || {};
-      return {
-        input: (u.input_tokens || 0),
-        cacheHit: (u.cache_read_input_tokens || 0),
-        output: (u.output_tokens || 0),
-      };
+      return { input: u.input_tokens || 0, cacheHit: u.cache_read_input_tokens || 0, output: u.output_tokens || 0 };
     }
-    // OpenAI / DeepSeek / Gemini (OpenAI-compatible)
     const u = j.usage || {};
-    const cached = u.prompt_tokens_details?.cached_tokens
-      || u.prompt_cache_hit_tokens || 0;
-    return {
-      input: (u.prompt_tokens || u.total_tokens || 0),
-      cacheHit: cached,
-      output: (u.completion_tokens || 0),
-    };
+    const cached = u.prompt_tokens_details?.cached_tokens || u.prompt_cache_hit_tokens || 0;
+    return { input: u.prompt_tokens || u.total_tokens || 0, cacheHit: cached, output: u.completion_tokens || 0 };
   } catch {
     return { input: 0, cacheHit: 0, output: 0 };
   }
 }
 
-// For streaming SSE, extract usage from last data chunks
 function extractTokensFromSSE(providerName, chunks) {
-  // Walk backwards through chunks to find usage data
   const lines = chunks.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
@@ -179,106 +195,213 @@ function extractTokensFromSSE(providerName, chunks) {
     if (data === "[DONE]") continue;
     try {
       const j = JSON.parse(data);
-      // Anthropic message_delta has usage
       if (providerName === "anthropic" && j.type === "message_delta" && j.usage) {
         return { input: 0, cacheHit: 0, output: j.usage.output_tokens || 0 };
       }
-      // OpenAI/DeepSeek: last chunk sometimes has usage
-      if (j.usage) {
-        return extractTokens(providerName, JSON.stringify(j));
-      }
+      if (j.usage) return extractTokens(providerName, JSON.stringify(j));
     } catch {}
   }
   return null;
 }
 
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
-
-// Serve dashboard
-app.use(express.static(path.join(__dirname, "public")));
-
-// Provider configuration - add new providers here
+// --- Provider & model config ---
 const PROVIDERS = {
-  deepseek: {
-    baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
-    apiKey: process.env.DEEPSEEK_API_KEY,
-  },
-  openai: {
-    baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com",
-    apiKey: process.env.OPENAI_API_KEY,
-  },
-  anthropic: {
-    baseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  },
-  gemini: {
-    baseUrl:
-      process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com",
-    apiKey: process.env.GEMINI_API_KEY,
-  },
+  deepseek: { baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY },
+  openai: { baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com", apiKey: process.env.OPENAI_API_KEY },
+  anthropic: { baseUrl: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com", apiKey: process.env.ANTHROPIC_API_KEY },
+  gemini: { baseUrl: process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com", apiKey: process.env.GEMINI_API_KEY },
+  kimi: { baseUrl: process.env.KIMI_BASE_URL || "https://api.moonshot.cn", apiKey: process.env.KIMI_API_KEY },
+  doubao: { baseUrl: process.env.DOUBAO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3", apiKey: process.env.DOUBAO_API_KEY },
+  qwen: { baseUrl: process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode", apiKey: process.env.QWEN_API_KEY },
+  minimax: { baseUrl: process.env.MINIMAX_BASE_URL || "https://api.minimax.chat", apiKey: process.env.MINIMAX_API_KEY },
 };
 
-// Models per provider — price in $/M tokens: { in, cacheIn, out }
-// cacheIn = price when prompt cache hits (DeepSeek/OpenAI/Anthropic/Gemini all support)
 const MODELS = {
   deepseek: [
-    { id: "deepseek-chat", tier: "economy", price: { in: 0.27, cacheIn: 0.018, out: 1.10 }, caps: ["text"], desc: "中英文对话/翻译/摘要/批量文本处理" },
-    { id: "deepseek-reasoner", tier: "flagship", price: { in: 0.55, cacheIn: 0.14, out: 2.19 }, caps: ["text"], desc: "数学证明/竞赛题/代码debug，CoT深度推理链" },
+    { id: "deepseek-chat", tier: "economy", price: { in: 0.27, cacheIn: 0.018, out: 1.10 }, caps: ["text"], desc: "Chat, translation, summarization, bulk text processing" },
+    { id: "deepseek-reasoner", tier: "flagship", price: { in: 0.55, cacheIn: 0.14, out: 2.19 }, caps: ["text"], desc: "Math proofs, competitive programming, CoT deep reasoning" },
   ],
   openai: [
-    { id: "gpt-4.1-nano", tier: "economy", price: { in: 0.10, cacheIn: 0.025, out: 0.40 }, caps: ["text"], desc: "分类/提取/路由分发，最低成本，1M上下文" },
-    { id: "gpt-4.1-mini", tier: "economy", price: { in: 0.40, cacheIn: 0.10, out: 1.60 }, caps: ["text", "image"], desc: "摘要/客服/简单代码生成，1M上下文，支持图片识别" },
-    { id: "o3-mini", tier: "economy", price: { in: 1.10, cacheIn: 0.55, out: 4.40 }, caps: ["text"], desc: "代码生成/数学推理，推理模型中性价比最高" },
-    { id: "gpt-5-mini", tier: "standard", price: { in: 0.25, cacheIn: 0.0625, out: 2.00 }, caps: ["text", "image"], desc: "GPT-5轻量版，日常编程/写作/分析，速度与智能均衡" },
-    { id: "gpt-4.1", tier: "standard", price: { in: 2.00, cacheIn: 0.50, out: 8.00 }, caps: ["text", "image"], desc: "指令遵循/长文档处理/函数调用，1M上下文，支持图片识别" },
-    { id: "o4-mini", tier: "standard", price: { in: 1.10, cacheIn: 0.275, out: 4.40 }, caps: ["text", "image"], desc: "多步工具编排/代码执行/复杂函数调用链，支持视觉" },
-    { id: "o3", tier: "flagship", price: { in: 2.00, cacheIn: 0.50, out: 8.00 }, caps: ["text", "image"], desc: "PhD级科学推理/竞赛编程/研究分析，200K上下文" },
-    { id: "gpt-5", tier: "flagship", price: { in: 1.25, cacheIn: 0.3125, out: 10.00 }, caps: ["text", "image", "audio", "video"], desc: "原生多模态旗舰，支持图片/音频/视频输入，超长上下文" },
-    { id: "gpt-5.4", tier: "flagship", price: { in: 2.50, cacheIn: 0.625, out: 15.00 }, caps: ["text", "image", "audio", "video"], desc: "GPT系最强，全模态输入，最新迭代顶级智能" },
+    { id: "gpt-4.1-nano", tier: "economy", price: { in: 0.10, cacheIn: 0.025, out: 0.40 }, caps: ["text"], desc: "Classification, extraction, routing — lowest cost, 1M context" },
+    { id: "gpt-4.1-mini", tier: "economy", price: { in: 0.40, cacheIn: 0.10, out: 1.60 }, caps: ["text", "image"], desc: "Summarization, simple code gen, 1M context, vision" },
+    { id: "o3-mini", tier: "economy", price: { in: 1.10, cacheIn: 0.55, out: 4.40 }, caps: ["text"], desc: "Code gen, math reasoning — best value reasoning model" },
+    { id: "gpt-5-mini", tier: "standard", price: { in: 0.25, cacheIn: 0.0625, out: 2.00 }, caps: ["text", "image"], desc: "GPT-5 lite — everyday coding, writing, analysis" },
+    { id: "gpt-4.1", tier: "standard", price: { in: 2.00, cacheIn: 0.50, out: 8.00 }, caps: ["text", "image"], desc: "Instruction following, long docs, function calling, 1M context" },
+    { id: "o4-mini", tier: "standard", price: { in: 1.10, cacheIn: 0.275, out: 4.40 }, caps: ["text", "image"], desc: "Multi-step tool orchestration, code execution, vision" },
+    { id: "o3", tier: "flagship", price: { in: 2.00, cacheIn: 0.50, out: 8.00 }, caps: ["text", "image"], desc: "PhD-level science reasoning, competitive programming, 200K context" },
+    { id: "gpt-5", tier: "flagship", price: { in: 1.25, cacheIn: 0.3125, out: 10.00 }, caps: ["text", "image", "audio", "video"], desc: "Native multimodal flagship — image/audio/video input" },
+    { id: "gpt-5.4", tier: "flagship", price: { in: 2.50, cacheIn: 0.625, out: 15.00 }, caps: ["text", "image", "audio", "video"], desc: "Most capable GPT — all modalities, latest iteration" },
   ],
   anthropic: [
-    { id: "claude-haiku-4-5-20251001", tier: "economy", price: { in: 0.80, cacheIn: 0.08, out: 4.00 }, caps: ["text", "image", "pdf"], desc: "代码补全/分类标注/文本摘要，亚秒响应，200K上下文" },
-    { id: "claude-sonnet-4-5-20250514", tier: "standard", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "扩展思考/复杂编程/长文写作，代码能力行业标杆" },
-    { id: "claude-opus-4-6", tier: "flagship", price: { in: 15.00, cacheIn: 1.50, out: 75.00 }, caps: ["text", "image", "pdf"], desc: "自主编程/深度研究/200K长文分析，最强推理与长期记忆" },
+    { id: "claude-haiku-4-5-20251001", tier: "economy", price: { in: 0.80, cacheIn: 0.08, out: 4.00 }, caps: ["text", "image", "pdf"], desc: "Code completion, classification, summarization — sub-second, 200K" },
+    { id: "claude-sonnet-4-5-20250514", tier: "standard", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Extended thinking, complex coding, long-form writing" },
+    { id: "claude-opus-4-6", tier: "flagship", price: { in: 15.00, cacheIn: 1.50, out: 75.00 }, caps: ["text", "image", "pdf"], desc: "Autonomous coding, deep research, 200K analysis" },
   ],
   gemini: [
-    { id: "gemini-2.5-flash-lite", tier: "economy", price: { in: 0.075, cacheIn: 0.01875, out: 0.30 }, freeRPD: 1500, caps: ["text", "image"], desc: "高并发摘要/分类/提取，批量pipeline首选，1500次/天免费" },
-    { id: "gemini-2.5-flash", tier: "standard", price: { in: 0.15, cacheIn: 0.0375, out: 0.60 }, freeRPD: 500, caps: ["text", "image", "audio", "video", "pdf"], desc: "代码生成/数学推理/思考模型，1M上下文，500次/天免费" },
-    { id: "gemini-2.5-pro", tier: "flagship", price: { in: 1.25, cacheIn: 0.3125, out: 10.00 }, freeRPD: 25, caps: ["text", "image", "audio", "video", "pdf"], desc: "多模态视频分析/1M长上下文，25次/天免费" },
+    { id: "gemini-2.5-flash-lite", tier: "economy", price: { in: 0.075, cacheIn: 0.01875, out: 0.30 }, freeRPD: 1500, caps: ["text", "image"], desc: "High-throughput summarization/classification — 1500 free/day" },
+    { id: "gemini-2.5-flash", tier: "standard", price: { in: 0.15, cacheIn: 0.0375, out: 0.60 }, freeRPD: 500, caps: ["text", "image", "audio", "video", "pdf"], desc: "Code gen, math reasoning, 1M context — 500 free/day" },
+    { id: "gemini-2.5-pro", tier: "flagship", price: { in: 1.25, cacheIn: 0.3125, out: 10.00 }, freeRPD: 25, caps: ["text", "image", "audio", "video", "pdf"], desc: "Multimodal video analysis, 1M context — 25 free/day" },
+  ],
+  kimi: [
+    { id: "moonshot-v1-8k", tier: "economy", price: { in: 1.67, cacheIn: 0.42, out: 1.67 }, caps: ["text"], desc: "Fast chat, 8K context" },
+    { id: "moonshot-v1-32k", tier: "standard", price: { in: 3.33, cacheIn: 0.83, out: 3.33 }, caps: ["text"], desc: "Long document QA, 32K context" },
+    { id: "moonshot-v1-128k", tier: "standard", price: { in: 8.33, cacheIn: 2.08, out: 8.33 }, caps: ["text"], desc: "Ultra-long context, 128K window" },
+    { id: "kimi-k2", tier: "flagship", price: { in: 8.33, cacheIn: 2.08, out: 8.33 }, caps: ["text", "image"], desc: "Latest flagship — agentic coding, multi-step reasoning" },
+  ],
+  doubao: [
+    { id: "doubao-1.5-lite-32k", tier: "economy", price: { in: 0.04, cacheIn: 0.01, out: 0.08 }, caps: ["text"], desc: "Ultra-low cost, 32K context — ideal for bulk tasks" },
+    { id: "doubao-1.5-pro-32k", tier: "standard", price: { in: 0.11, cacheIn: 0.03, out: 0.28 }, caps: ["text", "image"], desc: "Balanced performance, 32K context, vision" },
+    { id: "doubao-1.5-pro-256k", tier: "flagship", price: { in: 0.69, cacheIn: 0.17, out: 1.25 }, caps: ["text", "image"], desc: "Long-context flagship, 256K window, vision" },
+  ],
+  qwen: [
+    { id: "qwen-turbo", tier: "economy", price: { in: 0.04, cacheIn: 0.01, out: 0.08 }, caps: ["text"], desc: "Fast and cheap — classification, extraction, simple QA" },
+    { id: "qwen-plus", tier: "standard", price: { in: 0.11, cacheIn: 0.03, out: 0.28 }, caps: ["text", "image"], desc: "Balanced — coding, analysis, 128K context, vision" },
+    { id: "qwen-max", tier: "flagship", price: { in: 0.28, cacheIn: 0.07, out: 0.83 }, caps: ["text", "image"], desc: "Most capable Qwen — complex reasoning, long-form writing" },
+    { id: "qwen-long", tier: "standard", price: { in: 0.07, cacheIn: 0.02, out: 0.14 }, caps: ["text"], desc: "10M context window — book-length document analysis" },
+  ],
+  minimax: [
+    { id: "MiniMax-Text-01", tier: "standard", price: { in: 0.40, cacheIn: 0.10, out: 1.10 }, caps: ["text"], desc: "256K context, strong at structured output and function calling" },
+    { id: "MiniMax-Text-01-128k", tier: "economy", price: { in: 0.20, cacheIn: 0.05, out: 0.55 }, caps: ["text"], desc: "128K context, cost-efficient variant" },
   ],
 };
 
-// Chat page
-app.get("/chat", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "chat.html"));
+// ============================================================
+// Middleware stack
+// ============================================================
+
+// 1. Connection tracking for graceful shutdown
+const activeConnections = new Set();
+app.use((req, res, next) => {
+  activeConnections.add(res);
+  res.on("close", () => activeConnections.delete(res));
+  next();
 });
 
-// Health check
+// 2. CORS — only allow same origin (dashboard/chat)
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (same-origin, curl, server-to-server)
+    if (!origin) return cb(null, true);
+    cb(null, false);
+  },
+  credentials: true,
+}));
+
+// 3. Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120, // 120 req/min per IP for API proxy
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
+  message: { error: "Too many requests, please try again later" },
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60, // 60 req/min for admin endpoints
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // 10 login attempts per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
+  message: { error: "Too many login attempts" },
+});
+
+// 4. Body parser with size limit
+app.use(express.json({ limit: "2mb" }));
+
+// 5. Request timeout
+app.use((req, res, next) => {
+  req.setTimeout(120000); // 2 min for AI responses
+  next();
+});
+
+// ============================================================
+// Auth middleware
+// ============================================================
+function adminAuth(req, res, next) {
+  const cookies = parseCookies(req);
+  const token = cookies.admin_token || req.headers["x-admin-token"];
+  if (token === ADMIN_SECRET) return next();
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
+// ============================================================
+// Public routes (no auth)
+// ============================================================
+
+// Health check — used by Docker healthcheck
 app.get("/health", (req, res) => {
   const available = Object.entries(PROVIDERS)
     .filter(([, cfg]) => cfg.apiKey)
     .map(([name]) => name);
-  res.json({ status: "ok", providers: available });
+  res.json({ status: "ok", providers: available, uptime: Math.floor((Date.now() - startTime) / 1000) });
 });
 
-// List available providers
 app.get("/providers", (req, res) => {
-  const providers = Object.entries(PROVIDERS).map(([name, cfg]) => ({
+  res.json(Object.entries(PROVIDERS).map(([name, cfg]) => ({
     name,
     available: !!cfg.apiKey,
     baseUrl: cfg.baseUrl,
-  }));
-  res.json(providers);
+  })));
 });
 
-// List models per provider
 app.get("/models/:provider", (req, res) => {
   const name = req.params.provider.toLowerCase();
   res.json(MODELS[name] || []);
 });
 
-// Admin: uptime
+// Static files (CSS/JS/images only, HTML served dynamically below)
+app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
+app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
+
+// Serve dashboard — inject nothing (auth handled by cookie)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Serve chat — inject internal chat key so it can call /v1 without project key
+app.get("/chat", (req, res) => {
+  let html = fs.readFileSync(path.join(__dirname, "public", "chat.html"), "utf8");
+  html = html.replace("__INTERNAL_CHAT_KEY__", INTERNAL_CHAT_KEY);
+  res.type("html").send(html);
+});
+
+// ============================================================
+// Admin auth: login/logout
+// ============================================================
+app.post("/admin/login", loginLimiter, express.json(), (req, res) => {
+  if (req.body.secret === ADMIN_SECRET) {
+    res.setHeader("Set-Cookie", `admin_token=${ADMIN_SECRET}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${7 * 24 * 60 * 60}`);
+    return res.json({ success: true });
+  }
+  res.status(401).json({ error: "Invalid admin secret" });
+});
+
+app.post("/admin/logout", (req, res) => {
+  res.setHeader("Set-Cookie", "admin_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+  res.json({ success: true });
+});
+
+// Check auth status
+app.get("/admin/auth", (req, res) => {
+  const cookies = parseCookies(req);
+  const token = cookies.admin_token || req.headers["x-admin-token"];
+  res.json({ authenticated: token === ADMIN_SECRET });
+});
+
+// ============================================================
+// Admin routes (all require auth)
+// ============================================================
+app.use("/admin", adminLimiter, adminAuth);
+
 app.get("/admin/uptime", (req, res) => {
   const ms = Date.now() - startTime;
   const s = Math.floor(ms / 1000);
@@ -292,7 +415,7 @@ app.get("/admin/uptime", (req, res) => {
   res.json({ uptime, startedAt: new Date(startTime).toISOString() });
 });
 
-// Admin: test provider connection
+// Test provider
 app.get("/admin/test/:provider", async (req, res) => {
   const name = req.params.provider.toLowerCase();
   const provider = PROVIDERS[name];
@@ -303,7 +426,6 @@ app.get("/admin/test/:provider", async (req, res) => {
   try {
     const defaultModel = MODELS[name]?.[0]?.id || "gpt-4o-mini";
     const modelId = req.query.model || defaultModel;
-    // o-series and gpt-5+ require max_completion_tokens instead of max_tokens
     const useCompletionTokens = /^(o\d|gpt-5)/.test(modelId);
     const testBody = {
       model: modelId,
@@ -323,11 +445,7 @@ app.get("/admin/test/:provider", async (req, res) => {
       headers["Authorization"] = `Bearer ${provider.apiKey}`;
       url = `${provider.baseUrl}/v1/chat/completions`;
     }
-    const resp = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(testBody),
-    });
+    const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(testBody) });
     const data = await resp.json();
     const latency = Date.now() - start;
     if (resp.ok) {
@@ -339,7 +457,6 @@ app.get("/admin/test/:provider", async (req, res) => {
         reply = data.choices?.[0]?.message?.content || "OK";
         model = data.model || testBody.model;
       }
-      // Record test usage
       const tokens = extractTokens(name, data);
       recordUsage("_test", name, modelId, tokens);
       res.json({ success: true, model, reply: reply.trim(), latency });
@@ -358,7 +475,9 @@ app.get("/admin/projects", (req, res) => {
 
 app.post("/admin/projects", (req, res) => {
   const { name } = req.body;
-  if (!name) return res.json({ success: false, error: "name required" });
+  if (!validateProjectName(name)) {
+    return res.json({ success: false, error: "Invalid project name (max 64 chars, no special chars)" });
+  }
   if (projects.find((p) => p.name === name)) {
     return res.json({ success: false, error: "project already exists" });
   }
@@ -373,7 +492,12 @@ app.put("/admin/projects/:name", (req, res) => {
   const proj = projects.find((p) => p.name === req.params.name);
   if (!proj) return res.json({ success: false, error: "project not found" });
   if (req.body.enabled !== undefined) proj.enabled = req.body.enabled;
-  if (req.body.newName) proj.name = req.body.newName;
+  if (req.body.newName) {
+    if (!validateProjectName(req.body.newName)) {
+      return res.json({ success: false, error: "Invalid project name" });
+    }
+    proj.name = req.body.newName;
+  }
   saveProjects(projects);
   res.json({ success: true, project: proj });
 });
@@ -401,16 +525,14 @@ app.get("/admin/rate", (req, res) => {
 
 // --- Usage API ---
 app.get("/admin/usage", (req, res) => {
-  const days = parseInt(req.query.days) || 30;
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
   const filterProject = req.query.project;
   const now = new Date();
   const result = [];
 
-  // Pre-compute daily counts per model for Gemini free tier
-  const dailyCounts = {}; // dateKey -> modelKey -> total count across all projects
+  const dailyCounts = {};
   for (let i = 0; i < days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(now); d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().slice(0, 10);
     const dayData = usageData[dateKey];
     if (!dayData) continue;
@@ -423,12 +545,10 @@ app.get("/admin/usage", (req, res) => {
   }
 
   for (let i = 0; i < days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(now); d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().slice(0, 10);
     const dayData = usageData[dateKey];
     if (!dayData) continue;
-
     for (const [project, models] of Object.entries(dayData)) {
       if (filterProject && project !== filterProject) continue;
       for (const [modelKey, stats] of Object.entries(models)) {
@@ -449,18 +569,15 @@ app.get("/admin/usage", (req, res) => {
   res.json(result);
 });
 
-// Usage summary: aggregated totals
 app.get("/admin/usage/summary", (req, res) => {
-  const days = parseInt(req.query.days) || 30;
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
   const now = new Date();
   const byProject = {};
   let totalCost = 0, totalRequests = 0;
 
-  // Pre-compute daily counts per model for Gemini free tier
-  const dailyCounts = {}; // dateKey -> modelKey -> total count
+  const dailyCounts = {};
   for (let i = 0; i < days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(now); d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().slice(0, 10);
     const dayData = usageData[dateKey];
     if (!dayData) continue;
@@ -473,12 +590,10 @@ app.get("/admin/usage/summary", (req, res) => {
   }
 
   for (let i = 0; i < days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(now); d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().slice(0, 10);
     const dayData = usageData[dateKey];
     if (!dayData) continue;
-
     for (const [project, models] of Object.entries(dayData)) {
       if (!byProject[project]) byProject[project] = { requests: 0, inputTokens: 0, cacheHitTokens: 0, outputTokens: 0, cost: 0, models: {} };
       const p = byProject[project];
@@ -510,11 +625,10 @@ app.get("/admin/usage/summary", (req, res) => {
     p.cost = Math.round(p.cost * 1e4) / 1e4;
     for (const m of Object.values(p.models)) m.cost = Math.round(m.cost * 1e6) / 1e6;
   }
-
   res.json({ days, totalRequests, totalCost: Math.round(totalCost * 1e4) / 1e4, byProject });
 });
 
-// Admin: update API key at runtime + persist to .env
+// Update API key at runtime + persist to .env (sanitized)
 app.post("/admin/key", (req, res) => {
   const { provider, apiKey, baseUrl } = req.body;
   if (!provider || !apiKey) {
@@ -524,27 +638,29 @@ app.post("/admin/key", (req, res) => {
   if (!PROVIDERS[name]) {
     return res.json({ success: false, error: `Unknown provider: ${name}` });
   }
-  PROVIDERS[name].apiKey = apiKey;
-  if (baseUrl) PROVIDERS[name].baseUrl = baseUrl;
+  const safeKey = sanitizeEnvValue(apiKey);
+  const safeUrl = baseUrl ? sanitizeEnvValue(baseUrl) : null;
 
-  // Persist to .env
+  PROVIDERS[name].apiKey = safeKey;
+  if (safeUrl) PROVIDERS[name].baseUrl = safeUrl;
+
   try {
     const envPath = path.join(__dirname, ".env");
     let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : "";
     const keyName = `${name.toUpperCase()}_API_KEY`;
     const keyRegex = new RegExp(`^${keyName}=.*$`, "m");
     if (keyRegex.test(envContent)) {
-      envContent = envContent.replace(keyRegex, `${keyName}=${apiKey}`);
+      envContent = envContent.replace(keyRegex, `${keyName}=${safeKey}`);
     } else {
-      envContent += `\n${keyName}=${apiKey}`;
+      envContent += `\n${keyName}=${safeKey}`;
     }
-    if (baseUrl) {
+    if (safeUrl) {
       const urlName = `${name.toUpperCase()}_BASE_URL`;
       const urlRegex = new RegExp(`^${urlName}=.*$`, "m");
       if (urlRegex.test(envContent)) {
-        envContent = envContent.replace(urlRegex, `${urlName}=${baseUrl}`);
+        envContent = envContent.replace(urlRegex, `${urlName}=${safeUrl}`);
       } else {
-        envContent += `\n${urlName}=${baseUrl}`;
+        envContent += `\n${urlName}=${safeUrl}`;
       }
     }
     fs.writeFileSync(envPath, envContent);
@@ -554,69 +670,66 @@ app.post("/admin/key", (req, res) => {
   res.json({ success: true, message: `${name} key updated` });
 });
 
-// Universal proxy: /v1/provider/chat/completions -> provider's API
-app.use("/v1/:provider", (req, res, next) => {
-  // Identify project
-  let projectName = "_chat"; // default for built-in chat
-  if (projects.length > 0) {
-    const projectKey =
-      req.headers["x-project-key"] ||
-      (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
-    const referer = req.headers["referer"] || "";
-    const isSameOrigin =
-      referer.includes("/chat") &&
-      (referer.startsWith(`http://localhost`) ||
-        referer.startsWith(`http://127.0.0.1`) ||
-        referer.includes(req.headers["host"]));
-    if (!isSameOrigin) {
-      const proj = projects.find((p) => p.key === projectKey && p.enabled);
-      if (!proj) {
-        return res.status(401).json({
-          error: "Invalid or missing project key",
-          hint: "Set X-Project-Key header or Bearer token",
-        });
-      }
-      projectName = proj.name;
+// ============================================================
+// API Proxy — /v1/:provider/*
+// ============================================================
+app.use("/v1/:provider", apiLimiter, (req, res, next) => {
+  // Identify project: internal chat key, project key, or reject
+  let projectName = "_chat";
+  const projectKey =
+    req.headers["x-project-key"] ||
+    (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
+
+  if (projectKey === INTERNAL_CHAT_KEY) {
+    projectName = "_chat";
+  } else if (projects.length > 0) {
+    const proj = projects.find((p) => p.key === projectKey && p.enabled);
+    if (!proj) {
+      return res.status(401).json({
+        error: "Invalid or missing project key",
+        hint: "Set X-Project-Key header or Bearer token",
+      });
     }
+    projectName = proj.name;
   }
 
   const providerName = req.params.provider.toLowerCase();
   const provider = PROVIDERS[providerName];
 
   if (!provider) {
-    return res.status(404).json({
-      error: `Unknown provider: ${providerName}`,
-      available: Object.keys(PROVIDERS),
-    });
+    return res.status(404).json({ error: `Unknown provider: ${providerName}`, available: Object.keys(PROVIDERS) });
   }
-
   if (!provider.apiKey) {
-    return res.status(403).json({
-      error: `Provider '${providerName}' has no API key configured`,
-    });
+    return res.status(403).json({ error: `Provider '${providerName}' has no API key configured` });
   }
 
-  // Extract model from request body for usage tracking
   const modelId = req.body?.model || "unknown";
   const isStreaming = req.body?.stream === true;
 
-  // Inject auth header
+  // Inject auth — replace any client-sent auth
   if (providerName === "anthropic") {
     req.headers["x-api-key"] = provider.apiKey;
     req.headers["anthropic-version"] = req.headers["anthropic-version"] || "2023-06-01";
+    delete req.headers["authorization"];
   } else {
     req.headers["authorization"] = `Bearer ${provider.apiKey}`;
   }
-
   delete req.headers["host"];
+  delete req.headers["x-project-key"];
 
   const proxy = createProxyMiddleware({
     target: provider.baseUrl,
     changeOrigin: true,
+    timeout: 120000,
+    proxyTimeout: 120000,
     pathRewrite: (pathStr) => {
       const stripped = pathStr.replace(`/v1/${providerName}`, "");
       if (providerName === "gemini") {
         return stripped.replace(/^\/v1\//, "/v1beta/openai/");
+      }
+      // Doubao/Qwen base URL already includes API version prefix
+      if (providerName === "doubao") {
+        return stripped.replace(/^\/v1\//, "/");
       }
       return stripped;
     },
@@ -630,7 +743,6 @@ app.use("/v1/:provider", (req, res, next) => {
         }
       },
       proxyRes: (proxyRes, req) => {
-        // Capture response body to extract token usage
         let chunks = "";
         proxyRes.on("data", (chunk) => { chunks += chunk.toString(); });
         proxyRes.on("end", () => {
@@ -638,7 +750,6 @@ app.use("/v1/:provider", (req, res, next) => {
             let tokens;
             if (isStreaming) {
               tokens = extractTokensFromSSE(providerName, chunks);
-              // If SSE didn't have usage, estimate from input
               if (!tokens) {
                 const inputText = JSON.stringify(req.body?.messages || "");
                 tokens = { input: Math.ceil(inputText.length / 4), cacheHit: 0, output: 0 };
@@ -664,14 +775,48 @@ app.use("/v1/:provider", (req, res, next) => {
   proxy(req, res, next);
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+// ============================================================
+// Start server + graceful shutdown
+// ============================================================
+const server = app.listen(PORT, "0.0.0.0", () => {
   const available = Object.entries(PROVIDERS)
     .filter(([, cfg]) => cfg.apiKey)
     .map(([name]) => name);
-  console.log(`AI API Proxy running on port ${PORT}`);
+  console.log(`AI API Gateway running on port ${PORT}`);
   console.log(`Available providers: ${available.join(", ")}`);
+  console.log(`Admin auth: ${process.env.ADMIN_SECRET ? "configured" : "temporary (set ADMIN_SECRET in .env)"}`);
 });
 
-// Save usage on shutdown
-process.on("SIGTERM", () => { if (usageDirty) saveUsage(); process.exit(0); });
-process.on("SIGINT", () => { if (usageDirty) saveUsage(); process.exit(0); });
+// Track raw TCP connections for graceful shutdown
+const connections = new Set();
+server.on("connection", (conn) => {
+  connections.add(conn);
+  conn.on("close", () => connections.delete(conn));
+});
+
+let shuttingDown = false;
+
+function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n${signal} received — shutting down gracefully...`);
+
+  // Save data immediately
+  if (usageDirty) saveUsage();
+
+  // Stop accepting new connections
+  server.close(() => {
+    console.log("All connections drained, exiting");
+    process.exit(0);
+  });
+
+  // Give existing connections 10s to finish
+  setTimeout(() => {
+    console.log(`Forcing shutdown — ${connections.size} connections remaining`);
+    connections.forEach((c) => c.destroy());
+    process.exit(1);
+  }, 10000);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

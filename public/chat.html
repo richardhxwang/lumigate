@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -167,6 +167,7 @@
 
 <script>
 const B = location.origin;
+const CHAT_KEY = '__INTERNAL_CHAT_KEY__';
 let history = [];
 let streaming = false;
 let abortCtrl = null;
@@ -302,7 +303,7 @@ async function send() {
   try {
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Project-Key': CHAT_KEY },
       body,
       signal: abortCtrl.signal,
     });
