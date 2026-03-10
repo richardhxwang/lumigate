@@ -1,5 +1,9 @@
 .env
-.claude
-data
-.git
+.env.*
+!.env.example
+data/
+node_modules/
+.git/
 .gitignore
+test-results/
+*.md

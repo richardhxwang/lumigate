@@ -11,7 +11,7 @@ services:
     depends_on:
       - ai-api-proxy
     healthcheck:
-      test: ["CMD", "sh", "-c", "nginx -t 2>/dev/null"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -30,7 +30,7 @@ services:
     volumes:
       - ./data:/app/data
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:9471/health').then(r=>r.json()).then(d=>{if(d.status!=='ok')process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9471/health"]
       interval: 30s
       timeout: 5s
       retries: 3

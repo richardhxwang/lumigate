@@ -1042,7 +1042,7 @@ function fmtCost(c, currency) {
   if (val >= 1) return sym + (noDecimal ? Math.round(val) : val.toFixed(2));
   if (val >= 0.01) return sym + val.toFixed(3);
   if (val >= 0.001) return sym + val.toFixed(4);
-  if (val > 0) return sym + val.toExponential(1);
+  if (val > 0) return sym + val.toFixed(5);
   return sym + '0';
 }
 

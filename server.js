@@ -7,6 +7,14 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+const sessions = new Map();
+
 const app = express();
 const PORT = process.env.PORT || 9471;
 const startTime = Date.now();
@@ -16,8 +24,7 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(20).toString
 const INTERNAL_CHAT_KEY = crypto.randomBytes(20).toString("hex"); // rotates on restart
 
 if (!process.env.ADMIN_SECRET) {
-  console.log(`\n⚠  No ADMIN_SECRET in .env — generated temporary: ${ADMIN_SECRET}`);
-  console.log(`   Set ADMIN_SECRET in .env to persist across restarts\n`);
+  console.log("WARNING: No ADMIN_SECRET set — a temporary secret was generated. Set ADMIN_SECRET in .env for persistence.");
 }
 
 // --- Helpers ---
@@ -51,8 +58,11 @@ const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
 const USAGE_FILE = path.join(DATA_DIR, "usage.json");
 const RATE_FILE = path.join(DATA_DIR, "exchange-rate.json");
 
+let dataDirReady = false;
 function ensureDataDir() {
+  if (dataDirReady) return;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  dataDirReady = true;
 }
 
 function loadProjects() {
@@ -69,7 +79,9 @@ function loadProjects() {
 
 function saveProjects(list) {
   ensureDataDir();
-  fs.writeFileSync(PROJECTS_FILE, JSON.stringify(list, null, 2));
+  const tmp = PROJECTS_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
+  fs.renameSync(tmp, PROJECTS_FILE);
 }
 
 let projects = loadProjects();
@@ -105,7 +117,9 @@ async function fetchExchangeRate() {
       }
       exchangeRate = { rates, updatedAt: new Date().toISOString() };
       ensureDataDir();
-      fs.writeFileSync(RATE_FILE, JSON.stringify(exchangeRate, null, 2));
+      const tmp = RATE_FILE + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(exchangeRate, null, 2));
+      fs.renameSync(tmp, RATE_FILE);
       console.log(`Exchange rates updated: ${SUPPORTED_CURRENCIES.map(c => `${c}=${rates[c]}`).join(", ")}`);
     }
   } catch (e) {
@@ -134,10 +148,25 @@ function loadUsage() {
 let usageData = loadUsage();
 let usageDirty = false;
 
+function pruneUsage(maxDays = 365) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - maxDays);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  let pruned = 0;
+  for (const key of Object.keys(usageData)) {
+    if (key < cutoffStr) { delete usageData[key]; pruned++; }
+  }
+  if (pruned > 0) { usageDirty = true; console.log(`Pruned ${pruned} days of old usage data`); }
+}
+pruneUsage();
+setInterval(pruneUsage, 24 * 60 * 60 * 1000);
+
 function saveUsage() {
   try {
     ensureDataDir();
-    fs.writeFileSync(USAGE_FILE, JSON.stringify(usageData, null, 2));
+    const tmp = USAGE_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(usageData, null, 2));
+    fs.renameSync(tmp, USAGE_FILE);
     usageDirty = false;
   } catch (e) {
     console.error("Failed to save usage:", e.message);
@@ -340,8 +369,18 @@ app.use((req, res, next) => {
 function adminAuth(req, res, next) {
   const cookies = parseCookies(req);
   const token = cookies.admin_token || req.headers["x-admin-token"];
-  if (token === ADMIN_SECRET) return next();
-  return res.status(401).json({ error: "Unauthorized" });
+  if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
+  const created = sessions.get(token);
+  const maxAge = 24 * 60 * 60 * 1000;
+  if (Date.now() - created > maxAge) {
+    sessions.delete(token);
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  // Clean up expired sessions
+  for (const [k, v] of sessions) {
+    if (Date.now() - v > maxAge) sessions.delete(k);
+  }
+  return next();
 }
 
 // ============================================================
@@ -359,8 +398,7 @@ app.get("/health", (req, res) => {
 app.get("/providers", (req, res) => {
   res.json(Object.entries(PROVIDERS).map(([name, cfg]) => ({
     name,
-    available: !!cfg.apiKey,
-    baseUrl: cfg.baseUrl,
+    configured: !!cfg.apiKey,
   })));
 });
 
@@ -379,33 +417,46 @@ app.get("/", (req, res) => {
 });
 
 // Serve chat — inject internal chat key so it can call /v1 without project key
+const chatHtml = fs.readFileSync(path.join(__dirname, "public", "chat.html"), "utf8")
+  .replace("__INTERNAL_CHAT_KEY__", INTERNAL_CHAT_KEY);
 app.get("/chat", (req, res) => {
-  let html = fs.readFileSync(path.join(__dirname, "public", "chat.html"), "utf8");
-  html = html.replace("__INTERNAL_CHAT_KEY__", INTERNAL_CHAT_KEY);
-  res.type("html").send(html);
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.type("html").send(chatHtml);
 });
 
 // ============================================================
 // Admin auth: login/logout
 // ============================================================
-app.post("/admin/login", loginLimiter, express.json(), (req, res) => {
-  if (req.body.secret === ADMIN_SECRET) {
-    res.setHeader("Set-Cookie", `admin_token=${ADMIN_SECRET}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${7 * 24 * 60 * 60}`);
+app.post("/admin/login", loginLimiter, (req, res) => {
+  if (safeEqual(req.body.secret, ADMIN_SECRET)) {
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    sessions.set(sessionToken, Date.now());
+    res.cookie("admin_token", sessionToken, { httpOnly: true, sameSite: "Strict", secure: true, path: "/", maxAge: 86400000 });
     return res.json({ success: true });
   }
   res.status(401).json({ error: "Invalid admin secret" });
 });
 
 app.post("/admin/logout", (req, res) => {
-  res.setHeader("Set-Cookie", "admin_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+  const cookies = parseCookies(req);
+  const token = cookies.admin_token;
+  if (token) sessions.delete(token);
+  res.clearCookie("admin_token", { httpOnly: true, sameSite: "Strict", secure: true, path: "/" });
   res.json({ success: true });
 });
 
 // Check auth status
-app.get("/admin/auth", (req, res) => {
+app.get("/admin/auth", adminLimiter, (req, res) => {
   const cookies = parseCookies(req);
   const token = cookies.admin_token || req.headers["x-admin-token"];
-  res.json({ authenticated: token === ADMIN_SECRET });
+  if (!token || !sessions.has(token)) return res.json({ authenticated: false });
+  const created = sessions.get(token);
+  const maxAge = 24 * 60 * 60 * 1000;
+  if (Date.now() - created > maxAge) {
+    sessions.delete(token);
+    return res.json({ authenticated: false });
+  }
+  res.json({ authenticated: true });
 });
 
 // ============================================================
@@ -652,6 +703,13 @@ app.post("/admin/key", (req, res) => {
   const safeKey = sanitizeEnvValue(apiKey);
   const safeUrl = baseUrl ? sanitizeEnvValue(baseUrl) : null;
 
+  if (!/^[a-zA-Z0-9_\-\.]+$/.test(safeKey)) {
+    return res.status(400).json({ success: false, error: "Invalid API key format — only alphanumeric, underscore, hyphen, and dot allowed" });
+  }
+  if (safeUrl && !(safeUrl.startsWith("https://") || safeUrl.startsWith("http://localhost"))) {
+    return res.status(400).json({ success: false, error: "Invalid baseUrl — must start with https:// or http://localhost" });
+  }
+
   PROVIDERS[name].apiKey = safeKey;
   if (safeUrl) PROVIDERS[name].baseUrl = safeUrl;
 
@@ -684,6 +742,73 @@ app.post("/admin/key", (req, res) => {
 // ============================================================
 // API Proxy — /v1/:provider/*
 // ============================================================
+const proxyMiddleware = createProxyMiddleware({
+  router: (req) => {
+    const provider = req.params?.provider?.toLowerCase();
+    return PROVIDERS[provider]?.baseUrl;
+  },
+  changeOrigin: true,
+  ws: false,
+  timeout: 120000,
+  proxyTimeout: 120000,
+  pathRewrite: (pathStr, req) => {
+    const providerName = req.params?.provider?.toLowerCase();
+    const stripped = pathStr.replace(`/v1/${providerName}`, "");
+    if (providerName === "gemini") {
+      return stripped.replace(/^\/v1\//, "/v1beta/openai/");
+    }
+    // Doubao/Qwen base URL already includes API version prefix
+    if (providerName === "doubao") {
+      return stripped.replace(/^\/v1\//, "/");
+    }
+    return stripped;
+  },
+  on: {
+    proxyReq: (proxyReq, req) => {
+      if (req.body && ["POST", "PUT", "PATCH"].includes(req.method)) {
+        const bodyData = JSON.stringify(req.body);
+        proxyReq.setHeader("Content-Type", "application/json");
+        proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
+        proxyReq.write(bodyData);
+      }
+    },
+    proxyRes: (proxyRes, req) => {
+      const providerName = req.params?.provider?.toLowerCase();
+      const projectName = req._proxyProjectName;
+      const modelId = req.body?.model || "unknown";
+      const isStreaming = req.body?.stream === true;
+
+      let tail = '';
+      proxyRes.on("data", (chunk) => {
+        const str = chunk.toString();
+        tail = (tail + str).slice(-8192);
+      });
+      proxyRes.on("end", () => {
+        try {
+          let tokens;
+          if (isStreaming) {
+            tokens = extractTokensFromSSE(providerName, tail);
+            if (!tokens) {
+              const inputText = JSON.stringify(req.body?.messages || "");
+              tokens = { input: Math.ceil(inputText.length / 4), cacheHit: 0, output: 0 };
+            }
+          } else {
+            tokens = extractTokens(providerName, tail);
+          }
+          recordUsage(projectName, providerName, modelId, tokens);
+        } catch (e) {
+          console.error("Usage tracking error:", e.message);
+        }
+      });
+    },
+    error: (err, req, res) => {
+      const providerName = req.params?.provider?.toLowerCase() || "unknown";
+      console.error(`Proxy error [${providerName}]:`, err.message);
+      if (!res.headersSent) res.status(502).json({ error: "Proxy error" });
+    },
+  },
+});
+
 app.use("/v1/:provider", apiLimiter, (req, res, next) => {
   // Identify project: internal chat key, project key, or reject
   let projectName = "_chat";
@@ -694,7 +819,7 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
   if (projectKey === INTERNAL_CHAT_KEY) {
     projectName = "_chat";
   } else if (projects.length > 0) {
-    const proj = projects.find((p) => p.key === projectKey && p.enabled);
+    const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
     if (!proj) {
       return res.status(401).json({
         error: "Invalid or missing project key",
@@ -714,8 +839,8 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
     return res.status(403).json({ error: `Provider '${providerName}' has no API key configured` });
   }
 
-  const modelId = req.body?.model || "unknown";
-  const isStreaming = req.body?.stream === true;
+  // Stash project name for onProxyRes
+  req._proxyProjectName = projectName;
 
   // Inject auth — replace any client-sent auth
   if (providerName === "anthropic") {
@@ -728,62 +853,7 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
   delete req.headers["host"];
   delete req.headers["x-project-key"];
 
-  const proxy = createProxyMiddleware({
-    target: provider.baseUrl,
-    changeOrigin: true,
-    timeout: 120000,
-    proxyTimeout: 120000,
-    pathRewrite: (pathStr) => {
-      const stripped = pathStr.replace(`/v1/${providerName}`, "");
-      if (providerName === "gemini") {
-        return stripped.replace(/^\/v1\//, "/v1beta/openai/");
-      }
-      // Doubao/Qwen base URL already includes API version prefix
-      if (providerName === "doubao") {
-        return stripped.replace(/^\/v1\//, "/");
-      }
-      return stripped;
-    },
-    on: {
-      proxyReq: (proxyReq, req) => {
-        if (req.body && ["POST", "PUT", "PATCH"].includes(req.method)) {
-          const bodyData = JSON.stringify(req.body);
-          proxyReq.setHeader("Content-Type", "application/json");
-          proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
-          proxyReq.write(bodyData);
-        }
-      },
-      proxyRes: (proxyRes, req) => {
-        let chunks = "";
-        proxyRes.on("data", (chunk) => { chunks += chunk.toString(); });
-        proxyRes.on("end", () => {
-          try {
-            let tokens;
-            if (isStreaming) {
-              tokens = extractTokensFromSSE(providerName, chunks);
-              if (!tokens) {
-                const inputText = JSON.stringify(req.body?.messages || "");
-                tokens = { input: Math.ceil(inputText.length / 4), cacheHit: 0, output: 0 };
-              }
-            } else {
-              tokens = extractTokens(providerName, chunks);
-            }
-            recordUsage(projectName, providerName, modelId, tokens);
-          } catch (e) {
-            console.error("Usage tracking error:", e.message);
-          }
-        });
-      },
-      error: (err, req, res) => {
-        console.error(`Proxy error [${providerName}]:`, err.message);
-        if (!res.headersSent) {
-          res.status(502).json({ error: "Proxy error", detail: err.message });
-        }
-      },
-    },
-  });
-
-  proxy(req, res, next);
+  proxyMiddleware(req, res, next);
 });
 
 // ============================================================

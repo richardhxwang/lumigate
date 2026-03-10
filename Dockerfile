@@ -3,11 +3,16 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-COPY node_modules ./node_modules
-RUN npm ci --omit=dev || true
+RUN npm ci --omit=dev
 
 COPY server.js ./
 COPY public ./public
+
+RUN addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/data \
+    && chown -R app:app /app
+
+USER app
 
 EXPOSE 9471
 
