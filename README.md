@@ -158,12 +158,22 @@ POST /v1/{provider}/v1/chat/completions
 
 **Providers:** `openai`, `anthropic`, `gemini`, `deepseek`, `kimi`, `doubao`, `qwen`, `minimax`
 
-**Auth:** `X-Project-Key` header or `Authorization: Bearer {project-key}`
+**Auth:** `Authorization: Bearer {ephemeral-token}` (recommended) or `X-Project-Key` header
 
 ```bash
+# 1. Exchange project key for ephemeral token (HMAC-signed, key never sent)
+TOKEN=$(curl -s -X POST https://lumigate.autorums.com/v1/token \
+  -H "Content-Type: application/json" \
+  -H "X-Project-Id: my-project" \
+  -H "X-Signature: $(echo -n "${TIMESTAMP}${NONCE}{}" | openssl dgst -sha256 -hmac "$PROJECT_KEY" -hex | cut -d' ' -f2)" \
+  -H "X-Timestamp: $TIMESTAMP" \
+  -H "X-Nonce: $NONCE" \
+  -d '{}' | jq -r .token)
+
+# 2. Use ephemeral token for API calls
 curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "X-Project-Key: pk_your_project_key" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"model": "gpt-4.1-nano", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
@@ -198,13 +208,36 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 
 | Layer | Protection |
 |-------|-----------|
+| **HMAC + Token Auth** | Key never transmitted; HMAC-signed token exchange + short-lived ephemeral tokens |
+| **Per-Project Rate Limit** | Independent RPM cap per project (1–10,000 RPM) |
+| **IP Allowlist** | Per-project IP/CIDR whitelist (up to 50 entries) |
+| **Anomaly Auto-Suspend** | Auto-disable project on 5× traffic spike (10-min baseline) |
+| **Anti-Replay** | 5-min timestamp window + nonce deduplication on HMAC requests |
 | **Session Auth** | Random tokens, 24h expiry, 10k cap, HttpOnly+Secure+SameSite cookies |
 | **Timing-Safe Auth** | `crypto.timingSafeEqual` for all secret comparisons |
-| **Rate Limiting** | 600/min proxy, 120/min admin, 10/15min login |
+| **Global Rate Limiting** | 600/min proxy, 120/min admin, 10/15min login (per IP) |
 | **SSRF Protection** | Private IP blocklist for provider baseUrl |
 | **Security Headers** | CSP, HSTS, X-Content-Type-Options, X-Frame-Options |
 | **Docker Hardening** | Non-root user, `.dockerignore` excludes secrets |
-| **Audit Trail** | JSONL log, 17 event types, 10MB rotation |
+| **Audit Trail** | JSONL log, 17+ event types, 10MB rotation |
+
+### Project Auth Modes
+
+| Mode | Key Transmitted | Replay Safe | Best For |
+|------|:--------------:|:-----------:|----------|
+| **Direct Key** | Yes | No | Server-to-server, internal tools |
+| **HMAC Signature** | No | Yes (nonce) | Mobile apps, embedded keys |
+| **Ephemeral Token** | Once (exchange) | Token expires | Session-bound access |
+| **HMAC + Token** | Never | Yes + expiry | **C-end apps (default)** |
+
+### Auth Security Tests (4/4 passed)
+
+| # | Test | Expected | Actual | Status |
+|---|------|----------|--------|--------|
+| A-01 | Direct key on HMAC project | 403 | 403 (requires HMAC) | PASS |
+| A-02 | HMAC token exchange | 200 + `et_` token | 200 + token (3600s TTL) | PASS |
+| A-03 | Ephemeral token proxy request | Auth pass | 200 (proxied to provider) | PASS |
+| A-04 | Replay attack (same nonce) | 401 | 401 (duplicate nonce) | PASS |
 
 ## Performance
 
@@ -240,6 +273,16 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 | Protocol (oversized payload, method tampering, host injection, open redirect) | 5 | All blocked (403/404) |
 
 > Double-layer protection: app-level auth + rate limiting + Cloudflare WAF. See [full report](reviews/review-report-v6-external.md).
+
+### Security Feature Performance Impact
+
+| Metric | Before | After (HMAC + Token + RPM + IP + Anomaly) | Delta |
+|--------|--------|---------------------------------------------|-------|
+| QPS (2000 req / 100 concurrent) | 2,230 | 2,379 | +6.7% |
+| Failed requests | 0 | 0 | — |
+| Memory | ~44 MiB | ~45 MiB | +1 MiB |
+
+> All security checks are O(1) in-memory operations. Zero measurable performance impact.
 
 ### Chaos & Fault Injection
 

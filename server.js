@@ -163,6 +163,121 @@ function normalizeIP(req) {
   return ip;
 }
 
+// Per-project rate limiter (in-memory sliding window, 1-min buckets)
+const projectRateBuckets = new Map(); // projectName -> { count, resetAt }
+function checkProjectRateLimit(proj) {
+  if (!proj.maxRpm) return true; // no limit configured
+  const now = Date.now();
+  let bucket = projectRateBuckets.get(proj.name);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 60000 };
+    projectRateBuckets.set(proj.name, bucket);
+  }
+  bucket.count++;
+  if (bucket.count > proj.maxRpm) return false;
+  return true;
+}
+
+// Per-project anomaly detection — auto-suspend on request spike
+const projectMinuteHistory = new Map(); // projectName -> [count_per_minute, ...]
+function checkProjectAnomaly(proj) {
+  if (!proj.anomalyAutoSuspend) return true;
+  const now = Date.now();
+  let hist = projectMinuteHistory.get(proj.name);
+  if (!hist) { hist = { counts: [], currentMin: 0, minStart: now }; projectMinuteHistory.set(proj.name, hist); }
+  if (now - hist.minStart >= 60000) {
+    hist.counts.push(hist.currentMin);
+    if (hist.counts.length > 10) hist.counts.shift(); // keep last 10 minutes
+    hist.currentMin = 0;
+    hist.minStart = now;
+  }
+  hist.currentMin++;
+  // Suspend if current minute > 5x average of last 10 minutes (and at least 50 req)
+  if (hist.counts.length >= 3) {
+    const avg = hist.counts.reduce((a, b) => a + b, 0) / hist.counts.length;
+    if (avg > 0 && hist.currentMin > Math.max(50, avg * 5)) {
+      proj.enabled = false;
+      proj.suspendedAt = new Date().toISOString();
+      proj.suspendReason = "anomaly_auto_suspend";
+      saveProjects(projects);
+      console.warn(`[ANOMALY] Project "${proj.name}" auto-suspended: ${hist.currentMin} req/min vs avg ${avg.toFixed(1)}`);
+      return false;
+    }
+  }
+  return true;
+}
+
+// Check IP against project allowlist
+function checkProjectIP(proj, req) {
+  if (!proj.allowedIPs?.length) return true; // no allowlist = allow all
+  const ip = normalizeIP(req);
+  return proj.allowedIPs.some(allowed => {
+    if (allowed.includes('/')) {
+      // CIDR match
+      return cidrMatch(ip, allowed);
+    }
+    return ip === allowed;
+  });
+}
+function cidrMatch(ip, cidr) {
+  const [range, bits] = cidr.split('/');
+  const mask = parseInt(bits, 10);
+  if (isNaN(mask)) return ip === range;
+  // Only IPv4 CIDR for now
+  const ipNum = ip.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
+  const rangeNum = range.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct, 10), 0) >>> 0;
+  const maskNum = mask === 0 ? 0 : (~0 << (32 - mask)) >>> 0;
+  return (ipNum & maskNum) === (rangeNum & maskNum);
+}
+
+// HMAC signature verification for project requests
+// Client sends: X-Signature, X-Timestamp, X-Nonce (key never sent over wire)
+const HMAC_WINDOW_SEC = 300; // 5 min tolerance
+const usedNonces = new Map(); // nonce -> expiry timestamp
+// Cleanup expired nonces every 5 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [n, exp] of usedNonces) { if (now > exp) usedNonces.delete(n); }
+}, 300000);
+
+function verifyHmacSignature(proj, req) {
+  const sig = req.headers["x-signature"];
+  const ts = req.headers["x-timestamp"];
+  const nonce = req.headers["x-nonce"];
+  if (!sig || !ts || !nonce) return { ok: false, error: "Missing signature headers (X-Signature, X-Timestamp, X-Nonce)" };
+  // Timestamp check (prevent replay)
+  const now = Math.floor(Date.now() / 1000);
+  const reqTime = parseInt(ts, 10);
+  if (isNaN(reqTime) || Math.abs(now - reqTime) > HMAC_WINDOW_SEC) {
+    return { ok: false, error: "Request expired or clock skew too large" };
+  }
+  // Nonce check (prevent replay within window)
+  if (usedNonces.has(nonce)) return { ok: false, error: "Duplicate nonce (replay detected)" };
+  usedNonces.set(nonce, Date.now() + HMAC_WINDOW_SEC * 1000);
+  // Compute expected signature: HMAC-SHA256(projectKey, timestamp + nonce + body)
+  const bodyStr = req._rawBody || JSON.stringify(req.body || {});
+  const payload = ts + nonce + bodyStr;
+  const expected = crypto.createHmac("sha256", proj.key).update(payload).digest("hex");
+  if (!safeEqual(sig, expected)) return { ok: false, error: "Invalid signature" };
+  return { ok: true };
+}
+
+// Per-user ephemeral tokens
+// Token format: { projectName, userId, expiresAt, token }
+const ephemeralTokens = new Map(); // token -> { projectName, userId, expiresAt }
+const EPHEMERAL_TTL_MS = 3600 * 1000; // 1h default, project can override
+const MAX_EPHEMERAL_PER_PROJECT = 10000;
+
+// Cleanup expired tokens every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [t, info] of ephemeralTokens) { if (now > info.expiresAt) ephemeralTokens.delete(t); }
+}, 60000);
+
+// POST /v1/token — exchange project key (or HMAC) for short-lived token
+// Body: { userId?: string }  Headers: X-Project-Key or HMAC headers
+// Returns: { token, expiresAt, expiresIn }
+
 // F-03: Provider hostname allowlist for baseUrl validation
 const PROVIDER_HOST_ALLOWLIST = new Set([
   "api.openai.com",
@@ -785,7 +900,10 @@ const loginLimiter = rateLimit({
 });
 
 // 4. Body parser with size limit (F-09: reduced from 100mb)
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, res, buf) => { req._rawBody = buf.toString(); }, // preserve raw body for HMAC
+}));
 
 // 5. Request timeout
 app.use((req, res, next) => {
@@ -1077,7 +1195,7 @@ app.get("/admin/projects", (req, res) => {
 });
 
 app.post("/admin/projects", requireRole("root", "admin"), (req, res) => {
-  const { name, maxBudgetUsd, budgetPeriod, allowedModels } = req.body;
+  const { name, maxBudgetUsd, budgetPeriod, allowedModels, maxRpm, allowedIPs, anomalyAutoSuspend } = req.body;
   if (!validateProjectName(name)) {
     return res.json({ success: false, error: "Invalid project name (max 64 chars, no special chars)" });
   }
@@ -1085,7 +1203,7 @@ app.post("/admin/projects", requireRole("root", "admin"), (req, res) => {
     return res.json({ success: false, error: "project already exists" });
   }
   const key = "pk_" + crypto.randomBytes(24).toString("hex");
-  const project = { name, key, enabled: true, createdAt: new Date().toISOString() };
+  const project = { name, key, enabled: true, authMode: "hmac", createdAt: new Date().toISOString() };
   // Phase 1a: Budget enforcement
   if (maxBudgetUsd != null && maxBudgetUsd > 0) {
     project.maxBudgetUsd = Number(maxBudgetUsd);
@@ -1097,6 +1215,19 @@ app.post("/admin/projects", requireRole("root", "admin"), (req, res) => {
   if (Array.isArray(allowedModels) && allowedModels.length > 0) {
     project.allowedModels = allowedModels.filter(m => typeof m === "string" && m.length > 0);
   }
+  // Per-project rate limit
+  if (maxRpm != null && maxRpm > 0) project.maxRpm = Math.min(Number(maxRpm), 10000);
+  // IP allowlist
+  if (Array.isArray(allowedIPs) && allowedIPs.length > 0) {
+    project.allowedIPs = allowedIPs.filter(ip => typeof ip === "string" && ip.length > 0).slice(0, 50);
+  }
+  // Anomaly auto-suspend
+  if (anomalyAutoSuspend) project.anomalyAutoSuspend = true;
+  // Auth mode: key (default), hmac, token
+  if (req.body.authMode && ["key", "hmac", "token"].includes(req.body.authMode)) {
+    project.authMode = req.body.authMode;
+  }
+  if (req.body.tokenTtlMinutes > 0) project.tokenTtlMinutes = Math.min(Number(req.body.tokenTtlMinutes), 1440);
   // Smart routing
   if (req.body.smartRouting) {
     project.smartRouting = validateSmartRouting(req.body.smartRouting);
@@ -1143,6 +1274,39 @@ app.put("/admin/projects/:name", requireRole("root", "admin"), (req, res) => {
     } else if (Array.isArray(req.body.allowedModels)) {
       proj.allowedModels = req.body.allowedModels.filter(m => typeof m === "string" && m.length > 0);
     }
+  }
+  // Per-project rate limit
+  if (req.body.maxRpm !== undefined) {
+    if (req.body.maxRpm === null || req.body.maxRpm === 0) delete proj.maxRpm;
+    else proj.maxRpm = Math.min(Number(req.body.maxRpm), 10000);
+  }
+  // IP allowlist
+  if (req.body.allowedIPs !== undefined) {
+    if (req.body.allowedIPs === null || (Array.isArray(req.body.allowedIPs) && req.body.allowedIPs.length === 0)) {
+      delete proj.allowedIPs;
+    } else if (Array.isArray(req.body.allowedIPs)) {
+      proj.allowedIPs = req.body.allowedIPs.filter(ip => typeof ip === "string" && ip.length > 0).slice(0, 50);
+    }
+  }
+  // Anomaly auto-suspend
+  if (req.body.anomalyAutoSuspend !== undefined) {
+    if (req.body.anomalyAutoSuspend) proj.anomalyAutoSuspend = true;
+    else delete proj.anomalyAutoSuspend;
+  }
+  // Auth mode
+  if (req.body.authMode !== undefined) {
+    if (["key", "hmac", "token"].includes(req.body.authMode)) proj.authMode = req.body.authMode;
+    else delete proj.authMode;
+  }
+  if (req.body.tokenTtlMinutes !== undefined) {
+    if (req.body.tokenTtlMinutes > 0) proj.tokenTtlMinutes = Math.min(Number(req.body.tokenTtlMinutes), 1440);
+    else delete proj.tokenTtlMinutes;
+  }
+  // Clear suspend state if re-enabling
+  if (req.body.enabled === true && proj.suspendReason) {
+    delete proj.suspendReason;
+    delete proj.suspendedAt;
+    projectMinuteHistory.delete(proj.name); // reset anomaly baseline
   }
   // Smart routing update
   if (req.body.smartRouting !== undefined) {
@@ -1914,11 +2078,28 @@ app.use("/v1/smart", apiLimiter, async (req, res, next) => {
   } else if (["root", "admin"].includes(getSessionRole(req))) {
     projectName = "_chat";
   } else {
-    proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
-    if (!proj) {
-      return res.status(401).json({ error: "Invalid or missing project key", hint: "Set X-Project-Key header or Bearer token" });
+    // Resolve: ephemeral token → HMAC → direct key
+    if (projectKey.startsWith("et_")) {
+      const tokenInfo = ephemeralTokens.get(projectKey);
+      if (!tokenInfo || Date.now() > tokenInfo.expiresAt) return res.status(401).json({ error: "Token expired or invalid" });
+      proj = tokenInfo.project;
+      if (!proj.enabled) return res.status(403).json({ error: "Project disabled" });
+    } else if (req.headers["x-signature"]) {
+      const projId = req.headers["x-project-id"];
+      if (projId) {
+        const candidate = projects.find(p => p.enabled && p.name === projId && p.authMode === "hmac");
+        if (candidate && verifyHmacSignature(candidate, req).ok) proj = candidate;
+      }
+      if (!proj) return res.status(401).json({ error: "HMAC verification failed" });
+    } else {
+      proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+      if (!proj) return res.status(401).json({ error: "Invalid or missing project key" });
+      if (proj.authMode === "hmac") return res.status(403).json({ error: "This project requires HMAC signature authentication" });
     }
     projectName = proj.name;
+    if (!checkProjectIP(proj, req)) return res.status(403).json({ error: "IP not allowed for this project" });
+    if (!checkProjectRateLimit(proj)) return res.status(429).json({ error: "Project rate limit exceeded" });
+    if (!checkProjectAnomaly(proj)) return res.status(403).json({ error: "Project suspended due to anomalous activity" });
     checkBudgetReset(proj);
     if (proj.maxBudgetUsd != null && (proj.budgetUsedUsd || 0) >= proj.maxBudgetUsd) {
       return res.status(429).json({ error: "Project budget exceeded" });
@@ -2087,6 +2268,31 @@ const proxyMiddleware = createProxyMiddleware({
   },
 });
 
+// Token exchange endpoint — App uses project key (or HMAC) to get short-lived token
+app.post("/v1/token", apiLimiter, (req, res) => {
+  const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
+  const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+  // Also allow HMAC auth for token exchange
+  let hmacProj = null;
+  if (!proj && req.headers["x-signature"]) {
+    // Find project by trying all enabled projects' HMAC
+    hmacProj = projects.find(p => p.enabled && p.authMode === "hmac" && verifyHmacSignature(p, req).ok);
+  }
+  const resolvedProj = proj || hmacProj;
+  if (!resolvedProj) return res.status(401).json({ error: "Invalid project key or signature" });
+  // Count existing tokens for this project
+  let count = 0;
+  for (const info of ephemeralTokens.values()) { if (info.projectName === resolvedProj.name) count++; }
+  if (count >= MAX_EPHEMERAL_PER_PROJECT) return res.status(429).json({ error: "Too many active tokens" });
+  const ttl = (resolvedProj.tokenTtlMinutes || 60) * 60 * 1000;
+  const token = "et_" + crypto.randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + ttl;
+  const userId = req.body?.userId || null;
+  ephemeralTokens.set(token, { projectName: resolvedProj.name, project: resolvedProj, userId, expiresAt });
+  audit(null, "token_issued", resolvedProj.name, { userId, ttlMin: Math.round(ttl / 60000) });
+  res.json({ token, expiresAt: new Date(expiresAt).toISOString(), expiresIn: Math.round(ttl / 1000) });
+});
+
 app.use("/v1/:provider", apiLimiter, (req, res, next) => {
   // Identify project: internal chat key, admin session, project key, or reject
   let projectName;
@@ -2101,15 +2307,65 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
     // H-01 fix: only root/admin sessions bypass project policy
     projectName = "_chat";
   } else {
-    // F-01: Always enforce project-key validation (removed projects.length bypass)
-    const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+    // Resolve project via: ephemeral token → HMAC signature → direct key
+    let proj = null;
+
+    // 1. Ephemeral token (et_...)
+    if (projectKey.startsWith("et_")) {
+      const tokenInfo = ephemeralTokens.get(projectKey);
+      if (!tokenInfo || Date.now() > tokenInfo.expiresAt) {
+        return res.status(401).json({ error: "Token expired or invalid", hint: "Exchange a new token via POST /v1/token" });
+      }
+      proj = tokenInfo.project;
+      if (!proj.enabled) return res.status(403).json({ error: "Project disabled" });
+      req._tokenUserId = tokenInfo.userId;
+    }
+    // 2. HMAC signature (X-Signature header present, no direct key)
+    if (!proj && req.headers["x-signature"]) {
+      // Identify project by X-Project-Id header
+      const projId = req.headers["x-project-id"];
+      if (projId) {
+        const candidate = projects.find(p => p.enabled && p.name === projId && p.authMode === "hmac");
+        if (candidate) {
+          const hmacResult = verifyHmacSignature(candidate, req);
+          if (!hmacResult.ok) return res.status(401).json({ error: hmacResult.error });
+          proj = candidate;
+        }
+      }
+      if (!proj) return res.status(401).json({ error: "HMAC verification failed", hint: "Set X-Project-Id header to project name" });
+    }
+    // 3. Direct project key (pk_...)
     if (!proj) {
-      return res.status(401).json({
-        error: "Invalid or missing project key",
-        hint: "Set X-Project-Key header or Bearer token",
-      });
+      proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+      if (!proj) {
+        return res.status(401).json({
+          error: "Invalid or missing project key",
+          hint: "Set X-Project-Key header or Bearer token",
+        });
+      }
+      // If project requires HMAC, reject direct key usage
+      if (proj.authMode === "hmac") {
+        return res.status(403).json({ error: "This project requires HMAC signature authentication" });
+      }
     }
     projectName = proj.name;
+
+    // Per-project IP allowlist
+    if (!checkProjectIP(proj, req)) {
+      audit(null, "project_ip_blocked", proj.name, { ip: normalizeIP(req) });
+      return res.status(403).json({ error: "IP not allowed for this project" });
+    }
+
+    // Per-project rate limit (RPM)
+    if (!checkProjectRateLimit(proj)) {
+      return res.status(429).json({ error: "Project rate limit exceeded" });
+    }
+
+    // Anomaly auto-suspend
+    if (!checkProjectAnomaly(proj)) {
+      audit(null, "project_anomaly_suspend", proj.name, { ip: normalizeIP(req) });
+      return res.status(403).json({ error: "Project suspended due to anomalous activity" });
+    }
 
     // Phase 1b: Model allowlist
     if (proj.allowedModels?.length && req.body?.model) {
