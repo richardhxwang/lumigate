@@ -1,6 +1,6 @@
 # LumiGate
 
-**Enterprise-grade AI gateway. 24 MB footprint. One command to deploy.**
+**Enterprise-grade AI gateway. ~22 MiB (lite app-only) to ~37 MiB (enterprise app+nginx) runtime footprint. One command to deploy.**
 
 LumiGate is a self-hosted, multi-provider AI API gateway with modular enterprise features — per-project budgets, model access control, token-level cost tracking, audit logging, auto-recovery, and high-availability failover — in a single Node.js process with zero external dependencies. No database, no Redis, no DevOps team required.
 
@@ -8,8 +8,8 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 
 ## Table of Contents
 
+- [Docker Package (Recommended)](#docker-package-recommended)
 - [Quick Start](#quick-start)
-- [Windows](#windows)
 - [Architecture](#architecture)
 - [Modular Design](#modular-design)
 - [Features](#features)
@@ -20,36 +20,6 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 - [CLI (`lg`)](#cli-lg)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
-
-## Quick Start
-
-```bash
-# One-line install
-curl -fsSL https://raw.githubusercontent.com/richardhxwang/lumigate/main/setup.sh | bash
-
-# Or manually
-git clone https://github.com/richardhxwang/lumigate.git && cd lumigate
-cp .env.example .env   # Edit with your API keys
-docker compose up -d --build
-```
-
-Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
-
-## Windows
-
-LumiGate supports running on Windows, but the recommended setup is Docker Desktop with WSL2.
-
-```powershell
-git clone https://github.com/richardhxwang/lumigate.git
-cd lumigate
-copy .env.example .env
-docker compose up -d --build
-```
-
-Notes:
-- Recommended: Docker Desktop + WSL2 backend.
-- Web dashboard and API work normally on Windows at `http://localhost:9471`.
-- `lg` CLI is a bash script, so use WSL2 or Git Bash for full CLI support.
 
 ## Docker Package (Recommended)
 
@@ -66,11 +36,42 @@ docker run -d --name lumigate \
 
 For production, use `docker-compose.yml` and mount persistent `data/`.
 
+## Quick Start
+
+### macOS / Linux
+
+```bash
+# One-line install
+curl -fsSL https://raw.githubusercontent.com/richardhxwang/lumigate/main/setup.sh | bash
+
+# Or manually
+git clone https://github.com/richardhxwang/lumigate.git && cd lumigate
+cp .env.example .env   # Edit with your API keys
+docker compose up -d --build
+```
+
+### Windows (Docker recommended)
+
+```powershell
+git clone https://github.com/richardhxwang/lumigate.git
+cd lumigate
+copy .env.example .env
+docker compose up -d --build
+```
+
+Notes:
+- Recommended on Windows: Docker Desktop + WSL2 backend.
+- Web dashboard and API work at `http://localhost:9471`.
+- `lg` CLI is a bash script; use WSL2 or Git Bash for full CLI support.
+
+Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
+
 ## Releases
 
 - Stable tags: `vX.Y.Z`
 - Rolling tag: `latest`
 - Release notes: see GitHub Releases page for upgrade and compatibility notes
+
 
 ## Architecture
 
@@ -257,9 +258,12 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 
 | Component | Memory |
 |-----------|--------|
-| App (Node.js) | ~18 MiB |
+| App (Node.js, lite) | ~22 MiB |
+| App (Node.js, enterprise) | ~27 MiB |
 | Nginx | ~10 MiB |
-| **Total** | **~28 MiB** |
+| **Total (enterprise app + nginx)** | **~37 MiB** |
+
+> Runtime memory varies by mode and load. Values above are observed from current container snapshots.
 
 ## CLI (`lg`)
 
