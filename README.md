@@ -6,6 +6,20 @@ LumiGate is a self-hosted, multi-provider AI API gateway with modular enterprise
 
 Designed to run on a NAS, mini PC, or any edge device where every megabyte counts.
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [CLI (`lg`)](#cli-lg)
+- [Architecture](#architecture)
+- [Modular Design](#modular-design)
+- [Features](#features)
+- [Self-Healing & Data Safety](#self-healing--data-safety)
+- [API Reference](#api-reference)
+- [Security](#security)
+- [Performance](#performance)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+
 ## Quick Start
 
 ```bash
@@ -19,6 +33,27 @@ docker compose up -d --build
 ```
 
 Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
+
+## Docker Package (Recommended)
+
+Use prebuilt Docker image instead of local build:
+
+```bash
+docker pull richardhxwang/lumigate:latest
+docker run -d --name lumigate \
+  -p 9471:9471 \
+  -e ADMIN_SECRET=change-me \
+  -v "$(pwd)/data:/app/data" \
+  richardhxwang/lumigate:latest
+```
+
+For production, use `docker-compose.yml` and mount persistent `data/`.
+
+## Releases
+
+- Stable tags: `vX.Y.Z`
+- Rolling tag: `latest`
+- Release notes: see GitHub Releases page for upgrade and compatibility notes
 
 ## CLI (`lg`)
 
@@ -215,7 +250,8 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 
 | Scenario | Requests | Concurrency | QPS | p50 | p99 | Success |
 |----------|----------|-------------|-----|-----|-----|---------|
-| Heavy | 1,000 | 50 | 383 | 114ms | 316ms | 100% |
+| Heavy (cold) | 1,000 | 50 | 337 | 132ms | 351ms | 98.6% (QUIC cold start) |
+| Heavy (warm) | 1,000 | 50 | 383 | 114ms | 316ms | 100% |
 | Extreme | 2,000 | 100 | 468 | 184ms | 434ms | 99.95% |
 | Burst | 5,000 | 200 | 484 | 369ms | 718ms | 99.98% |
 | Sustained 30s | 11,762 | 100 | 388 | 245ms | 569ms | 99.99% |
@@ -284,5 +320,6 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 ## Contributing
 
 LumiGate is open source. Issues, pull requests, and feature suggestions are welcome.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
 
 If you find it useful, give it a star!
