@@ -40,7 +40,9 @@ services:
   cloudflare-lumigate:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-lumigate
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN_LUMIGATE}
+    command: >-
+      tunnel --no-autoupdate --protocol quic --grace-period 30s
+      run --token ${CF_TUNNEL_TOKEN_LUMIGATE}
     env_file:
       - .env
     depends_on:
