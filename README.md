@@ -227,8 +227,8 @@ curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
 └── CLAUDE.md               # AI development guide
 ```
 
-## License
+## Contributing
 
-Copyright © 2026 Richard Wang. All rights reserved.
+LumiGate is open source. Issues, pull requests, and feature suggestions are welcome.
 
-This software is proprietary and confidential. Unauthorized copying, distribution, modification, or use of this software, via any medium, is strictly prohibited without prior written permission from the author.
+If you find it useful, give it a star!
