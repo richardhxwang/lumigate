@@ -3,3 +3,7 @@ node_modules/
 data/
 .claude/
 .DS_Store
+watchdog.log
+.env-e
+data-test/
+docker-compose.test.yml

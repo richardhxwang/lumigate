@@ -1,10 +1,77 @@
 # LumiGate
 
-**Enterprise-grade AI gateway. 24 MB footprint.**
+**Enterprise-grade AI gateway. 24 MB footprint. One command to deploy.**
 
-LumiGate is a self-hosted, multi-provider AI API gateway that delivers enterprise features — per-project budgets, model access control, token-level cost tracking, and high-availability failover — in a single Node.js process with zero external dependencies. No database, no Redis, no DevOps team required.
+LumiGate is a self-hosted, multi-provider AI API gateway with modular enterprise features — per-project budgets, model access control, token-level cost tracking, audit logging, auto-recovery, and high-availability failover — in a single Node.js process with zero external dependencies. No database, no Redis, no DevOps team required.
 
 Designed to run on a NAS, mini PC, or any edge device where every megabyte counts.
+
+## Quick Start
+
+```bash
+# One-line install
+curl -fsSL https://raw.githubusercontent.com/richardhxwang/lumigate/main/setup.sh | bash
+
+# Or manually
+git clone https://github.com/richardhxwang/lumigate.git && cd lumigate
+cp .env.example .env   # Edit with your API keys
+docker compose up -d --build
+```
+
+Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
+
+## CLI (`lg`)
+
+LumiGate ships with a full-featured CLI. Install it:
+
+```bash
+sudo ln -sf "$(pwd)/cli.sh" /usr/local/bin/lg
+```
+
+Just type `lg` to see live status and quick commands:
+
+```
+lg v1.0.0 — LumiGate CLI
+
+  ● Online  │  enterprise  │  2d 5h 30m  │  openai, gemini, deepseek
+
+  lg status          Health & providers
+  lg config          View/edit config
+  lg start           Start containers
+  lg restart         Rebuild & restart
+  lg logs            Tail logs
+  lg projects        Manage projects
+  lg usage           Cost & usage
+  lg help            All commands
+```
+
+### All Commands
+
+| Category | Command | Description |
+|----------|---------|-------------|
+| **Lifecycle** | `lg setup` | Interactive setup wizard |
+| | `lg start` | Start all containers |
+| | `lg stop / restart / down` | Stop / rebuild+restart / tear down |
+| | `lg update` | Pull latest code + rebuild |
+| | `lg logs [service]` | Tail container logs |
+| | `lg ps` | Show container status |
+| **Config** | `lg config` | Show current config |
+| | `lg config set <KEY> <val>` | Set any config (API keys, mode, port, etc.) |
+| | `lg config env` | Edit .env file directly |
+| | `lg mode [lite\|enterprise\|custom]` | View/switch deploy mode |
+| **Gateway** | `lg status` | Health, uptime, providers, watchdog |
+| | `lg providers` | List all providers with status |
+| | `lg test <provider> [model]` | Test provider connectivity |
+| | `lg models <provider>` | List models with pricing |
+| | `lg key <provider> <key>` | Update provider API key |
+| **Projects** | `lg projects` | List projects |
+| | `lg projects add <name>` | Create project + get API key |
+| | `lg projects del <name>` | Delete project |
+| | `lg usage [days]` | Usage & cost summary |
+| **Operations** | `lg backup [create\|list]` | Manage backups |
+| | `lg backup restore <name>` | Restore from backup |
+| | `lg watchdog start\|stop\|log` | Auto-recovery daemon |
+| | `lg install` | Symlink `lg` to /usr/local/bin |
 
 ## Architecture
 
@@ -12,84 +79,70 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
   <img src="public/architecture.svg" alt="LumiGate Architecture" width="100%"/>
 </p>
 
+## Modular Design
+
+LumiGate uses a module system. Choose what you need:
+
+| Mode | Modules | Best For |
+|------|---------|----------|
+| **Lite** | usage, chat | Personal projects, hobbyists |
+| **Enterprise** | All 9 modules | Teams, production, compliance |
+| **Custom** | Pick & choose | Tailored deployments |
+
+```bash
+# Switch modes
+lg mode enterprise
+lg restart
+
+# Or pick specific modules
+lg config set DEPLOY_MODE custom
+lg config set MODULES usage,audit,backup,chat
+lg restart
+```
+
+### Available Modules
+
+| Module | Description |
+|--------|-------------|
+| `usage` | Per-project/model token counts & cost tracking |
+| `budget` | Per-project spending limits (daily/monthly), auto-reset |
+| `multikey` | Multiple API keys per provider with priority |
+| `users` | Multi-user RBAC (root/admin/viewer roles) |
+| `audit` | Structured JSONL event log, 17 event types |
+| `metrics` | SLI counters — requests, errors, latency, memory |
+| `backup` | Daily auto-backup, 10-version retention, one-click restore |
+| `smart` | Smart routing — auto model selection by task complexity |
+| `chat` | Built-in chat UI for testing providers |
+
 ## Features
 
 - **Multi-Provider Proxy** — Single `/v1/{provider}/` endpoint routes to OpenAI, Anthropic, Gemini, DeepSeek, Kimi, Doubao, Qwen, MiniMax
-- **Hot Maintenance** — Nginx reverse proxy serves cached pages & maintenance responses during app restarts
-- **Project Key Auth** — Unique `X-Project-Key` per project, CRUD via dashboard
-- **Per-Project Budget** — Set USD spending limits per project (daily/monthly/lifetime), auto-reset, 429 when exceeded
-- **Per-Project Model Allowlist** — Restrict which models each project key can access
-- **Usage Tracking** — Per-project, per-model request/token counts with cache hit/miss breakdown
-- **Cost Estimation** — Cache-aware pricing (input/cached-input/output), Gemini free tier support, multi-currency (USD, CNY, EUR, GBP, JPY, KRW, HKD, SGD, AUD, CAD)
+- **Hot Maintenance** — Nginx serves cached pages during app restarts (zero downtime)
+- **RPO ≤ 1s** — 1-second coalesced writes + emergency flush on crash = near-zero data loss
+- **Auto-Recovery** — Watchdog detects failures within 10s, auto-restarts containers, handles Docker.raw corruption
 - **Dashboard** — 4-tab SPA with Canvas charts, mobile responsive, Apple HIG style
-- **Built-in Chat** — SSE streaming chat interface supporting all providers
-- **CLI & TUI** — Terminal tools (`cli.sh` for quick commands, `tui.js` for full-screen interface)
-- **Security** — Session-based auth, timing-safe key comparison, SSRF protection, rate limiting, CORS, CSP, HSTS, input sanitization
-- **Audit Logging** — Structured JSONL audit trail for all admin operations (login, project/key/user changes, backups, startup/shutdown)
-- **SLI Metrics** — Real-time request/error/latency counters via `/admin/metrics`
-- **Backup & Restore** — One-click backup/restore API with daily auto-backup, 10-version retention, hot reload on restore
-- **Docker-Native** — Nginx + Express + Cloudflare Tunnel, healthcheck, volume-persisted data
+- **CLI & TUI** — `lg` CLI for quick terminal ops, `tui.js` for full-screen dashboard
+- **Multi-Currency** — 10 currencies (USD, CNY, EUR, GBP, JPY, KRW, HKD, SGD, AUD, CAD)
+- **High Availability** — Cold standby (Plan A, <5MB idle) or hot standby (Plan B) with Cloudflare Tunnel failover
 - **Zero-Downtime Config** — Change API keys, add providers via dashboard without restart
-- **High Availability** — Cold standby (Plan A, <5MB idle) or hot standby (Plan B) failover with automatic Cloudflare Tunnel switchover
 
-## Quick Start
+## Self-Healing & Data Safety
 
-### 1. Clone and configure
+| Layer | Mechanism |
+|-------|-----------|
+| **Docker healthcheck** | 5s interval, 2 retries → detects failure in ≤10s |
+| **Docker restart policy** | `unless-stopped` → auto-restart on crash |
+| **Watchdog daemon** | 5s polling via Docker socket, auto `docker start`, Docker.raw corruption recovery |
+| **Data persistence** | 1s coalesced write-behind (usage, projects), `appendFileSync` (audit) |
+| **Emergency flush** | `uncaughtException` / `unhandledRejection` → sync flush before exit |
+| **Graceful shutdown** | SIGTERM → flush dirty data → drain connections → exit |
+| **Atomic writes** | tmp file + `rename()` on all data files |
 
-```bash
-git clone https://github.com/richardhxwang/lumigate.git
-cd lumigate
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-### 2. Create `.env`
-
-```env
-# At least one provider key required
-OPENAI_API_KEY=sk-xxx
-DEEPSEEK_API_KEY=sk-xxx
-# ANTHROPIC_API_KEY=sk-ant-xxx
-# GEMINI_API_KEY=AIzaSyxxx
-# KIMI_API_KEY=sk-xxx
-# DOUBAO_API_KEY=xxx
-# QWEN_API_KEY=sk-xxx
-# MINIMAX_API_KEY=xxx
-
-# Server
-PORT=9471
-ADMIN_SECRET=your-admin-password
-
-# Cloudflare Tunnel (optional)
-# CF_TUNNEL_TOKEN_AIGATEWAY=xxx
-```
-
-### 3. Run
-
-```bash
-# With Docker (recommended)
-docker compose up -d --build
-
-# Or directly
-npm install
-node server.js
-```
-
-### 4. Open the Dashboard
-
-Go to `http://localhost:9471` and log in with your `ADMIN_SECRET`.
-
-From the dashboard you can:
-- **Providers** — View status, test connections, update API keys at runtime (no restart needed)
-- **Projects** — Create project keys for your apps, enable/disable/regenerate
-- **Usage** — Monitor per-project and per-model usage, cost breakdown with currency selector
-- **Chat** — Test any provider/model at `http://localhost:9471/chat`
+**RPO: ≤ 1 second.** Even `docker kill` (SIGKILL) loses at most 1 second of data.
 
 ## API Reference
 
 ### Proxy Endpoints
-
-All AI provider APIs are accessible via:
 
 ```
 POST /v1/{provider}/v1/chat/completions
@@ -97,161 +150,81 @@ POST /v1/{provider}/v1/chat/completions
 
 **Providers:** `openai`, `anthropic`, `gemini`, `deepseek`, `kimi`, `doubao`, `qwen`, `minimax`
 
-**Authentication:** Include `X-Project-Key` header or `Authorization: Bearer {project-key}`
+**Auth:** `X-Project-Key` header or `Authorization: Bearer {project-key}`
 
 ```bash
-curl -X POST https://your-gateway.com/v1/openai/v1/chat/completions \
+curl -X POST https://lumigate.autorums.com/v1/openai/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: pk_your_project_key" \
-  -d '{
-    "model": "gpt-4.1-nano",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'
+  -d '{"model": "gpt-4.1-nano", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
 ### Public Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health check (used by Docker) |
+| GET | `/health` | Health check (status, mode, modules, providers) |
 | GET | `/providers` | List all providers and status |
-| GET | `/models/{provider}` | List models for a provider |
+| GET | `/models/{provider}` | List models with pricing |
 
-### Admin Endpoints (require auth)
+### Admin Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/admin/login` | Login with `{ secret }`, sets cookie |
-| POST | `/admin/logout` | Clear auth cookie |
-| GET | `/admin/auth` | Check auth status |
-| GET | `/admin/uptime` | Server uptime |
-| GET | `/admin/test/{provider}` | Test provider connection |
-| GET | `/admin/projects` | List projects |
-| POST | `/admin/projects` | Create project `{ name, maxBudgetUsd?, budgetPeriod?, allowedModels? }` |
-| PUT | `/admin/projects/{name}` | Update project (budget, models, enabled, rename) |
-| DELETE | `/admin/projects/{name}` | Delete project |
-| POST | `/admin/projects/{name}/regenerate` | Regenerate key |
-| GET | `/admin/usage?days=7` | Detailed usage data |
-| GET | `/admin/usage/summary?days=7` | Aggregated usage summary |
-| GET | `/admin/rate` | Current exchange rates (multi-currency) |
-| POST | `/admin/key` | Update provider API key at runtime |
-| GET | `/admin/metrics` | SLI metrics (requests, latency, memory) |
-| GET | `/admin/audit?limit=N` | Audit log (last N entries, root only) |
-| POST | `/admin/backup` | Create manual backup (root only) |
-| GET | `/admin/backups` | List backups (root only) |
-| POST | `/admin/restore/{name}` | Restore from backup (root only) |
-
-## Adding a New Provider
-
-If the provider uses an OpenAI-compatible API format, add it in `server.js`:
-
-1. Add to `PROVIDERS`:
-```javascript
-newprovider: {
-  baseUrl: process.env.NEWPROVIDER_BASE_URL || "https://api.newprovider.com",
-  apiKey: process.env.NEWPROVIDER_API_KEY,
-},
-```
-
-2. Add models to `MODELS`:
-```javascript
-newprovider: [
-  { id: "model-name", tier: "standard", price: { in: 1.0, cacheIn: 0.25, out: 2.0 }, caps: ["text"], desc: "Description" },
-],
-```
-
-3. Add `NEWPROVIDER_API_KEY=xxx` to `.env` and `.env.example`.
-
-4. If the API format differs (like Anthropic), add special handling in the proxy's `pathRewrite` and auth injection sections.
-
-> **Tip:** You can also add or update API keys at runtime from the Dashboard's Providers tab — no restart required.
+| Method | Path | Module | Description |
+|--------|------|--------|-------------|
+| POST | `/admin/login` | core | Login with `{ secret }` |
+| GET | `/admin/projects` | core | List projects |
+| POST | `/admin/projects` | core | Create project |
+| PUT | `/admin/projects/{name}` | core | Update project |
+| DELETE | `/admin/projects/{name}` | core | Delete project |
+| GET | `/admin/usage/summary` | usage | Aggregated usage data |
+| POST | `/admin/key` | core | Update provider API key |
+| GET | `/admin/keys/{provider}` | multikey | List multi-keys |
+| GET | `/admin/users` | users | List users |
+| GET | `/admin/metrics` | metrics | SLI metrics |
+| GET | `/admin/audit` | audit | Audit log entries |
+| POST | `/admin/backup` | backup | Create backup |
+| GET | `/admin/backups` | backup | List backups |
+| POST | `/admin/restore/{name}` | backup | Restore from backup |
 
 ## Security
 
 | Layer | Protection |
 |-------|-----------|
-| **Cloudflare Access** | Google OAuth for dashboard, bypass for `/v1/*` API paths |
-| **Session Auth** | Random session tokens (not raw secret), 24h expiry, 10k cap with FIFO eviction, HttpOnly + Secure + SameSite cookies |
-| **Timing-Safe Auth** | `crypto.timingSafeEqual` for all secret and key comparisons |
-| **Project Keys** | 48-char random hex per project, enable/disable/regenerate |
-| **Rate Limiting** | 600 req/min proxy, 120 req/min admin, 10/15min login |
-| **Anti-Spoofing** | Nginx overrides `X-Forwarded-For` with `$remote_addr`, prevents rate limit bypass |
-| **SSRF Protection** | Private IPs, cloud metadata, and internal addresses blocked in baseUrl |
-| **CORS** | Same-origin only |
-| **Input Sanitization** | Project names validated, `.env` writes sanitized, JSON body capped at 10MB |
-| **Path Allowlist** | Per-provider upstream path validation, normalized to match proxy rewrite rules |
-| **XSS Prevention** | HTML-escaped user data, no stack traces in error responses |
-| **Security Headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Strict-Transport-Security`, no `X-Powered-By` |
-| **Docker Hardening** | Non-root user, `.dockerignore` excludes secrets, `server_tokens off` |
-| **Audit Trail** | Structured JSONL audit log, 17 event types, 10MB auto-rotation, query API |
-| **Backup/Restore** | Daily auto-backup, 10-version retention, one-click restore with hot reload |
-| **Graceful Shutdown** | Connection draining, atomic data flush on SIGTERM |
-
-### Penetration Test Results
-
-All endpoints tested against authentication bypass, injection, path traversal, SSRF, rate limit bypass, and information leakage. Results:
-
-| Category | Tests | Result |
-|----------|-------|--------|
-| Authentication (brute force, fake tokens, SQL injection) | 5 | All PASS |
-| Rate limit bypass (X-Forwarded-For spoofing) | 2 | All PASS |
-| Path traversal & injection (XSS, command injection) | 3 | All PASS |
-| Information leakage (API keys, stack traces, CORS) | 5 | All PASS |
-| SSRF via baseUrl | 1 | PASS (private IP blocklist) |
-| Cookie security (HttpOnly, Secure, SameSite) | 2 | All PASS |
-| Input validation (oversized payload, prototype pollution) | 4 | All PASS |
+| **Session Auth** | Random tokens, 24h expiry, 10k cap, HttpOnly+Secure+SameSite cookies |
+| **Timing-Safe Auth** | `crypto.timingSafeEqual` for all secret comparisons |
+| **Rate Limiting** | 600/min proxy, 120/min admin, 10/15min login |
+| **SSRF Protection** | Private IP blocklist for provider baseUrl |
+| **Security Headers** | CSP, HSTS, X-Content-Type-Options, X-Frame-Options |
+| **Docker Hardening** | Non-root user, `.dockerignore` excludes secrets |
+| **Audit Trail** | JSONL log, 17 event types, 10MB rotation |
 
 ## Performance
 
-Designed to run on lightweight hardware (NAS, mini PC) while supporting enterprise-grade traffic (~10k DAU).
+| Scenario | QPS | Avg Latency |
+|----------|-----|-------------|
+| Health check (200 concurrent) | 4,270 | 47ms |
+| Dashboard (200 concurrent) | 2,087 | 96ms |
+| Peak burst (500 concurrent) | 4,978 | 100ms |
 
-### Optimizations
-
-- **Single proxy instance** — One shared `http-proxy-middleware` with connection pooling, not per-request
-- **SSE tail buffer** — Only retains last 8KB of streaming responses for usage parsing (not full body)
-- **Gzip compression** — 70% size reduction (62KB → 19KB dashboard)
-- **In-memory caching** — Chat HTML cached at startup, one-time data directory check
-- **Usage query cache** — 5-second TTL response cache for analytics endpoints, auto-invalidated on writes
-- **Atomic writes** — All data files use tmp+rename pattern to prevent corruption
-- **Auto-pruning** — Usage data older than 365 days is automatically cleaned up
-- **Session cap** — 10k max sessions with FIFO eviction, prevents unbounded memory growth
-- **Nginx keepalive** — Connection pool to upstream, eliminates per-request TCP handshake
-
-### Benchmark (Apple Mac mini M4, Docker)
-
-| Scenario | Concurrency | QPS | Avg Latency | Errors |
-|----------|-------------|-----|-------------|--------|
-| Health check | 200 | 4,270 | 47ms | 0% |
-| Dashboard (62KB gzipped) | 200 | 2,087 | 96ms | 0% |
-| Peak burst | 500 | 4,978 | 100ms | 0% |
-| Auth rejection (proxy path) | 200 | 4,240 | 47ms | 0% |
-
-**Resource usage:** ~24MB total (App 14MB + Nginx 10MB). Stable under sustained load with bounded session memory.
+**Resource usage:** ~24MB total (App 14MB + Nginx 10MB).
 
 ## Project Structure
 
 ```
-├── server.js            # Express server — proxy, auth, usage tracking, admin API
-├── nginx/
-│   └── nginx.conf       # Reverse proxy — cache, failover, maintenance pages
+├── server.js               # Express monolith — proxy, auth, usage, admin API
+├── cli.sh                  # lg CLI — full lifecycle & management tool
+├── setup.sh                # One-line installer & onboard wizard
+├── watchdog.sh             # Auto-recovery daemon (<10s detection)
+├── tui.js                  # Full-screen terminal dashboard
+├── nginx/nginx.conf        # Reverse proxy — cache, failover, maintenance
 ├── public/
-│   ├── index.html       # Dashboard — 4-tab SPA with Canvas charts
-│   ├── chat.html        # Built-in chat interface with SSE streaming
-│   ├── architecture.svg # Architecture diagram
-│   ├── favicon.svg      # Site icon
-│   └── logos/           # Provider logo assets (128×128 PNG)
-├── cli.sh               # CLI tool — status, providers, test, usage
-├── tui.js               # TUI tool — full-screen terminal dashboard
-├── data/                # Persistent state (Docker volume)
-│   ├── projects.json    # Project keys
-│   ├── usage.json       # Usage & token counts
-│   └── exchange-rate.json
-├── package.json
-├── Dockerfile
-├── docker-compose.yml   # Nginx + Express + Cloudflare Tunnel
-├── .env                 # API keys & config (git-ignored)
-├── .env.example         # Template for .env
-└── .gitignore
+│   ├── index.html          # Dashboard SPA (Canvas charts, Apple HIG)
+│   └── chat.html           # Built-in chat with SSE streaming
+├── failover/               # HA configs (cold/hot standby)
+├── data/                   # JSON persistence (Docker volume)
+├── docker-compose.yml      # Nginx + Express + Cloudflare Tunnel
+├── .env.example            # Config template
+└── CLAUDE.md               # AI development guide
 ```
 
 ## License

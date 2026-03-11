@@ -2,7 +2,7 @@ services:
   # Nginx reverse proxy — always running, serves maintenance page during app restarts
   nginx:
     image: nginx:alpine
-    container_name: ai-gateway-nginx
+    container_name: lumigate-nginx
     restart: unless-stopped
     ports:
       - "${GATEWAY_PORT:-9471}:80"
@@ -12,9 +12,9 @@ services:
       - lumigate
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
+      interval: 5s
+      timeout: 2s
+      retries: 2
       start_period: 3s
 
   # App server — can be rebuilt/restarted without downtime
@@ -31,16 +31,16 @@ services:
       - ./data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:9471/health',r=>{r.statusCode===200?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 8s
     stop_grace_period: 15s
 
   cloudflare-lumigate:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-lumigate
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN_AIGATEWAY}
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN_LUMIGATE}
     env_file:
       - .env
     depends_on:

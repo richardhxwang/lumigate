@@ -1,9 +1,11 @@
 FROM node:20-alpine
 
 WORKDIR /app
+ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --no-audit --no-fund \
+    && npm cache clean --force
 
 COPY server.js ./
 COPY public ./public
@@ -16,4 +18,4 @@ USER app
 
 EXPOSE 9471
 
-CMD ["node", "server.js"]
+CMD ["node", "--max-old-space-size=192", "server.js"]

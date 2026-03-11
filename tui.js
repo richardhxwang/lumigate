@@ -29,8 +29,8 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-// Load from ~/.aigateway
-const homeConfig = path.join(process.env.HOME || "~", ".aigateway");
+// Load from ~/.lumigate
+const homeConfig = path.join(process.env.HOME || "~", ".lumigate");
 if (fs.existsSync(homeConfig)) {
   const content = fs.readFileSync(homeConfig, "utf8");
   for (const line of content.split("\n")) {
@@ -737,7 +737,7 @@ function renderHelp(startRow, col, width, maxRows) {
     row++;
     drawText(row, col + 4, `${ansi.dim}GATEWAY_SECRET=${ansi.reset}${GATEWAY_SECRET ? "****" + GATEWAY_SECRET.slice(-4) : "(not set)"}`, innerW - 2);
     row++;
-    drawText(row, col + 4, `${ansi.dim}Config files: ~/.aigateway, .env${ansi.reset}`, innerW - 2);
+    drawText(row, col + 4, `${ansi.dim}Config files: ~/.lumigate, .env${ansi.reset}`, innerW - 2);
   }
 }
 

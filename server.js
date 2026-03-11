@@ -59,6 +59,21 @@ function decryptValue(stored, secret) {
 const sessions = new Map();
 const MAX_SESSIONS = 10000;
 
+// --- Module system ---
+// Modules: usage, budget, multikey, users, audit, metrics, backup, smart, chat
+const ALL_MODULES = ["usage", "budget", "multikey", "users", "audit", "metrics", "backup", "smart", "chat"];
+const LITE_MODULES = ["usage", "chat"];
+const ENTERPRISE_MODULES = [...ALL_MODULES];
+const DEPLOY_MODE = (process.env.DEPLOY_MODE || "lite").toLowerCase();
+const modules = new Set(
+  DEPLOY_MODE === "enterprise" ? ENTERPRISE_MODULES :
+  DEPLOY_MODE === "custom" ? (process.env.MODULES || "").split(",").map(s => s.trim()).filter(Boolean) :
+  LITE_MODULES
+);
+const mod = (name) => modules.has(name);
+// isEnterprise kept as alias for backward compat
+const isEnterprise = DEPLOY_MODE === "enterprise";
+
 const app = express();
 app.disable("x-powered-by");
 const PORT = process.env.PORT || 9471;
@@ -202,7 +217,16 @@ function saveProjects(list) {
 
 let projects = loadProjects();
 let projectsDirty = false;
-setInterval(() => { if (projectsDirty) { saveProjects(projects); projectsDirty = false; } }, 30000);
+let projectsSaveTimer = null;
+function markProjectsDirty() {
+  projectsDirty = true;
+  if (!projectsSaveTimer) {
+    projectsSaveTimer = setTimeout(() => {
+      projectsSaveTimer = null;
+      if (projectsDirty) { saveProjects(projects); projectsDirty = false; }
+    }, 1000);
+  }
+}
 
 function loadUsers() {
   try {
@@ -237,10 +261,11 @@ function saveSettings(s) {
 }
 let settings = loadSettings();
 
-// --- Audit logging (H-01) ---
+// --- Audit logging (requires "audit" module) ---
 // Append-only structured audit log: one JSON object per line
 const AUDIT_MAX_SIZE = 10 * 1024 * 1024; // 10MB rotation threshold
 function audit(actor, action, target, details) {
+  if (!mod("audit")) return; // no-op when audit module disabled
   try {
     ensureDataDir();
     const entry = JSON.stringify({
@@ -264,7 +289,7 @@ function audit(actor, action, target, details) {
   }
 }
 
-// --- SLI metrics (M-02) ---
+// --- SLI metrics (M-02, enterprise only) ---
 const sli = {
   startedAt: Date.now(),
   requests: { total: 0, success: 0, clientError: 0, serverError: 0, rateLimit: 0 },
@@ -323,11 +348,13 @@ function restoreBackup(name) {
   return { restored };
 }
 
-// Auto-backup daily
-setInterval(() => {
-  try { createBackup(); audit("system", "auto_backup", null, null); }
-  catch (e) { console.error("Auto-backup failed:", e.message); }
-}, 24 * 60 * 60 * 1000);
+// Auto-backup daily (requires "backup" module)
+if (mod("backup")) {
+  setInterval(() => {
+    try { createBackup(); audit("system", "auto_backup", null, null); }
+    catch (e) { console.error("Auto-backup failed:", e.message); }
+  }, 24 * 60 * 60 * 1000);
+}
 
 // --- Multi-key management ---
 // keys: { provider: [{ id, label, key(encrypted), project: null|"name", enabled }] }
@@ -398,7 +425,7 @@ function checkBudgetReset(proj) {
       now.setHours(0, 0, 0, 0);
     }
     proj.budgetResetAt = now.toISOString();
-    projectsDirty = true;
+    markProjectsDirty();
   }
 }
 
@@ -496,7 +523,7 @@ function pruneUsage(maxDays = 365) {
   for (const key of Object.keys(usageData)) {
     if (key < cutoffStr) { delete usageData[key]; pruned++; }
   }
-  if (pruned > 0) { usageDirty = true; console.log(`Pruned ${pruned} days of old usage data`); }
+  if (pruned > 0) { markUsageDirty(); console.log(`Pruned ${pruned} days of old usage data`); }
 }
 pruneUsage();
 setInterval(pruneUsage, 24 * 60 * 60 * 1000);
@@ -513,7 +540,16 @@ function saveUsage() {
   }
 }
 
-setInterval(() => { if (usageDirty) saveUsage(); }, 30000);
+let usageSaveTimer = null;
+function markUsageDirty() {
+  usageDirty = true;
+  if (!usageSaveTimer) {
+    usageSaveTimer = setTimeout(() => {
+      usageSaveTimer = null;
+      if (usageDirty) saveUsage();
+    }, 1000);
+  }
+}
 
 function recordUsage(project, provider, model, tokens) {
   const date = new Date().toISOString().slice(0, 10);
@@ -528,7 +564,7 @@ function recordUsage(project, provider, model, tokens) {
   rec.inputTokens += tokens.input || 0;
   rec.cacheHitTokens += tokens.cacheHit || 0;
   rec.outputTokens += tokens.output || 0;
-  usageDirty = true;
+  markUsageDirty();
   usageCache.ts = 0; summaryCache.ts = 0; // invalidate cache on new data
 }
 
@@ -740,22 +776,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// 6. SLI metrics tracking
-app.use((req, res, next) => {
-  const start = Date.now();
-  sli.requests.total++;
-  res.on("finish", () => {
-    const ms = Date.now() - start;
-    sli.latency.sum += ms;
-    sli.latency.count++;
-    if (ms > sli.latency.max) sli.latency.max = ms;
-    if (res.statusCode >= 500) sli.requests.serverError++;
-    else if (res.statusCode === 429) sli.requests.rateLimit++;
-    else if (res.statusCode >= 400) sli.requests.clientError++;
-    else sli.requests.success++;
+// 6. SLI metrics tracking (requires "metrics" module)
+if (mod("metrics")) {
+  app.use((req, res, next) => {
+    const start = Date.now();
+    sli.requests.total++;
+    res.on("finish", () => {
+      const ms = Date.now() - start;
+      sli.latency.sum += ms;
+      sli.latency.count++;
+      if (ms > sli.latency.max) sli.latency.max = ms;
+      if (res.statusCode >= 500) sli.requests.serverError++;
+      else if (res.statusCode === 429) sli.requests.rateLimit++;
+      else if (res.statusCode >= 400) sli.requests.clientError++;
+      else sli.requests.success++;
+    });
+    next();
   });
-  next();
-});
+}
 
 // ============================================================
 // Auth middleware
@@ -831,7 +869,7 @@ app.get("/health", (req, res) => {
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
-  res.json({ status: "ok", providers: available, uptime: Math.floor((Date.now() - startTime) / 1000) });
+  res.json({ status: "ok", mode: DEPLOY_MODE, modules: [...modules], providers: available, uptime: Math.floor((Date.now() - startTime) / 1000) });
 });
 
 app.get("/providers", (req, res) => {
@@ -1389,7 +1427,7 @@ app.post("/admin/key", requireRole("root"), async (req, res) => {
 });
 
 // --- Multi-key API (root only) ---
-app.get("/admin/keys/:provider", requireRole("root"), (req, res) => {
+app.get("/admin/keys/:provider", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!PROVIDERS[name]) return res.status(404).json({ error: "Unknown provider" });
   const keys = (providerKeys[name] || []).map(k => ({
@@ -1399,7 +1437,7 @@ app.get("/admin/keys/:provider", requireRole("root"), (req, res) => {
   res.json(keys);
 });
 
-app.post("/admin/keys/:provider", requireRole("root"), async (req, res) => {
+app.post("/admin/keys/:provider", requireModule("multikey"), requireRole("root"), async (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!PROVIDERS[name]) return res.status(404).json({ error: "Unknown provider" });
   const { label, apiKey, project } = req.body;
@@ -1446,7 +1484,7 @@ app.post("/admin/keys/:provider", requireRole("root"), async (req, res) => {
   res.json({ success: true, id: entry.id, test });
 });
 
-app.put("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
+app.put("/admin/keys/:provider/:keyId", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   const keys = providerKeys[name];
   if (!keys) return res.status(404).json({ error: "Unknown provider" });
@@ -1461,7 +1499,7 @@ app.put("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
+app.delete("/admin/keys/:provider/:keyId", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!providerKeys[name]) return res.status(404).json({ error: "Unknown provider" });
   audit(req.userName, "key_delete", `${name}/${req.params.keyId}`);
@@ -1471,7 +1509,7 @@ app.delete("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
   res.json({ success: true });
 });
 
-app.put("/admin/keys/:provider/reorder", requireRole("root"), (req, res) => {
+app.put("/admin/keys/:provider/reorder", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   const { order } = req.body; // array of key IDs in new order
   if (!Array.isArray(order)) return res.status(400).json({ error: "order array required" });
@@ -1490,11 +1528,11 @@ app.put("/admin/keys/:provider/reorder", requireRole("root"), (req, res) => {
 });
 
 // --- User Management (root and admin only) ---
-app.get("/admin/users", requireRole("root", "admin"), (req, res) => {
+app.get("/admin/users", requireModule("users"), requireRole("root", "admin"), (req, res) => {
   res.json(users.map(u => ({ username: u.username, role: u.role, enabled: u.enabled, projects: u.projects || [], createdAt: u.createdAt })));
 });
 
-app.post("/admin/users", requireRole("root", "admin"), async (req, res) => {
+app.post("/admin/users", requireModule("users"), requireRole("root", "admin"), async (req, res) => {
   const { username, password, role, projects: linkedProjects } = req.body;
   if (!username || typeof username !== "string" || !/^[a-zA-Z0-9_]{1,32}$/.test(username)) {
     return res.json({ success: false, error: "Invalid username (1-32 chars, alphanumeric + underscore)" });
@@ -1523,7 +1561,7 @@ app.post("/admin/users", requireRole("root", "admin"), async (req, res) => {
   res.json({ success: true, user: { username, role, enabled: true, projects: newUser.projects || [], createdAt: newUser.createdAt } });
 });
 
-app.put("/admin/users/:username", requireRole("root", "admin"), async (req, res) => {
+app.put("/admin/users/:username", requireModule("users"), requireRole("root", "admin"), async (req, res) => {
   const user = users.find(u => u.username === req.params.username);
   if (!user) return res.json({ success: false, error: "User not found" });
   // Cannot disable/delete your own account
@@ -1562,7 +1600,7 @@ app.put("/admin/users/:username", requireRole("root", "admin"), async (req, res)
   res.json({ success: true, user: { username: user.username, role: user.role, enabled: user.enabled, projects: user.projects || [], createdAt: user.createdAt } });
 });
 
-app.delete("/admin/users/:username", requireRole("root", "admin"), (req, res) => {
+app.delete("/admin/users/:username", requireModule("users"), requireRole("root", "admin"), (req, res) => {
   if (req.params.username === req.userName) {
     return res.status(400).json({ error: "Cannot delete your own account" });
   }
@@ -1582,11 +1620,17 @@ app.delete("/admin/users/:username", requireRole("root", "admin"), (req, res) =>
 });
 
 // ============================================================
-// Metrics, Audit, Backup APIs (root only)
+// Metrics, Audit, Backup APIs (enterprise only)
 // ============================================================
+function requireModule(name) {
+  return (req, res, next) => {
+    if (!mod(name)) return res.status(404).json({ error: `Module "${name}" not enabled. Set DEPLOY_MODE=enterprise or add to MODULES in .env` });
+    next();
+  };
+}
 
 // M-02: SLI metrics endpoint
-app.get("/admin/metrics", requireRole("root", "admin"), (req, res) => {
+app.get("/admin/metrics", requireModule("metrics"), requireRole("root", "admin"), (req, res) => {
   const uptime = Date.now() - sli.startedAt;
   const r = sli.requests;
   const successRate = r.total > 0 ? ((r.success / r.total) * 100).toFixed(2) + "%" : "N/A";
@@ -1606,7 +1650,7 @@ app.get("/admin/metrics", requireRole("root", "admin"), (req, res) => {
 });
 
 // H-01: Audit log viewer
-app.get("/admin/audit", requireRole("root"), (req, res) => {
+app.get("/admin/audit", requireModule("audit"), requireRole("root"), (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
   try {
     if (!fs.existsSync(AUDIT_FILE)) return res.json([]);
@@ -1622,7 +1666,7 @@ app.get("/admin/audit", requireRole("root"), (req, res) => {
 });
 
 // H-02: Backup/restore API
-app.post("/admin/backup", requireRole("root"), (req, res) => {
+app.post("/admin/backup", requireModule("backup"), requireRole("root"), (req, res) => {
   try {
     const result = createBackup();
     audit(req.userName, "backup_create", result.path, { files: result.files });
@@ -1632,11 +1676,11 @@ app.post("/admin/backup", requireRole("root"), (req, res) => {
   }
 });
 
-app.get("/admin/backups", requireRole("root"), (req, res) => {
+app.get("/admin/backups", requireModule("backup"), requireRole("root"), (req, res) => {
   res.json(listBackups());
 });
 
-app.post("/admin/restore/:name", requireRole("root"), (req, res) => {
+app.post("/admin/restore/:name", requireModule("backup"), requireRole("root"), (req, res) => {
   try {
     const result = restoreBackup(req.params.name);
     audit(req.userName, "backup_restore", req.params.name, { files: result.restored });
@@ -1788,7 +1832,7 @@ app.use("/v1/smart", apiLimiter, async (req, res, next) => {
     if (proj?.maxBudgetUsd != null) {
       const classifierCost = calcRequestCost(classifierProv, classifierMod, result.tokens);
       proj.budgetUsedUsd = (proj.budgetUsedUsd || 0) + classifierCost;
-      projectsDirty = true;
+      markProjectsDirty();
     }
   }
 
@@ -1895,7 +1939,7 @@ const proxyMiddleware = createProxyMiddleware({
           if (req._proxyProject?.maxBudgetUsd != null) {
             const cost = calcRequestCost(providerName, modelId, tokens);
             req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost;
-            projectsDirty = true;
+            markProjectsDirty();
           }
         } catch (e) {
           console.error("Usage tracking error:", e.message);
@@ -2011,7 +2055,7 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
-  console.log(`LumiGate running on port ${PORT}`);
+  console.log(`LumiGate running on port ${PORT} [${DEPLOY_MODE} mode, modules: ${[...modules].join(",")}]`);
   console.log(`Available providers: ${available.join(", ")}`);
   console.log(`Admin auth: ${process.env.ADMIN_SECRET ? "configured" : "temporary (set ADMIN_SECRET in .env)"}`);
   audit("system", "startup", null, { port: PORT, providers: available });
@@ -2052,3 +2096,13 @@ function gracefulShutdown(signal) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Crash-safe: flush dirty data before dying on unhandled errors
+function emergencyFlush(reason, err) {
+  console.error(`EMERGENCY FLUSH (${reason}):`, err?.message || err);
+  try { if (usageDirty) saveUsage(); } catch {}
+  try { if (projectsDirty) { saveProjects(projects); projectsDirty = false; } } catch {}
+  audit("system", "crash", null, { reason, error: err?.message });
+}
+process.on("uncaughtException", (err) => { emergencyFlush("uncaughtException", err); process.exit(1); });
+process.on("unhandledRejection", (err) => { emergencyFlush("unhandledRejection", err); process.exit(1); });
