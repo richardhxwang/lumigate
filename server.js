@@ -64,15 +64,24 @@ const MAX_SESSIONS = 10000;
 const ALL_MODULES = ["usage", "budget", "multikey", "users", "audit", "metrics", "backup", "smart", "chat"];
 const LITE_MODULES = ["usage", "chat", "backup"];
 const ENTERPRISE_MODULES = [...ALL_MODULES];
-const DEPLOY_MODE = (process.env.DEPLOY_MODE || "lite").toLowerCase();
-const modules = new Set(
+let DEPLOY_MODE = (process.env.DEPLOY_MODE || "lite").toLowerCase();
+let modules = new Set(
   DEPLOY_MODE === "enterprise" ? ENTERPRISE_MODULES :
   DEPLOY_MODE === "custom" ? (process.env.MODULES || "").split(",").map(s => s.trim()).filter(Boolean) :
   LITE_MODULES
 );
 const mod = (name) => modules.has(name);
-// isEnterprise kept as alias for backward compat
-const isEnterprise = DEPLOY_MODE === "enterprise";
+// isEnterprise is now a getter for runtime switching
+let isEnterprise = DEPLOY_MODE === "enterprise";
+
+function applyDeployMode(mode, customModules) {
+  DEPLOY_MODE = mode;
+  isEnterprise = mode === "enterprise";
+  if (mode === "enterprise") modules = new Set(ENTERPRISE_MODULES);
+  else if (mode === "custom" && customModules) modules = new Set(customModules.filter(m => ALL_MODULES.includes(m)));
+  else modules = new Set(LITE_MODULES);
+  console.log(`[HOT SWITCH] Mode: ${DEPLOY_MODE}, modules: ${[...modules].join(",")}`);
+}
 
 const app = express();
 app.disable("x-powered-by");
@@ -260,6 +269,10 @@ function saveSettings(s) {
   fs.renameSync(tmp, SETTINGS_FILE);
 }
 let settings = loadSettings();
+// Restore hot-switched mode from settings.json (survives restart)
+if (settings.deployMode && settings.deployMode !== DEPLOY_MODE) {
+  applyDeployMode(settings.deployMode, settings.customModules);
+}
 
 // --- Audit logging (requires "audit" module) ---
 // Append-only structured audit log: one JSON object per line
@@ -1317,20 +1330,28 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
 });
 
 app.put("/admin/settings", requireRole("root"), (req, res) => {
-  const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours } = req.body;
+  const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours, confirmSecret } = req.body;
+  // Require re-authentication for settings changes
+  if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
+    return res.status(403).json({ error: "Admin secret required to change settings" });
+  }
   const changes = {};
   if (freeTierMode && ["global", "per-project"].includes(freeTierMode)) {
     settings.freeTierMode = freeTierMode;
     changes.freeTierMode = freeTierMode;
   }
-  // Deploy mode + modules — persisted to settings.json, applied on restart
+  // Deploy mode + modules — hot switch, no restart needed
   if (deployMode && ["lite", "enterprise", "custom"].includes(deployMode)) {
-    settings.pendingDeployMode = deployMode;
+    const customMods = Array.isArray(enabledModules) ? enabledModules : undefined;
+    applyDeployMode(deployMode, customMods);
+    settings.deployMode = deployMode;
+    if (customMods) settings.customModules = customMods;
     changes.deployMode = deployMode;
-  }
-  if (Array.isArray(enabledModules)) {
-    settings.pendingModules = enabledModules.filter(m => ALL_MODULES.includes(m));
-    changes.modules = settings.pendingModules;
+    changes.modules = [...modules];
+  } else if (Array.isArray(enabledModules) && DEPLOY_MODE === "custom") {
+    applyDeployMode("custom", enabledModules);
+    settings.customModules = enabledModules;
+    changes.modules = [...modules];
   }
   // Auth mode: static (fixed secret) or rotating (email token)
   if (authMode && ["static", "rotating"].includes(authMode)) {
@@ -1345,7 +1366,7 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
     settings.authRotateHours = Number(authRotateHours);
     changes.authRotateHours = settings.authRotateHours;
   }
-  // Write deploy mode changes to .env for next restart
+  // Persist deploy mode to .env for Docker restart consistency
   if (changes.deployMode || changes.modules) {
     try {
       const envPath = path.join(__dirname, ".env");
@@ -1366,16 +1387,12 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
-  const needRestart = !!(changes.deployMode || changes.modules);
   res.json({
     success: true,
-    needRestart,
     settings: {
       freeTierMode: settings.freeTierMode || "global",
       deployMode: DEPLOY_MODE,
-      pendingDeployMode: settings.pendingDeployMode,
       modules: [...modules],
-      pendingModules: settings.pendingModules,
       authMode: settings.authMode || "static",
       authEmail: settings.authEmail || "",
       authRotateHours: settings.authRotateHours || 24,

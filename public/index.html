@@ -670,9 +670,9 @@
           <div id="settingsInfo" style="font-size:12px;color:rgba(0,0,0,0.5);line-height:1.8"></div>
         </div>
 
-        <div style="margin-top:20px">
+        <div style="margin-top:20px;display:flex;align-items:center;gap:12px">
           <button class="btn pri" onclick="saveSystemSettings()">Save Settings</button>
-          <span id="settingsRestartHint" style="display:none;font-size:12px;color:#ff9500;margin-left:12px">Restart required for mode changes to take effect.</span>
+          <span id="settingsSaved" style="display:none;font-size:12px;color:#34c759">Changes applied (no restart needed)</span>
         </div>
 
       </div>
@@ -884,8 +884,8 @@ async function loadSystemSettings() {
   try {
     const d = await fetch(B + '/admin/settings').then(r => r.json());
     _settingsData = d;
-    _selectedMode = d.pendingDeployMode || d.deployMode;
-    _selectedModules = new Set(d.pendingModules || d.modules);
+    _selectedMode = d.deployMode;
+    _selectedModules = new Set(d.modules);
     renderSettingsMode();
     renderSettingsModules(d.allModules);
     // Auth
@@ -899,8 +899,7 @@ async function loadSystemSettings() {
     // Info
     document.getElementById('settingsInfo').innerHTML =
       `Current mode: <b>${d.deployMode}</b><br>` +
-      `Active modules: <b>${d.modules.join(', ')}</b><br>` +
-      (d.pendingDeployMode && d.pendingDeployMode !== d.deployMode ? `<span style="color:#ff9500">Pending mode: <b>${d.pendingDeployMode}</b> (restart to apply)</span><br>` : '');
+      `Active modules: <b>${d.modules.join(', ')}</b>`;
   } catch (e) { console.error('loadSettings:', e); }
 }
 
@@ -950,7 +949,12 @@ function toggleAuthRotation() {
 }
 
 async function saveSystemSettings() {
+  // Require password re-confirmation
+  const confirmed = await confirmDangerous('Confirm Settings Change', 'Enter admin secret to apply changes.');
+  if (!confirmed) return;
+  const secret = document.getElementById('confirmSecret').value;
   const body = {
+    confirmSecret: secret,
     deployMode: _selectedMode,
     enabledModules: [..._selectedModules],
     authMode: document.getElementById('settingsAuthMode').value,
@@ -963,8 +967,10 @@ async function saveSystemSettings() {
       body: JSON.stringify(body)
     }).then(r => r.json());
     if (d.success) {
-      showT('Settings saved', 'success');
-      document.getElementById('settingsRestartHint').style.display = d.needRestart ? '' : 'none';
+      showT('Settings applied — no restart needed', 'success');
+      const hint = document.getElementById('settingsSaved');
+      hint.style.display = '';
+      setTimeout(() => hint.style.display = 'none', 3000);
       loadSystemSettings();
     } else showT(d.error || 'Save failed', 'error');
   } catch (e) { showT(e.message, 'error'); }
