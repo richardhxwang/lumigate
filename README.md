@@ -9,6 +9,7 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Windows](#windows)
 - [Architecture](#architecture)
 - [Modular Design](#modular-design)
 - [Features](#features)
@@ -33,6 +34,22 @@ docker compose up -d --build
 ```
 
 Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
+
+## Windows
+
+LumiGate supports running on Windows, but the recommended setup is Docker Desktop with WSL2.
+
+```powershell
+git clone https://github.com/richardhxwang/lumigate.git
+cd lumigate
+copy .env.example .env
+docker compose up -d --build
+```
+
+Notes:
+- Recommended: Docker Desktop + WSL2 backend.
+- Web dashboard and API work normally on Windows at `http://localhost:9471`.
+- `lg` CLI is a bash script, so use WSL2 or Git Bash for full CLI support.
 
 ## Docker Package (Recommended)
 
