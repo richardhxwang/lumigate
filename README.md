@@ -9,7 +9,8 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 ## Table of Contents
 
 - [Docker Package (Recommended)](#docker-package-recommended)
-- [Quick Start](#quick-start)
+- [Native Install (for Developers)](#native-install-for-developers)
+- [Releases](#releases)
 - [Architecture](#architecture)
 - [Modular Design](#modular-design)
 - [Features](#features)
@@ -23,47 +24,52 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 
 ## Docker Package (Recommended)
 
-Use prebuilt Docker image instead of local build:
+Use the prebuilt Docker package without local build.
+
+### One-click install (macOS/Linux)
 
 ```bash
-docker pull richardhxwang/lumigate:latest
-docker run -d --name lumigate \
-  -p 9471:9471 \
-  -e ADMIN_SECRET=change-me \
-  -v "$(pwd)/data:/app/data" \
-  richardhxwang/lumigate:latest
+curl -fsSL https://raw.githubusercontent.com/richardhxwang/lumigate/main/install-docker-package.sh | bash
 ```
 
-For production, use `docker-compose.yml` and mount persistent `data/`.
+The installer will:
+- detect Docker and install it if missing (supported on macOS/Linux)
+- optionally log in to Docker Hub
+- pull `richardhwang920/lumigate:latest`
+- run the container and verify `/health`
 
-## Quick Start
+### One-line run (Windows PowerShell)
 
-### macOS / Linux
+```powershell
+docker run -d --name lumigate -p 9471:9471 -e ADMIN_SECRET=change-me -v "${PWD}\data:/app/data" richardhwang920/lumigate:latest
+```
+
+For production, prefer `docker-compose.yml` and mount persistent `data/`.
+If your host is ARM64 and the latest image is AMD64-only, add `--platform linux/amd64`.
+
+## Native Install (for Developers)
+
+### One-line guided setup (dependency check)
 
 ```bash
-# One-line install
 curl -fsSL https://raw.githubusercontent.com/richardhxwang/lumigate/main/setup.sh | bash
+```
 
-# Or manually
-git clone https://github.com/richardhxwang/lumigate.git && cd lumigate
+`setup.sh` checks `git`, `docker`, `docker compose`, and `curl`.  
+If missing, it can install supported dependencies automatically (may require sudo/admin confirmation).
+
+### Source install
+
+For source-based development, clone the repo and run with Compose:
+
+```bash
+git clone https://github.com/richardhxwang/lumigate.git
+cd lumigate
 cp .env.example .env   # Edit with your API keys
 docker compose up -d --build
 ```
 
-### Windows (Docker recommended)
-
-```powershell
-git clone https://github.com/richardhxwang/lumigate.git
-cd lumigate
-copy .env.example .env
-docker compose up -d --build
-```
-
-Notes:
-- Recommended on Windows: Docker Desktop + WSL2 backend.
-- Web dashboard and API work at `http://localhost:9471`.
-- `lg` CLI is a bash script; use WSL2 or Git Bash for full CLI support.
-
+Windows developers should use Docker Desktop + WSL2.  
 Open `http://localhost:9471` and log in with your `ADMIN_SECRET`.
 
 ## Releases

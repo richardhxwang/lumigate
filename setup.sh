@@ -10,7 +10,7 @@ banner() {
   echo ""
   echo -e "${C}╔══════════════════════════════════════════╗${N}"
   echo -e "${C}║${W}       ✦  LumiGate Setup Wizard  ✦        ${C}║${N}"
-  echo -e "${C}║${N}   Enterprise AI Gateway · 24MB footprint  ${C}║${N}"
+  echo -e "${C}║${N}   Enterprise AI Gateway · low-footprint  ${C}║${N}"
   echo -e "${C}╚══════════════════════════════════════════╝${N}"
   echo ""
 }
