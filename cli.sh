@@ -297,17 +297,40 @@ cmd_config() {
           else
             _secret="$GATEWAY_SECRET"
           fi
-          # Verify against running gateway
+          # Try 1: Verify against running gateway (online mode)
+          _verified=false
           if [[ -n "$GATEWAY_URL" ]]; then
             _code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 \
               -X POST "${GATEWAY_URL}/admin/login" \
               -H "Content-Type: application/json" \
               -d "{\"secret\":\"${_secret}\"}" 2>/dev/null)
-            if [[ "$_code" != "200" ]]; then
-              fail "Admin secret verification failed"
+            if [[ "$_code" == "200" ]]; then
+              _verified=true
+              ok "Authenticated (online)"
+            elif [[ "$_code" == "000" ]]; then
+              # Gateway unreachable — fallback to local .env
+              warn "Gateway unreachable, verifying against local .env"
+            else
+              fail "Admin secret incorrect"
               exit 1
             fi
-            ok "Authenticated"
+          fi
+          # Try 2: Fallback to local .env comparison (offline / SSH)
+          if [[ "$_verified" != "true" ]]; then
+            local _env_secret=""
+            if [[ -n "$PROJECT_DIR" ]] && [[ -f "${PROJECT_DIR}/.env" ]]; then
+              _env_secret=$(grep -E '^ADMIN_SECRET=' "${PROJECT_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2-)
+            fi
+            if [[ -z "$_env_secret" ]]; then
+              fail "Cannot verify: gateway offline and no ADMIN_SECRET in .env"
+              exit 1
+            fi
+            if [[ "$_secret" == "$_env_secret" ]]; then
+              ok "Authenticated (offline)"
+            else
+              fail "Admin secret incorrect"
+              exit 1
+            fi
           fi
           ;;
       esac
