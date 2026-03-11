@@ -171,6 +171,8 @@ const RATE_FILE = path.join(DATA_DIR, "exchange-rate.json");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const KEYS_FILE = path.join(DATA_DIR, "keys.json");
+const AUDIT_FILE = path.join(DATA_DIR, "audit.jsonl");
+const BACKUP_DIR = path.join(DATA_DIR, "backups");
 
 let dataDirReady = false;
 function ensureDataDir() {
@@ -234,6 +236,98 @@ function saveSettings(s) {
   fs.renameSync(tmp, SETTINGS_FILE);
 }
 let settings = loadSettings();
+
+// --- Audit logging (H-01) ---
+// Append-only structured audit log: one JSON object per line
+const AUDIT_MAX_SIZE = 10 * 1024 * 1024; // 10MB rotation threshold
+function audit(actor, action, target, details) {
+  try {
+    ensureDataDir();
+    const entry = JSON.stringify({
+      ts: new Date().toISOString(),
+      actor: actor || "system",
+      action,
+      target: target || null,
+      details: details || null,
+    }) + "\n";
+    // Rotate if file exceeds max size
+    try {
+      const stat = fs.statSync(AUDIT_FILE);
+      if (stat.size > AUDIT_MAX_SIZE) {
+        const rotated = AUDIT_FILE + "." + Date.now();
+        fs.renameSync(AUDIT_FILE, rotated);
+      }
+    } catch {}
+    fs.appendFileSync(AUDIT_FILE, entry);
+  } catch (e) {
+    console.error("Audit write failed:", e.message);
+  }
+}
+
+// --- SLI metrics (M-02) ---
+const sli = {
+  startedAt: Date.now(),
+  requests: { total: 0, success: 0, clientError: 0, serverError: 0, rateLimit: 0 },
+  proxy: { total: 0, success: 0, upstreamError: 0, timeout: 0 },
+  latency: { sum: 0, count: 0, max: 0 }, // in ms
+};
+
+// --- Backup/restore (H-02) ---
+function createBackup() {
+  ensureDataDir();
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(BACKUP_DIR, `backup-${ts}`);
+  fs.mkdirSync(backupPath);
+  const files = [PROJECTS_FILE, USAGE_FILE, RATE_FILE, USERS_FILE, SETTINGS_FILE, KEYS_FILE];
+  let copied = 0;
+  for (const f of files) {
+    if (fs.existsSync(f)) {
+      fs.copyFileSync(f, path.join(backupPath, path.basename(f)));
+      copied++;
+    }
+  }
+  // Prune old backups (keep last 10)
+  const backups = fs.readdirSync(BACKUP_DIR).filter(d => d.startsWith("backup-")).sort();
+  while (backups.length > 10) {
+    const old = backups.shift();
+    const oldPath = path.join(BACKUP_DIR, old);
+    try { fs.rmSync(oldPath, { recursive: true }); } catch {}
+  }
+  return { path: `backup-${ts}`, files: copied };
+}
+
+function listBackups() {
+  ensureDataDir();
+  if (!fs.existsSync(BACKUP_DIR)) return [];
+  return fs.readdirSync(BACKUP_DIR)
+    .filter(d => d.startsWith("backup-"))
+    .sort().reverse()
+    .map(name => {
+      const bp = path.join(BACKUP_DIR, name);
+      const files = fs.readdirSync(bp);
+      return { name, files: files.length, created: name.replace("backup-", "").replace(/-/g, (m, i) => i < 16 ? (i === 10 ? "T" : "-") : ".").slice(0, 19) };
+    });
+}
+
+function restoreBackup(name) {
+  const bp = path.join(BACKUP_DIR, name);
+  if (!fs.existsSync(bp) || !name.startsWith("backup-")) throw new Error("Backup not found");
+  const files = fs.readdirSync(bp);
+  let restored = 0;
+  for (const f of files) {
+    const dest = path.join(DATA_DIR, f);
+    fs.copyFileSync(path.join(bp, f), dest);
+    restored++;
+  }
+  return { restored };
+}
+
+// Auto-backup daily
+setInterval(() => {
+  try { createBackup(); audit("system", "auto_backup", null, null); }
+  catch (e) { console.error("Auto-backup failed:", e.message); }
+}, 24 * 60 * 60 * 1000);
 
 // --- Multi-key management ---
 // keys: { provider: [{ id, label, key(encrypted), project: null|"name", enabled }] }
@@ -439,8 +533,7 @@ function recordUsage(project, provider, model, tokens) {
 }
 
 function getModelInfo(provider, modelId) {
-  const models = MODELS[provider] || [];
-  return models.find((x) => x.id === modelId) || null;
+  return MODEL_INFO_MAP[provider]?.get(modelId) || null;
 }
 
 function calcCost(price, stats, freeRPD, dailyCount) {
@@ -581,6 +674,13 @@ const MODELS = {
   ],
 };
 
+const MODEL_INFO_MAP = Object.fromEntries(
+  Object.entries(MODELS).map(([provider, models]) => [
+    provider,
+    new Map(models.map((m) => [m.id, m])),
+  ])
+);
+
 // ============================================================
 // Middleware stack
 // ============================================================
@@ -637,6 +737,23 @@ app.use(express.json({ limit: "10mb" }));
 // 5. Request timeout
 app.use((req, res, next) => {
   req.setTimeout(120000); // 2 min for AI responses
+  next();
+});
+
+// 6. SLI metrics tracking
+app.use((req, res, next) => {
+  const start = Date.now();
+  sli.requests.total++;
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    sli.latency.sum += ms;
+    sli.latency.count++;
+    if (ms > sli.latency.max) sli.latency.max = ms;
+    if (res.statusCode >= 500) sli.requests.serverError++;
+    else if (res.statusCode === 429) sli.requests.rateLimit++;
+    else if (res.statusCode >= 400) sli.requests.clientError++;
+    else sli.requests.success++;
+  });
   next();
 });
 
@@ -765,8 +882,10 @@ app.post("/admin/login", loginLimiter, async (req, res) => {
       sessions.set(sessionToken, { createdAt: Date.now(), role: "root", username: "_root" });
       const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
       res.cookie("admin_token", sessionToken, { httpOnly: true, sameSite: "Strict", secure: isSecure, path: "/", maxAge: 86400000 });
+      audit("_root", "login", null, { method: "secret" });
       return res.json({ success: true, role: "root" });
     }
+    audit(null, "login_failed", null, { method: "secret", ip: normalizeIP(req) });
     return res.status(401).json({ error: "Invalid admin secret" });
   }
   // Flow 2: username/password
@@ -774,6 +893,7 @@ app.post("/admin/login", loginLimiter, async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: "Credentials required" });
   const user = users.find(u => u.username === username && u.enabled);
   if (!user || !await verifyPassword(password, user.passwordHash, user.salt)) {
+    audit(username || null, "login_failed", null, { method: "password", ip: normalizeIP(req) });
     return res.status(401).json({ error: "Invalid credentials" });
   }
   const sessionToken = crypto.randomBytes(32).toString('hex');
@@ -781,6 +901,7 @@ app.post("/admin/login", loginLimiter, async (req, res) => {
   sessions.set(sessionToken, { createdAt: Date.now(), role: user.role, username: user.username });
   const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
   res.cookie("admin_token", sessionToken, { httpOnly: true, sameSite: "Strict", secure: isSecure, path: "/", maxAge: 86400000 });
+  audit(user.username, "login", null, { method: "password", role: user.role });
   res.json({ success: true, role: user.role });
 });
 
@@ -927,6 +1048,7 @@ app.post("/admin/projects", requireRole("root", "admin"), (req, res) => {
   }
   projects.push(project);
   saveProjects(projects);
+  audit(req.userName, "project_create", name, { budget: project.maxBudgetUsd || null });
   res.json({ success: true, project });
 });
 
@@ -976,6 +1098,7 @@ app.put("/admin/projects/:name", requireRole("root", "admin"), (req, res) => {
     }
   }
   saveProjects(projects);
+  audit(req.userName, "project_update", req.params.name, { fields: Object.keys(req.body) });
   res.json({ success: true, project: proj });
 });
 
@@ -984,6 +1107,7 @@ app.post("/admin/projects/:name/regenerate", requireRole("root", "admin"), (req,
   if (!proj) return res.json({ success: false, error: "project not found" });
   proj.key = "pk_" + crypto.randomBytes(24).toString("hex");
   saveProjects(projects);
+  audit(req.userName, "project_regenerate_key", req.params.name);
   res.json({ success: true, project: proj });
 });
 
@@ -992,6 +1116,7 @@ app.delete("/admin/projects/:name", requireRole("root", "admin"), (req, res) => 
   if (idx === -1) return res.json({ success: false, error: "project not found" });
   projects.splice(idx, 1);
   saveProjects(projects);
+  audit(req.userName, "project_delete", req.params.name);
   res.json({ success: true });
 });
 
@@ -1146,6 +1271,7 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
     settings.freeTierMode = freeTierMode;
   }
   saveSettings(settings);
+  audit(req.userName, "settings_update", null, { freeTierMode: settings.freeTierMode });
   res.json({ success: true, settings: { freeTierMode: settings.freeTierMode || "global" } });
 });
 
@@ -1224,6 +1350,7 @@ app.post("/admin/key", requireRole("root"), async (req, res) => {
   } catch (e) {
     console.error("Failed to persist .env:", e.message);
   }
+  audit(req.userName, "provider_key_update", name, { baseUrl: !!safeUrl });
   // Auto-test with cheapest model after key update
   const cheapest = (MODELS[name] || []).find(m => m.tier === "economy") || (MODELS[name] || [])[0];
   if (cheapest) {
@@ -1294,6 +1421,7 @@ app.post("/admin/keys/:provider", requireRole("root"), async (req, res) => {
   // Keep PROVIDERS.apiKey in sync (first enabled key)
   try { PROVIDERS[name].apiKey = decryptValue(providerKeys[name].find(k => k.enabled)?.key, ADMIN_SECRET); } catch {}
   saveKeys(providerKeys);
+  audit(req.userName, "key_add", name, { label: entry.label, project: entry.project });
   // Auto-test
   const cheapest = (MODELS[name] || []).find(m => m.tier === "economy") || (MODELS[name] || [])[0];
   let test = null;
@@ -1329,12 +1457,14 @@ app.put("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
   if (req.body.project !== undefined) entry.project = req.body.project || null;
   try { PROVIDERS[name].apiKey = decryptValue(keys.find(k => k.enabled)?.key, ADMIN_SECRET); } catch { PROVIDERS[name].apiKey = undefined; }
   saveKeys(providerKeys);
+  audit(req.userName, "key_update", `${name}/${req.params.keyId}`, { fields: Object.keys(req.body) });
   res.json({ success: true });
 });
 
 app.delete("/admin/keys/:provider/:keyId", requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!providerKeys[name]) return res.status(404).json({ error: "Unknown provider" });
+  audit(req.userName, "key_delete", `${name}/${req.params.keyId}`);
   providerKeys[name] = providerKeys[name].filter(k => k.id !== req.params.keyId);
   try { PROVIDERS[name].apiKey = decryptValue(providerKeys[name].find(k => k.enabled)?.key, ADMIN_SECRET); } catch { PROVIDERS[name].apiKey = undefined; }
   saveKeys(providerKeys);
@@ -1389,6 +1519,7 @@ app.post("/admin/users", requireRole("root", "admin"), async (req, res) => {
   }
   users.push(newUser);
   saveUsers(users);
+  audit(req.userName, "user_create", username, { role });
   res.json({ success: true, user: { username, role, enabled: true, projects: newUser.projects || [], createdAt: newUser.createdAt } });
 });
 
@@ -1427,6 +1558,7 @@ app.put("/admin/users/:username", requireRole("root", "admin"), async (req, res)
     user.projects = Array.isArray(req.body.projects) ? req.body.projects.filter(p => typeof p === "string") : [];
   }
   saveUsers(users);
+  audit(req.userName, "user_update", req.params.username, { fields: Object.keys(req.body).filter(k => k !== "password") });
   res.json({ success: true, user: { username: user.username, role: user.role, enabled: user.enabled, projects: user.projects || [], createdAt: user.createdAt } });
 });
 
@@ -1442,10 +1574,81 @@ app.delete("/admin/users/:username", requireRole("root", "admin"), (req, res) =>
   const username = users[idx].username;
   users.splice(idx, 1);
   saveUsers(users);
+  audit(req.userName, "user_delete", username);
   for (const [k, v] of sessions) {
     if (v.username === username) sessions.delete(k);
   }
   res.json({ success: true });
+});
+
+// ============================================================
+// Metrics, Audit, Backup APIs (root only)
+// ============================================================
+
+// M-02: SLI metrics endpoint
+app.get("/admin/metrics", requireRole("root", "admin"), (req, res) => {
+  const uptime = Date.now() - sli.startedAt;
+  const r = sli.requests;
+  const successRate = r.total > 0 ? ((r.success / r.total) * 100).toFixed(2) + "%" : "N/A";
+  const avgLatency = sli.latency.count > 0 ? Math.round(sli.latency.sum / sli.latency.count) : 0;
+  res.json({
+    uptime: Math.floor(uptime / 1000),
+    requests: r,
+    successRate,
+    latency: { avgMs: avgLatency, maxMs: sli.latency.max, samples: sli.latency.count },
+    proxy: sli.proxy,
+    sessions: sessions.size,
+    memory: {
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024 * 10) / 10,
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 10) / 10,
+    },
+  });
+});
+
+// H-01: Audit log viewer
+app.get("/admin/audit", requireRole("root"), (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
+  try {
+    if (!fs.existsSync(AUDIT_FILE)) return res.json([]);
+    const content = fs.readFileSync(AUDIT_FILE, "utf8");
+    const lines = content.trim().split("\n").filter(Boolean);
+    const entries = lines.slice(-limit).reverse().map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    }).filter(Boolean);
+    res.json(entries);
+  } catch {
+    res.json([]);
+  }
+});
+
+// H-02: Backup/restore API
+app.post("/admin/backup", requireRole("root"), (req, res) => {
+  try {
+    const result = createBackup();
+    audit(req.userName, "backup_create", result.path, { files: result.files });
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/admin/backups", requireRole("root"), (req, res) => {
+  res.json(listBackups());
+});
+
+app.post("/admin/restore/:name", requireRole("root"), (req, res) => {
+  try {
+    const result = restoreBackup(req.params.name);
+    audit(req.userName, "backup_restore", req.params.name, { files: result.restored });
+    // Reload in-memory state
+    projects = loadProjects();
+    users = loadUsers();
+    settings = loadSettings();
+    providerKeys = loadKeys();
+    res.json({ success: true, ...result, message: "Data restored. Usage data will take effect after restart." });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // ============================================================
@@ -1686,6 +1889,7 @@ const proxyMiddleware = createProxyMiddleware({
           } else {
             tokens = extractTokens(providerName, tail);
           }
+          sli.proxy.total++; sli.proxy.success++;
           recordUsage(projectName, providerName, modelId, tokens);
           // Phase 1a: Track budget spend
           if (req._proxyProject?.maxBudgetUsd != null) {
@@ -1701,6 +1905,8 @@ const proxyMiddleware = createProxyMiddleware({
     error: (err, req, res) => {
       const providerName = req.params?.provider?.toLowerCase() || "unknown";
       console.error(`Proxy error [${providerName}]:`, err.message);
+      sli.proxy.upstreamError++;
+      if (err.code === "ECONNABORTED" || err.code === "ETIMEDOUT") sli.proxy.timeout++;
       if (!res.headersSent) res.status(502).json({ error: "Proxy error" });
     },
   },
@@ -1808,6 +2014,7 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`LumiGate running on port ${PORT}`);
   console.log(`Available providers: ${available.join(", ")}`);
   console.log(`Admin auth: ${process.env.ADMIN_SECRET ? "configured" : "temporary (set ADMIN_SECRET in .env)"}`);
+  audit("system", "startup", null, { port: PORT, providers: available });
 });
 
 // Track raw TCP connections for graceful shutdown
@@ -1823,6 +2030,7 @@ function gracefulShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\n${signal} received — shutting down gracefully...`);
+  audit("system", "shutdown", null, { signal, uptime: Math.floor((Date.now() - sli.startedAt) / 1000) });
 
   // Save data immediately
   if (usageDirty) saveUsage();

@@ -24,7 +24,10 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 - **Dashboard** — 4-tab SPA with Canvas charts, mobile responsive, Apple HIG style
 - **Built-in Chat** — SSE streaming chat interface supporting all providers
 - **CLI & TUI** — Terminal tools (`cli.sh` for quick commands, `tui.js` for full-screen interface)
-- **Security** — Session-based auth, timing-safe key comparison, SSRF protection, rate limiting, CORS, input sanitization
+- **Security** — Session-based auth, timing-safe key comparison, SSRF protection, rate limiting, CORS, CSP, HSTS, input sanitization
+- **Audit Logging** — Structured JSONL audit trail for all admin operations (login, project/key/user changes, backups, startup/shutdown)
+- **SLI Metrics** — Real-time request/error/latency counters via `/admin/metrics`
+- **Backup & Restore** — One-click backup/restore API with daily auto-backup, 10-version retention, hot reload on restore
 - **Docker-Native** — Nginx + Express + Cloudflare Tunnel, healthcheck, volume-persisted data
 - **Zero-Downtime Config** — Change API keys, add providers via dashboard without restart
 - **High Availability** — Cold standby (Plan A, <5MB idle) or hot standby (Plan B) failover with automatic Cloudflare Tunnel switchover
@@ -132,6 +135,11 @@ curl -X POST https://your-gateway.com/v1/openai/v1/chat/completions \
 | GET | `/admin/usage/summary?days=7` | Aggregated usage summary |
 | GET | `/admin/rate` | Current exchange rates (multi-currency) |
 | POST | `/admin/key` | Update provider API key at runtime |
+| GET | `/admin/metrics` | SLI metrics (requests, latency, memory) |
+| GET | `/admin/audit?limit=N` | Audit log (last N entries, root only) |
+| POST | `/admin/backup` | Create manual backup (root only) |
+| GET | `/admin/backups` | List backups (root only) |
+| POST | `/admin/restore/{name}` | Restore from backup (root only) |
 
 ## Adding a New Provider
 
@@ -163,7 +171,7 @@ newprovider: [
 | Layer | Protection |
 |-------|-----------|
 | **Cloudflare Access** | Google OAuth for dashboard, bypass for `/v1/*` API paths |
-| **Session Auth** | Random session tokens (not raw secret), 24h expiry, HttpOnly + Secure + SameSite cookies |
+| **Session Auth** | Random session tokens (not raw secret), 24h expiry, 10k cap with FIFO eviction, HttpOnly + Secure + SameSite cookies |
 | **Timing-Safe Auth** | `crypto.timingSafeEqual` for all secret and key comparisons |
 | **Project Keys** | 48-char random hex per project, enable/disable/regenerate |
 | **Rate Limiting** | 600 req/min proxy, 120 req/min admin, 10/15min login |
@@ -175,6 +183,8 @@ newprovider: [
 | **XSS Prevention** | HTML-escaped user data, no stack traces in error responses |
 | **Security Headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Strict-Transport-Security`, no `X-Powered-By` |
 | **Docker Hardening** | Non-root user, `.dockerignore` excludes secrets, `server_tokens off` |
+| **Audit Trail** | Structured JSONL audit log, 17 event types, 10MB auto-rotation, query API |
+| **Backup/Restore** | Daily auto-backup, 10-version retention, one-click restore with hot reload |
 | **Graceful Shutdown** | Connection draining, atomic data flush on SIGTERM |
 
 ### Penetration Test Results
