@@ -112,7 +112,7 @@ lg restart
 |--------|-------------|
 | `usage` | Per-project/model token counts & cost tracking |
 | `budget` | Per-project spending limits (daily/monthly), auto-reset |
-| `multikey` | Multiple API keys per provider with priority |
+| `multikey` | Multiple API keys per provider with drag-to-reorder priority, per-project key binding |
 | `users` | Multi-user RBAC (root/admin/viewer roles) |
 | `audit` | Structured JSONL event log, 17 event types |
 | `metrics` | SLI counters — requests, errors, latency, memory |
@@ -133,6 +133,7 @@ lg restart
 - **High Availability** — Cold standby (Plan A, <5MB idle) or hot standby (Plan B) with Cloudflare Tunnel failover
 - **External Hardening** — QUIC tunnel protocol, Nginx auto-retry on 502/503, keepalive connection pooling
 - **Zero-Downtime Config** — Change API keys, add providers via dashboard without restart
+- **Pointer-Events Drag Reorder** — Multi-key priority drag-to-reorder works in Safari and all CSS contexts (replaces HTML5 DnD which fails inside `position:absolute` panels)
 
 ## Self-Healing & Data Safety
 
