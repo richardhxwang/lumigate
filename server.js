@@ -17,6 +17,22 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
+// --- Structured logging ---
+function log(level, msg, ctx = {}) {
+  process.stdout.write(JSON.stringify({ ts: new Date().toISOString(), level, msg, ...ctx }) + "\n");
+}
+
+// --- Webhook alerts (non-blocking, fire-and-forget) ---
+const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL;
+function sendAlert(type, payload) {
+  if (!ALERT_WEBHOOK_URL) return;
+  fetch(ALERT_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, ts: new Date().toISOString(), gateway: "lumigate", ...payload }),
+  }).catch(() => {}); // silent fail — never affects main flow
+}
+
 async function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString('hex');
   const hash = await new Promise((resolve, reject) =>
@@ -228,12 +244,48 @@ function recordCostForRateLimit(projName, cost) {
   if (bucket) bucket.cost += cost;
 }
 
+// --- Key cooldown tracker (per-key, in-memory) ---
+const keyCooldowns = new Map(); // keyId -> { until, reason, count }
+const KEY_COOLDOWN_429_MS = 60_000;  // 60s on rate-limit
+const KEY_COOLDOWN_401_MS = 600_000; // 10min on auth failure
+
+function isKeyCooling(keyId) {
+  const c = keyCooldowns.get(keyId);
+  if (!c) return false;
+  if (Date.now() > c.until) { keyCooldowns.delete(keyId); return false; }
+  return true;
+}
+
+function markKeyCooling(keyId, statusCode) {
+  const existing = keyCooldowns.get(keyId) || { count: 0 };
+  const count = existing.count + 1;
+  const ms = statusCode === 401 ? KEY_COOLDOWN_401_MS : KEY_COOLDOWN_429_MS;
+  keyCooldowns.set(keyId, { until: Date.now() + ms, reason: String(statusCode), count });
+  if (statusCode === 401 && count >= 3) {
+    autoDisableKey(keyId);
+    sendAlert("key_disabled", { keyId, reason: "401x3" });
+  }
+}
+
+function autoDisableKey(keyId) {
+  for (const [provName, keys] of Object.entries(providerKeys)) {
+    const k = keys.find(k => k.id === keyId);
+    if (k) {
+      k.enabled = false;
+      saveKeys(providerKeys);
+      log("warn", "Key auto-disabled after 3x 401", { keyId, provider: provName });
+      return;
+    }
+  }
+}
+
 // Cleanup stale buckets every 5 min
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of projectIpRateBuckets) { if (now >= v.resetAt) projectIpRateBuckets.delete(k); }
   for (const [k, v] of tokenRateBuckets) { if (now >= v.resetAt) tokenRateBuckets.delete(k); }
   for (const [k, v] of projectCostBuckets) { if (now >= v.resetAt) projectCostBuckets.delete(k); }
+  for (const [k, v] of keyCooldowns) { if (now > v.until) keyCooldowns.delete(k); }
 }, 300000);
 
 // Per-project anomaly detection — auto-suspend on request spike
@@ -258,7 +310,8 @@ function checkProjectAnomaly(proj) {
       proj.suspendedAt = new Date().toISOString();
       proj.suspendReason = "anomaly_auto_suspend";
       saveProjects(projects);
-      console.warn(`[ANOMALY] Project "${proj.name}" auto-suspended: ${hist.currentMin} req/min vs avg ${avg.toFixed(1)}`);
+      log("warn", "Project auto-suspended (anomaly)", { project: proj.name, reqPerMin: hist.currentMin, avg: avg.toFixed(1) });
+      sendAlert("project_suspended", { project: proj.name, reqPerMin: hist.currentMin, avgPerMin: +avg.toFixed(1) });
       return false;
     }
   }
@@ -323,14 +376,16 @@ function verifyHmacSignature(proj, req) {
 
 // Per-user ephemeral tokens
 // Token format: { projectName, userId, expiresAt, token }
-const ephemeralTokens = new Map(); // token -> { projectName, userId, expiresAt }
 const EPHEMERAL_TTL_MS = 3600 * 1000; // 1h default, project can override
 const MAX_EPHEMERAL_PER_PROJECT = 10000;
+let ephemeralTokens = new Map(); // populated from disk after data layer init below
 
 // Cleanup expired tokens every minute
 setInterval(() => {
   const now = Date.now();
-  for (const [t, info] of ephemeralTokens) { if (now > info.expiresAt) ephemeralTokens.delete(t); }
+  let changed = false;
+  for (const [t, info] of ephemeralTokens) { if (now > info.expiresAt) { ephemeralTokens.delete(t); changed = true; } }
+  if (changed) markTokensDirty();
 }, 60000);
 
 // POST /v1/token — exchange project key (or HMAC) for short-lived token
@@ -369,6 +424,7 @@ const RATE_FILE = path.join(DATA_DIR, "exchange-rate.json");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const KEYS_FILE = path.join(DATA_DIR, "keys.json");
+const TOKENS_FILE = path.join(DATA_DIR, "tokens.json");
 const AUDIT_FILE = path.join(DATA_DIR, "audit.jsonl");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
 
@@ -564,6 +620,41 @@ function saveKeys(k) {
 }
 let providerKeys = loadKeys();
 
+// --- Token persistence (Feature 3) ---
+function loadTokens() {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(TOKENS_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(TOKENS_FILE, "utf8"));
+      const now = Date.now();
+      return Object.entries(raw).filter(([, v]) => v.expiresAt > now);
+    }
+  } catch (e) { console.error("Failed to load tokens:", e.message); }
+  return [];
+}
+function saveTokens() {
+  try {
+    ensureDataDir();
+    const obj = Object.fromEntries(ephemeralTokens);
+    const tmp = TOKENS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(obj));
+    fs.renameSync(tmp, TOKENS_FILE);
+  } catch (e) { console.error("Failed to save tokens:", e.message); }
+}
+let tokensDirty = false;
+let tokensSaveTimer = null;
+function markTokensDirty() {
+  tokensDirty = true;
+  if (!tokensSaveTimer) {
+    tokensSaveTimer = setTimeout(() => {
+      tokensSaveTimer = null;
+      if (tokensDirty) { saveTokens(); tokensDirty = false; }
+    }, 1000);
+  }
+}
+// Initialize ephemeralTokens from disk (declared earlier as empty Map)
+ephemeralTokens = new Map(loadTokens());
+
 // Migrate .env single keys to keys.json on first load
 function migrateEnvKeys() {
   let migrated = false;
@@ -584,8 +675,10 @@ function migrateEnvKeys() {
 }
 
 // Get the best API key for a provider+project combo
-function selectApiKey(providerName, projectName) {
-  const keys = (providerKeys[providerName] || []).filter(k => k.enabled);
+// excludeKeyIds: Set of key IDs to skip (used for failover retry)
+function selectApiKey(providerName, projectName, excludeKeyIds = new Set()) {
+  const keys = (providerKeys[providerName] || [])
+    .filter(k => k.enabled && !isKeyCooling(k.id) && !excludeKeyIds.has(k.id));
   // 1. Project-specific keys first (in order = priority)
   const projKeys = keys.filter(k => k.project === projectName);
   // 2. Public keys (project = null)
@@ -932,6 +1025,13 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// 2b. Trace ID — attach per-request ID, expose in response header
+app.use((req, res, next) => {
+  req.traceId = req.headers["x-request-id"] || crypto.randomUUID();
+  res.setHeader("X-Request-ID", req.traceId);
+  next();
+});
 
 // 3. Rate limiting
 const rateLimitOpts = {
@@ -1799,6 +1899,26 @@ app.post("/admin/key", requireRole("root"), async (req, res) => {
   res.json({ success: true, message: `${name} key updated` });
 });
 
+// --- Key cooldown management (registered BEFORE parameterized :provider routes to avoid shadowing) ---
+app.get("/admin/keys/cooldowns", requireRole("root"), (req, res) => {
+  const now = Date.now();
+  const list = [];
+  for (const [keyId, c] of keyCooldowns) {
+    if (now <= c.until) {
+      list.push({ keyId, reason: c.reason, count: c.count, remainingSec: Math.ceil((c.until - now) / 1000) });
+    }
+  }
+  res.json(list);
+});
+
+app.delete("/admin/keys/cooldowns/:keyId", requireRole("root"), (req, res) => {
+  const { keyId } = req.params;
+  if (!keyCooldowns.has(keyId)) return res.status(404).json({ error: "Key not in cooldown" });
+  keyCooldowns.delete(keyId);
+  audit(req.userName, "key_cooldown_cleared", keyId);
+  res.json({ success: true });
+});
+
 // --- Multi-key API (root only) ---
 app.get("/admin/keys/:provider", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
@@ -1857,6 +1977,24 @@ app.post("/admin/keys/:provider", requireModule("multikey"), requireRole("root")
   res.json({ success: true, id: entry.id, test });
 });
 
+app.put("/admin/keys/:provider/reorder", requireModule("multikey"), requireRole("root"), (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  const { order } = req.body; // array of key IDs in new order
+  if (!Array.isArray(order)) return res.status(400).json({ error: "order array required" });
+  const keys = providerKeys[name];
+  if (!keys) return res.status(404).json({ error: "Unknown provider" });
+  const reordered = [];
+  for (const id of order) {
+    const k = keys.find(x => x.id === id);
+    if (k) reordered.push(k);
+  }
+  // Append any keys not in the order array
+  for (const k of keys) { if (!reordered.includes(k)) reordered.push(k); }
+  providerKeys[name] = reordered;
+  saveKeys(providerKeys);
+  res.json({ success: true });
+});
+
 app.put("/admin/keys/:provider/:keyId", requireModule("multikey"), requireRole("root"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   const keys = providerKeys[name];
@@ -1878,24 +2016,6 @@ app.delete("/admin/keys/:provider/:keyId", requireModule("multikey"), requireRol
   audit(req.userName, "key_delete", `${name}/${req.params.keyId}`);
   providerKeys[name] = providerKeys[name].filter(k => k.id !== req.params.keyId);
   try { PROVIDERS[name].apiKey = decryptValue(providerKeys[name].find(k => k.enabled)?.key, ADMIN_SECRET); } catch { PROVIDERS[name].apiKey = undefined; }
-  saveKeys(providerKeys);
-  res.json({ success: true });
-});
-
-app.put("/admin/keys/:provider/reorder", requireModule("multikey"), requireRole("root"), (req, res) => {
-  const name = req.params.provider.toLowerCase();
-  const { order } = req.body; // array of key IDs in new order
-  if (!Array.isArray(order)) return res.status(400).json({ error: "order array required" });
-  const keys = providerKeys[name];
-  if (!keys) return res.status(404).json({ error: "Unknown provider" });
-  const reordered = [];
-  for (const id of order) {
-    const k = keys.find(x => x.id === id);
-    if (k) reordered.push(k);
-  }
-  // Append any keys not in the order array
-  for (const k of keys) { if (!reordered.includes(k)) reordered.push(k); }
-  providerKeys[name] = reordered;
   saveKeys(providerKeys);
   res.json({ success: true });
 });
@@ -2306,11 +2426,12 @@ function anthropicToOpenaiResponse(data, model) {
   };
 }
 
-async function handleAnthropicCompat(req, res, apiKey) {
+async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyIds = new Set()) {
   const requestedModel = req.body?.model || "claude-haiku-4-5-20251001";
   const isStream = req.body?.stream === true;
   const anthropicBody = openaiToAnthropicBody(req.body);
   const fetchHeaders = { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+  if (req.traceId) fetchHeaders["x-request-id"] = req.traceId;
 
   let anthropicResp;
   try {
@@ -2322,10 +2443,22 @@ async function handleAnthropicCompat(req, res, apiKey) {
   }
 
   if (!anthropicResp.ok) {
+    const status = anthropicResp.status;
+    // Key failover on 429/401
+    if ((status === 429 || status === 401) && req._selectedKeyId) {
+      const currentKeyId = req._selectedKeyId;
+      markKeyCooling(currentKeyId, status);
+      const nextExclude = new Set([...excludeKeyIds, currentKeyId]);
+      const nextKey = selectApiKey("anthropic", projectName || req._proxyProjectName, nextExclude);
+      if (nextKey) {
+        req._selectedKeyId = nextKey.keyId;
+        return handleAnthropicCompat(req, res, nextKey.apiKey, projectName || req._proxyProjectName, nextExclude);
+      }
+    }
     const errText = await anthropicResp.text();
     let errMsg = errText;
     try { errMsg = JSON.parse(errText)?.error?.message || errText; } catch (_) {}
-    return res.status(anthropicResp.status).json({ error: errMsg });
+    return res.status(status).json({ error: errMsg });
   }
 
   if (isStream) {
@@ -2389,6 +2522,92 @@ async function handleAnthropicCompat(req, res, apiKey) {
 // ============================================================
 // API Proxy — /v1/:provider/*
 // ============================================================
+
+// Retry a failed proxy request with a different API key using fetch
+async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new Set()) {
+  const provider = PROVIDERS[providerName];
+  let subpath = req.path.replace(new RegExp(`^/v1/${providerName}`, "i"), "");
+  if (providerName === "gemini") subpath = subpath.replace(/^\/v1\//, "/v1beta/openai/");
+  else if (providerName === "doubao") subpath = subpath.replace(/^\/v1\//, "/");
+  const url = provider.baseUrl + subpath;
+
+  const headers = { "Content-Type": "application/json" };
+  if (providerName === "anthropic") {
+    headers["x-api-key"] = keyInfo.apiKey;
+    headers["anthropic-version"] = req.headers["anthropic-version"] || "2023-06-01";
+    delete headers["authorization"];
+  } else {
+    headers["authorization"] = `Bearer ${keyInfo.apiKey}`;
+  }
+  if (req.traceId) headers["x-request-id"] = req.traceId;
+
+  let body = req.body;
+  if (body?.stream === true && providerName !== "anthropic") {
+    body = { ...body, stream_options: { ...(body.stream_options || {}), include_usage: true } };
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(url, { method: req.method, headers, body: JSON.stringify(body) });
+  } catch (e) {
+    if (!res.headersSent) res.status(502).json({ error: "Upstream connection error", message: e.message });
+    return;
+  }
+
+  // Chain retry if another key is available
+  if ((upstream.status === 429 || upstream.status === 401) && keyInfo.keyId) {
+    markKeyCooling(keyInfo.keyId, upstream.status);
+    const nextExclude = new Set([...excludeIds, keyInfo.keyId]);
+    const nextKey = selectApiKey(providerName, req._proxyProjectName, nextExclude);
+    if (nextKey) {
+      await retryWithFetch(req, res, providerName, nextKey, nextExclude);
+      return;
+    }
+  }
+
+  // Forward response headers + body
+  if (res.headersSent) return;
+  const resHeaders = {};
+  upstream.headers.forEach((v, k) => { if (k.toLowerCase() !== "transfer-encoding") resHeaders[k] = v; });
+  res.writeHead(upstream.status, resHeaders);
+
+  if (upstream.body) {
+    const projectName = req._proxyProjectName;
+    const modelId = req.body?.model || "unknown";
+    const isStreaming = req.body?.stream === true;
+    let tail = "";
+    try {
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = Buffer.from(value);
+        tail = (tail + chunk.toString()).slice(-8192);
+        res.write(chunk);
+      }
+    } catch (_) {}
+    res.end();
+    // Track usage
+    try {
+      let tokens;
+      if (isStreaming) {
+        tokens = extractTokensFromSSE(providerName, tail);
+        if (!tokens) tokens = { input: Math.ceil(JSON.stringify(req.body?.messages || "").length / 4), cacheHit: 0, output: 0 };
+      } else {
+        tokens = extractTokens(providerName, tail);
+      }
+      recordUsage(projectName, providerName, modelId, tokens);
+      if (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin) {
+        const cost = calcRequestCost(providerName, modelId, tokens);
+        if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
+        if (req._proxyProject.maxCostPerMin) recordCostForRateLimit(req._proxyProjectName, cost);
+      }
+    } catch (_) {}
+  } else {
+    res.end();
+  }
+}
+
 const proxyMiddleware = createProxyMiddleware({
   router: (req) => {
     const provider = req.params?.provider?.toLowerCase();
@@ -2398,6 +2617,7 @@ const proxyMiddleware = createProxyMiddleware({
   ws: false,
   timeout: 120000,
   proxyTimeout: 120000,
+  selfHandleResponse: true,
   pathRewrite: (pathStr, req) => {
     const providerName = req.params?.provider?.toLowerCase();
     const stripped = pathStr.replace(`/v1/${providerName}`, "");
@@ -2412,6 +2632,8 @@ const proxyMiddleware = createProxyMiddleware({
   },
   on: {
     proxyReq: (proxyReq, req) => {
+      // Set X-Request-ID BEFORE write() — setHeader() throws after body write flushes headers
+      if (req.traceId) proxyReq.setHeader("X-Request-ID", req.traceId);
       if (req.body && ["POST", "PUT", "PATCH"].includes(req.method)) {
         // Inject stream_options for accurate SSE usage tracking (OpenAI-compatible providers)
         const provName = req.params?.provider?.toLowerCase();
@@ -2424,18 +2646,42 @@ const proxyMiddleware = createProxyMiddleware({
         proxyReq.write(bodyData);
       }
     },
-    proxyRes: (proxyRes, req) => {
+    proxyRes: (proxyRes, req, res) => {
       const providerName = req.params?.provider?.toLowerCase();
       const projectName = req._proxyProjectName;
       const modelId = req.body?.model || "unknown";
       const isStreaming = req.body?.stream === true;
+      const statusCode = proxyRes.statusCode;
+      const currentKeyId = req._selectedKeyId;
 
-      let tail = '';
+      // Key failover on 429/401 — try next available key
+      if ((statusCode === 429 || statusCode === 401) && currentKeyId) {
+        markKeyCooling(currentKeyId, statusCode);
+        const nextKey = selectApiKey(providerName, projectName, new Set([currentKeyId]));
+        if (nextKey) {
+          proxyRes.resume(); // drain + discard upstream error body
+          req._selectedKeyId = nextKey.keyId;
+          retryWithFetch(req, res, providerName, nextKey, new Set([currentKeyId])).catch(err => {
+            log("error", "retryWithFetch unhandled error", { error: err.message, traceId: req.traceId });
+            if (!res.headersSent) res.status(502).json({ error: "Upstream retry failed" });
+          });
+          return;
+        }
+      }
+
+      // Normal path: forward headers + pipe body + track usage
+      Object.entries(proxyRes.headers).forEach(([k, v]) => {
+        if (k.toLowerCase() !== "transfer-encoding") res.setHeader(k, v);
+      });
+      res.statusCode = statusCode;
+
+      let tail = "";
       proxyRes.on("data", (chunk) => {
-        const str = chunk.toString();
-        tail = (tail + str).slice(-8192);
+        tail = (tail + chunk.toString()).slice(-8192);
+        res.write(chunk);
       });
       proxyRes.on("end", () => {
+        res.end();
         try {
           let tokens;
           if (isStreaming) {
@@ -2461,13 +2707,13 @@ const proxyMiddleware = createProxyMiddleware({
             }
           }
         } catch (e) {
-          console.error("Usage tracking error:", e.message);
+          log("error", "Usage tracking error", { error: e.message, traceId: req.traceId });
         }
       });
     },
     error: (err, req, res) => {
       const providerName = req.params?.provider?.toLowerCase() || "unknown";
-      console.error(`Proxy error [${providerName}]:`, err.message);
+      log("error", "Proxy error", { provider: providerName, error: err.message, traceId: req.traceId });
       sli.proxy.upstreamError++;
       if (err.code === "ECONNABORTED" || err.code === "ETIMEDOUT") sli.proxy.timeout++;
       if (!res.headersSent) res.status(502).json({ error: "Proxy error" });
@@ -2503,6 +2749,7 @@ app.post("/v1/token", apiLimiter, (req, res) => {
   const expiresAt = Date.now() + ttl;
   const userId = req.body?.userId || null;
   ephemeralTokens.set(token, { projectName: resolvedProj.name, project: resolvedProj, userId, expiresAt });
+  markTokensDirty();
   audit(null, "token_issued", resolvedProj.name, { userId, ttlMin: Math.round(ttl / 60000) });
   res.json({ token, expiresAt: new Date(expiresAt).toISOString(), expiresIn: Math.round(ttl / 1000) });
 });
@@ -2599,6 +2846,7 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
     // Phase 1a: Budget enforcement
     checkBudgetReset(proj);
     if (proj.maxBudgetUsd != null && (proj.budgetUsedUsd || 0) >= proj.maxBudgetUsd) {
+      sendAlert("budget_exceeded", { project: proj.name, used: proj.budgetUsedUsd, max: proj.maxBudgetUsd });
       return res.status(429).json({ error: "Project budget exceeded" });
     }
 
@@ -2619,6 +2867,7 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
     return res.status(403).json({ error: "Provider has no API key configured" });
   }
   const proxyApiKey = selectedKey?.apiKey || provider.apiKey;
+  req._selectedKeyId = selectedKey?.keyId;
 
   // F-04: Validate upstream path against allowlist (O-02: normalize like pathRewrite)
   let incomingSubpath = req.path.replace(new RegExp(`^/v1/${providerName}`, "i"), "");
@@ -2637,7 +2886,11 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
 
   // Anthropic OpenAI-compat intercept: /v1/chat/completions → /v1/messages + format translation
   if (providerName === "anthropic" && incomingSubpath === "/v1/chat/completions") {
-    return handleAnthropicCompat(req, res, proxyApiKey);
+    handleAnthropicCompat(req, res, proxyApiKey, projectName).catch(err => {
+      log("error", "handleAnthropicCompat unhandled error", { error: err.message, traceId: req.traceId });
+      if (!res.headersSent) res.status(502).json({ error: "Internal error" });
+    });
+    return;
   }
 
   // Inject auth — replace any client-sent auth
@@ -2658,6 +2911,7 @@ app.use("/v1/:provider", apiLimiter, (req, res, next) => {
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   console.error(`[${req.method} ${req.path}] ${err.message}`);
+  if (res.headersSent) return;
   const msg = status === 400 ? "Bad request" : status === 413 ? "Payload too large" : "Internal server error";
   res.status(status).json({ error: msg });
 });
@@ -2704,6 +2958,7 @@ function gracefulShutdown(signal) {
   // Save data immediately
   if (usageDirty) saveUsage();
   if (projectsDirty) { saveProjects(projects); projectsDirty = false; }
+  if (tokensDirty) { saveTokens(); tokensDirty = false; }
 
   // Stop accepting new connections
   server.close(() => {
@@ -2727,6 +2982,7 @@ function emergencyFlush(reason, err) {
   console.error(`EMERGENCY FLUSH (${reason}):`, err?.message || err);
   try { if (usageDirty) saveUsage(); } catch {}
   try { if (projectsDirty) { saveProjects(projects); projectsDirty = false; } } catch {}
+  try { if (tokensDirty) { saveTokens(); tokensDirty = false; } } catch {}
   audit("system", "crash", null, { reason, error: err?.message });
 }
 process.on("uncaughtException", (err) => { emergencyFlush("uncaughtException", err); process.exit(1); });

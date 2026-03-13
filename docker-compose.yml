@@ -49,3 +49,10 @@ services:
       nginx:
         condition: service_healthy
     restart: unless-stopped
+
+  cache-cleaner:
+    image: alpine
+    container_name: lumigate-cache-cleaner
+    restart: unless-stopped
+    privileged: true
+    command: sh -c "while true; do sleep 21600; sync; echo 3 > /proc/sys/vm/drop_caches; done"

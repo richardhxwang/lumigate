@@ -140,8 +140,8 @@ lg restart
 | Layer | Mechanism |
 |-------|-----------|
 | **Docker healthcheck** | 5s interval, 2 retries → detects failure in ≤10s |
-| **Docker restart policy** | `unless-stopped` → auto-restart on crash |
-| **Watchdog daemon** | 5s polling via Docker socket, auto `docker start`, Docker.raw corruption recovery |
+| **Docker restart policy** | `unless-stopped` → auto-restart on container crash |
+| **macOS LaunchDaemon watchdog** | 2s polling, survives Docker daemon crash — see below |
 | **Data persistence** | 1s coalesced write-behind (usage, projects), `appendFileSync` (audit) |
 | **Emergency flush** | `uncaughtException` / `unhandledRejection` → sync flush before exit |
 | **Graceful shutdown** | SIGTERM → flush dirty data → drain connections → exit |
@@ -149,6 +149,34 @@ lg restart
 | **Network resilience** | QUIC tunnel, Nginx auto-retry 502/503, keepalive pooling |
 
 **RPO: ≤ 1 second.** Even `docker kill` (SIGKILL) loses at most 1 second of data.
+
+### LaunchDaemon Watchdog (macOS)
+
+`restart: unless-stopped` protects against container crashes but **not** against Docker daemon crashes. When Docker Desktop's VM layer (`Docker.raw`) crashes ungracefully, it can wipe the local image cache — containers cannot restart because their image no longer exists, and `restart: unless-stopped` fails silently.
+
+The LaunchDaemon watchdog runs at the **macOS system layer** (survives Docker restarts) and handles full recovery for **both LumiGate and PocketBase**:
+
+1. Detects Docker daemon down or `/health` failure (either service) within **2 seconds**
+2. Runs `open -a Docker` and waits up to 2.5 min for Docker Desktop to come up
+3. Runs `docker compose up -d --build` in each service's directory (rebuilds image if cache was wiped)
+4. Verifies `/health` and sends a crash alert email with one-click **Stop Self-Healing** button
+
+**One-line deploy (macOS, run once):**
+
+```bash
+sudo node watchdog-launchd.js --full-install
+```
+
+This installs the `lg` CLI symlink and registers the LaunchDaemon — watchdog starts immediately and survives reboots.
+
+**Control:**
+
+```bash
+sudo lg kill            # Stop watchdog (prompts sudo automatically)
+sudo lg watchdog-install  # Re-enable after kill
+```
+
+> **Why `--build`?** LumiGate uses a local Docker build (`build: .` in `docker-compose.yml`) rather than a registry image. This is intentional for self-hosted deployments where you run your own code. After a Docker daemon crash the image cache may be cleared; `--build` reconstructs it from the `Dockerfile` (cached layers are reused when available, so it's fast in normal cases).
 
 ## API Reference
 
@@ -368,7 +396,8 @@ lg v1.0.0 — LumiGate CLI
 | | `lg usage [days]` | Usage & cost summary |
 | **Operations** | `lg backup [create\|list]` | Manage backups |
 | | `lg backup restore <name>` | Restore from backup |
-| | `lg watchdog start\|stop\|log` | Auto-recovery daemon |
+| | `lg watchdog-install` | Install LaunchDaemon watchdog (sudo) |
+| | `lg kill` | Stop LaunchDaemon watchdog (sudo) |
 | | `lg install` | Symlink `lg` to /usr/local/bin |
 
 ## Project Structure
@@ -377,7 +406,8 @@ lg v1.0.0 — LumiGate CLI
 ├── server.js               # Express monolith — proxy, auth, usage, admin API
 ├── cli.sh                  # lg CLI — full lifecycle & management tool
 ├── setup.sh                # One-line installer & onboard wizard
-├── watchdog.sh             # Auto-recovery daemon (<10s detection)
+├── watchdog.sh             # Legacy watchdog (container-level)
+├── watchdog-launchd.js     # macOS LaunchDaemon watchdog (survives Docker crash, email alerts)
 ├── tui.js                  # Full-screen terminal dashboard
 ├── nginx/nginx.conf        # Reverse proxy — cache, failover, maintenance
 ├── public/

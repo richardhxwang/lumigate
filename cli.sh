@@ -737,6 +737,64 @@ cmd_update() {
   fi
 }
 
+# --- lg kill (sudo required) ---
+# Stops the LaunchDaemon watchdog installed by watchdog-launchd.js
+WATCHDOG_PLIST="/Library/LaunchDaemons/com.lumigate.watchdog.plist"
+WATCHDOG_KILL_FLAG="/tmp/lg-watchdog-kill"
+
+cmd_kill() {
+  if [[ $EUID -ne 0 ]]; then
+    echo -e "${Y}  ⚠ sudo required${N}"
+    exec sudo "$0" kill "$@"
+  fi
+
+  local stopped=0
+
+  # 1. Unload LaunchDaemon (prevents auto-restart by launchd)
+  if [[ -f "$WATCHDOG_PLIST" ]]; then
+    launchctl unload "$WATCHDOG_PLIST" 2>/dev/null && stopped=1
+    ok "LaunchDaemon unloaded"
+  else
+    warn "LaunchDaemon plist not found (${WATCHDOG_PLIST})"
+  fi
+
+  # 2. Write kill flag (watchdog loop checks this every 2s as belt-and-suspenders)
+  touch "$WATCHDOG_KILL_FLAG"
+
+  # 3. Kill process by PID file
+  if [[ -f /tmp/lg-watchdog.pid ]]; then
+    local pid
+    pid=$(cat /tmp/lg-watchdog.pid 2>/dev/null)
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null && ok "Watchdog process ${pid} stopped" && stopped=1
+    fi
+  fi
+
+  # 4. Fallback: pkill by script name
+  if pkill -f "watchdog-launchd.js" 2>/dev/null; then
+    stopped=1
+  fi
+
+  if [[ $stopped -eq 1 ]]; then
+    echo ""
+    echo -e "  ${G}Watchdog killed.${N}"
+    echo -e "  Re-enable: ${C}sudo launchctl load ${WATCHDOG_PLIST}${N}"
+  else
+    warn "Watchdog was not running"
+  fi
+}
+
+# --- lg watchdog-install ---
+cmd_watchdog_install() {
+  local wd="${PROJECT_DIR}/watchdog-launchd.js"
+  [[ ! -f "$wd" ]] && fail "watchdog-launchd.js not found in ${PROJECT_DIR}"
+  if [[ $EUID -ne 0 ]]; then
+    echo -e "${Y}  ⚠ sudo required${N}"
+    exec sudo "$0" watchdog-install "$@"
+  fi
+  node "$wd" --install
+}
+
 # --- lg install ---
 cmd_install() {
   local target="/usr/local/bin/lg"
@@ -792,7 +850,9 @@ cmd_help() {
   echo -e "${W}Operations:${N}"
   printf "  ${C}%-32s${N} %s\n" "backup [create|list]"   "Manage backups"
   printf "  ${C}%-32s${N} %s\n" "backup restore <name>"  "Restore from backup"
-  printf "  ${C}%-32s${N} %s\n" "watchdog [start|stop|status|log]" "Auto-recovery daemon"
+  printf "  ${C}%-32s${N} %s\n" "watchdog [start|stop|status|log]" "Legacy watchdog"
+  printf "  ${C}%-32s${N} %s\n" "watchdog-install"       "Install LaunchDaemon watchdog (sudo)"
+  printf "  ${C}%-32s${N} %s\n" "kill"                   "Stop LaunchDaemon watchdog (sudo)"
   printf "  ${C}%-32s${N} %s\n" "install"                "Symlink lg to /usr/local/bin"
   echo ""
 }
@@ -854,6 +914,8 @@ case "$COMMAND" in
   key|apikey)  cmd_key "$@" ;;
   backup)     cmd_backup "$@" ;;
   watchdog|wd) cmd_watchdog "$@" ;;
+  watchdog-install|wd-install) cmd_watchdog_install ;;
+  kill) cmd_kill ;;
   help|--help|-h) cmd_help ;;
   -v|--version) echo "lg v${VERSION}" ;;
   *)
