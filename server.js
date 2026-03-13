@@ -187,9 +187,9 @@ function normalizeIP(req) {
 const projectRateBuckets = new Map(); // projectName -> { count, resetAt }
 const projectIpRateBuckets = new Map(); // "projectName:ip" -> { count, resetAt }
 const projectTokenIssueBuckets = new Map(); // projectName -> { count, resetAt } — limits token generation rate
-// Default: max 20 token issuances per project per minute.
+// Default: max 60 token issuances per project per minute (configurable per project via tokenIssuanceRpm).
 // Prevents multi-token bypass: attacker with 1 pk_ cannot issue N tokens to multiply per-token RPM.
-const TOKEN_ISSUE_RPM = 20;
+const TOKEN_ISSUE_RPM_DEFAULT = 60;
 function checkProjectRateLimit(proj, req) {
   const now = Date.now();
   // Tier 1: Per-IP within project (maxRpmPerIp)
@@ -642,7 +642,8 @@ function loadTokens() {
 function saveTokens() {
   try {
     ensureDataDir();
-    const obj = Object.fromEntries(ephemeralTokens);
+    // Exclude privacyMode tokens (noLog: true) — they are in-memory only, never touch disk.
+    const obj = Object.fromEntries([...ephemeralTokens].filter(([, v]) => !v.noLog));
     const tmp = TOKENS_FILE + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(obj));
     fs.renameSync(tmp, TOKENS_FILE);
@@ -1546,6 +1547,16 @@ app.put("/admin/projects/:name", requireRole("root", "admin"), (req, res) => {
   if (req.body.tokenTtlMinutes !== undefined) {
     if (req.body.tokenTtlMinutes > 0) proj.tokenTtlMinutes = Math.min(Number(req.body.tokenTtlMinutes), 1440);
     else delete proj.tokenTtlMinutes;
+  }
+  // Token issuance rate limit (per-project override)
+  if (req.body.tokenIssuanceRpm !== undefined) {
+    if (req.body.tokenIssuanceRpm > 0) proj.tokenIssuanceRpm = Math.min(Number(req.body.tokenIssuanceRpm), 10000);
+    else delete proj.tokenIssuanceRpm;
+  }
+  // Privacy mode — skip usage logging and token persistence for this project
+  if (req.body.privacyMode !== undefined) {
+    if (req.body.privacyMode) proj.privacyMode = true;
+    else delete proj.privacyMode;
   }
   // Clear suspend state if re-enabling
   if (req.body.enabled === true && proj.suspendReason) {
@@ -2563,7 +2574,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
     } catch (_) {}
     res.end();
     const tokens = { input: inputTokens, cacheHit: 0, output: outputTokens };
-    recordUsage(req._proxyProjectName, "anthropic", requestedModel, tokens);
+    if (!req._proxyProject?.privacyMode) recordUsage(req._proxyProjectName, "anthropic", requestedModel, tokens);
     if (req._proxyProject) {
       const cost = calcRequestCost("anthropic", requestedModel, tokens);
       if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
@@ -2576,7 +2587,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
   const anthropicData = await anthropicResp.json();
   const openaiData = anthropicToOpenaiResponse(anthropicData, requestedModel);
   const tokens = { input: anthropicData.usage?.input_tokens || 0, cacheHit: 0, output: anthropicData.usage?.output_tokens || 0 };
-  recordUsage(req._proxyProjectName, "anthropic", requestedModel, tokens);
+  if (!req._proxyProject?.privacyMode) recordUsage(req._proxyProjectName, "anthropic", requestedModel, tokens);
   if (req._proxyProject) {
     const cost = calcRequestCost("anthropic", requestedModel, tokens);
     if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
@@ -2662,7 +2673,7 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
       } else {
         tokens = extractTokens(providerName, tail);
       }
-      recordUsage(projectName, providerName, modelId, tokens);
+      if (!req._proxyProject?.privacyMode) recordUsage(projectName, providerName, modelId, tokens);
       if (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin) {
         const cost = calcRequestCost(providerName, modelId, tokens);
         if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
@@ -2760,7 +2771,7 @@ const proxyMiddleware = createProxyMiddleware({
             tokens = extractTokens(providerName, tail);
           }
           sli.proxy.total++; sli.proxy.success++;
-          recordUsage(projectName, providerName, modelId, tokens);
+          if (!req._proxyProject?.privacyMode) recordUsage(projectName, providerName, modelId, tokens);
           // Phase 1a: Track budget spend
           if (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin) {
             const cost = calcRequestCost(providerName, modelId, tokens);
@@ -2814,11 +2825,12 @@ app.post("/v1/token", apiLimiter, (req, res) => {
 
   // Per-project token issuance rate limit — prevents multi-token bypass attack:
   // without this, one pk_ can issue N tokens × maxRpmPerToken RPM = effectively bypass per-token limit.
-  { const now = Date.now();
+  { const limit = resolvedProj.tokenIssuanceRpm || TOKEN_ISSUE_RPM_DEFAULT;
+    const now = Date.now();
     let tb = projectTokenIssueBuckets.get(resolvedProj.name);
     if (!tb || now >= tb.resetAt) { tb = { count: 0, resetAt: now + 60000 }; projectTokenIssueBuckets.set(resolvedProj.name, tb); }
     tb.count++;
-    if (tb.count > TOKEN_ISSUE_RPM) return res.status(429).json({ error: "Token issuance rate limit exceeded. Try again in a minute." });
+    if (tb.count > limit) return res.status(429).json({ error: "Token issuance rate limit exceeded. Try again in a minute." });
   }
 
   // Count existing tokens for this project
@@ -2829,9 +2841,10 @@ app.post("/v1/token", apiLimiter, (req, res) => {
   const token = "et_" + crypto.randomBytes(32).toString("hex");
   const expiresAt = Date.now() + ttl;
   const userId = req.body?.userId || null;
-  ephemeralTokens.set(token, { projectName: resolvedProj.name, project: resolvedProj, userId, expiresAt });
-  markTokensDirty();
-  audit(null, "token_issued", resolvedProj.name, { userId, ttlMin: Math.round(ttl / 60000) });
+  const noLog = !!resolvedProj.privacyMode;
+  ephemeralTokens.set(token, { projectName: resolvedProj.name, project: resolvedProj, userId, expiresAt, noLog });
+  if (!noLog) markTokensDirty();
+  if (!noLog) audit(null, "token_issued", resolvedProj.name, { userId, ttlMin: Math.round(ttl / 60000) });
   res.json({ token, expiresAt: new Date(expiresAt).toISOString(), expiresIn: Math.round(ttl / 1000) });
 });
 
