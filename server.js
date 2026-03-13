@@ -1024,12 +1024,12 @@ const MODELS = {
   ],
   anthropic: [
     { id: "claude-haiku-4-5-20251001", tier: "economy", price: { in: 1.00, cacheIn: 0.10, out: 5.00 }, caps: ["text", "image", "pdf"], desc: "Code completion, classification, summarization — sub-second, 200K" },
-    { id: "claude-sonnet-4-5-20250514", tier: "standard", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Extended thinking, complex coding, long-form writing" },
+    { id: "claude-sonnet-4-5", tier: "standard", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Extended thinking, complex coding, long-form writing" },
+    { id: "claude-sonnet-4-6", tier: "flagship", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Latest Sonnet — frontier intelligence, hybrid reasoning, 200K" },
     { id: "claude-opus-4-6", tier: "flagship", price: { in: 5.00, cacheIn: 0.50, out: 25.00 }, caps: ["text", "image", "pdf"], desc: "Autonomous coding, deep research, 200K analysis" },
   ],
   gemini: [
     { id: "gemini-2.5-flash-lite", tier: "economy", price: { in: 0.10, cacheIn: 0.01, out: 0.40 }, freeRPD: 1500, caps: ["text", "image", "audio"], desc: "High-throughput summarization/classification, audio input — 1500 free/day" },
-    { id: "gemini-2.0-flash", tier: "economy", price: { in: 0.10, cacheIn: 0.025, out: 0.40 }, freeRPD: 1500, caps: ["text", "image", "audio", "video"], desc: "Fast multimodal — audio/video/image input, 1M context, 1500 free/day" },
     { id: "gemini-2.5-flash", tier: "standard", price: { in: 0.30, cacheIn: 0.03, out: 2.50 }, freeRPD: 500, caps: ["text", "image", "audio", "video", "pdf"], desc: "Code gen, math reasoning, 1M context — 500 free/day" },
     { id: "gemini-2.5-pro", tier: "flagship", price: { in: 1.25, cacheIn: 0.125, out: 10.00 }, freeRPD: 25, caps: ["text", "image", "audio", "video", "pdf"], desc: "Multimodal video analysis, 1M context — 25 free/day" },
     { id: "gemini-3.1-flash-lite-preview", tier: "economy", price: { in: 0.25, cacheIn: 0.025, out: 1.50 }, freeRPD: 1500, caps: ["text", "image", "audio", "video"], desc: "Gemini 3.1 — frontier-class at minimum cost, audio/video input — free tier available" },
@@ -3052,10 +3052,71 @@ const proxyMiddleware = createProxyMiddleware({
       });
       res.statusCode = statusCode;
 
+      // For providers that embed <think>...</think> in delta.content (e.g. MiniMax),
+      // strip the reasoning block so clients receive clean content only.
+      const THINK_STRIP_PROVIDERS = new Set(["minimax"]);
+      const thinkState = (THINK_STRIP_PROVIDERS.has(providerName) && isStreaming)
+        ? { lineBuf: "", inThink: false, thinkBuf: "" }
+        : null;
+
+      function stripThinkFromSSEChunk(raw) {
+        thinkState.lineBuf += raw;
+        const lines = thinkState.lineBuf.split("\n");
+        thinkState.lineBuf = lines.pop(); // keep incomplete line
+        let out = "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) { out += line + "\n"; continue; }
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") { out += line + "\n"; continue; }
+          try {
+            const j = JSON.parse(payload);
+            const delta = j.choices?.[0]?.delta;
+            if (delta && typeof delta.content === "string") {
+              let content = delta.content;
+              // Handle think tags that may span multiple chunks
+              if (thinkState.inThink) {
+                const end = content.indexOf("</think>");
+                if (end !== -1) {
+                  thinkState.inThink = false;
+                  content = content.slice(end + 8); // skip past </think>
+                } else {
+                  content = ""; // still inside think block
+                }
+              }
+              if (!thinkState.inThink) {
+                const start = content.indexOf("<think>");
+                if (start !== -1) {
+                  const end = content.indexOf("</think>", start);
+                  if (end !== -1) {
+                    // Complete think block in this chunk
+                    content = content.slice(0, start) + content.slice(end + 8);
+                  } else {
+                    // Think block starts but doesn't end in this chunk
+                    thinkState.inThink = true;
+                    content = content.slice(0, start);
+                  }
+                }
+              }
+              delta.content = content;
+            }
+            out += "data: " + JSON.stringify(j) + "\n";
+          } catch {
+            out += line + "\n"; // pass through unparseable lines
+          }
+        }
+        return out;
+      }
+
       let tail = "";
       proxyRes.on("data", (chunk) => {
-        tail = (tail + chunk.toString()).slice(-8192);
-        res.write(chunk);
+        const str = chunk.toString();
+        tail = (tail + str).slice(-8192);
+        if (thinkState) {
+          const filtered = stripThinkFromSSEChunk(str);
+          if (filtered) res.write(filtered);
+        } else {
+          res.write(chunk);
+        }
       });
       proxyRes.on("end", () => {
         res.end();
