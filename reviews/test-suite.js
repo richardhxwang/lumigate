@@ -193,6 +193,10 @@ async function section0() {
   const prov = await GET('/providers');
   const provOk = Array.isArray(prov.data) && prov.data.every(p2 => 'baseUrl' in p2 && 'available' in p2);
   check('GET /providers: all items have baseUrl + available', provOk, prov.data?.length);
+
+  // 0.13 /providers public 不洩露 keyCount / enabledCount（需要 admin auth 才可見）
+  const provNoLeak = Array.isArray(prov.data) && prov.data.every(p2 => !('keyCount' in p2) && !('enabledCount' in p2));
+  check('GET /providers (public): no keyCount/enabledCount leakage', provNoLeak);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -201,9 +205,19 @@ async function section0() {
 async function section1() {
   sec('Section 1: Basic Endpoints');
 
+  // Public /health now only returns { status, uptime } — mode/modules/providers require admin auth
   const h = await GET('/health');
-  check('GET /health → 200 + mode + uptime fields',
-    h.status === 200 && typeof h.data?.mode === 'string' && typeof h.data?.uptime === 'number');
+  check('GET /health → 200 + uptime field (public)',
+    h.status === 200 && typeof h.data?.uptime === 'number');
+
+  // Authenticated /health returns full details
+  const hAuth = await aGET('/health');
+  check('GET /health (admin) → mode + modules fields',
+    hAuth.status === 200 && typeof hAuth.data?.mode === 'string' && Array.isArray(hAuth.data?.modules));
+
+  // Public /health must NOT expose mode/modules/providers to unauthenticated callers
+  check('GET /health (public) → no mode/modules/providers leakage',
+    h.data?.mode === undefined && h.data?.modules === undefined && h.data?.providers === undefined);
 
   const m = await GET('/models/openai');
   check('GET /models/openai → 200 array', m.status === 200 && Array.isArray(m.data) && m.data.length > 0);

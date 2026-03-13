@@ -1168,24 +1168,40 @@ function hasAdminSession(req) {
 // ============================================================
 
 // Health check — used by Docker healthcheck
+// Check admin auth without requiring it — used by endpoints that return more detail to admins.
+// Mirrors adminAuth: checks cookie admin_token and x-admin-token header, including raw ADMIN_SECRET.
+function isAdminRequest(req) {
+  const cookies = parseCookies(req);
+  const token = cookies.admin_token || req.headers["x-admin-token"];
+  if (!token) return false;
+  if (safeEqual(token, ADMIN_SECRET)) return true;
+  const session = sessions.get(token);
+  if (!session) return false;
+  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) return false;
+  return true;
+}
+
+// Public: { status, uptime } only — enough for monitoring/watchdog.
+// Authenticated admin: additionally includes mode, modules, providers (dashboard needs these).
 app.get("/health", (req, res) => {
+  const base = { status: "ok", uptime: Math.floor((Date.now() - startTime) / 1000) };
+  if (!isAdminRequest(req)) return res.json(base);
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
-  res.json({ status: "ok", mode: DEPLOY_MODE, modules: [...modules], providers: available, uptime: Math.floor((Date.now() - startTime) / 1000) });
+  res.json({ ...base, mode: DEPLOY_MODE, modules: [...modules], providers: available });
 });
 
+// Public: { name, baseUrl, available } — minimum needed by dashboard UI per CLAUDE.md.
+// Authenticated admin: additionally includes keyCount, enabledCount.
 app.get("/providers", (req, res) => {
+  const admin = isAdminRequest(req);
   res.json(Object.entries(PROVIDERS).map(([name, cfg]) => {
     const allKeys = providerKeys[name] || [];
     const enabledKeys = allKeys.filter(k => k.enabled);
-    return {
-      name,
-      baseUrl: cfg.baseUrl,
-      available: enabledKeys.length > 0,
-      keyCount: allKeys.length,
-      enabledCount: enabledKeys.length,
-    };
+    const entry = { name, baseUrl: cfg.baseUrl, available: enabledKeys.length > 0 };
+    if (admin) { entry.keyCount = allKeys.length; entry.enabledCount = enabledKeys.length; }
+    return entry;
   }));
 });
 
