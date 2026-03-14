@@ -64,8 +64,17 @@ reset_docker() {
     open -a Docker
     local w=0; while ! docker_ok && (( w < 60 )); do sleep 2; w=$((w+2)); done
     docker_ok && { log "Docker back (${w}s)"; restart; } || log "FATAL: Docker won't start"
+  elif command -v synoservice &>/dev/null; then
+    # Synology DSM (older: synoservice, newer DSM 7: synoservicectl)
+    log "Synology DSM: restarting Container Manager..."
+    sudo synoservice --restart pkgctl-ContainerManager 2>/dev/null \
+      || sudo synoservicectl --restart pkgctl-ContainerManager 2>/dev/null \
+      || true
+    local w=0; while ! docker_ok && (( w < 60 )); do sleep 2; w=$((w+2)); done
+    docker_ok && { log "Docker back (${w}s)"; restart; } || log "FATAL: Synology Docker won't start"
   else
-    sudo systemctl restart docker 2>/dev/null
+    # Generic Linux (server with systemd or SysV init)
+    sudo systemctl restart docker 2>/dev/null || sudo service docker restart 2>/dev/null || true
     sleep 3
     docker_ok && { log "Docker back"; restart; } || log "FATAL: Docker restart failed"
   fi
@@ -75,6 +84,50 @@ reset_docker() {
 if [[ "${1:-}" == "daemon" ]]; then
   log "Watchdog daemon PID $$"
   exec >> "$LOG" 2>&1
+fi
+
+# Install mode
+if [[ "${1:-}" == "install" ]]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
+    plist="$HOME/Library/LaunchAgents/com.lumigate.watchdog.plist"
+    cat > "$plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.lumigate.watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$SCRIPT_DIR/watchdog.sh</string>
+    <string>daemon</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$SCRIPT_DIR/watchdog.log</string>
+  <key>StandardErrorPath</key><string>$SCRIPT_DIR/watchdog.log</string>
+</dict>
+</plist>
+PLIST
+    launchctl load "$plist" && log "LaunchAgent installed: $plist" || log "WARN: launchctl load failed"
+  else
+    cat > /tmp/lumigate-watchdog.service << UNIT
+[Unit]
+Description=LumiGate Watchdog
+After=network.target docker.service
+[Service]
+Type=simple
+ExecStart=$SCRIPT_DIR/watchdog.sh daemon
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+UNIT
+    sudo mv /tmp/lumigate-watchdog.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now lumigate-watchdog
+    log "systemd service installed"
+  fi
+  exit 0
 fi
 
 log "Watchdog started (poll=${POLL}s, threshold=${MAX_FAILS})"

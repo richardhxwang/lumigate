@@ -1321,6 +1321,7 @@ app.get("/models/:provider", (req, res) => {
 // Static files (CSS/JS/images only, HTML served dynamically below)
 app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
 app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
+app.use("/lumichat-icon.svg", express.static(path.join(__dirname, "public", "lumichat-icon.svg")));
 app.use("/lumichat-libs", express.static(path.join(__dirname, "public", "lumichat-libs")));
 
 // Serve dashboard — inject nothing (auth handled by cookie)
@@ -3567,9 +3568,41 @@ app.post("/lc/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /lc/auth/me → return decoded token info
-app.get("/lc/auth/me", requireLcAuth, (req, res) => {
-  res.json({ id: req.lcUser.id, email: req.lcUser.email, name: req.lcUser.name });
+// POST /lc/auth/refresh → call PB auth-refresh to extend session while user is active
+app.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
+  try {
+    const r = await pbFetch("/api/collections/users/auth-refresh", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${req.lcToken}` },
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json(data);
+    const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
+    res.cookie("lc_token", data.token, {
+      httpOnly: true, secure: isSecure, sameSite: "Lax", path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(502).json({ error: "PocketBase unavailable" });
+  }
+});
+
+// GET /lc/auth/me → fetch full user record from PB (JWT only has id+email)
+app.get("/lc/auth/me", requireLcAuth, async (req, res) => {
+  try {
+    const r = await pbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
+      headers: { Authorization: `Bearer ${req.lcToken}` },
+    });
+    const data = await r.json();
+    if (!r.ok) return res.json({ id: req.lcUser.id, email: req.lcUser.email, name: null, avatarUrl: null });
+    const avatarUrl = data.avatar
+      ? `${PB_URL}/api/files/users/${data.id}/${data.avatar}?thumb=80x80`
+      : null;
+    res.json({ id: data.id, email: data.email, name: data.name || null, avatarUrl });
+  } catch {
+    res.json({ id: req.lcUser.id, email: req.lcUser.email, name: null, avatarUrl: null });
+  }
 });
 
 // PocketBase record ID validation (15 alphanumeric chars)

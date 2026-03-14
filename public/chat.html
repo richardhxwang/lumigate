@@ -118,13 +118,31 @@
   }
   .input-box {
     flex: 1; min-height: 38px; max-height: 120px; padding: 9px 14px;
-    border-radius: 20px; border: 1px solid rgba(0,0,0,0.08);
-    background: rgba(255,255,255,0.8); font-size: 15px; font-family: inherit;
+    border-radius: 20px; border: 1px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.9); font-size: 15px; font-family: inherit;
     color: #1c1c1e; resize: none; outline: none; line-height: 1.4;
     overflow-y: auto;
   }
   .input-box:focus { border-color: rgba(0,122,255,0.4); }
-  .input-box::placeholder { color: rgba(0,0,0,0.25); }
+  .input-box::placeholder { color: rgba(0,0,0,0.45); }
+
+  /* Empty-state suggestion chips */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 24px 20px; gap: 10px;
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 4px; opacity: 0.6; }
+  .empty-label { font-size: 13px; color: rgba(0,0,0,0.35); font-weight: 500; margin-bottom: 4px; }
+  .sug-list { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 460px; }
+  .sug-chip {
+    padding: 11px 16px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.72); font-size: 14px; font-family: inherit;
+    color: #1c1c1e; cursor: pointer; text-align: left;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    transition: background 0.15s, border-color 0.15s; line-height: 1.4;
+  }
+  .sug-chip:hover { background: rgba(0,122,255,0.06); border-color: rgba(0,122,255,0.25); color: #007aff; }
+  .sug-loading { font-size: 12px; color: rgba(0,0,0,0.25); text-align: center; padding: 8px; }
   .send-btn {
     width: 38px; height: 38px; border-radius: 50%; border: none;
     background: #007aff; color: #fff; font-size: 18px;
@@ -156,7 +174,14 @@
   <select class="pick-model" id="cModel"></select>
 </div>
 
-<div class="messages" id="msgs"></div>
+<div class="empty-state" id="emptyState">
+  <div class="empty-icon">✦</div>
+  <div class="empty-label">Suggested questions</div>
+  <div class="sug-list" id="sugList">
+    <div class="sug-loading">Loading suggestions…</div>
+  </div>
+</div>
+<div class="messages" id="msgs" style="display:none"></div>
 
 <div class="input-wrap">
   <div class="input-row">
@@ -171,6 +196,71 @@ let history = [];
 let streaming = false;
 let abortCtrl = null;
 const modelsCache = {};
+const MAX_HISTORY = 40; // max messages to send (prevents context overflow)
+
+// Local fallback suggestions (shown immediately before AI loads)
+const FALLBACK_SUGGESTIONS = [
+  "Explain this concept like I'm a beginner",
+  "Write a script to automate a repetitive task",
+  "What are the trade-offs of this approach?",
+  "Help me brainstorm ideas for a new project",
+];
+
+function showSuggestions(qs) {
+  document.getElementById('sugList').innerHTML = qs
+    .map(q => `<button class="sug-chip" onclick="useSuggestion(this)">${escapeHtml(q)}</button>`)
+    .join('');
+}
+
+function useSuggestion(btn) {
+  const inp = document.getElementById('inp');
+  inp.value = btn.textContent;
+  autoGrow(inp);
+  inp.focus();
+}
+
+function showEmptyState(show) {
+  document.getElementById('emptyState').style.display = show ? '' : 'none';
+  document.getElementById('msgs').style.display = show ? 'none' : '';
+}
+
+// Pick the cheapest available model for suggestion generation
+function pickCheapModel(prov, models) {
+  const cheap = ['gpt-4o-mini', 'gpt-4.1-nano', 'gemini-2.5-flash-lite', 'gemini-2.0-flash',
+    'claude-haiku-4-5', 'claude-haiku-4-5-20251001', 'deepseek-chat', 'moonshot-v1-8k'];
+  for (const id of cheap) {
+    if (models.find(m => m.id === id)) return id;
+  }
+  return models[0]?.id;
+}
+
+async function loadAISuggestions(prov, models) {
+  const model = pickCheapModel(prov, models);
+  if (!model || prov === 'anthropic') return; // use OpenAI-compat path only
+  try {
+    const resp = await fetch(`${B}/v1/${prov}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'Generate 4 short, creative conversation starter questions (max 8 words each, varied topics). Return ONLY a JSON array of 4 strings.' }],
+        max_tokens: 150,
+        stream: false,
+      }),
+    });
+    if (!resp.ok) return;
+    const d = await resp.json();
+    const content = d.choices?.[0]?.message?.content?.trim();
+    if (!content) return;
+    const match = content.match(/\[[\s\S]*?\]/);
+    if (!match) return;
+    const qs = JSON.parse(match[0]);
+    if (Array.isArray(qs) && qs.length > 0 && history.length === 0) {
+      showSuggestions(qs.slice(0, 4).filter(q => typeof q === 'string' && q.length > 2));
+    }
+  } catch {}
+}
 
 async function init() {
   const provs = await fetch(B + '/providers').then(r => r.json());
@@ -179,6 +269,11 @@ async function init() {
     `<option value="${p.name}">${p.name}</option>`
   ).join('');
   await onCProvChange();
+  // Show local fallbacks immediately, then try AI-generated
+  showSuggestions(FALLBACK_SUGGESTIONS);
+  const prov = document.getElementById('cProv').value;
+  const models = modelsCache[prov] || [];
+  loadAISuggestions(prov, models);
 }
 
 async function onCProvChange() {
@@ -206,6 +301,10 @@ function onKey(e) {
 }
 
 function addMsg(role, content, model) {
+  // Switch from empty state to messages view on first message
+  if (history.length === 0 || document.getElementById('msgs').style.display === 'none') {
+    showEmptyState(false);
+  }
   const el = document.createElement('div');
   el.className = 'msg ' + role;
   if (role === 'ai' && model) {
@@ -221,14 +320,25 @@ function addMsg(role, content, model) {
   return el;
 }
 
+let _scrollRaf = null;
 function scrollBottom() {
-  const m = document.getElementById('msgs');
-  m.scrollTop = m.scrollHeight;
+  if (_scrollRaf) return;
+  _scrollRaf = requestAnimationFrame(() => {
+    const m = document.getElementById('msgs');
+    m.scrollTop = m.scrollHeight;
+    _scrollRaf = null;
+  });
 }
 
 function newChat() {
   history = [];
   document.getElementById('msgs').innerHTML = '';
+  showEmptyState(true);
+  // Regenerate suggestions on new chat
+  showSuggestions(FALLBACK_SUGGESTIONS);
+  const prov = document.getElementById('cProv').value;
+  const models = modelsCache[prov] || [];
+  loadAISuggestions(prov, models);
 }
 
 function setStreaming(v) {
@@ -274,29 +384,32 @@ async function send() {
   setStreaming(true);
   abortCtrl = new AbortController();
 
-  const isAnthropic = prov === 'anthropic';
-  let url, body;
+  // Trim history to prevent context overflow
+  const trimmedHistory = history.length > MAX_HISTORY
+    ? history.slice(history.length - MAX_HISTORY)
+    : history;
 
-  if (isAnthropic) {
-    url = `${B}/v1/anthropic/v1/messages`;
-    body = JSON.stringify({
-      model,
-      messages: history,
-      max_tokens: 4096,
-      stream: true,
-    });
-  } else {
-    const useCompTokens = /^(o\d|gpt-5)/.test(model);
-    url = `${B}/v1/${prov}/v1/chat/completions`;
-    body = JSON.stringify({
-      model,
-      messages: history,
-      stream: true,
-      ...(useCompTokens ? { max_completion_tokens: 4096 } : {}),
-    });
-  }
+  // All providers use OpenAI-compat path (Anthropic compat handled by LumiGate)
+  const useCompTokens = /^(o\d|gpt-5)/.test(model);
+  const url = `${B}/v1/${prov}/v1/chat/completions`;
+  const body = JSON.stringify({
+    model,
+    messages: trimmedHistory,
+    stream: true,
+    ...(useCompTokens ? { max_completion_tokens: 4096 } : { max_tokens: 4096 }),
+  });
 
   let fullText = '';
+  let renderPending = false;
+  function scheduleRender() {
+    if (renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(() => {
+      renderMarkdown(contentEl, fullText);
+      scrollBottom();
+      renderPending = false;
+    });
+  }
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -332,16 +445,11 @@ async function send() {
         if (data === '[DONE]') continue;
         try {
           const j = JSON.parse(data);
-          let delta = '';
-          if (isAnthropic) {
-            if (j.type === 'content_block_delta') delta = j.delta?.text || '';
-          } else {
-            delta = j.choices?.[0]?.delta?.content || '';
-          }
+          // All providers use OpenAI-compat format via LumiGate
+          const delta = j.choices?.[0]?.delta?.content || '';
           if (delta) {
             fullText += delta;
-            renderMarkdown(contentEl, fullText);
-            scrollBottom();
+            scheduleRender();
           }
         } catch {}
       }
