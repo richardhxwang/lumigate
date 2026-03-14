@@ -341,7 +341,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             </button>
           </div>
-          <button id="stop-btn" style="display:none" title="Pause (keep response)">
+          <button id="stop-btn" style="display:none" title="Interrupt (Esc)">
             <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
           </button>
           <button id="send-btn" disabled>
@@ -768,13 +768,20 @@ function renderMessages(){
 }
 
 // ── SEND ───────────────────────────────────────────────────────────────────
-function updateSendBtn(){ sendBtn.disabled=(msgIn.value.trim()===''&&pendingFiles.length===0); }
+function updateSendBtn(){
+  // During streaming: enable send only if there's content to send (will interrupt + continue)
+  sendBtn.disabled=(msgIn.value.trim()===''&&pendingFiles.length===0);
+}
 
 async function sendMessage(){
   const text=msgIn.value.trim(); if(!text&&!pendingFiles.length) return;
-  // Mid-stream: pause current stream first, then send new message
-  if(isStreaming&&abortCtrl){ abortCtrl.abort(); await new Promise(r=>setTimeout(r,50)); }
-  isStreaming=true; sendBtn.style.display='none'; stopBtn.style.display='flex';
+  // Mid-stream (Claude Code style): interrupt current response, keep partial, then send new message
+  if(isStreaming&&abortCtrl){
+    abortCtrl.abort();
+    // Wait for the abort handler to finish saving the partial response
+    await new Promise(r=>setTimeout(r,120));
+  }
+  isStreaming=true; stopBtn.style.display='flex';
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
   const files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
@@ -904,14 +911,16 @@ async function sendMessage(){
   }catch(err){
     $('typ-row')?.remove();
     if(err.name==='AbortError'){
-      // Pause: keep whatever was streamed, do full markdown render
+      // Interrupted (Claude Code style): keep partial, render cleanly, save to PB
       if(streamEl&&streamText){
         streamEl.style.whiteSpace='';
         renderMarkdown(streamEl,streamText);
-        // Save partial response to PB
         try{
-          const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText+'  \n*(paused)*'})});
+          const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
           messages.push(aMsg);
+          // Update session timestamp
+          const sess=sessions.find(s=>s.id===currentSid);
+          if(sess){ sess.updated=new Date().toISOString(); renderSidebar(); updateActive(); }
         }catch{}
       } else if(streamEl&&!streamText){
         streamEl.closest('.msg-row')?.remove();
@@ -923,8 +932,8 @@ async function sendMessage(){
   }finally{
     isStreaming=false; abortCtrl=null; streamEl=null; streamText='';
     cancelAnimationFrame(rafId);
-    sendBtn.style.display='flex'; stopBtn.style.display='none';
-    updateSendBtn(); scrollBot();
+    stopBtn.style.display='none'; sendBtn.style.display='flex';
+    updateSendBtn(); scrollBot(); msgIn.focus();
     document.querySelectorAll('.trunc-bar').forEach(b=>b.remove());
   }
 }
@@ -1120,9 +1129,21 @@ mdlDrop.addEventListener('click',e=>{
 document.addEventListener('click',e=>{ if(!e.target.closest('#mdl-btn')&&!e.target.closest('#mdl-drop')) mdlDrop.classList.remove('open'); });
 
 msgIn.addEventListener('input',()=>{ msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px'; updateSendBtn(); });
-msgIn.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); if(!sendBtn.disabled&&!isStreaming) sendMessage(); } });
-sendBtn.addEventListener('click',()=>{ if(!isStreaming) sendMessage(); });
+msgIn.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); if(!sendBtn.disabled) sendMessage(); return; }
+  // Escape = interrupt current stream (Claude Code style)
+  if(e.key==='Escape'&&isStreaming&&abortCtrl){ abortCtrl.abort(); }
+});
+sendBtn.addEventListener('click',()=>{ if(!sendBtn.disabled) sendMessage(); });
 stopBtn.addEventListener('click',()=>{ if(abortCtrl) abortCtrl.abort(); });
+// Keep input always focused during streaming
+document.addEventListener('keydown',e=>{
+  if(isStreaming&&e.key==='Escape'&&abortCtrl){ abortCtrl.abort(); return; }
+  if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&document.activeElement!==msgIn&&
+     !['Tab','Escape','F5','Enter'].includes(e.key)&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){
+    msgIn.focus();
+  }
+});
 
 $('attach-btn').addEventListener('click',()=>{ fileIn.value=''; fileIn.click(); });
 fileIn.addEventListener('change',()=>{ Array.from(fileIn.files).forEach(addFile); fileIn.value=''; });
