@@ -3411,6 +3411,81 @@ async function pbFetch(path, options = {}) {
   return fetch(url, options);
 }
 
+// GET /lc/auth/methods → return available auth methods (password + oauth providers)
+app.get("/lc/auth/methods", async (req, res) => {
+  try {
+    const r = await pbFetch("/api/collections/users/auth-methods");
+    const data = await r.json();
+    const providers = {};
+    for (const p of (data.oauth2?.providers || [])) {
+      providers[p.name] = true;
+    }
+    res.json({ password: data.password?.enabled !== false, ...providers });
+  } catch {
+    res.json({ password: true });
+  }
+});
+
+// GET /lc/auth/oauth-start?provider=google&redirect=... → redirect to PB OAuth URL
+app.get("/lc/auth/oauth-start", async (req, res) => {
+  const { provider = "google", redirect = "/lumichat" } = req.query;
+  try {
+    const r = await pbFetch("/api/collections/users/auth-methods");
+    const data = await r.json();
+    const prov = (data.oauth2?.providers || []).find(p => p.name === provider);
+    if (!prov) return res.status(404).json({ error: `Provider ${provider} not configured` });
+    // Build OAuth URL — include state with redirect path and code_verifier
+    const state = Buffer.from(JSON.stringify({ redirect, ts: Date.now() })).toString("base64url");
+    // Store code_verifier in a short-lived cookie
+    const codeVerifier = prov.codeVerifier || "";
+    res.cookie("lc_oauth_state", JSON.stringify({ state, codeVerifier, provider }), {
+      maxAge: 600, httpOnly: true, sameSite: "Lax", path: "/",
+    });
+    res.redirect(prov.authUrl + `&state=${state}`);
+  } catch (err) {
+    res.status(500).json({ error: "OAuth start failed", details: err.message });
+  }
+});
+
+// GET /lc/auth/oauth-callback?code=...&state=... → exchange code, set cookie
+app.get("/lc/auth/oauth-callback", async (req, res) => {
+  const { code, state } = req.query;
+  const cookies = parseCookies(req);
+  let oauthState;
+  try { oauthState = JSON.parse(cookies.lc_oauth_state || "{}"); } catch { oauthState = {}; }
+  res.clearCookie("lc_oauth_state", { path: "/" });
+
+  if (!code) return res.status(400).send("Missing code");
+  const provider = oauthState.provider || "google";
+  const redirectPath = (() => {
+    try { return JSON.parse(Buffer.from(state || "", "base64url").toString()).redirect || "/lumichat"; } catch { return "/lumichat"; }
+  })();
+
+  try {
+    const r = await pbFetch("/api/collections/users/auth-with-oauth2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider,
+        code,
+        codeVerifier: oauthState.codeVerifier || "",
+        redirectUrl: `${req.protocol}://${req.get("host")}/lc/auth/oauth-callback`,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).send(`Auth failed: ${data.message || JSON.stringify(data)}`);
+    res.cookie("lc_token", data.token, {
+      maxAge: 7 * 24 * 3600,
+      httpOnly: true,
+      sameSite: "Strict",
+      path: "/",
+    });
+    res.redirect(redirectPath + "?oauth=1");
+  } catch (err) {
+    res.status(500).send(`OAuth callback error: ${err.message}`);
+  }
+});
+
 // POST /lc/auth/register → proxy to PB
 app.post("/lc/auth/register", apiLimiter, async (req, res) => {
   try {

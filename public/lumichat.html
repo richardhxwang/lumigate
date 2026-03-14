@@ -31,12 +31,17 @@
     .auth-tab.active{background:var(--sb-active);color:var(--t1)}
     .auth-field{margin-bottom:14px}
     .auth-field label{display:block;font-size:12.5px;color:var(--t2);margin-bottom:6px}
-    .auth-field input{width:100%;background:#1a1a1a;border:1px solid var(--inp-b);border-radius:8px;padding:10px 12px;color:var(--t1);font-size:14px;outline:none;transition:border .15s}
+    .auth-field input{width:100%;background:#1a1a1a;border:1px solid var(--inp-b);border-radius:8px;padding:10px 12px;color:var(--t1);font-size:14px;outline:none;transition:border .15s;-webkit-text-fill-color:var(--t1)}
     .auth-field input:focus{border-color:var(--accent)}
+    .auth-field input:-webkit-autofill,.auth-field input:-webkit-autofill:hover,.auth-field input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px #1a1a1a inset!important;-webkit-text-fill-color:var(--t1)!important;border-color:var(--inp-b)!important;caret-color:var(--t1)}
     .auth-submit{width:100%;padding:11px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;transition:opacity .15s}
     .auth-submit:hover{opacity:.88}
     .auth-submit:disabled{opacity:.4;cursor:default}
     .auth-err{color:#f87171;font-size:12.5px;margin-top:10px;text-align:center;min-height:18px}
+    .google-btn{width:100%;padding:11px;background:#fff;border:1px solid #dadce0;border-radius:8px;color:#3c4043;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s}
+    .google-btn:hover{background:#f8f9fa}
+    .auth-divider{display:flex;align-items:center;gap:10px;margin:12px 0;color:var(--t3);font-size:12px}
+    .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
 
     /* LAYOUT */
     #app{display:flex;height:100%}
@@ -190,6 +195,14 @@
       <h1>LumiChat</h1>
       <p>Sign in to continue</p>
     </div>
+    <!-- Google OAuth button (shown when available) -->
+    <div id="google-btn-wrap" style="display:none;margin-bottom:16px">
+      <button class="google-btn" id="google-btn">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        Continue with Google
+      </button>
+      <div class="auth-divider"><span>or</span></div>
+    </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login">Sign in</button>
       <button class="auth-tab" id="tab-reg">Create account</button>
@@ -202,7 +215,7 @@
     </div>
     <!-- Register -->
     <div id="form-reg" style="display:none">
-      <div class="auth-field"><label>Name</label><input type="text" id="r-name" placeholder="Your name"></div>
+      <div class="auth-field"><label>Name</label><input type="text" id="r-name" placeholder="Your name" autocomplete="name"></div>
       <div class="auth-field"><label>Email</label><input type="email" id="r-email" placeholder="you@example.com" autocomplete="email"></div>
       <div class="auth-field"><label>Password</label><input type="password" id="r-pass" placeholder="Min 8 characters" autocomplete="new-password"></div>
       <div class="auth-field"><label>Confirm Password</label><input type="password" id="r-pass2" placeholder="••••••••" autocomplete="new-password"></div>
@@ -846,7 +859,32 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
 
 msgIn.addEventListener('paste',e=>{ for(const item of e.clipboardData?.items||[]) if(item.kind==='file'&&item.type.startsWith('image/')) addFile(item.getAsFile()); });
 
+// ── GOOGLE OAUTH ─────────────────────────────────────────────────────────
+async function initGoogleOAuth(){
+  try{
+    const r=await fetch('/lc/auth/methods',{credentials:'same-origin'});
+    if(!r.ok) return;
+    const d=await r.json();
+    if(d.google){
+      $('google-btn-wrap').style.display='';
+      $('google-btn').addEventListener('click',()=>{
+        window.location.href='/lc/auth/oauth-start?provider=google&redirect='+encodeURIComponent(window.location.pathname);
+      });
+    }
+  }catch{}
+}
+
+// Handle OAuth callback (?oauth=1&token=...)
+(function handleOAuthReturn(){
+  const p=new URLSearchParams(window.location.search);
+  if(p.get('oauth')==='1'){
+    history.replaceState(null,'',window.location.pathname);
+    // Session was set by server-side cookie; just reload auth check
+  }
+})();
+
 // ── BOOT ──────────────────────────────────────────────────────────────────
+initGoogleOAuth();
 tryRestoreSession();
 </script>
 </body>
