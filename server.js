@@ -3443,7 +3443,7 @@ setInterval(() => {
 }, 120_000);
 
 // GET /lc/auth/oauth-start?provider=google&redirect=... → redirect to PB OAuth URL
-app.get("/lc/auth/oauth-start", async (req, res) => {
+app.get("/lc/auth/oauth-start", lcAuthLimiter, async (req, res) => {
   const { provider = "google", redirect = "/lumichat" } = req.query;
   try {
     const r = await pbFetch("/api/collections/users/auth-methods");
