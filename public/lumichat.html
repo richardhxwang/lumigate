@@ -98,10 +98,14 @@
     #mdl-btn{display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--t1);font-size:15px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:8px;transition:background .15s}
     #mdl-btn:hover{background:var(--sb-hover)}
     #mdl-btn svg{width:16px;height:16px;color:var(--t2)}
-    #mdl-drop{position:absolute;top:var(--hh);left:50%;transform:translateX(-50%);background:#2a2a2a;border:1px solid var(--border);border-radius:12px;padding:8px;min-width:300px;max-height:60vh;overflow-y:auto;z-index:100;box-shadow:0 8px 32px rgba(0,0,0,.5);display:none}
+    #mdl-drop{position:absolute;top:calc(var(--hh) + 4px);left:0;background:#2a2a2a;border:1px solid var(--border);border-radius:12px;padding:8px;min-width:320px;max-height:70vh;overflow-y:auto;z-index:100;box-shadow:0 8px 32px rgba(0,0,0,.5);display:none}
     #mdl-drop.open{display:block}
     #mdl-drop::-webkit-scrollbar{width:4px}
     #mdl-drop::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .mdl-provs{display:flex;flex-wrap:wrap;gap:6px;padding:4px 4px 8px;border-bottom:1px solid var(--border);margin-bottom:6px}
+    .mdl-prov-pill{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);color:var(--t2);background:transparent;transition:all .15s;white-space:nowrap}
+    .mdl-prov-pill:hover{color:var(--t1);border-color:#555}
+    .mdl-prov-pill.sel{background:var(--accent);border-color:var(--accent);color:#fff}
     .mdl-grp{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px}
     .mdl-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .1s}
     .mdl-opt:hover{background:var(--sb-hover)}
@@ -110,6 +114,10 @@
     .mdl-name{font-size:13.5px;font-weight:500}
     .mdl-desc{font-size:11.5px;color:var(--t3);margin-top:1px}
     .mdl-chk{width:16px;height:16px;color:var(--accent);flex-shrink:0}
+    .cap-icon{position:relative;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--inp);display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;transition:background .15s}
+    .cap-icon:hover{background:var(--sb-active)}
+    .cap-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--t1);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:200}
+    .cap-icon:hover .cap-tip{opacity:1}
 
     /* CHAT AREA */
     #chat{flex:1;overflow-y:auto;padding-bottom:16px}
@@ -313,6 +321,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div id="mdl-drop"></div>
+      <div id="cap-bar" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
     </header>
 
     <div id="chat">
@@ -353,6 +362,38 @@
 marked.setOptions({ breaks: true, gfm: true });
 
 const O_SERIES = new Set(['o1','o1-mini','o1-preview','o3','o3-mini','o4-mini']);
+
+// Per-provider model capability lookup
+function getModelCaps(provider, modelId){
+  const id = modelId.toLowerCase();
+  const p = provider.toLowerCase();
+  if(p==='gemini'){
+    if(id.includes('flash') || id.includes('pro') || id.includes('2.5') || id.includes('2.0'))
+      return ['image','video','audio','pdf'];
+    return ['image'];
+  }
+  if(p==='openai'){
+    if(id.includes('audio')) return ['audio'];
+    if(id.includes('4o') || id.includes('4.1') || id.includes('gpt-4-')) return ['image'];
+    if(id.includes('o1') || id.includes('o3') || id.includes('o4')) return ['image'];
+    return [];
+  }
+  if(p==='anthropic'){
+    return ['image','pdf'];
+  }
+  if(p==='deepseek' || p==='minimax' || p==='qwen' || p==='kimi' || p==='doubao'){
+    return [];
+  }
+  return [];
+}
+
+const CAP_META = {
+  image: { icon: '🖼', label: '图片', title: '支持识别和分析图片' },
+  video: { icon: '🎬', label: '视频', title: '支持分析视频内容' },
+  audio: { icon: '🎵', label: '音频', title: '支持识别和转录音频' },
+  pdf:   { icon: '📄', label: 'PDF',  title: '支持解读 PDF 文档' },
+};
+
 const SUGGESTIONS = [
   'Explain quantum computing simply','Write a Python function to parse JSON',
   'Summarize the history of the Internet','Help me brainstorm startup ideas',
@@ -366,6 +407,7 @@ let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 let isStreaming = false, abortCtrl = null, pendingFiles = [];
 let providersData = [], modelsData = {};
 let toastTimer = null, rafId = null, streamEl = null, streamText = '';
+let dropProvider = null;
 
 // DOM
 const $ = id => document.getElementById(id);
@@ -417,9 +459,14 @@ function onLoggedIn(){
   const name = currentUser.name || currentUser.email || '?';
   $('u-name').textContent = name;
   $('u-email').textContent = currentUser.email||'';
-  $('u-avatar').textContent = name.charAt(0).toUpperCase();
+  const avatarEl = $('u-avatar');
+  if(currentUser.avatarUrl){
+    avatarEl.innerHTML = `<img src="${esc(currentUser.avatarUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`;
+  } else {
+    avatarEl.textContent = name.charAt(0).toUpperCase();
+  }
   showApp();
-  loadProviders().then(buildModelDropdown);
+  loadProviders().then(buildModelDropdown).then(()=>updateCapBar());
   loadSessions();
   renderSuggestions();
 }
@@ -600,7 +647,7 @@ async function openSession(id){
   if(isStreaming) return;
   currentSid=id;
   const sess=sessions.find(s=>s.id===id);
-  if(sess){ selectedProvider=sess.provider||selectedProvider; selectedModel=sess.model||selectedModel; mdlLabel.textContent=selectedModel; }
+  if(sess){ selectedProvider=sess.provider||selectedProvider; selectedModel=sess.model||selectedModel; mdlLabel.textContent=selectedModel; updateCapBar(); }
   updateActive();
   try{
     const d=await apiJSON(`/lc/sessions/${id}/messages`);
@@ -932,19 +979,37 @@ async function buildModelDropdown(){
 }
 function renderModelDropdown(){
   const avail=providersData.filter(p=>p.available);
-  let html='';
+  if(!dropProvider) dropProvider = selectedProvider || (avail[0]?.name);
+
+  // Provider pills row
+  let html = '<div class="mdl-provs">';
   for(const prov of avail){
-    const models=modelsData[prov.name]||[]; if(!models.length) continue;
-    html+=`<div class="mdl-grp">${prov.name.charAt(0).toUpperCase()+prov.name.slice(1)}</div>`;
-    for(const m of models){
-      const isSel=m.id===selectedModel&&prov.name===selectedProvider;
-      html+=`<div class="mdl-opt${isSel?' sel':''}" data-provider="${prov.name}" data-model="${m.id}">
-        <div class="mdl-info"><div class="mdl-name">${esc(m.id)}</div>${m.desc?`<div class="mdl-desc">${esc(m.desc)}</div>`:''}</div>
-        ${isSel?`<svg class="mdl-chk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`:''}
-      </div>`;
-    }
+    const isSel = prov.name === dropProvider;
+    html += `<button class="mdl-prov-pill${isSel?' sel':''}" data-prov="${prov.name}">${prov.name.charAt(0).toUpperCase()+prov.name.slice(1)}</button>`;
+  }
+  html += '</div>';
+
+  // Models for selected provider
+  const models = modelsData[dropProvider] || [];
+  for(const m of models){
+    const isSel = m.id===selectedModel && dropProvider===selectedProvider;
+    html += `<div class="mdl-opt${isSel?' sel':''}" data-provider="${dropProvider}" data-model="${m.id}">
+      <div class="mdl-info"><div class="mdl-name">${esc(m.id)}</div>${m.desc?`<div class="mdl-desc">${esc(m.desc)}</div>`:''}</div>
+      ${isSel?`<svg class="mdl-chk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`:''}
+    </div>`;
   }
   mdlDrop.innerHTML=html;
+}
+
+function updateCapBar(){
+  const bar = $('cap-bar');
+  if(!bar) return;
+  const caps = getModelCaps(selectedProvider, selectedModel);
+  if(!caps.length){ bar.innerHTML=''; return; }
+  bar.innerHTML = caps.map(c=>{
+    const m = CAP_META[c]; if(!m) return '';
+    return `<div class="cap-icon" title="${m.title}"><span>${m.icon}</span><div class="cap-tip">${m.label}<br><span style="color:var(--t3);font-size:11px">${m.title}</span></div></div>`;
+  }).join('');
 }
 
 function renderSuggestions(){
@@ -968,11 +1033,13 @@ sbList.addEventListener('click',e=>{
   if(item){ openSession(item.dataset.sid); if(window.innerWidth<640) sidebar.classList.add('collapsed'); }
 });
 
-$('mdl-btn').addEventListener('click',e=>{ e.stopPropagation(); mdlDrop.classList.toggle('open'); if(mdlDrop.classList.contains('open')) renderModelDropdown(); });
+$('mdl-btn').addEventListener('click',e=>{ e.stopPropagation(); mdlDrop.classList.toggle('open'); if(mdlDrop.classList.contains('open')){ dropProvider=selectedProvider; renderModelDropdown(); } });
 mdlDrop.addEventListener('click',e=>{
+  const pill=e.target.closest('.mdl-prov-pill');
+  if(pill){ dropProvider=pill.dataset.prov; loadModels(dropProvider).then(renderModelDropdown); return; }
   const opt=e.target.closest('.mdl-opt'); if(!opt) return;
   selectedProvider=opt.dataset.provider; selectedModel=opt.dataset.model;
-  mdlLabel.textContent=selectedModel; mdlDrop.classList.remove('open'); renderModelDropdown();
+  mdlLabel.textContent=selectedModel; mdlDrop.classList.remove('open'); renderModelDropdown(); updateCapBar();
 });
 document.addEventListener('click',e=>{ if(!e.target.closest('#mdl-btn')&&!e.target.closest('#mdl-drop')) mdlDrop.classList.remove('open'); });
 
