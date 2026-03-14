@@ -1129,6 +1129,14 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts" },
 });
 
+// Stricter limiter for LumiChat auth endpoints (public-facing, no CF Access)
+const lcAuthLimiter = rateLimit({
+  ...rateLimitOpts,
+  windowMs: 15 * 60 * 1000,
+  max: 15, // 15 attempts per 15 min per IP (covers login + register + check-email)
+  message: { error: "Too many requests, please try again later" },
+});
+
 // 4. Body parser with size limit (F-09: reduced from 100mb)
 app.use(express.json({
   limit: "10mb",
@@ -3501,7 +3509,7 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
 });
 
 // POST /lc/auth/check-email → check if email exists in PB (for step-based auth UI)
-app.post("/lc/auth/check-email", apiLimiter, async (req, res) => {
+app.post("/lc/auth/check-email", lcAuthLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: "Email required" });
@@ -3513,7 +3521,7 @@ app.post("/lc/auth/check-email", apiLimiter, async (req, res) => {
 });
 
 // POST /lc/auth/register → proxy to PB
-app.post("/lc/auth/register", apiLimiter, async (req, res) => {
+app.post("/lc/auth/register", lcAuthLimiter, async (req, res) => {
   try {
     const r = await pbFetch("/api/collections/users/records", {
       method: "POST",
@@ -3528,7 +3536,7 @@ app.post("/lc/auth/register", apiLimiter, async (req, res) => {
 });
 
 // POST /lc/auth/login → PB auth → set httpOnly cookie
-app.post("/lc/auth/login", apiLimiter, async (req, res) => {
+app.post("/lc/auth/login", lcAuthLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Missing email or password" });
