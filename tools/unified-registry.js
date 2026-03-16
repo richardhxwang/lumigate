@@ -172,53 +172,68 @@ class UnifiedRegistry {
       // Read the template file
       const ext = path.extname(match.file).toLowerCase();
 
-      if (ext === ".xls") {
-        // Read .xls with xlrd-style approach — actually we need to convert or use ExcelJS
-        // For .xls files, we copy the file and return it as-is (template download)
-        // In production, this would fill data into the template
-        const fileBuffer = fs.readFileSync(match.file);
-        const outName = data?.company
-          ? `${data.company}_${match.name}.xls`
-          : `${match.name}_template.xls`;
+      // Template found — use its STRUCTURE as reference, build a new filled xlsx
+      // Don't copy the template directly (it's empty/protected)
+      // Instead, build a new file based on the data provided + template structure info
+      const company = data?.company || "Company";
+      const templateInfo = { name: match.name, category: match.category, sheets: match.sheets };
+
+      // Route to generate_spreadsheet with template-aware data
+      // The AI provides the actual data; we just ensure the structure matches
+      if (data?.sheets) {
+        // AI already provided sheet structure — use it directly
+        const result = await builtinExecute("generate_spreadsheet", {
+          title: `${company} - ${match.name}`,
+          sheets: data.sheets,
+        });
+        if (result.ok) {
+          result.data = { ...result.data, based_on_template: match.name, template_sheets: match.sheets };
+        }
+        return result;
+      }
+
+      // AI provided raw financial data — build sheets from it
+      const sheets = [];
+      if (data?.revenue || data?.financials) {
+        const years = data.years || ["2022", "2023", "2024", "2025E", "2026E"];
+        const rev = data.revenue || data.financials?.revenue || [];
+        const ni = data.net_income || data.financials?.net_income || [];
+        const gp = data.gross_profit || data.financials?.gross_profit || [];
+
+        // Income Statement
+        const isRows = [["Revenue", ...rev.map((v,i) => i < 3 ? v : `=${String.fromCharCode(66+i-1)}2*1.05`)]];
+        if (gp.length) isRows.push(["Gross Profit", ...gp]);
+        if (ni.length) isRows.push(["Net Income", ...ni]);
+        sheets.push({ name: "Income Statement", headers: ["", ...years.slice(0, Math.max(rev.length, 5))], rows: isRows });
+
+        // DCF if template is DCF-related
+        if (match.name.toLowerCase().includes("dcf") || match.category.includes("dcf")) {
+          sheets.push({
+            name: "DCF Valuation",
+            headers: ["Parameter", "Value"],
+            rows: [
+              ["Risk-Free Rate", 0.035], ["Beta", data.beta || 0.8], ["ERP", 0.06],
+              ["Cost of Equity (CAPM)", "=B2+B3*B4"], ["Cost of Debt", 0.04], ["Tax Rate", 0.21],
+              ["WACC", "=B5*0.7+B6*(1-B7)*0.3"], ["Terminal Growth", 0.025],
+              ["Shares Outstanding (M)", data.shares || 3240],
+            ],
+          });
+        }
+      }
+
+      if (sheets.length === 0) {
+        // No usable data — return template info so AI knows what to fill
         return {
-          ok: true,
-          file: fileBuffer,
-          filename: outName,
-          mimeType: "application/vnd.ms-excel",
-          data: { template: match.name, category: match.category, sheets: match.sheets, note: "Professional template from library" },
-          duration: Date.now() - startTime,
-        };
-      } else if (ext === ".xlsx") {
-        const fileBuffer = fs.readFileSync(match.file);
-        return {
-          ok: true,
-          file: fileBuffer,
-          filename: `${data?.company || match.name}_model.xlsx`,
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          data: { template: match.name, sheets: match.sheets },
-          duration: Date.now() - startTime,
-        };
-      } else if (ext === ".pptx") {
-        const fileBuffer = fs.readFileSync(match.file);
-        return {
-          ok: true,
-          file: fileBuffer,
-          filename: `${data?.company || match.name}_presentation.pptx`,
-          mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-          data: { template: match.name },
-          duration: Date.now() - startTime,
-        };
-      } else if (ext === ".docx") {
-        const fileBuffer = fs.readFileSync(match.file);
-        return {
-          ok: true,
-          file: fileBuffer,
-          filename: `${data?.company || match.name}_document.docx`,
-          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          data: { template: match.name },
-          duration: Date.now() - startTime,
+          ok: true, data: {
+            message: `Template "${match.name}" found (${match.sheets?.join(", ")}). Provide data in sheets format to fill it.`,
+            template: templateInfo, required_data: "Provide 'sheets' array with headers and rows, or financial data (revenue, net_income arrays).",
+          }, duration: Date.now() - startTime,
         };
       }
+
+      const result = await builtinExecute("generate_spreadsheet", { title: `${company} - ${match.name}`, sheets });
+      if (result.ok) result.data = { ...result.data, based_on_template: match.name };
+      return result;
 
       return this._templateFallback(toolInput, startTime);
     } catch (err) {

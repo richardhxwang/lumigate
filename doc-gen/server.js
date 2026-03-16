@@ -40,7 +40,9 @@ async function generateXlsx(spec) {
 
     // Headers
     if (ss.headers) {
-      const hr = ws.addRow(ss.headers);
+      // Sanitize headers: replace null/undefined/None with empty string
+      const cleanHeaders = ss.headers.map(h => (h == null || h === "None" || h === "none" || h === "null") ? "" : h);
+      const hr = ws.addRow(cleanHeaders);
       hr.font = { bold: true, size: 11 };
       hr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ss.headerColor || "FF4472C4" } };
       hr.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
