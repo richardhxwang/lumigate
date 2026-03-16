@@ -56,8 +56,10 @@ async function generateXlsx(spec) {
     }
 
     // Data rows — support formulas, formatting per cell
-    for (let ri = 0; ri < (ss.data || []).length; ri++) {
-      const rowData = ss.data[ri];
+    // Accept both "data" and "rows" field names (AI models may use either)
+    const dataRows = ss.data || ss.rows || [];
+    for (let ri = 0; ri < dataRows.length; ri++) {
+      const rowData = dataRows[ri];
       const cells = Array.isArray(rowData) ? rowData : Object.values(rowData);
       const row = ws.addRow([]);
 
@@ -79,8 +81,16 @@ async function generateXlsx(spec) {
           if (val.bg) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + val.bg.replace("#", "") } };
           if (val.align) cell.alignment = { horizontal: val.align };
           if (val.wrap) cell.alignment = { ...cell.alignment, wrapText: true };
+        } else if (typeof val === "string" && val.startsWith("=")) {
+          // String starting with = is a formula
+          cell.value = { formula: val.slice(1) };
         } else {
-          cell.value = val;
+          // Auto-convert numeric strings to numbers for proper Excel handling
+          if (typeof val === "string" && val !== "" && !isNaN(Number(val))) {
+            cell.value = Number(val);
+          } else {
+            cell.value = val;
+          }
         }
 
         // Alternating row colors
