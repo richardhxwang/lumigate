@@ -48,12 +48,17 @@
     #splash.out{opacity:0;visibility:hidden;pointer-events:none}
     #splash-scene{display:flex;flex-direction:column;align-items:center;gap:18px}
     #splash-ball-wrap{transform-origin:center bottom}
-    #splash-ball{display:block;opacity:0;animation:ball-fade-in .6s ease forwards;transform-origin:center center}
-    #splash-title{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.3px;opacity:0;animation:splash-title-in .5s ease forwards;animation-delay:.8s}
-    @keyframes ball-fade-in{
-      0%  {opacity:0;transform:scale(.5)}
-      60% {opacity:1;transform:scale(1.08)}
-      100%{opacity:1;transform:scale(1)}
+    #splash-ball{display:block;transform:translate3d(0,-200px,0);animation:ball-drop 1.4s cubic-bezier(.22,1,.36,1) forwards;transform-origin:center bottom;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+    #splash-title{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.3px;opacity:0;animation:splash-title-in .5s ease forwards;animation-delay:1s}
+    @keyframes ball-drop{
+      0%   {transform:translate3d(0,-200px,0)}
+      30%  {transform:translate3d(0,0,0) scaleY(.88) scaleX(1.12)}
+      44%  {transform:translate3d(0,-70px,0) scaleY(1) scaleX(1)}
+      58%  {transform:translate3d(0,0,0) scaleY(.93) scaleX(1.07)}
+      70%  {transform:translate3d(0,-28px,0) scaleY(1) scaleX(1)}
+      80%  {transform:translate3d(0,0,0) scaleY(.97) scaleX(1.03)}
+      88%  {transform:translate3d(0,-8px,0)}
+      100% {transform:translate3d(0,0,0)}
     }
     @keyframes splash-title-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
@@ -1525,11 +1530,11 @@ function _splashGate(fn){
   if(_splashAnimReady){ fn(); return; }
   _splashPendingFn = fn;
 }
-// Ball fade .6s + title at .8s + visible 400ms = ~1.5s total
+// Ball 1.4s + title at 1s + visible 500ms = ~2s total
 setTimeout(()=>{
   _splashAnimReady = true;
   if(_splashPendingFn){ const f=_splashPendingFn; _splashPendingFn=null; f(); }
-}, 1500);
+}, 2000);
 
 function hideSplash(cb){
   const s=$('splash'); if(!s){ cb&&cb(); return; }
