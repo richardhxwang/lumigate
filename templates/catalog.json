@@ -1,0 +1,3851 @@
+[
+  {
+    "name": "Bond Model II",
+    "file": "templates/finance/bonds/Bond Model II.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 48128,
+    "total_rows": 44,
+    "description": "Bond Model II — 债券定价/估值"
+  },
+  {
+    "name": "Bond Model",
+    "file": "templates/finance/bonds/Bond Model.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 52224,
+    "total_rows": 94,
+    "description": "Bond Model — 债券定价/估值"
+  },
+  {
+    "name": "Bond Valuation and Yield Calculation",
+    "file": "templates/finance/bonds/Bond Valuation and Yield Calculation.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Purpose",
+      "Bond Value on Coupon Date",
+      "Bond Value Between Coupon Dates",
+      "Bond Yields on Coupon Date",
+      "Bond Yields Between Coupons",
+      "Copyright Info",
+      "Copyright Info (2)"
+    ],
+    "size": 34304,
+    "total_rows": 61,
+    "description": "Bond Valuation and Yield Calculation — 债券定价/估值"
+  },
+  {
+    "name": "Bond Valuation",
+    "file": "templates/finance/bonds/Bond Valuation.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Bond Pricing",
+      "Bond Valuation",
+      "Bond Yield"
+    ],
+    "size": 359936,
+    "total_rows": 52,
+    "description": "Bond Valuation — 债券定价/估值"
+  },
+  {
+    "name": "Bond Yield Model",
+    "file": "templates/finance/bonds/Bond Yield Model.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Bond Yield Calculations",
+      "Interest Rate Trees",
+      "Linear Programming",
+      "Linear Program Report",
+      "Linear Program Sensitivity ",
+      "Sheet2",
+      "Sheet1",
+      "Sheet3",
+      "Sheet4",
+      "Sheet5",
+      "Sheet6",
+      "Sheet7",
+      "Sheet8",
+      "Sheet9",
+      "Sheet10",
+      "Sheet11",
+      "Sheet12",
+      "Sheet13",
+      "Sheet14",
+      "Sheet15",
+      "Sheet16"
+    ],
+    "size": 53760,
+    "total_rows": 135,
+    "description": "Bond Yield Model — 债券定价/估值"
+  },
+  {
+    "name": "Callable Bond",
+    "file": "templates/finance/bonds/Callable Bond.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2,3",
+      "ex4",
+      "ex5",
+      "ex6",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 335360,
+    "total_rows": 837,
+    "description": "Callable Bond — 债券定价/估值"
+  },
+  {
+    "name": "Convertible Bond",
+    "file": "templates/finance/bonds/Convertible Bond.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "numex",
+      "ex4",
+      "Further1",
+      "Further2",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 159232,
+    "total_rows": 544,
+    "description": "Convertible Bond — 债券定价/估值"
+  },
+  {
+    "name": "Dollar Duration",
+    "file": "templates/finance/bonds/Dollar Duration.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2,3,4",
+      "furtherex1,2"
+    ],
+    "size": 131584,
+    "total_rows": 298,
+    "description": "Dollar Duration"
+  },
+  {
+    "name": "Effective Duration",
+    "file": "templates/finance/bonds/Effective Duration.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2,3",
+      "ex4",
+      "further 1",
+      "further 2"
+    ],
+    "size": 163840,
+    "total_rows": 393,
+    "description": "Effective Duration"
+  },
+  {
+    "name": "Modified Duration",
+    "file": "templates/finance/bonds/Modified Duration.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Modified Duration"
+    ],
+    "size": 38912,
+    "total_rows": 58,
+    "description": "Modified Duration"
+  },
+  {
+    "name": "Portfolio Duration",
+    "file": "templates/finance/bonds/Portfolio Duration.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "Portfolio Duration"
+    ],
+    "size": 38912,
+    "total_rows": 52,
+    "description": "Portfolio Duration"
+  },
+  {
+    "name": "Sinking Fund Bond",
+    "file": "templates/finance/bonds/Sinking Fund Bond.xls",
+    "format": ".xls",
+    "category": "finance/bonds",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3,4,5",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 231424,
+    "total_rows": 706,
+    "description": "Sinking Fund Bond — 债券定价/估值"
+  },
+  {
+    "name": "5 Year Financial Plan for Manufacturing Company",
+    "file": "templates/finance/budgeting/5 Year Financial Plan for Manufacturing Company.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Model Inputs",
+      "Profit and Loss",
+      "Balance Sheet",
+      "Cash Flow",
+      "Loan Payment Calculator"
+    ],
+    "size": 125440,
+    "total_rows": 551,
+    "description": "5 Year Financial Plan for Manufacturing Company — 财务规划"
+  },
+  {
+    "name": "5-Year Financial Plan & Debt Calc - Manufacturing",
+    "file": "templates/finance/budgeting/5-Year Financial Plan & Debt Calc - Manufacturing.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Model Inputs",
+      "Profit and Loss",
+      "Balance Sheet",
+      "Cash Flow",
+      "Loan Payment Calculator"
+    ],
+    "size": 125440,
+    "total_rows": 551,
+    "description": "5-Year Financial Plan & Debt Calc - Manufacturing — 财务规划"
+  },
+  {
+    "name": "Budget Planning Model",
+    "file": "templates/finance/budgeting/Budget Planning Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "How-to-use",
+      "Income",
+      "Financial-Commitments",
+      "Home-Utilities",
+      "Education-Health",
+      "Shopping-Transport",
+      "Entertainment-Eating-Out",
+      "Results",
+      "Print"
+    ],
+    "size": 574464,
+    "total_rows": 428,
+    "description": "Budget Planning Model — 预算规划"
+  },
+  {
+    "name": "Build Your Own Financial Plan",
+    "file": "templates/finance/budgeting/Build Your Own Financial Plan.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Index",
+      "Chapter 1",
+      "Chapter 2",
+      "Chapter 3",
+      "Chapter 4 Part 1",
+      "Chapter 4 Parts 2 & 3",
+      "Chapter 5 Part 1",
+      "Chapter 5 Part 2 & 3",
+      "Chapter 6",
+      "Chapter 7",
+      "Chapter 8",
+      "Chapter 9",
+      "Chapter 10 Part 1",
+      "Chapter 10 Parts 2 through 5",
+      "Chapter 10 Part 6",
+      "Chapter 11 Parts 1 and 2",
+      "Chapter 11 Part 3",
+      "Chapter 11 Part 4",
+      "Chapter 12 Part 1",
+      "Chapter 12 Parts 2 and 3",
+      "Chapter 13",
+      "Chapter 14",
+      "Chapter 15",
+      "Chapter 16",
+      "Chapter 17",
+      "Chapter 18",
+      "Chapter 19",
+      "Chapter 20",
+      "Chapter 21",
+      "Chapter 22",
+      "Your Documents",
+      "Your Decisions",
+      "Variables"
+    ],
+    "size": 594432,
+    "total_rows": 3380,
+    "description": "Build Your Own Financial Plan — 财务规划"
+  },
+  {
+    "name": "Cash Flow Modelling and Budgeting for Property Professionals",
+    "file": "templates/finance/budgeting/Cash Flow Modelling and Budgeting for Property Professionals.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Title",
+      "What",
+      "Why",
+      "WhyExcel",
+      "Problems",
+      "AnApproach",
+      "ExcelFeatures",
+      "TBFormulae",
+      "ArrayFormulae",
+      "Links",
+      "Layout",
+      "LittleTips",
+      "Dates",
+      "Definitions",
+      "ProjOneOff",
+      "ProjSpread",
+      "ProjSCurve",
+      "ProjCurve",
+      "Opex",
+      "Opex2",
+      "ProjRent",
+      "Loan1",
+      "Loans2",
+      "Consolidating",
+      "a1_Actuals",
+      "a1_Accounting1",
+      "a1_Accounting2",
+      "a1_Combining",
+      "a2_Modules",
+      "a2_Standards",
+      "a2_Blocks",
+      "a2_Replication",
+      "Extras",
+      "AddCats",
+      "AddText",
+      "NPVIRR",
+      "WebResources",
+      "Index"
+    ],
+    "size": 730112,
+    "total_rows": 1400,
+    "description": "Cash Flow Modelling and Budgeting for Property Professionals — 预算规划"
+  },
+  {
+    "name": "Cash Flow Models & Budgeting",
+    "file": "templates/finance/budgeting/Cash Flow Models & Budgeting.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Title",
+      "What",
+      "Why",
+      "WhyExcel",
+      "Problems",
+      "AnApproach",
+      "ExcelFeatures",
+      "TBFormulae",
+      "ArrayFormulae",
+      "Links",
+      "Layout",
+      "LittleTips",
+      "Dates",
+      "Definitions",
+      "ProjOneOff",
+      "ProjSpread",
+      "ProjSCurve",
+      "ProjCurve",
+      "Opex",
+      "Opex2",
+      "ProjRent",
+      "Loan1",
+      "Loans2",
+      "Consolidating",
+      "a1_Actuals",
+      "a1_Accounting1",
+      "a1_Accounting2",
+      "a1_Combining",
+      "a2_Modules",
+      "a2_Standards",
+      "a2_Blocks",
+      "a2_Replication",
+      "Extras",
+      "AddCats",
+      "AddText",
+      "NPVIRR",
+      "WebResources",
+      "Index"
+    ],
+    "size": 730112,
+    "total_rows": 1400,
+    "description": "Cash Flow Models & Budgeting — 预算规划"
+  },
+  {
+    "name": "Cash Flow Projection Model (2)",
+    "file": "templates/finance/budgeting/Cash Flow Projection Model (2).xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Guidelines",
+      "Explanation",
+      "Cashflow Projection",
+      "Actual"
+    ],
+    "size": 80896,
+    "total_rows": 214,
+    "description": "Cash Flow Projection Model (2) — 现金流预测"
+  },
+  {
+    "name": "Cash Flow Projection Model",
+    "file": "templates/finance/budgeting/Cash Flow Projection Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Guidelines",
+      "Explanation",
+      "Cash Flow Projection",
+      "Actual"
+    ],
+    "size": 65024,
+    "total_rows": 216,
+    "description": "Cash Flow Projection Model — 现金流预测"
+  },
+  {
+    "name": "European RMBS Cash Flow Model",
+    "file": "templates/finance/budgeting/European RMBS Cash Flow Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Front Page",
+      "Deal Structure",
+      "Indiv. Scenarios",
+      "WAFF Assumptions",
+      "WALS Assumptions",
+      "Prepayments",
+      "Interest rates stresses",
+      "Delinquency",
+      "Mortgage Pool",
+      "Bonds and Waterfalls",
+      "Report",
+      "SP Runs",
+      "Fitch Runs",
+      "Notes",
+      "Disclaimer"
+    ],
+    "size": 2576384,
+    "total_rows": 1807,
+    "description": "European RMBS Cash Flow Model — 现金流预测"
+  },
+  {
+    "name": "Financial Enterprise Model Illustrative",
+    "file": "templates/finance/budgeting/Financial Enterprise Model Illustrative.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Title",
+      "Instructions",
+      "Schematic",
+      "CSS Information  ",
+      "Index",
+      "Outputs>>>",
+      "Validation Checks",
+      ">>>P&L>>>",
+      "Con P&L Real & Nominal",
+      "Cons P&L by Cust Nominal",
+      "Cons P&L by Cust Real",
+      "Con P&L by Cust & Funct Nominal",
+      "Con P&L by Cust & Funct Real",
+      "Con P&L by Funct Cust Nominal  ",
+      "Con P&L by Funct Cust Real ",
+      "Cons P&L by SVC Line Nominal",
+      "Cons P&L by SVC Line Real",
+      ">>Revenue>>",
+      "Revenue Margin Cust SVC Nomin",
+      "Revenue Margin Cust SVC Real",
+      "Revenue Margin SVC Cust Nominal",
+      "Revenue Margin SVC Cust Real  ",
+      "Revenue by Year & Qutr Nominal ",
+      "Revenue  by Year & Qutr Real",
+      "Revenue CCG Pop Nominal",
+      "Revenue CCG Pop Real",
+      "SVC Line Cost - Nominal ",
+      "SVC Line Cost - Real",
+      ">>>>Inputs>>>>",
+      "Revenue Year 1 by Quarter Real",
+      "Cost Analysis by Quarter Real",
+      "Costs & Margins",
+      "RevenueMarginCalc Year1 Nominal",
+      "Revenue & Margin Calc Year 1",
+      "RevenueMarginCalc Year2 Nominal",
+      "Revenue & Margin Calc Year 2",
+      "RevenueMarginCalc Year3 Nominal",
+      "Revenue & Margin Calc Year 3",
+      "RevenueMarginCalc Year4Nominal",
+      "Revenue & Margin Calc Year 4",
+      "CCG Sales & Margin Calc Year 1 ",
+      "CCGSalesMarginCalcYear2 Nominal",
+      "CCG Sales & Margin Calc Year 2",
+      "CCGSaleMarginCalcyear 3 Nominal",
+      "CCG Sales & Margin Calc Year 3",
+      "CCGSaleMarginCalc Year4 Nominal",
+      "CCG Sales & Margin Calc Year 4",
+      ">>Overheads>> ",
+      "Service Csts & Overhead Nominal",
+      "Service Csts & Overhead Real",
+      "Indirect Overheads Nominal",
+      "Indirect Overheads Real",
+      "CIP",
+      ">>Workforce>>",
+      "Workforce Summary  Nominal",
+      "Workforce Summary Real",
+      "Workforce Calc Year 1 Real",
+      "Workforce Calc Year 2 Real",
+      "Workforce Calc Year 3 Real",
+      "Workforce Calc Year 4 Real",
+      "Salary Bands 2012-13",
+      "Surplus utilisation",
+      "Calcs",
+      "Restructure costs",
+      "Capexpd Real",
+      "Estates Real",
+      "CCG Index",
+      "NOTES"
+    ],
+    "size": 3268608,
+    "total_rows": 7071,
+    "description": "Financial Enterprise Model Illustrative"
+  },
+  {
+    "name": "Financial Plan Model",
+    "file": "templates/finance/budgeting/Financial Plan Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "How to use this template",
+      "Set-up costs",
+      "Profit and loss forecast",
+      "Cash flow forecast",
+      "Balance sheet forecast",
+      "Break-even analysis"
+    ],
+    "size": 100864,
+    "total_rows": 193,
+    "description": "Financial Plan Model — 财务规划"
+  },
+  {
+    "name": "Financial Plan Template & Break-even Model",
+    "file": "templates/finance/budgeting/Financial Plan Template & Break-even Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "How to use this template",
+      "Set-up costs",
+      "Profit and loss forecast",
+      "Cash flow forecast",
+      "Balance sheet forecast",
+      "Break-even analysis"
+    ],
+    "size": 100864,
+    "total_rows": 193,
+    "description": "Financial Plan Template & Break-even Model — 财务规划"
+  },
+  {
+    "name": "Financial Projection Model",
+    "file": "templates/finance/budgeting/Financial Projection Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Introduction",
+      "1. Required Start-Up Funds",
+      "2. Salaries and Wages",
+      "3. Fixed Operating Expenses",
+      "4. Projected Sales Forecast",
+      "5. Projected Sales Forecast (2)",
+      "6. Cash Receipts-Disbursements",
+      "7. Beginning Balance Sheet",
+      "8. Income Statement",
+      "9. Cash Flow Statement",
+      "10. Balance Sheet",
+      "11. Year End Summary",
+      "12. Income Statement (2)",
+      "13. Cash Flow Statement (2)",
+      "14. Balance Sheet (2)",
+      "15. Income Statement (3)",
+      "16. Cash Flow Statement (3)",
+      "17. Balance Sheet (3)",
+      "18. Financial Ratios",
+      "19. Breakeven Analysis",
+      "20. Amoritization Schedule",
+      "21. Financial Diagnostics"
+    ],
+    "size": 369664,
+    "total_rows": 1009,
+    "description": "Financial Projection Model"
+  },
+  {
+    "name": "Financial Statements Template",
+    "file": "templates/finance/budgeting/Financial Statements Template.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "About",
+      "Instructions",
+      "Set-up",
+      "Classes",
+      "TB",
+      "FinInfo",
+      "AFS",
+      "TBImport"
+    ],
+    "size": 299520,
+    "total_rows": 1170,
+    "description": "Financial Statements Template"
+  },
+  {
+    "name": "Personal Budget Spreadsheet",
+    "file": "templates/finance/budgeting/Personal Budget Spreadsheet.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Budget",
+      "Help"
+    ],
+    "size": 50688,
+    "total_rows": 158,
+    "description": "Personal Budget Spreadsheet — 预算规划"
+  },
+  {
+    "name": "Personal Budget Worksheet",
+    "file": "templates/finance/budgeting/Personal Budget Worksheet.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Read Me",
+      "Personal Budget Worksheet",
+      "Week 1 Expenses",
+      "Week 2 Expenses",
+      "Week 3 Expenses",
+      "Week 4 Expenses ",
+      "Week 5 Expenses"
+    ],
+    "size": 109056,
+    "total_rows": 386,
+    "description": "Personal Budget Worksheet — 预算规划"
+  },
+  {
+    "name": "Personal Financial Statement",
+    "file": "templates/finance/budgeting/Personal Financial Statement.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Personal Finance Statement"
+    ],
+    "size": 72704,
+    "total_rows": 97,
+    "description": "Personal Financial Statement"
+  },
+  {
+    "name": "Proforma Income Statement Model",
+    "file": "templates/finance/budgeting/Proforma Income Statement Model.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Main Menu",
+      "Cash Required for Start-Up",
+      "Pro Forma Income (Most Likely)",
+      "5 Year Pro Forma Income ",
+      "Pro Forma Cash Flow",
+      "Pro Forma Balance Sheet",
+      "Financial Ratios",
+      "Break-even",
+      "Return on Investment",
+      "Pro Forma Income (Optimistic)",
+      "Pro Forma Income (Pessimistic)"
+    ],
+    "size": 143872,
+    "total_rows": 511,
+    "description": "Proforma Income Statement Model"
+  },
+  {
+    "name": "Rich Dad Budget",
+    "file": "templates/finance/budgeting/Rich Dad Budget.xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Financial Statement"
+    ],
+    "size": 22016,
+    "total_rows": 61,
+    "description": "Rich Dad Budget — 预算规划"
+  },
+  {
+    "name": "Six Year Financial Template (Complex)",
+    "file": "templates/finance/budgeting/Six Year Financial Template (Complex).xls",
+    "format": ".xls",
+    "category": "finance/budgeting",
+    "sheets": [
+      "Intro",
+      "Beg BS",
+      "TAM",
+      "Base Assumptions",
+      "Staffing Inputs",
+      "Capital Budget",
+      "Intellectual Property",
+      "Revenues-AR",
+      "Direct Costs",
+      "Admin-Sales-Mktg",
+      "Resrch-Dev",
+      "Manufacturing",
+      "Allocated Expenses",
+      "Snapshot-Quarter",
+      "Snapshot-Annual",
+      "Financial Statements",
+      "Quick Summary",
+      "Income & Retained Earnings",
+      "Cash Flow",
+      "Balance Sheets",
+      "Ratio Analysis",
+      "Comps",
+      "Valuation"
+    ],
+    "size": 2465280,
+    "total_rows": 1271,
+    "description": "Six Year Financial Template (Complex)"
+  },
+  {
+    "name": "Capex DCF Valuation",
+    "file": "templates/finance/dcf/Capex DCF Valuation.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Projected IS",
+      "WACC",
+      "DCF Model",
+      "Share Value",
+      "Questions"
+    ],
+    "size": 25088,
+    "total_rows": 99,
+    "description": "Capex DCF Valuation — 现金流折现估值模型"
+  },
+  {
+    "name": "DCF Model",
+    "file": "templates/finance/dcf/DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Historical Data",
+      "Forecast Drivers",
+      "Results",
+      "Valuation Summary"
+    ],
+    "size": 493568,
+    "total_rows": 858,
+    "description": "DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "Discounted Cash Flow Model",
+    "file": "templates/finance/dcf/Discounted Cash Flow Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "FCF Discount Model",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 38400,
+    "total_rows": 53,
+    "description": "Discounted Cash Flow Model — 现金流预测"
+  },
+  {
+    "name": "FCFE Stable Growth Model",
+    "file": "templates/finance/dcf/FCFE Stable Growth Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "NewFCFEStableGrowth"
+    ],
+    "size": 36864,
+    "total_rows": 73,
+    "description": "FCFE Stable Growth Model"
+  },
+  {
+    "name": "FCFF Model",
+    "file": "templates/finance/dcf/FCFF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 18432,
+    "total_rows": 25,
+    "description": "FCFF Model"
+  },
+  {
+    "name": "FCFF Valuation Model (2)",
+    "file": "templates/finance/dcf/FCFF Valuation Model (2).xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Read me first",
+      "Master Inputs Start here",
+      "Earnings Normalizer",
+      "R&D converter",
+      "Operating lease converter",
+      "Valuation Model",
+      "Option Value",
+      "Bottom-up Beta",
+      "Ratings estimator",
+      "Industry averages"
+    ],
+    "size": 204800,
+    "total_rows": 555,
+    "description": "FCFF Valuation Model (2) — 企业估值模型"
+  },
+  {
+    "name": "FCFF Valuation Model",
+    "file": "templates/finance/dcf/FCFF Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Read me first",
+      "Master Inputs Start here",
+      "Earnings Normalizer",
+      "R&D converter",
+      "Operating lease converter",
+      "Valuation Model",
+      "Option Value",
+      "Bottom-up Beta",
+      "Ratings estimator",
+      "Industry averages"
+    ],
+    "size": 204800,
+    "total_rows": 555,
+    "description": "FCFF Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Intel DCF Model",
+    "file": "templates/finance/dcf/Intel DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "GRADE SHEET",
+      "About Intel",
+      "FINANCIAL STATEMENTS",
+      "RATIO COMPARISON",
+      "VALUE LINE",
+      "FORECAST -ML",
+      "FORECAST - PESS",
+      "FORECAST - OPT",
+      "DuPont 2008",
+      "DuPont 2009",
+      "DuPont 2010",
+      "Graham",
+      "Buffett",
+      "Kuhle ROE",
+      "SUMMARY",
+      "FIN. STMNTS for AMD- Competitor"
+    ],
+    "size": 3296768,
+    "total_rows": 790,
+    "description": "Intel DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "LBO DCF Model",
+    "file": "templates/finance/dcf/LBO DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Input",
+      "Inc_St",
+      "Bal_Sheet",
+      "Cash_Flow",
+      "Depr_Amort",
+      "Income_Tax",
+      "WACC",
+      "DCF_Analysis",
+      "IRR_Returns",
+      "Ratios"
+    ],
+    "size": 370688,
+    "total_rows": 673,
+    "description": "LBO DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "Land Value DCF Model",
+    "file": "templates/finance/dcf/Land Value DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Read Me",
+      "Inputs",
+      "Residual - Land Value",
+      "Residual - Profit",
+      "DCF - Land Value",
+      "DCF - Profit"
+    ],
+    "size": 235008,
+    "total_rows": 358,
+    "description": "Land Value DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "NPV Model",
+    "file": "templates/finance/dcf/NPV Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Build a Model"
+    ],
+    "size": 61440,
+    "total_rows": 123,
+    "description": "NPV Model — 净现值分析"
+  },
+  {
+    "name": "Three Stage DCF Model",
+    "file": "templates/finance/dcf/Three Stage DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Scenario",
+      "One-Stage DCF",
+      "Two-Stage DCF",
+      "Three-Stage DCF"
+    ],
+    "size": 31744,
+    "total_rows": 132,
+    "description": "Three Stage DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "Venture Capital DCF Valuation Model with Break-even",
+    "file": "templates/finance/dcf/Venture Capital DCF Valuation Model with Break-even.xls",
+    "format": ".xls",
+    "category": "finance/dcf",
+    "sheets": [
+      "Input",
+      "Valuations",
+      "Classic VC",
+      "First Chicago",
+      "DCF",
+      "BreakEven",
+      "DCF2",
+      "BreakEven2",
+      "Solve for IRR",
+      "Solve For Investment",
+      "Founder Control",
+      "WorkArea"
+    ],
+    "size": 246784,
+    "total_rows": 137,
+    "description": "Venture Capital DCF Valuation Model with Break-even — 现金流折现估值模型"
+  },
+  {
+    "name": "CVA Swap Model",
+    "file": "templates/finance/derivatives/CVA Swap Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "simpliefied portfolio CVA "
+    ],
+    "size": 36864,
+    "total_rows": 38,
+    "description": "CVA Swap Model — 互换合约定价"
+  },
+  {
+    "name": "Constant Maturity Swap Model",
+    "file": "templates/finance/derivatives/Constant Maturity Swap Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Constant Maturity Swap Model",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 71680,
+    "total_rows": 162,
+    "description": "Constant Maturity Swap Model — 互换合约定价"
+  },
+  {
+    "name": "Credit Default Swap Valuation Model",
+    "file": "templates/finance/derivatives/Credit Default Swap Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 43008,
+    "total_rows": 131,
+    "description": "Credit Default Swap Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Credit Default Swap",
+    "file": "templates/finance/derivatives/Credit Default Swap.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "ex3 (2)",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 439808,
+    "total_rows": 926,
+    "description": "Credit Default Swap — 互换合约定价"
+  },
+  {
+    "name": "Derivative Graph Model",
+    "file": "templates/finance/derivatives/Derivative Graph Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Second Derivative Grapher"
+    ],
+    "size": 100352,
+    "total_rows": 203,
+    "description": "Derivative Graph Model"
+  },
+  {
+    "name": "Dollar Cost Averaging Model",
+    "file": "templates/finance/derivatives/Dollar Cost Averaging Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "DCA Model",
+      "Monthly Rates",
+      "CGR vs. Annualized"
+    ],
+    "size": 117248,
+    "total_rows": 330,
+    "description": "Dollar Cost Averaging Model"
+  },
+  {
+    "name": "Earnout using Monte Carlo Simulation Model",
+    "file": "templates/finance/derivatives/Earnout using Monte Carlo Simulation Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Intro",
+      "Buyer's View (Exh. 3)",
+      "Seller's View (Exh. 4)"
+    ],
+    "size": 39424,
+    "total_rows": 97,
+    "description": "Earnout using Monte Carlo Simulation Model — 蒙特卡洛模拟"
+  },
+  {
+    "name": "European Swaptions Model",
+    "file": "templates/finance/derivatives/European Swaptions Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "BlackSwaptions"
+    ],
+    "size": 29184,
+    "total_rows": 30,
+    "description": "European Swaptions Model — 互换合约定价"
+  },
+  {
+    "name": "Forex Trading Income Calculator",
+    "file": "templates/finance/derivatives/Forex Trading Income Calculator.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Trading Income Calculator"
+    ],
+    "size": 118784,
+    "total_rows": 253,
+    "description": "Forex Trading Income Calculator"
+  },
+  {
+    "name": "Futures Pricing Model",
+    "file": "templates/finance/derivatives/Futures Pricing Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Futures",
+      "Case"
+    ],
+    "size": 45056,
+    "total_rows": 76,
+    "description": "Futures Pricing Model"
+  },
+  {
+    "name": "Interest Rate Parity Model",
+    "file": "templates/finance/derivatives/Interest Rate Parity Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Interest rate parity"
+    ],
+    "size": 32256,
+    "total_rows": 51,
+    "description": "Interest Rate Parity Model"
+  },
+  {
+    "name": "Interest Rate Parity",
+    "file": "templates/finance/derivatives/Interest Rate Parity.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2 & ex3",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 117248,
+    "total_rows": 388,
+    "description": "Interest Rate Parity"
+  },
+  {
+    "name": "Mark to Market Templates",
+    "file": "templates/finance/derivatives/Mark to Market Templates.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Mark to Market Template",
+      "Mark to Market Accounting",
+      "Perfect Hedge Template",
+      "A Perfect Hedge",
+      "Stable Basis Tempplate",
+      "Proxy Hedge, Stable Basis",
+      "Basis Risk RW Template",
+      "Basis Risk RW",
+      "Basis Risk MR Template",
+      "Basis Risk MR",
+      "A Mis-timed Hedge"
+    ],
+    "size": 233984,
+    "total_rows": 525,
+    "description": "Mark to Market Templates"
+  },
+  {
+    "name": "Mark-to-Market",
+    "file": "templates/finance/derivatives/Mark-to-Market.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "numex",
+      "ex1,2,3)",
+      "furtherex1,2)"
+    ],
+    "size": 70144,
+    "total_rows": 184,
+    "description": "Mark-to-Market"
+  },
+  {
+    "name": "MonteCarlo Simulation",
+    "file": "templates/finance/derivatives/MonteCarlo Simulation.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Intro",
+      "OneFreeThrow",
+      "Sample",
+      "Q&A",
+      "MCSim",
+      "Streak",
+      "DeadMonteCarloSimulation"
+    ],
+    "size": 634368,
+    "total_rows": 12189,
+    "description": "MonteCarlo Simulation"
+  },
+  {
+    "name": "One Factor Interest Rate Equilibrium Models",
+    "file": "templates/finance/derivatives/One Factor Interest Rate Equilibrium Models.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Simulation One-Factor Models",
+      "Vasicek Term Structure",
+      "CIR Term Structure"
+    ],
+    "size": 216064,
+    "total_rows": 469,
+    "description": "One Factor Interest Rate Equilibrium Models"
+  },
+  {
+    "name": "Stock Index Futures",
+    "file": "templates/finance/derivatives/Stock Index Futures.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "numex",
+      "ex1)",
+      "ex2)",
+      "ex3)",
+      "further ex 1",
+      "further ex 2",
+      "further ex 3)",
+      "further ex 4)"
+    ],
+    "size": 119296,
+    "total_rows": 503,
+    "description": "Stock Index Futures"
+  },
+  {
+    "name": "Swap Model",
+    "file": "templates/finance/derivatives/Swap Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "numex",
+      "ex2",
+      "furtherex1",
+      "furtherex2-1",
+      "furtherex2-2"
+    ],
+    "size": 205312,
+    "total_rows": 607,
+    "description": "Swap Model — 互换合约定价"
+  },
+  {
+    "name": "Total Return Swap Model",
+    "file": "templates/finance/derivatives/Total Return Swap Model.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "TRS",
+      "TRS Sample Graph"
+    ],
+    "size": 542208,
+    "total_rows": 1176,
+    "description": "Total Return Swap Model — 互换合约定价"
+  },
+  {
+    "name": "Value At Risk (VAR) Models",
+    "file": "templates/finance/derivatives/Value At Risk (VAR) Models.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3",
+      "Sheet4",
+      "Sheet5",
+      "Sheet6",
+      "Sheet7",
+      "Sheet8"
+    ],
+    "size": 44032,
+    "total_rows": 215,
+    "description": "Value At Risk (VAR) Models"
+  },
+  {
+    "name": "Variance Futures Calculator",
+    "file": "templates/finance/derivatives/Variance Futures Calculator.xls",
+    "format": ".xls",
+    "category": "finance/derivatives",
+    "sheets": [
+      "Calculator"
+    ],
+    "size": 2323456,
+    "total_rows": 34,
+    "description": "Variance Futures Calculator"
+  },
+  {
+    "name": "Apple LBO Model",
+    "file": "templates/finance/lbo/Apple LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "LBO Model",
+      "Summary Model",
+      "Valuation Summary",
+      "Public Comps",
+      "M&A Comps",
+      "DCF",
+      "WACC",
+      "Income Statement",
+      "Balance Sheet",
+      "Cash Flows",
+      "Disclosures"
+    ],
+    "size": 279040,
+    "total_rows": 787,
+    "description": "Apple LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "Continental AG LBO Model",
+    "file": "templates/finance/lbo/Continental AG LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Readme",
+      "Transaction details",
+      "Financing structure",
+      "Operational assumptions",
+      "Debt Schedule",
+      "IRR",
+      "IRR Matrix"
+    ],
+    "size": 295936,
+    "total_rows": 223,
+    "description": "Continental AG LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "Extended Leveraged Buyout Model",
+    "file": "templates/finance/lbo/Extended Leveraged Buyout Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Sources_Uses",
+      "Balance_Sheet",
+      "Income_Statement",
+      "Cash_Flow",
+      "Debt_Repayment",
+      "Book_Depreciation",
+      "Tax_Depreciation",
+      "Ratio_Analysis",
+      "WC_BS_Assumptions",
+      "Inc_Stmt_Assumptions",
+      "Performance_Assumptions",
+      "Asset_Sales",
+      "Capital_Structure",
+      "Income_Tax_Calc",
+      "Free_Cash_Flow_Summary",
+      "DCF_Analysis",
+      "WACC_Page",
+      "Returns_Calculation"
+    ],
+    "size": 417280,
+    "total_rows": 1033,
+    "description": "Extended Leveraged Buyout Model"
+  },
+  {
+    "name": "Goldman LBO Model",
+    "file": "templates/finance/lbo/Goldman LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Home",
+      "Custom",
+      "Base Case",
+      "Leverage",
+      "Model",
+      "Data2",
+      "Data1",
+      "Data3",
+      "Data4",
+      "Data5"
+    ],
+    "size": 7851520,
+    "total_rows": 5870,
+    "description": "Goldman LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "LBO & IRR Calc Model",
+    "file": "templates/finance/lbo/LBO & IRR Calc Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "problem",
+      "solution",
+      "Sheet3"
+    ],
+    "size": 22016,
+    "total_rows": 46,
+    "description": "LBO & IRR Calc Model — 杠杆收购模型"
+  },
+  {
+    "name": "LBO Model Intermediate",
+    "file": "templates/finance/lbo/LBO Model Intermediate.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "LBO Model"
+    ],
+    "size": 133632,
+    "total_rows": 421,
+    "description": "LBO Model Intermediate — 杠杆收购模型"
+  },
+  {
+    "name": "LBO Model",
+    "file": "templates/finance/lbo/LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Readme",
+      "Transaction details",
+      "Financing structure",
+      "Operational assumptions",
+      "Debt Schedule",
+      "IRR",
+      "IRR Matrix"
+    ],
+    "size": 295936,
+    "total_rows": 223,
+    "description": "LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "Leveraged Recap Model",
+    "file": "templates/finance/lbo/Leveraged Recap Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "M13-01A",
+      "M13-01B",
+      "M13-01C",
+      "M13-01D",
+      "M13-01E"
+    ],
+    "size": 27648,
+    "total_rows": 72,
+    "description": "Leveraged Recap Model"
+  },
+  {
+    "name": "ServiceCo LBO & DCF Model",
+    "file": "templates/finance/lbo/ServiceCo LBO & DCF Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Instructions and Notes",
+      "Mini-LBO",
+      "5-Yr DCF"
+    ],
+    "size": 145920,
+    "total_rows": 201,
+    "description": "ServiceCo LBO & DCF Model — 现金流折现估值模型"
+  },
+  {
+    "name": "Simple LBO Model",
+    "file": "templates/finance/lbo/Simple LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/lbo",
+    "sheets": [
+      "Sheet1",
+      "LBO Model",
+      "Financial Statements",
+      "Sheet3"
+    ],
+    "size": 301568,
+    "total_rows": 250,
+    "description": "Simple LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "Accretion Dilution Model",
+    "file": "templates/finance/merger/Accretion Dilution Model.xls",
+    "format": ".xls",
+    "category": "finance/merger",
+    "sheets": [
+      "README",
+      "Valuation M&A"
+    ],
+    "size": 128000,
+    "total_rows": 148,
+    "description": "Accretion Dilution Model"
+  },
+  {
+    "name": "Apple & RIM Merger Model and LBO Model",
+    "file": "templates/finance/merger/Apple & RIM Merger Model and LBO Model.xls",
+    "format": ".xls",
+    "category": "finance/merger",
+    "sheets": [
+      "AAPL-3-Statements",
+      "ValSum",
+      "Valuation Graph",
+      "Public Comps",
+      "M&A-Comps",
+      "DCF",
+      "WACC",
+      "Merger-Model",
+      "Merger-Shares-BS",
+      "Basic-LBO",
+      "More-Adv-LBO"
+    ],
+    "size": 309760,
+    "total_rows": 1001,
+    "description": "Apple & RIM Merger Model and LBO Model — 杠杆收购模型"
+  },
+  {
+    "name": "Basic Merger Model",
+    "file": "templates/finance/merger/Basic Merger Model.xls",
+    "format": ".xls",
+    "category": "finance/merger",
+    "sheets": [
+      "Merger-Model"
+    ],
+    "size": 30208,
+    "total_rows": 58,
+    "description": "Basic Merger Model — 并购交易模型"
+  },
+  {
+    "name": "Simple Merger Model",
+    "file": "templates/finance/merger/Simple Merger Model.xls",
+    "format": ".xls",
+    "category": "finance/merger",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 110592,
+    "description": "Simple Merger Model — 并购交易模型"
+  },
+  {
+    "name": "Valuing Synergies Model",
+    "file": "templates/finance/merger/Valuing Synergies Model.xls",
+    "format": ".xls",
+    "category": "finance/merger",
+    "sheets": [
+      "XXXXX",
+      "Intro",
+      "Cost Synergies",
+      "Revenue Enhancements",
+      "Financial Synergies"
+    ],
+    "size": 33280,
+    "total_rows": 103,
+    "description": "Valuing Synergies Model"
+  },
+  {
+    "name": "Asset Allocation Calculation Model",
+    "file": "templates/finance/misc/Asset Allocation Calculation Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Calc-Alloc"
+    ],
+    "size": 23552,
+    "total_rows": 39,
+    "description": "Asset Allocation Calculation Model"
+  },
+  {
+    "name": "Auto Loan Calculator",
+    "file": "templates/finance/misc/Auto Loan Calculator.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 139776,
+    "description": "Auto Loan Calculator"
+  },
+  {
+    "name": "Baltic Biogas Bus Model",
+    "file": "templates/finance/misc/Baltic Biogas Bus Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Base Info",
+      "Titel",
+      "Introduction",
+      "Definitions",
+      "Index",
+      "Input",
+      "Analysis",
+      "Alt 1",
+      "Alt 2",
+      "Alt 3",
+      "Alt 4",
+      "Alt 5",
+      "Alt 6",
+      "Alt 7",
+      "Alt 8",
+      "Alt 9",
+      "Direct fuel cost >>",
+      "Fuel price",
+      "Consumption per km",
+      "Indirect fuel cost >>",
+      "Refuelling plant",
+      "Electricity to plant",
+      "Maintenance of plant",
+      "Service & Maintenance >>",
+      "Availability and work shop",
+      "General service",
+      "Specific Service",
+      "Towing numbers",
+      "Towing cost",
+      "Tax & personnel >>",
+      "Motor vehicle tax",
+      "Staff costs",
+      "Other common costs >>",
+      "Third party liability insurance",
+      "Wear and tear",
+      "OH",
+      "Public economic costs >>",
+      "HC",
+      "CO",
+      "CO2",
+      "NOx",
+      "PM",
+      "Emission values"
+    ],
+    "size": 1319424,
+    "total_rows": 1891,
+    "description": "Baltic Biogas Bus Model"
+  },
+  {
+    "name": "Basic Energy - Power Model",
+    "file": "templates/finance/misc/Basic Energy - Power Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Economic Parameters",
+      "Cash Flow Detail",
+      "Simple Model"
+    ],
+    "size": 80896,
+    "total_rows": 84,
+    "description": "Basic Energy - Power Model"
+  },
+  {
+    "name": "Biogas Calculator Template",
+    "file": "templates/finance/misc/Biogas Calculator Template.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Introduction",
+      "Flow Chart",
+      "WS 1",
+      "WS 2",
+      "WS 3",
+      "WS 4",
+      "WS 5",
+      "WS 6",
+      "WS 7",
+      "Total"
+    ],
+    "size": 290304,
+    "total_rows": 201,
+    "description": "Biogas Calculator Template"
+  },
+  {
+    "name": "Biogas Production Model",
+    "file": "templates/finance/misc/Biogas Production Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Overview",
+      "Picklists",
+      "User Inputs",
+      "1. Feedstock Parameters",
+      "2. Food Waste Feedstock Data",
+      "3. Transportation & Processing",
+      "4. Preproc. & Ancillary Equip.",
+      "5. Digester Sizing",
+      "6. Financial Model Output",
+      "1-Page Summary",
+      "Bibliography"
+    ],
+    "size": 296448,
+    "total_rows": 1228,
+    "description": "Biogas Production Model"
+  },
+  {
+    "name": "Capital Market Line",
+    "file": "templates/finance/misc/Capital Market Line.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "CML",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 83456,
+    "total_rows": 246,
+    "description": "Capital Market Line"
+  },
+  {
+    "name": "Capital Planning and Basel Ratio Model",
+    "file": "templates/finance/misc/Capital Planning and Basel Ratio Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "General Instructions",
+      "XYZ Capital Plan",
+      "Capital Plan",
+      "Relationships",
+      "XYZ LCR",
+      "LCR"
+    ],
+    "size": 1019392,
+    "total_rows": 897,
+    "description": "Capital Planning and Basel Ratio Model"
+  },
+  {
+    "name": "China to US Import Cost Model",
+    "file": "templates/finance/misc/China to US Import Cost Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Output",
+      "User Inputs",
+      "Chart Calculations"
+    ],
+    "size": 110080,
+    "total_rows": 206,
+    "description": "China to US Import Cost Model"
+  },
+  {
+    "name": "Cisco Small Business Calculator Model",
+    "file": "templates/finance/misc/Cisco Small Business Calculator Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Home",
+      "Issues",
+      "Profile",
+      "Cost & Benefit calculation",
+      "Summary Result",
+      "Model Instructions",
+      "Disclaimer",
+      "Model Settings",
+      "Cashflow analysis",
+      "ROI Summary",
+      "Payback"
+    ],
+    "size": 608768,
+    "total_rows": 750,
+    "description": "Cisco Small Business Calculator Model"
+  },
+  {
+    "name": "Clean Price vs Dirty Price",
+    "file": "templates/finance/misc/Clean Price vs Dirty Price.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "furtherex1",
+      "BEY",
+      "T-bill(BEY)"
+    ],
+    "size": 105472,
+    "total_rows": 375,
+    "description": "Clean Price vs Dirty Price"
+  },
+  {
+    "name": "Cost Allocation Model - Ontario Energy Board",
+    "file": "templates/finance/misc/Cost Allocation Model - Ontario Energy Board.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Instructions",
+      "I1 Intro",
+      "I2 LDC class",
+      "I3 TB Data",
+      "I4 BO ASSETS",
+      "I5.1 Misc Data",
+      "I5.2 Weighting Factors",
+      "I6.1 Revenue",
+      "I6.2 Customer Data",
+      "I7.1 Meter Capital",
+      "I7.2 Meter Reading",
+      "I8 Demand Data",
+      "I9 Direct Allocation",
+      "O1 Revenue to cost|RR",
+      "O2 Fixed Charge|Floor|Ceiling",
+      "O2.1 Line Tran PLCC Adj",
+      "O2.2 Primary Cost PLCC Adj",
+      "O2.3 Secondary Cost PLCC Adj",
+      "O3.1 Line Tran Unit Cost",
+      "O3.2 Substat Tran Unit Cost ",
+      "O3.3 Primary Cost Pool",
+      "O3.4 Secondary Cost Pool",
+      "O3.5 USL Metering Credit",
+      "O3.6 MicroFIT Charge",
+      "O4 Summary by Class & Accounts",
+      "O5 Details by Class & Accounts",
+      "O6 Source Data for E2",
+      "O7 Amortization",
+      "E1 Categorization",
+      "E2 Allocators",
+      "E3 PLCC",
+      "E4 TB Allocation Details",
+      "E5 Reconciliation",
+      "Click here if completed"
+    ],
+    "size": 12767232,
+    "total_rows": 4868,
+    "description": "Cost Allocation Model - Ontario Energy Board"
+  },
+  {
+    "name": "Credit Line Model",
+    "file": "templates/finance/misc/Credit Line Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Introduction",
+      "Assigning Weights",
+      "Priorities & Attributes",
+      "Credit Decision",
+      "Credit Line"
+    ],
+    "size": 320512,
+    "total_rows": 163,
+    "description": "Credit Line Model"
+  },
+  {
+    "name": "Debt Capacity Model",
+    "file": "templates/finance/misc/Debt Capacity Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "2little",
+      "2much",
+      "whatnext",
+      "levrecap"
+    ],
+    "size": 35328,
+    "total_rows": 172,
+    "description": "Debt Capacity Model"
+  },
+  {
+    "name": "Diversification II",
+    "file": "templates/finance/misc/Diversification II.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2-1",
+      "ex2-2",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 444416,
+    "total_rows": 611,
+    "description": "Diversification II"
+  },
+  {
+    "name": "Diversification",
+    "file": "templates/finance/misc/Diversification.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2-1",
+      "ex2-2",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 444416,
+    "total_rows": 611,
+    "description": "Diversification"
+  },
+  {
+    "name": "Environmental Effects from Biogas Model",
+    "file": "templates/finance/misc/Environmental Effects from Biogas Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Base Info",
+      "Titel",
+      "Introduction",
+      "Definitions",
+      "Index",
+      "Input",
+      "Analysis",
+      "Alt 1",
+      "Alt 2",
+      "Alt 3",
+      "Alt 4",
+      "Alt 5",
+      "Alt 6",
+      "Alt 7",
+      "Alt 8",
+      "Alt 9",
+      "Direct fuel cost >>",
+      "Fuel price",
+      "Consumption per km",
+      "Indirect fuel cost >>",
+      "Refuelling plant",
+      "Electricity to plant",
+      "Maintenance of plant",
+      "Service & Maintenance >>",
+      "Availability and work shop",
+      "General service",
+      "Specific Service",
+      "Towing numbers",
+      "Towing cost",
+      "Tax & personnel >>",
+      "Motor vehicle tax",
+      "Staff costs",
+      "Other common costs >>",
+      "Third party liability insurance",
+      "Wear and tear",
+      "OH",
+      "Public economic costs >>",
+      "HC",
+      "CO",
+      "CO2",
+      "NOx",
+      "PM",
+      "Emission values"
+    ],
+    "size": 1315840,
+    "total_rows": 1891,
+    "description": "Environmental Effects from Biogas Model"
+  },
+  {
+    "name": "Four Tranche CMO Model",
+    "file": "templates/finance/misc/Four Tranche CMO Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Review",
+      "Work Area",
+      "Questions"
+    ],
+    "size": 278528,
+    "total_rows": 408,
+    "description": "Four Tranche CMO Model"
+  },
+  {
+    "name": "Front and Back Door Analysis and Break-even",
+    "file": "templates/finance/misc/Front and Back Door Analysis and Break-even.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Front Door",
+      "Back Door Default Ratio",
+      "Back Door Debt Coverage Ratio"
+    ],
+    "size": 20992,
+    "total_rows": 106,
+    "description": "Front and Back Door Analysis and Break-even"
+  },
+  {
+    "name": "Full Cost Recovery Model",
+    "file": "templates/finance/misc/Full Cost Recovery Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Direct Costs",
+      "Premises and office",
+      "Central Function Costs",
+      "Gov and Strategic Dev",
+      "General Fundraising",
+      "OUTPUT SHEET"
+    ],
+    "size": 51712,
+    "total_rows": 280,
+    "description": "Full Cost Recovery Model"
+  },
+  {
+    "name": "Harvard Business School Break-Evan Analysis Model",
+    "file": "templates/finance/misc/Harvard Business School Break-Evan Analysis Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "License Agreement",
+      "Introduction",
+      "Analysis",
+      "Chart",
+      "Table"
+    ],
+    "size": 255488,
+    "total_rows": 360,
+    "description": "Harvard Business School Break-Evan Analysis Model"
+  },
+  {
+    "name": "Healthcare Cost Model",
+    "file": "templates/finance/misc/Healthcare Cost Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Readme",
+      "Input Data & outputs",
+      "Commentary",
+      "Calculation"
+    ],
+    "size": 283648,
+    "total_rows": 313,
+    "description": "Healthcare Cost Model"
+  },
+  {
+    "name": "Home Purchase Model",
+    "file": "templates/finance/misc/Home Purchase Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 148480,
+    "total_rows": 58,
+    "description": "Home Purchase Model"
+  },
+  {
+    "name": "Internet Based Company Model - Spartina Internet Business Financial Model",
+    "file": "templates/finance/misc/Internet Based Company Model - Spartina Internet Business Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Instructions",
+      "Headcount",
+      "Budget",
+      "Traffic Forecast",
+      "Revenue",
+      "Roll-up",
+      "Cash Waterfall"
+    ],
+    "size": 119808,
+    "total_rows": 213,
+    "description": "Internet Based Company Model - Spartina Internet Business Financial Model"
+  },
+  {
+    "name": "LTPP Solar PV Pricing Pro Forma Model",
+    "file": "templates/finance/misc/LTPP Solar PV Pricing Pro Forma Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Cover",
+      "Dashboard",
+      "Inputs",
+      "LCOE ProForma"
+    ],
+    "size": 1385472,
+    "total_rows": 273,
+    "description": "LTPP Solar PV Pricing Pro Forma Model"
+  },
+  {
+    "name": "Large Cap Tourism PPP Business Feasibility Study Model",
+    "file": "templates/finance/misc/Large Cap Tourism PPP Business Feasibility Study Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Welcome",
+      "Value for money report",
+      "VFM summary",
+      "Assumptions & key drivers",
+      "Best - Private Party",
+      "Best - Institution",
+      "Best - BEE",
+      "Worst - BEE",
+      "Worst - Private Party",
+      "Worst - Institution"
+    ],
+    "size": 598016,
+    "total_rows": 843,
+    "description": "Large Cap Tourism PPP Business Feasibility Study Model"
+  },
+  {
+    "name": "Life Cycle Cost Model",
+    "file": "templates/finance/misc/Life Cycle Cost Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Banner",
+      "LCC Worksheet",
+      "LCC Example 1",
+      "LCC Example 2"
+    ],
+    "size": 79360,
+    "total_rows": 119,
+    "description": "Life Cycle Cost Model"
+  },
+  {
+    "name": "Lifetime Customer Value Calculator",
+    "file": "templates/finance/misc/Lifetime Customer Value Calculator.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "License Agreement",
+      "Introduction",
+      "Basic Model-Assumptions",
+      "Basic Model-Calculations",
+      "Complex Model-Assumptions",
+      "Complex Model-Calculations"
+    ],
+    "size": 247296,
+    "total_rows": 299,
+    "description": "Lifetime Customer Value Calculator"
+  },
+  {
+    "name": "Markowitx Portfolio Optimization Model",
+    "file": "templates/finance/misc/Markowitx Portfolio Optimization Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "General Comments",
+      "opt TRAD",
+      "opt 14",
+      "opt 13",
+      "opt 12",
+      "opt 11",
+      "opt 10",
+      "opt9",
+      "opt8",
+      "opt 7",
+      "op 6",
+      "opt 5",
+      "opt 4",
+      "opt 3",
+      "opt 2",
+      "opt 1",
+      "data for OPT",
+      "Pearsons r",
+      "NAVROR-data source"
+    ],
+    "size": 537600,
+    "total_rows": 1703,
+    "description": "Markowitx Portfolio Optimization Model"
+  },
+  {
+    "name": "Membership Website Start Up Model",
+    "file": "templates/finance/misc/Membership Website Start Up Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Summary",
+      "AggressiveRollout",
+      "ConservativeRollout",
+      "MembershipRamp",
+      "ResumeRamp",
+      "MetroAreas"
+    ],
+    "size": 413184,
+    "total_rows": 372,
+    "description": "Membership Website Start Up Model — 创业公司财务模型"
+  },
+  {
+    "name": "Miller and Modigliani Theory",
+    "file": "templates/finance/misc/Miller and Modigliani Theory.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "MM Theory",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 59904,
+    "total_rows": 120,
+    "description": "Miller and Modigliani Theory"
+  },
+  {
+    "name": "Mortgage-Backed Securities",
+    "file": "templates/finance/misc/Mortgage-Backed Securities.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 189952,
+    "total_rows": 477,
+    "description": "Mortgage-Backed Securities"
+  },
+  {
+    "name": "NAV Calc Model - Energy",
+    "file": "templates/finance/misc/NAV Calc Model - Energy.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Inputs",
+      "DCF",
+      "WACC",
+      "XTO-NAV",
+      "XTO-Summary",
+      "XTO-Prod",
+      "XTO-Op-Model",
+      "XOM-Op-Model",
+      "Public Comps",
+      "Public-Comps-Data",
+      "M&A Comps",
+      "M&A-Comps-Data"
+    ],
+    "size": 496128,
+    "total_rows": 1265,
+    "description": "NAV Calc Model - Energy"
+  },
+  {
+    "name": "Par curve and spot curve",
+    "file": "templates/finance/misc/Par curve and spot curve.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex1",
+      "ex1",
+      "ex2",
+      "ex4,5",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 184832,
+    "total_rows": 675,
+    "description": "Par curve and spot curve"
+  },
+  {
+    "name": "Payback Period & ROI for Small Hospital Expenditures",
+    "file": "templates/finance/misc/Payback Period & ROI for Small Hospital Expenditures.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Cover",
+      "Analysis"
+    ],
+    "size": 1542144,
+    "total_rows": 168,
+    "description": "Payback Period & ROI for Small Hospital Expenditures"
+  },
+  {
+    "name": "Personal Finance Template",
+    "file": "templates/finance/misc/Personal Finance Template.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "About",
+      "Instructions",
+      "Sources",
+      "Accounts",
+      "Transactions",
+      "Report"
+    ],
+    "size": 226304,
+    "total_rows": 727,
+    "description": "Personal Finance Template"
+  },
+  {
+    "name": "Portfolio Asset Allocation Tool",
+    "file": "templates/finance/misc/Portfolio Asset Allocation Tool.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Rebalance",
+      "Scenario Analysis",
+      "Asset Class Info",
+      "Imported Data",
+      "Scratchpad",
+      "Read Me",
+      "Version History",
+      "Sample Data"
+    ],
+    "size": 338432,
+    "total_rows": 516,
+    "description": "Portfolio Asset Allocation Tool"
+  },
+  {
+    "name": "Power Plant Cost Model",
+    "file": "templates/finance/misc/Power Plant Cost Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 64381,
+    "description": "Power Plant Cost Model"
+  },
+  {
+    "name": "Profit Diagram and Yield Diagram",
+    "file": "templates/finance/misc/Profit Diagram and Yield Diagram.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Numerical, EX 1, Further ex 1,2",
+      "Ex 2",
+      "Yield curve 2",
+      "Yield curve 3",
+      "Ex 4"
+    ],
+    "size": 255488,
+    "total_rows": 344,
+    "description": "Profit Diagram and Yield Diagram"
+  },
+  {
+    "name": "Project Valuation Model",
+    "file": "templates/finance/misc/Project Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Summary",
+      "Residential ProForma",
+      "Retail ProForma",
+      "Source and Use",
+      "Construction Costs Summary 2",
+      "Construction Costs Summary1",
+      "Construction Estimate",
+      "TIF",
+      "Floorspace",
+      "Project Timeline"
+    ],
+    "size": 154624,
+    "total_rows": 454,
+    "description": "Project Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Responsible Lending Model",
+    "file": "templates/finance/misc/Responsible Lending Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Bonaire",
+      "Sint Eustatia",
+      "Saba"
+    ],
+    "size": 79872,
+    "total_rows": 132,
+    "description": "Responsible Lending Model"
+  },
+  {
+    "name": "Retirement Planning Spreadsheet Model",
+    "file": "templates/finance/misc/Retirement Planning Spreadsheet Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 31744,
+    "total_rows": 71,
+    "description": "Retirement Planning Spreadsheet Model"
+  },
+  {
+    "name": "Segmented Infrastructure Model",
+    "file": "templates/finance/misc/Segmented Infrastructure Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "About This Tool",
+      "Weightings",
+      "A - Clients",
+      "B - Network",
+      "C - Storage",
+      "D - Telephony",
+      "E - Software",
+      "F - Data",
+      "G - Security",
+      "H - Change",
+      "I - PM",
+      "J - IT Admin",
+      "Rankings",
+      "Results"
+    ],
+    "size": 210944,
+    "total_rows": 466,
+    "description": "Segmented Infrastructure Model"
+  },
+  {
+    "name": "Simple Project Finance Model",
+    "file": "templates/finance/misc/Simple Project Finance Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Table of Contents",
+      "Instructions - Page 1",
+      "Instructions - Page 2",
+      "Calculations",
+      "Diagram"
+    ],
+    "size": 218112,
+    "total_rows": 133,
+    "description": "Simple Project Finance Model"
+  },
+  {
+    "name": "Solar PV Pricing Pro Forma Model",
+    "file": "templates/finance/misc/Solar PV Pricing Pro Forma Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Cover",
+      "Dashboard",
+      "Inputs",
+      "LCOE ProForma"
+    ],
+    "size": 1385472,
+    "total_rows": 273,
+    "description": "Solar PV Pricing Pro Forma Model"
+  },
+  {
+    "name": "Solar Photovoltaic Project Simple Financial Model (1)",
+    "file": "templates/finance/misc/Solar Photovoltaic Project Simple Financial Model (1).xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Simple Solar Finance Model",
+      "Definitions"
+    ],
+    "size": 155136,
+    "total_rows": 171,
+    "description": "Solar Photovoltaic Project Simple Financial Model (1)"
+  },
+  {
+    "name": "Solar Photovoltaic Project Simple Financial Model",
+    "file": "templates/finance/misc/Solar Photovoltaic Project Simple Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Simple Solar Finance Model",
+      "Definitions"
+    ],
+    "size": 154624,
+    "total_rows": 171,
+    "description": "Solar Photovoltaic Project Simple Financial Model"
+  },
+  {
+    "name": "Stock Diversification Model",
+    "file": "templates/finance/misc/Stock Diversification Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "numex",
+      "ex1",
+      "furtherex1",
+      "furtherex2,3",
+      "Paths (n=4)"
+    ],
+    "size": 125440,
+    "total_rows": 420,
+    "description": "Stock Diversification Model"
+  },
+  {
+    "name": "Tasmanian Pulp Mill Financial Model",
+    "file": "templates/finance/misc/Tasmanian Pulp Mill Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Sensitivities",
+      "Assumptions",
+      "Wood & Pulp Model",
+      "Overall Model"
+    ],
+    "size": 120832,
+    "total_rows": 178,
+    "description": "Tasmanian Pulp Mill Financial Model"
+  },
+  {
+    "name": "Wind Energy Pay Back Period Model",
+    "file": "templates/finance/misc/Wind Energy Pay Back Period Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Menu",
+      "Financial",
+      "Site",
+      "System",
+      "Cash Flow",
+      "Assumptions"
+    ],
+    "size": 108032,
+    "total_rows": 210,
+    "description": "Wind Energy Pay Back Period Model"
+  },
+  {
+    "name": "Wind Energy Payback Period Model",
+    "file": "templates/finance/misc/Wind Energy Payback Period Model.xls",
+    "format": ".xls",
+    "category": "finance/misc",
+    "sheets": [
+      "Menu",
+      "Financial",
+      "Site",
+      "System",
+      "Cash Flow",
+      "Assumptions"
+    ],
+    "size": 104448,
+    "total_rows": 210,
+    "description": "Wind Energy Payback Period Model"
+  },
+  {
+    "name": "American Option Model",
+    "file": "templates/finance/options/American Option Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "American Option"
+    ],
+    "size": 69632,
+    "total_rows": 161,
+    "description": "American Option Model — 期权定价/分析"
+  },
+  {
+    "name": "American Stock Option",
+    "file": "templates/finance/options/American Stock Option.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2,3,4",
+      "ex5",
+      "furtherex1",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 247808,
+    "total_rows": 812,
+    "description": "American Stock Option — 期权定价/分析"
+  },
+  {
+    "name": "Barrier Options Valuation",
+    "file": "templates/finance/options/Barrier Options Valuation.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Barrier options valuation",
+      "Sheet4",
+      "Sheet5",
+      "Sheet6",
+      "Sheet7",
+      "Sheet8",
+      "Sheet9",
+      "Sheet10",
+      "Sheet11",
+      "Sheet12",
+      "Sheet13",
+      "Sheet14",
+      "Sheet15",
+      "Sheet16"
+    ],
+    "size": 23552,
+    "total_rows": 29,
+    "description": "Barrier Options Valuation — 企业估值模型"
+  },
+  {
+    "name": "Basic Options Pricing Model",
+    "file": "templates/finance/options/Basic Options Pricing Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Basic Option Pricing"
+    ],
+    "size": 23040,
+    "total_rows": 32,
+    "description": "Basic Options Pricing Model — 期权定价/分析"
+  },
+  {
+    "name": "Black's Model to Swaption",
+    "file": "templates/finance/options/Black's Model to Swaption.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Caps",
+      "blacks",
+      "swaptions"
+    ],
+    "size": 372736,
+    "total_rows": 355,
+    "description": "Black's Model to Swaption — 互换合约定价"
+  },
+  {
+    "name": "Black-Scholes Model Calculator",
+    "file": "templates/finance/options/Black-Scholes Model Calculator.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 25600,
+    "total_rows": 53,
+    "description": "Black-Scholes Model Calculator — 期权定价模型"
+  },
+  {
+    "name": "Black-Scholes Model II",
+    "file": "templates/finance/options/Black-Scholes Model II.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "ex5",
+      "ex6",
+      "furtherex1",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 628736,
+    "total_rows": 952,
+    "description": "Black-Scholes Model II — 期权定价模型"
+  },
+  {
+    "name": "Black-Scholes Model",
+    "file": "templates/finance/options/Black-Scholes Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "ex5",
+      "ex6",
+      "furtherex1",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 628736,
+    "total_rows": 952,
+    "description": "Black-Scholes Model — 期权定价模型"
+  },
+  {
+    "name": "Black-Scholes Option Model",
+    "file": "templates/finance/options/Black-Scholes Option Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Notes on Black & Scholes",
+      "Black & Scholes option model"
+    ],
+    "size": 54272,
+    "total_rows": 99,
+    "description": "Black-Scholes Option Model — 期权定价模型"
+  },
+  {
+    "name": "Black-Scholes Option Pricing Model",
+    "file": "templates/finance/options/Black-Scholes Option Pricing Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Sheet1"
+    ],
+    "size": 97792,
+    "total_rows": 233,
+    "description": "Black-Scholes Option Pricing Model — 期权定价模型"
+  },
+  {
+    "name": "Bond Option",
+    "file": "templates/finance/options/Bond Option.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Bond Option",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 67072,
+    "total_rows": 110,
+    "description": "Bond Option — 债券定价/估值"
+  },
+  {
+    "name": "Cost of Carry Model",
+    "file": "templates/finance/options/Cost of Carry Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1)",
+      "ex2)",
+      "ex3)",
+      "furtherex1)",
+      "furtherex2)"
+    ],
+    "size": 63488,
+    "total_rows": 295,
+    "description": "Cost of Carry Model"
+  },
+  {
+    "name": "Cox-Ross-Rubinstein",
+    "file": "templates/finance/options/Cox-Ross-Rubinstein.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex, ex1,2,4",
+      "ex5",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 231936,
+    "total_rows": 785,
+    "description": "Cox-Ross-Rubinstein"
+  },
+  {
+    "name": "Dynamic Hedging",
+    "file": "templates/finance/options/Dynamic Hedging.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Dynamic Hedging",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 71680,
+    "total_rows": 140,
+    "description": "Dynamic Hedging"
+  },
+  {
+    "name": "Employee Stock Option Model",
+    "file": "templates/finance/options/Employee Stock Option Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "ESO",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 43520,
+    "total_rows": 64,
+    "description": "Employee Stock Option Model — 期权定价/分析"
+  },
+  {
+    "name": "Greek Option Model",
+    "file": "templates/finance/options/Greek Option Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "OptCalcs"
+    ],
+    "size": 44032,
+    "total_rows": 20,
+    "description": "Greek Option Model — 期权定价/分析"
+  },
+  {
+    "name": "Greeks",
+    "file": "templates/finance/options/Greeks.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "furtherex1",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 514048,
+    "total_rows": 801,
+    "description": "Greeks"
+  },
+  {
+    "name": "Hedge Ratio",
+    "file": "templates/finance/options/Hedge Ratio.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex2,3)",
+      "furtherex1,2)"
+    ],
+    "size": 84480,
+    "total_rows": 176,
+    "description": "Hedge Ratio"
+  },
+  {
+    "name": "Interest Rate Spread Option",
+    "file": "templates/finance/options/Interest Rate Spread Option.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Interest Rate Spread Option",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 76288,
+    "total_rows": 191,
+    "description": "Interest Rate Spread Option — 期权定价/分析"
+  },
+  {
+    "name": "Merton & Bates Jump Diffusion Model",
+    "file": "templates/finance/options/Merton & Bates Jump Diffusion Model.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Index",
+      "1.MertonJumpDiffusion",
+      "2.BatesJumpDiffusion"
+    ],
+    "size": 307712,
+    "total_rows": 134,
+    "description": "Merton & Bates Jump Diffusion Model"
+  },
+  {
+    "name": "Merton Model with Barrier",
+    "file": "templates/finance/options/Merton Model with Barrier.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Merton",
+      "Barriers"
+    ],
+    "size": 104960,
+    "total_rows": 188,
+    "description": "Merton Model with Barrier"
+  },
+  {
+    "name": "Option Adjusted Spread",
+    "file": "templates/finance/options/Option Adjusted Spread.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "OAS"
+    ],
+    "size": 62464,
+    "total_rows": 109,
+    "description": "Option Adjusted Spread — 期权定价/分析"
+  },
+  {
+    "name": "Option Calculator",
+    "file": "templates/finance/options/Option Calculator.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Black-Scholes",
+      "Implied Volatility (call)",
+      "Implied Volatility (put)",
+      "Margrabe",
+      "Covered Call",
+      "Protective Put",
+      "Straddle",
+      "Strap",
+      "Strip",
+      "Strangle",
+      "Bull Money Spread",
+      "Collar",
+      "Bear Money Spread",
+      "Calendar Spread",
+      "Diagonal Spread",
+      "Butterfly Spread",
+      "Condor",
+      "Gamma Hedge",
+      "Portfolio Insurance (initial)",
+      "Portfolio Insurance (revision)",
+      "Digital Options"
+    ],
+    "size": 244736,
+    "total_rows": 463,
+    "description": "Option Calculator — 期权定价/分析"
+  },
+  {
+    "name": "Option Payoff Profile Generator",
+    "file": "templates/finance/options/Option Payoff Profile Generator.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Option payoff profile generator"
+    ],
+    "size": 94208,
+    "total_rows": 245,
+    "description": "Option Payoff Profile Generator — 期权定价/分析"
+  },
+  {
+    "name": "Option Pricing via Monte Carlo Simulation",
+    "file": "templates/finance/options/Option Pricing via Monte Carlo Simulation.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "INFO",
+      "Monte Carlo Pricing",
+      "Comparison with B&S",
+      "Call & Put Values",
+      "Simulated Prices",
+      "Sheet6"
+    ],
+    "size": 4368896,
+    "total_rows": 15074,
+    "description": "Option Pricing via Monte Carlo Simulation — 期权定价/分析"
+  },
+  {
+    "name": "Option on Futures Contract",
+    "file": "templates/finance/options/Option on Futures Contract.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Option on Futures Contract",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 67584,
+    "total_rows": 114,
+    "description": "Option on Futures Contract — 期权定价/分析"
+  },
+  {
+    "name": "Optionon Foward Contract",
+    "file": "templates/finance/options/Optionon Foward Contract.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Option on Forward Contract",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 68608,
+    "total_rows": 122,
+    "description": "Optionon Foward Contract — 期权定价/分析"
+  },
+  {
+    "name": "Put-Call Parity",
+    "file": "templates/finance/options/Put-Call Parity.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "ex3",
+      "ex4",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 193536,
+    "total_rows": 704,
+    "description": "Put-Call Parity"
+  },
+  {
+    "name": "Startup Options Valuation",
+    "file": "templates/finance/options/Startup Options Valuation.xls",
+    "format": ".xls",
+    "category": "finance/options",
+    "sheets": [
+      "Legend",
+      "Intro BlogPost",
+      "NewCo"
+    ],
+    "size": 138240,
+    "total_rows": 217,
+    "description": "Startup Options Valuation — 企业估值模型"
+  },
+  {
+    "name": "Cash Flow Waterfall - Real Estate",
+    "file": "templates/finance/real-estate/Cash Flow Waterfall - Real Estate.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Waterfall"
+    ],
+    "size": 118272,
+    "total_rows": 73,
+    "description": "Cash Flow Waterfall - Real Estate — 现金流预测"
+  },
+  {
+    "name": "Commercial Real Estate Valuation Model",
+    "file": "templates/finance/real-estate/Commercial Real Estate Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Description",
+      "Model"
+    ],
+    "size": 95744,
+    "total_rows": 401,
+    "description": "Commercial Real Estate Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Integrated Real Estate Investment Model",
+    "file": "templates/finance/real-estate/Integrated Real Estate Investment Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Overall Information",
+      "Project Overview",
+      "Environmental Benefits",
+      "Social Benefits",
+      "Cash Flow Projected",
+      "Investor Returns",
+      "Office Tenant Costs",
+      "Retail Tenant Costs",
+      "Schedule of Development Costs",
+      "Operating Income",
+      "Energy Incentives",
+      "Water and Wastewater Incentives",
+      "Green Building Incentives",
+      "Loans and Tax Deductions",
+      "Construction Period Interest",
+      "Loan Amortization Schedule",
+      "Sheet1"
+    ],
+    "size": 235520,
+    "total_rows": 982,
+    "description": "Integrated Real Estate Investment Model — 房地产投资分析"
+  },
+  {
+    "name": "Multi Family Rental Program Underwriting Template",
+    "file": "templates/finance/real-estate/Multi Family Rental Program Underwriting Template.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Cover",
+      "1. Instructions",
+      "2. Assumptions",
+      "3. Rents and Unit Mix",
+      "4. Operating Expenses",
+      "5. Hard Debt Sizing",
+      "6. Proforma",
+      "7. Housing Tax Credits",
+      "8. Sources and Uses"
+    ],
+    "size": 7504896,
+    "total_rows": 763,
+    "description": "Multi Family Rental Program Underwriting Template"
+  },
+  {
+    "name": "Multifamily Investment Model",
+    "file": "templates/finance/real-estate/Multifamily Investment Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Analyzer",
+      "Loan Amortization Schedule",
+      "Sheet3"
+    ],
+    "size": 110080,
+    "total_rows": 457,
+    "description": "Multifamily Investment Model"
+  },
+  {
+    "name": "Real Estate Cash Flow and Investment Model",
+    "file": "templates/finance/real-estate/Real Estate Cash Flow and Investment Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Introduction to Cash Flow",
+      "Time Value of Money",
+      "Valuation (IRR, NPV) ",
+      "Real Estate Assumptions",
+      "UBTCF",
+      "Property Types",
+      "Amortization Schedule",
+      "LBTCF",
+      "Impact of Leverage",
+      "Financial Metrics",
+      "Taxation for Real Estate",
+      "Depreciation Schedule",
+      "LATCF",
+      "Monthly IRR vs. XIRR",
+      "Distribution and Partitioning"
+    ],
+    "size": 425472,
+    "total_rows": 1181,
+    "description": "Real Estate Cash Flow and Investment Model — 现金流预测"
+  },
+  {
+    "name": "Real Estate Investment Analysis - Forecasting Property Value",
+    "file": "templates/finance/real-estate/Real Estate Investment Analysis - Forecasting Property Value.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Intro",
+      "Expenses",
+      "Operating",
+      "Mortgage",
+      "BTCF",
+      "ATCF",
+      "Sale",
+      "Ratio1",
+      "Ratio2",
+      "DCF",
+      "Risk"
+    ],
+    "size": 165376,
+    "total_rows": 413,
+    "description": "Real Estate Investment Analysis - Forecasting Property Value — 房地产投资分析"
+  },
+  {
+    "name": "Real Estate Investment Model",
+    "file": "templates/finance/real-estate/Real Estate Investment Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "TOC",
+      "Summary",
+      "General Assumptions",
+      "Development Plan",
+      "Timeline",
+      "Financing Assumptions",
+      "Project Value",
+      "Holding Period Analysis",
+      "Break Even Analysis",
+      "Scenario and Tornado",
+      "Cash Flow - Single Project",
+      "Annual - Single Project",
+      "Consolidation",
+      "Financing",
+      "Model Checks",
+      "Lists"
+    ],
+    "size": 1824768,
+    "total_rows": 1180,
+    "description": "Real Estate Investment Model — 房地产投资分析"
+  },
+  {
+    "name": "Real Estate Joint Venture Waterfall Structure",
+    "file": "templates/finance/real-estate/Real Estate Joint Venture Waterfall Structure.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Waterfall Splits"
+    ],
+    "size": 863232,
+    "total_rows": 94,
+    "description": "Real Estate Joint Venture Waterfall Structure — 房地产投资分析"
+  },
+  {
+    "name": "Real Estate Land Value Model",
+    "file": "templates/finance/real-estate/Real Estate Land Value Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Read Me",
+      "Inputs",
+      "Residual - Land Value",
+      "Residual - Profit",
+      "DCF - Land Value",
+      "DCF - Profit"
+    ],
+    "size": 235008,
+    "total_rows": 358,
+    "description": "Real Estate Land Value Model — 房地产投资分析"
+  },
+  {
+    "name": "Real Estate Pro Forma for Redevelopment Projects",
+    "file": "templates/finance/real-estate/Real Estate Pro Forma for Redevelopment Projects.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "Assumptions",
+      "Worksheet"
+    ],
+    "size": 45056,
+    "total_rows": 130,
+    "description": "Real Estate Pro Forma for Redevelopment Projects — 房地产投资分析"
+  },
+  {
+    "name": "Residential Property Investment Return Model",
+    "file": "templates/finance/real-estate/Residential Property Investment Return Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "About",
+      "Instructions",
+      "Input",
+      "PrimeRate",
+      "AdHoc",
+      "MonthAmort",
+      "CashFlow",
+      "Results",
+      "Variables"
+    ],
+    "size": 351744,
+    "total_rows": 2190,
+    "description": "Residential Property Investment Return Model"
+  },
+  {
+    "name": "Single Family Rental Development Model",
+    "file": "templates/finance/real-estate/Single Family Rental Development Model.xls",
+    "format": ".xls",
+    "category": "finance/real-estate",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 47998,
+    "description": "Single Family Rental Development Model"
+  },
+  {
+    "name": "Capitalization Table and Returns Template Model",
+    "file": "templates/finance/startup/Capitalization Table and Returns Template Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Series A - No Options",
+      "Series A - Options Pre $",
+      "Series B",
+      "Returns-Series B 1x Preference",
+      "Returns-Series B Participation"
+    ],
+    "size": 149504,
+    "total_rows": 191,
+    "description": "Capitalization Table and Returns Template Model"
+  },
+  {
+    "name": "Dilution Calculator (Simple) Model",
+    "file": "templates/finance/startup/Dilution Calculator (Simple) Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 36864,
+    "total_rows": 67,
+    "description": "Dilution Calculator (Simple) Model"
+  },
+  {
+    "name": "Equity Raising Cost Calc Model",
+    "file": "templates/finance/startup/Equity Raising Cost Calc Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "WACC",
+      "EQUITY RAISING Costs Calc"
+    ],
+    "size": 84992,
+    "total_rows": 86,
+    "description": "Equity Raising Cost Calc Model"
+  },
+  {
+    "name": "Fund Economics - LP Financial Model",
+    "file": "templates/finance/startup/Fund Economics - LP Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Introduction",
+      "Fund Economics",
+      " "
+    ],
+    "size": 193536,
+    "total_rows": 177,
+    "description": "Fund Economics - LP Financial Model"
+  },
+  {
+    "name": "Liquidation Preference and Antidilution Model",
+    "file": "templates/finance/startup/Liquidation Preference and Antidilution Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 31609,
+    "description": "Liquidation Preference and Antidilution Model"
+  },
+  {
+    "name": "Start Up Financial Model",
+    "file": "templates/finance/startup/Start Up Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Summary",
+      "AggressiveRollout",
+      "ConservativeRollout",
+      "MembershipRamp",
+      "ResumeRamp",
+      "MetroAreas"
+    ],
+    "size": 422400,
+    "total_rows": 372,
+    "description": "Start Up Financial Model — 创业公司财务模型"
+  },
+  {
+    "name": "Startup Revenue Model",
+    "file": "templates/finance/startup/Startup Revenue Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "(c)",
+      "PromoModel",
+      "ConversionModel",
+      "RevenueModel"
+    ],
+    "size": 346112,
+    "total_rows": 339,
+    "description": "Startup Revenue Model — 创业公司财务模型"
+  },
+  {
+    "name": "Startup VC Financial Model",
+    "file": "templates/finance/startup/Startup VC Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Information",
+      "Model",
+      "Valuation",
+      "Funding Rounds"
+    ],
+    "size": 662016,
+    "total_rows": 472,
+    "description": "Startup VC Financial Model — 创业公司财务模型"
+  },
+  {
+    "name": "Venture Capital Single Round Financing Model",
+    "file": "templates/finance/startup/Venture Capital Single Round Financing Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Table 13.3",
+      "Table 13.4",
+      "Figure 13.1",
+      "Table 13.5",
+      "Table 13.6",
+      "Table 13.7",
+      "Table 13.8",
+      "Table 13.9",
+      "Backup for 13-x",
+      "New Figure 13-x - Not used"
+    ],
+    "size": 173056,
+    "total_rows": 337,
+    "description": "Venture Capital Single Round Financing Model — 风投估值"
+  },
+  {
+    "name": "Venture Capital Valuation Model (2)",
+    "file": "templates/finance/startup/Venture Capital Valuation Model (2).xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Cover",
+      "Intro",
+      "Valuation",
+      "Old"
+    ],
+    "size": 31232,
+    "total_rows": 101,
+    "description": "Venture Capital Valuation Model (2) — 企业估值模型"
+  },
+  {
+    "name": "Venture Capital Valuation Model",
+    "file": "templates/finance/startup/Venture Capital Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/startup",
+    "sheets": [
+      "Table 13.3",
+      "Table 13.4",
+      "Figure 13.1",
+      "Table 13.5",
+      "Table 13.6",
+      "Table 13.7",
+      "Table 13.8",
+      "Table 13.9",
+      "Backup for 13-x",
+      "New Figure 13-x - Not used"
+    ],
+    "size": 179200,
+    "total_rows": 337,
+    "description": "Venture Capital Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "ArcelorMittal Simplified Financial Model",
+    "file": "templates/finance/valuation/ArcelorMittal Simplified Financial Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Model Guide",
+      "Glossary & Suggestions",
+      "2007 SCOPE CHANGE and changes",
+      "2011 changes for mining segment",
+      "FCA",
+      "FCE",
+      "LC",
+      "AACIS",
+      "Distribution Solutions (AMDS)",
+      "Stainless",
+      "Mining",
+      "Adjustment",
+      "P&L",
+      "CashFlow",
+      "Balance Sheet",
+      "Multiples"
+    ],
+    "size": 4930560,
+    "total_rows": 973,
+    "description": "ArcelorMittal Simplified Financial Model"
+  },
+  {
+    "name": "Beta Model",
+    "file": "templates/finance/valuation/Beta Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "beta",
+      ". Beta Model 1002.xls)Regressio"
+    ],
+    "size": 53248,
+    "total_rows": 145,
+    "description": "Beta Model"
+  },
+  {
+    "name": "Business Valuation Model and Sensitivity Analysis",
+    "file": "templates/finance/valuation/Business Valuation Model and Sensitivity Analysis.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 400384,
+    "description": "Business Valuation Model and Sensitivity Analysis — 企业估值模型"
+  },
+  {
+    "name": "Business Valuation Model",
+    "file": "templates/finance/valuation/Business Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 342922,
+    "description": "Business Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "CAPM",
+    "file": "templates/finance/valuation/CAPM.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "numex",
+      "ex3",
+      "ex4",
+      "ex5",
+      "ex6",
+      "ex7",
+      "furtherex1",
+      "furtherex2"
+    ],
+    "size": 317440,
+    "total_rows": 596,
+    "description": "CAPM — 资本资产定价模型"
+  },
+  {
+    "name": "Coal India Limited Financial Model & Valuation",
+    "file": "templates/finance/valuation/Coal India Limited Financial Model & Valuation.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 192512,
+    "description": "Coal India Limited Financial Model & Valuation — 企业估值模型"
+  },
+  {
+    "name": "Commerzbank Valuation Model",
+    "file": "templates/finance/valuation/Commerzbank Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "BS",
+      " P&L",
+      "BS drivers",
+      "P&L drivers",
+      "Economic capital",
+      "RWA",
+      "Equity",
+      "Performance",
+      "Discrate",
+      "Valuation"
+    ],
+    "size": 98304,
+    "total_rows": 267,
+    "description": "Commerzbank Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Danske Bank Sensitivity Analysis",
+    "file": "templates/finance/valuation/Danske Bank Sensitivity Analysis.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Disclamer",
+      "Introduction",
+      "OutputA",
+      "OutputQ",
+      "DevelopmentQ"
+    ],
+    "size": 328192,
+    "total_rows": 132,
+    "description": "Danske Bank Sensitivity Analysis — 敏感性分析"
+  },
+  {
+    "name": "Dividend Discount Model (Two-Stage)",
+    "file": "templates/finance/valuation/Dividend Discount Model (Two-Stage).xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3",
+      "Sheet4"
+    ],
+    "size": 48640,
+    "total_rows": 131,
+    "description": "Dividend Discount Model (Two-Stage)"
+  },
+  {
+    "name": "Dividend discount model",
+    "file": "templates/finance/valuation/Dividend discount model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "numex",
+      "ex1",
+      "ex2",
+      "furtherex1",
+      "furtherex2",
+      "furtherex3"
+    ],
+    "size": 84992,
+    "total_rows": 267,
+    "description": "Dividend discount model"
+  },
+  {
+    "name": "DuPont Model",
+    "file": "templates/finance/valuation/DuPont Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "DuPont",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 16896,
+    "total_rows": 26,
+    "description": "DuPont Model"
+  },
+  {
+    "name": "Equity Valuation Model",
+    "file": "templates/finance/valuation/Equity Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Sheet1",
+      "Sheet2",
+      "Sheet3"
+    ],
+    "size": 23552,
+    "total_rows": 124,
+    "description": "Equity Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Optimal Capital Structure Model",
+    "file": "templates/finance/valuation/Optimal Capital Structure Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "READ ME 1ST",
+      "FAQs",
+      "Inputs",
+      "Marginal tax rate by country",
+      "Operating leases",
+      "Default Spreads and Ratios",
+      "Optimal Capital Structure",
+      "Repurchase price Worksheet",
+      "Summary Table",
+      "Input choices page",
+      "Sheet1"
+    ],
+    "size": 175616,
+    "total_rows": 497,
+    "description": "Optimal Capital Structure Model"
+  },
+  {
+    "name": "Optimal Debt Ratio - WACC",
+    "file": "templates/finance/valuation/Optimal Debt Ratio - WACC.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Build a Model"
+    ],
+    "size": 46592,
+    "total_rows": 41,
+    "description": "Optimal Debt Ratio - WACC — 加权平均资本成本计算"
+  },
+  {
+    "name": "PPG Business Valuation Model",
+    "file": "templates/finance/valuation/PPG Business Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 47994,
+    "description": "PPG Business Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "PWC - Company Financials Model",
+    "file": "templates/finance/valuation/PWC - Company Financials Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Table of Contents",
+      "Instructions",
+      "Assumptions",
+      "DETAIL.XLS",
+      "Summary Statements",
+      "Graph Input"
+    ],
+    "size": 710144,
+    "total_rows": 964,
+    "description": "PWC - Company Financials Model"
+  },
+  {
+    "name": "Private Company Valuation Model",
+    "file": "templates/finance/valuation/Private Company Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Excess Earnings",
+      "Rquired Return",
+      "Guideline Public Company",
+      "DLOC",
+      "DLOC and DLOM",
+      "Sheet3"
+    ],
+    "size": 81920,
+    "total_rows": 77,
+    "description": "Private Company Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Risk Adjusted Return On Capital Model",
+    "file": "templates/finance/valuation/Risk Adjusted Return On Capital Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "RAROC"
+    ],
+    "size": 68096,
+    "total_rows": 54,
+    "description": "Risk Adjusted Return On Capital Model"
+  },
+  {
+    "name": "Small Business Valuation Model",
+    "file": "templates/finance/valuation/Small Business Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Instructions",
+      "Capitalized Earnings",
+      "Discounted Future Earnings",
+      "Market Valuation",
+      "Summary"
+    ],
+    "size": 37376,
+    "total_rows": 140,
+    "description": "Small Business Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "Three Sheet Financial Model with Ratios",
+    "file": "templates/finance/valuation/Three Sheet Financial Model with Ratios.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "(unreadable)"
+    ],
+    "size": 80763,
+    "description": "Three Sheet Financial Model with Ratios"
+  },
+  {
+    "name": "WACC Model",
+    "file": "templates/finance/valuation/WACC Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "WACC Tutorial",
+      "WACC",
+      "Industry Betas",
+      "Data from Damodaran"
+    ],
+    "size": 69120,
+    "total_rows": 522,
+    "description": "WACC Model — 加权平均资本成本计算"
+  },
+  {
+    "name": "Warren Buffet Stock Valuation Model",
+    "file": "templates/finance/valuation/Warren Buffet Stock Valuation Model.xls",
+    "format": ".xls",
+    "category": "finance/valuation",
+    "sheets": [
+      "Finding Stocks",
+      "Table 1",
+      "Table 2",
+      "buffett valuation"
+    ],
+    "size": 67584,
+    "total_rows": 485,
+    "description": "Warren Buffet Stock Valuation Model — 企业估值模型"
+  },
+  {
+    "name": "basic-nda",
+    "file": "templates/documents/basic-nda.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 22249,
+    "description": "basic-nda — 保密协议模板"
+  },
+  {
+    "name": "project-charter",
+    "file": "templates/documents/project-charter.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 75120,
+    "description": "project-charter"
+  },
+  {
+    "name": "project-post-mortem-meeting-guidelines",
+    "file": "templates/documents/project-post-mortem-meeting-guidelines.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 111871,
+    "description": "project-post-mortem-meeting-guidelines"
+  },
+  {
+    "name": "project-post-mortem",
+    "file": "templates/documents/project-post-mortem.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 70602,
+    "description": "project-post-mortem"
+  },
+  {
+    "name": "request-for-information",
+    "file": "templates/documents/request-for-information.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 68891,
+    "description": "request-for-information"
+  },
+  {
+    "name": "requirements-capture",
+    "file": "templates/documents/requirements-capture.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 86840,
+    "description": "requirements-capture — 需求采集模板"
+  },
+  {
+    "name": "risk-register",
+    "file": "templates/documents/risk-register.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 19908,
+    "description": "risk-register"
+  },
+  {
+    "name": "statement-of-work",
+    "file": "templates/documents/statement-of-work.docx",
+    "format": ".docx",
+    "category": "documents",
+    "sheets": [
+      "document"
+    ],
+    "size": 68701,
+    "description": "statement-of-work"
+  },
+  {
+    "name": "research-proposal",
+    "file": "templates/presentations/academic/research-proposal.pptx",
+    "format": ".pptx",
+    "category": "presentations/academic",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 109306,
+    "description": "research-proposal"
+  },
+  {
+    "name": "thesis-defense",
+    "file": "templates/presentations/academic/thesis-defense.pptx",
+    "format": ".pptx",
+    "category": "presentations/academic",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 109775,
+    "description": "thesis-defense"
+  },
+  {
+    "name": "pitch-deck",
+    "file": "templates/presentations/business/pitch-deck.pptx",
+    "format": ".pptx",
+    "category": "presentations/business",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 125402,
+    "description": "pitch-deck"
+  },
+  {
+    "name": "quarterly-review",
+    "file": "templates/presentations/business/quarterly-review.pptx",
+    "format": ".pptx",
+    "category": "presentations/business",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 126516,
+    "description": "quarterly-review"
+  },
+  {
+    "name": "strategy-deck",
+    "file": "templates/presentations/consulting/strategy-deck.pptx",
+    "format": ".pptx",
+    "category": "presentations/consulting",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 138609,
+    "description": "strategy-deck"
+  },
+  {
+    "name": "investment-thesis",
+    "file": "templates/presentations/finance/investment-thesis.pptx",
+    "format": ".pptx",
+    "category": "presentations/finance",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 92765,
+    "description": "investment-thesis"
+  },
+  {
+    "name": "ma-overview",
+    "file": "templates/presentations/finance/ma-overview.pptx",
+    "format": ".pptx",
+    "category": "presentations/finance",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 124646,
+    "description": "ma-overview"
+  },
+  {
+    "name": "clinical-trial",
+    "file": "templates/presentations/medical/clinical-trial.pptx",
+    "format": ".pptx",
+    "category": "presentations/medical",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 119090,
+    "description": "clinical-trial"
+  },
+  {
+    "name": "product-launch",
+    "file": "templates/presentations/technology/product-launch.pptx",
+    "format": ".pptx",
+    "category": "presentations/technology",
+    "sheets": [
+      "presentation"
+    ],
+    "size": 103823,
+    "description": "product-launch"
+  }
+]

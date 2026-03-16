@@ -36,6 +36,7 @@ COPY security ./security
 COPY tools ./tools
 COPY routes ./routes
 COPY middleware ./middleware
+COPY templates ./templates
 
 RUN mkdir -p /app/data && chown -R chrome:chrome /app/data
 

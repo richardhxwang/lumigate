@@ -84,9 +84,15 @@ async function generateXlsx(spec) {
         } else if (typeof val === "string" && val.startsWith("=")) {
           // String starting with = is a formula
           cell.value = { formula: val.slice(1) };
+        } else if (val === null || val === undefined || val === "None" || val === "N/A" || val === "none") {
+          cell.value = "";
         } else {
-          // Auto-convert numeric strings to numbers for proper Excel handling
-          if (typeof val === "string" && val !== "" && !isNaN(Number(val))) {
+          // Auto-convert percentage strings like "3.5%", "21%" to decimal numbers with % format
+          const pctMatch = typeof val === "string" && val.match(/^(-?\d+\.?\d*)%$/);
+          if (pctMatch) {
+            cell.value = parseFloat(pctMatch[1]) / 100;
+            cell.numFmt = "0.0%";
+          } else if (typeof val === "string" && val !== "" && !isNaN(Number(val))) {
             cell.value = Number(val);
           } else {
             cell.value = val;
