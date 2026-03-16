@@ -2397,8 +2397,8 @@ async function sendMessage(){
                     pendingDelta='';
                     const tRow=$('typ-row');
                     if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
-                    // Render markdown — strip tool/XML tags before display
-                    const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'');
+                    // Render markdown — strip all tool markup before display
+                    const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[｜︱|]DSML[｜︱|][^>]*>[\s\S]*/,'');
                     streamEl.innerHTML=DOMPurify.sanitize(marked.parse(displayText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
                     streamEl.classList.add('streaming-active');
                     const{scrollHeight,clientHeight,scrollTop}=chatEl;
@@ -2513,6 +2513,8 @@ async function sendMessage(){
         .replace(/<\/?invoke[^>]*>/g,'')
         .replace(/<\/?parameter[^>]*>/g,'')
         .replace(/<function_call>[\s\S]*?<\/function_call>/g,'')
+        .replace(/<[｜︱|]DSML[｜︱|][^>]*>[\s\S]*?<\/[｜︱|]DSML[｜︱|][^>]*>/g,'')
+        .replace(/<[｜︱|]DSML[｜︱|][^>]*>/g,'')
         .trim();
       streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);
     }

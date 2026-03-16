@@ -3776,7 +3776,35 @@ async function executeTextToolCalls(contentText, userId) {
       }
     } catch (e) { log("warn", "Tool tag execution failed", { tool: toolName, error: e.message }); }
   }
-  // 2. Parse XML tool calls: <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
+  // 2. Parse DeepSeek DSML tool calls: <｜DSML｜function_calls><｜DSML｜invoke name="x"><｜DSML｜parameter name="y" string="true">val<｜DSML｜parameter>...
+  const dsmlRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>([\s\S]*?)<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g;
+  let dsmlMatch;
+  while ((dsmlMatch = dsmlRe.exec(contentText)) !== null) {
+    const invokeRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)invoke\s+name="(\w+)"[^>]*>([\s\S]*?)<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)invoke>/g;
+    let dInvoke;
+    while ((dInvoke = invokeRe.exec(dsmlMatch[1])) !== null) {
+      const toolName = dInvoke[1];
+      const toolInput = {};
+      const paramRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)parameter\s+name="(\w+)"[^>]*>([\s\S]*?)<(?:｜DSML｜|︱DSML︱|\|DSML\|)parameter>/g;
+      let dParam;
+      while ((dParam = paramRe.exec(dInvoke[2])) !== null) {
+        let val = dParam[2].trim();
+        try { val = JSON.parse(val); } catch {}
+        toolInput[dParam[1]] = val;
+      }
+      if (Object.keys(toolInput).length > 0) {
+        try {
+          const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
+          if (result.ok && result.data) {
+            const formatted = formatToolResult(toolName, result.data);
+            results.push({ tool: toolName, ...formatted, duration: result.duration });
+          }
+        } catch (e) { log("warn", "DSML tool exec failed", { tool: toolName, error: e.message }); }
+      }
+    }
+  }
+
+  // 3. Parse XML tool calls: <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
   const xmlToolRe = /<(?:minimax:)?tool_call>([\s\S]*?)<\/(?:minimax:)?tool_call>/g;
   let xmlMatch;
   while ((xmlMatch = xmlToolRe.exec(contentText)) !== null) {
