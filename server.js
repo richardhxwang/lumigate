@@ -7,6 +7,7 @@ const dns = require("dns");
 const os = require("os");
 const { promisify } = require("util");
 const { Readable, PassThrough } = require("stream");
+const { StringDecoder } = require("string_decoder");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const rateLimit = require("express-rate-limit");
 const multer = require("multer");
@@ -95,8 +96,10 @@ async function verifyPassword(password, storedHash, salt) {
 }
 
 // --- Encryption helpers for API key storage ---
+let _derivedEncKey = null;
 function deriveEncKey(secret) {
-  return crypto.scryptSync(secret, 'lumigate-enc-salt', 32);
+  if (!_derivedEncKey) _derivedEncKey = crypto.scryptSync(secret, 'lumigate-enc-salt', 32);
+  return _derivedEncKey;
 }
 
 function encryptValue(plaintext, secret) {
@@ -374,6 +377,7 @@ function checkProjectAnomaly(proj) {
       proj.suspendedAt = new Date().toISOString();
       proj.suspendReason = "anomaly_auto_suspend";
       saveProjects(projects);
+      rebuildProjectKeyIndex();
       log("warn", "Project auto-suspended (anomaly)", { project: proj.name, reqPerMin: hist.currentMin, avg: avg.toFixed(1) });
       sendAlert("project_suspended", { project: proj.name, reqPerMin: hist.currentMin, avgPerMin: +avg.toFixed(1) });
       return false;
@@ -522,6 +526,14 @@ function saveProjects(list) {
 }
 
 let projects = loadProjects();
+let projectKeyIndex = new Map();
+function rebuildProjectKeyIndex() {
+  projectKeyIndex = new Map();
+  for (const p of projects) {
+    if (p.key) projectKeyIndex.set(p.key, p);
+  }
+}
+rebuildProjectKeyIndex();
 let projectsDirty = false;
 let projectsSaveTimer = null;
 function markProjectsDirty() {
@@ -1884,6 +1896,7 @@ app.post("/admin/projects", requireRole("root", "admin"), (req, res) => {
   }
   projects.push(project);
   saveProjects(projects);
+  rebuildProjectKeyIndex();
   audit(req.userName, "project_create", name, { budget: project.maxBudgetUsd || null });
   res.json({ success: true, project });
 });
@@ -2034,6 +2047,7 @@ app.put("/admin/projects/:name", requireRole("root", "admin"), (req, res) => {
     }
   }
   saveProjects(projects);
+  rebuildProjectKeyIndex();
   audit(req.userName, "project_update", req.params.name, { fields: Object.keys(req.body) });
   res.json({ success: true, project: proj });
 });
@@ -2043,6 +2057,7 @@ app.post("/admin/projects/:name/regenerate", requireRole("root", "admin"), (req,
   if (!proj) return res.json({ success: false, error: "project not found" });
   proj.key = "pk_" + crypto.randomBytes(24).toString("hex");
   saveProjects(projects);
+  rebuildProjectKeyIndex();
   audit(req.userName, "project_regenerate_key", req.params.name);
   res.json({ success: true, project: proj });
 });
@@ -2052,6 +2067,7 @@ app.delete("/admin/projects/:name", requireRole("root", "admin"), (req, res) => 
   if (idx === -1) return res.json({ success: false, error: "project not found" });
   projects.splice(idx, 1);
   saveProjects(projects);
+  rebuildProjectKeyIndex();
   audit(req.userName, "project_delete", req.params.name);
   res.json({ success: true });
 });
@@ -2290,7 +2306,7 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   if (typeof smtpHost === "string") { settings.smtpHost = smtpHost.trim(); changes.smtpHost = settings.smtpHost; }
   if (smtpPort) { settings.smtpPort = Number(smtpPort) || 587; changes.smtpPort = settings.smtpPort; }
   if (typeof smtpUser === "string") { settings.smtpUser = smtpUser.trim(); changes.smtpUser = settings.smtpUser; }
-  if (typeof smtpPass === "string" && smtpPass) { settings.smtpPass = smtpPass; changes.smtpPass = "[redacted]"; }
+  if (typeof smtpPass === "string" && smtpPass) { settings.smtpPass = encryptValue(smtpPass, ADMIN_SECRET); changes.smtpPass = "[redacted]"; }
   if (typeof smtpFrom === "string") { settings.smtpFrom = smtpFrom.trim(); changes.smtpFrom = settings.smtpFrom; }
   if (typeof smtpTo === "string") { settings.smtpTo = smtpTo.trim(); changes.smtpTo = settings.smtpTo; }
   if (smtpEnabled !== undefined) { settings.smtpEnabled = !!smtpEnabled; changes.smtpEnabled = settings.smtpEnabled; }
@@ -3197,6 +3213,7 @@ app.post("/admin/restore/:name", requireModule("backup"), requireRole("root"), (
     audit(req.userName, "backup_restore", req.params.name, { files: result.restored });
     // Reload in-memory state
     projects = loadProjects();
+    rebuildProjectKeyIndex();
     users = loadUsers();
     settings = loadSettings();
     providerKeys = loadKeys();
@@ -3310,7 +3327,7 @@ app.use("/v1/smart", apiLimiter, async (req, res, next) => {
       }
       if (!proj) return res.status(401).json({ error: "HMAC verification failed" });
     } else {
-      proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+      proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
       if (!proj) return res.status(401).json({ error: "Invalid or missing project key" });
       if (proj.authMode === "hmac") return res.status(403).json({ error: "This project requires HMAC signature authentication" });
     }
@@ -3883,7 +3900,6 @@ const proxyMiddleware = createProxyMiddleware({
       let tail = "";
       // Use StringDecoder to safely handle multi-byte UTF-8 chars split across chunk boundaries
       // (critical for Chinese text from Doubao/Qwen/Kimi)
-      const { StringDecoder } = require("string_decoder");
       const utf8Decoder = new StringDecoder("utf8");
       proxyRes.on("data", (chunk) => {
         const str = utf8Decoder.write(chunk);
@@ -3955,7 +3971,7 @@ const proxyMiddleware = createProxyMiddleware({
 // Token exchange endpoint — App uses project key (or HMAC) to get short-lived token
 app.post("/v1/token", apiLimiter, (req, res) => {
   const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
-  const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+  const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
   // Critical: HMAC projects must not accept direct key for token exchange —
   // the whole point of HMAC is that the raw key never leaves the client.
   if (proj && proj.authMode === "hmac") {
@@ -4126,7 +4142,7 @@ async function sendAdminNotify(subject, htmlBody) {
     const transporter = nodemailer.createTransport({
       host: settings.smtpHost, port: settings.smtpPort || 587,
       secure: (settings.smtpPort || 587) === 465,
-      auth: { user: settings.smtpUser, pass: settings.smtpPass },
+      auth: { user: settings.smtpUser, pass: decryptValue(settings.smtpPass, ADMIN_SECRET) },
     });
     await transporter.sendMail({
       from: settings.smtpFrom || settings.smtpUser,
@@ -4364,7 +4380,7 @@ app.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, res)
 async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) {
   const smtpHost = process.env.SMTP_HOST || settings.smtpHost;
   const smtpUser = process.env.SMTP_USER || settings.smtpUser;
-  const smtpPass = process.env.SMTP_PASS || settings.smtpPass;
+  const smtpPass = process.env.SMTP_PASS || (settings.smtpPass ? decryptValue(settings.smtpPass, ADMIN_SECRET) : undefined);
   const smtpPort = parseInt(process.env.SMTP_PORT || settings.smtpPort || "587");
   const smtpFrom = process.env.SMTP_FROM || settings.smtpFrom || `LumiChat <${smtpUser}>`;
   if (!smtpHost || !smtpUser || !smtpPass) return;
@@ -5204,7 +5220,7 @@ app.get("/admin/upgrade-action", async (req, res) => {
   const { id, action, token } = req.query;
   if (!id || !action || !token) return res.status(400).send('Missing parameters');
   const expected = require('crypto').createHmac('sha256', ADMIN_SECRET).update(id).digest('hex').slice(0, 24);
-  if (token !== expected) return res.status(403).send('Invalid token');
+  if (!safeEqual(token, expected)) return res.status(403).send('Invalid token');
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).send('PB auth failed');
   try {
@@ -5348,7 +5364,7 @@ const platformAuth = async (req, res, next) => {
   const lcCookies = parseCookies(req);
   if (lcCookies.lc_token && validateLcTokenPayload(lcCookies.lc_token)) return next();
   // Check project key
-  const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+  const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
   if (proj) return next();
   // Check ephemeral token
   if (projectKey.startsWith("et_")) {
@@ -5428,7 +5444,7 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
     }
     // 3. Direct project key (pk_...)
     if (!proj) {
-      proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+      proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
       if (!proj) {
         return res.status(401).json({
           error: "Invalid or missing project key",
