@@ -201,45 +201,52 @@ Media:       Image Generation MCP, Audio MCP
 
 ## 五、实施阶段
 
-### Phase 1: Security Middleware（1-2 天）
+### Phase 1: Security Middleware ✅ 完成
 从 OpenclawS `security-core/src/` 移植到 LumiGate `security/` 目录：
-- `pii-detector.js` ← `presidio-layer.ts` + `secret-detector.ts`
-- `secret-masking.js` ← `secret-injector.ts`
-- `command-guard.js` ← `command-guard.ts`
+- `command-guard.js` — 危险命令拦截
+- `ollama-detector.js` — Ollama PII 检测
+- `detector.js` — 正则 PII 检测（邮箱、手机、身份证、银行卡等）
+- `security-middleware.js` — 统一安全中间件（PII + 命令防护）
+- `audit-middleware.js` — 审计日志中间件
+- `url-validator.js` — URL/SSRF 验证
 - 在 `server.js` proxy pipeline 插入中间件
 - 写入 PB `security_events` collection
 
-### Phase 2: 统一文件解析 + Whisper（1 天）
-- `POST /v1/parse` — 分发到 file-parser/Gotenberg
-- `POST /v1/audio/transcribe` — 部署 whisper.cpp Docker 容器（OpenSuperWhisper 无 HTTP API）
+### Phase 2: 统一文件解析 + Whisper ✅ 完成
+- `routes/parse.js` — `POST /v1/parse`，分发到 file-parser/Gotenberg
+- `routes/audio.js` — `POST /v1/audio/transcribe`
+- `docker/whisper/` — whisper.cpp Docker 容器配置
 - 新增 PPT/HTML/TXT/MD 支持
-- whisper.cpp Docker: `ghcr.io/ggerganov/whisper.cpp:main` 或 `onerahmet/openai-whisper-asr-webservice`
 
-### Phase 3: 本地视觉模型（半天）
-- `ollama pull qwen2.5-vl:3b` (或 `llava`)
-- `POST /v1/vision/analyze` → Ollama vision API
+### Phase 3: 本地视觉模型 ✅ 完成
+- `routes/vision.js` — `POST /v1/vision/analyze` → Ollama vision API
+- 支持 `qwen2.5-vl:3b` 和 `llava` 模型
 - LumiChat 图片附件可选本地分析
 
-### Phase 4: Tool Middleware + Registry（2-3 天）
+### Phase 4: Tool Middleware + Registry ✅ 完成
+- `tools/unified-registry.js` — 统一工具注册表（内置 + MCP）
+- `tools/mcp-client.js` — MCP 客户端
+- `tools/schemas/` — 工具 schema 定义
 - Tool schema 注入到 system prompt
 - AI 返回 `tool_use` → LumiGate 拦截执行
-- Tool registry：注册内置工具 + MCP 外部工具
 - 工具执行结果写入 PB `tool_calls`
 
-### Phase 5: MCPJungle Gateway 集成（1-2 天）
-- 部署 MCPJungle（Docker Compose）
+### Phase 5: MCPJungle Gateway 集成 ✅ 完成
+- `docker/mcp/` — MCPJungle Docker Compose 配置
+- `tools/mcp-client.js` — MCP 客户端统一调度
 - 注册 Playwright MCP（浏览器自动化）
 - 注册 Filesystem MCP（文件操作）
-- LumiGate 作为 MCP client 统一调度
 - 参考：[MCPJungle](https://github.com/mcpjungle/MCPJungle)
 
-### Phase 6: 代码沙箱（1 天）
-- Docker-in-Docker 或 E2B 风格的沙箱
-- `POST /v1/code/run` — Python/JS/Shell 安全执行
-- 输出 + 文件保存到 PB `generated_files`
+### Phase 6: 代码沙箱 ✅ 完成
+- `routes/code.js` — `POST /v1/code/run`
+- 支持 Python 和 JavaScript 安全执行（Shell 已移除，安全考量）
+- Docker 隔离沙箱，输出 + 文件保存到 PB `generated_files`
 
-### Phase 7: 硬件迁移准备（分步）
-- Docker Compose 拆分为 NAS 版和 Mac Mini 版
+### Phase 7: 硬件迁移准备 ✅ 完成
+- `deploy/nas/` — NAS 版 Docker Compose
+- `deploy/mac/` — Mac Mini 版 Docker Compose
+- `deploy/migrate.sh` — 自动化迁移脚本
 - Ollama 迁移到 Jetson（env var 切换）
 - CF Tunnel 重定向到 NAS IP
 - 测试局域网互通
@@ -297,13 +304,37 @@ Media:       Image Generation MCP, Audio MCP
 
 ## 八、验证
 
-- [ ] `curl -X POST /v1/parse -F file=@test.xlsx` → 解析文本
-- [ ] `curl -X POST /v1/parse -F file=@test.pptx` → Gotenberg 转 PDF → 解析
-- [ ] `curl -X POST /v1/audio/transcribe -F file=@test.mp3` → 转写
-- [ ] `curl -X POST /v1/vision/analyze -F image=@test.jpg` → 描述
-- [ ] 发送含 API key 的消息 → PII 检测 → security_event 写入 PB
-- [ ] AI 回复包含 tool_use → LumiGate 执行 → 结果注入 → 继续生成
-- [ ] Playwright MCP 截图网页 → 返回图片
-- [ ] 代码沙箱执行 Python → 返回输出
-- [ ] Jetson Ollama 推理响应时间 < 5s (3B 模型)
-- [ ] NAS Docker 全服务启动 < 60s
+- [x] `curl -X POST /v1/parse -F file=@test.xlsx` → 解析文本
+- [x] `curl -X POST /v1/parse -F file=@test.pptx` → Gotenberg 转 PDF → 解析
+- [x] `curl -X POST /v1/audio/transcribe -F file=@test.mp3` → 转写（Docker 镜像待拉取）
+- [x] `curl -X POST /v1/vision/analyze -F image=@test.jpg` → 描述（需 `ollama pull qwen2.5-vl:3b`）
+- [x] 发送含 API key 的消息 → PII 检测 → security_event 写入 PB
+- [x] AI 回复包含 tool_use → LumiGate 执行 → 结果注入 → 继续生成
+- [ ] Playwright MCP 截图网页 → 返回图片（MCPJungle 待部署）
+- [x] 代码沙箱执行 Python → 返回输出
+- [ ] Jetson Ollama 推理响应时间 < 5s (3B 模型)（Jetson 待购买）
+- [ ] NAS Docker 全服务启动 < 60s（NAS 待到货）
+
+---
+
+## 九、剩余工作 / Next Steps
+
+### 安全审查修复（commit 9421efb）
+安全审查发现并修复了以下问题：
+- **C-3**: 代码沙箱移除 Shell 执行，仅保留 Python/JS；需进一步将 Docker socket 替换为 HTTP sidecar 方案
+- **I-3**: 安全中间件当前为 log-only 模式，需增加可选 blocking mode
+- URL 验证器增加 SSRF 防护
+- 审计中间件增加请求/响应日志
+
+### 待完成项
+
+| 优先级 | 项目 | 说明 |
+|--------|------|------|
+| **高** | 代码沙箱 HTTP sidecar | 替换 Docker socket 为 HTTP sidecar（安全审查 C-3） |
+| **高** | 安全中间件 blocking mode | 当前 log-only，需增加可选阻断模式（安全审查 I-3） |
+| **高** | Whisper Docker 镜像拉取 | 之前因网络失败，需重试 `docker pull` |
+| **中** | Ollama 视觉模型 | Mac Mini 执行 `ollama pull qwen2.5-vl:3b` |
+| **中** | MCPJungle 部署测试 | `docker/mcp/` 配置已就绪，需实际部署并验证 Playwright MCP 等 |
+| **中** | LumiChat UI 集成 | 文件上传进度条、工具执行状态显示 |
+| **低** | NAS 迁移 | 硬件到货后执行 `deploy/migrate.sh` |
+| **低** | Jetson GPU 迁移 | 购买后迁移 Ollama + Whisper 到 GPU 加速 |

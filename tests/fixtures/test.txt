@@ -1,0 +1,3 @@
+Hello, this is a plain text test file for LumiChat file upload testing.
+It contains multiple lines to verify text file handling.
+Line 3: The quick brown fox jumps over the lazy dog.

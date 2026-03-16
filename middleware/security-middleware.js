@@ -71,6 +71,9 @@ const SCAN_PATHS = [
   /^\/v1\/smart\//,
 ];
 
+/** Chat completions paths — PII detection handled inline by server.js (with masking). */
+const CHAT_COMPLETIONS_RE = /\/chat\/completions/;
+
 function shouldScan(method, path) {
   if (method !== "POST") return false;
   return SCAN_PATHS.some((re) => re.test(path));
@@ -130,35 +133,39 @@ function createSecurityMiddleware(options = {}) {
 
     // ------------------------------------------------------------------
     // A. Inbound PII scan (user messages)
+    //    Skip for /chat/completions — already handled inline by server.js
+    //    with full PII masking support.
     // ------------------------------------------------------------------
-    try {
-      for (const text of userTexts) {
-        const result = detectPII(text);
-        if (result.found) {
-          const types = result.entities.map((e) => e.type);
-          const maxScore = Math.max(...result.entities.map((e) => e.score));
-          const severity = maxScore > 0.9 ? "critical" : maxScore > 0.7 ? "warning" : "info";
+    if (!CHAT_COMPLETIONS_RE.test(req.path)) {
+      try {
+        for (const text of userTexts) {
+          const result = detectPII(text);
+          if (result.found) {
+            const types = result.entities.map((e) => e.type);
+            const maxScore = Math.max(...result.entities.map((e) => e.score));
+            const severity = maxScore > 0.9 ? "critical" : maxScore > 0.7 ? "warning" : "info";
 
-          console.warn(
-            `[security-middleware] PII detected in request — project=${projectId} types=${types.join(",")} severity=${severity}`
-          );
+            console.warn(
+              `[security-middleware] PII detected in request — project=${projectId} types=${types.join(",")} severity=${severity}`
+            );
 
-          writeSecurityEvent(pbUrl, {
-            type: "pii_detected",
-            severity,
-            details: JSON.stringify({
-              count: result.entities.length,
-              types,
-              direction: "inbound",
-            }),
-            projectId,
-            timestamp: new Date().toISOString(),
-            source,
-          });
+            writeSecurityEvent(pbUrl, {
+              type: "pii_detected",
+              severity,
+              details: JSON.stringify({
+                count: result.entities.length,
+                types,
+                direction: "inbound",
+              }),
+              projectId,
+              timestamp: new Date().toISOString(),
+              source,
+            });
+          }
         }
+      } catch (err) {
+        console.error("[security-middleware] PII scan error (non-blocking):", err.message);
       }
-    } catch (err) {
-      console.error("[security-middleware] PII scan error (non-blocking):", err.message);
     }
 
     // ------------------------------------------------------------------

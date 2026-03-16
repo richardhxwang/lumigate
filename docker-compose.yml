@@ -133,14 +133,6 @@ services:
       timeout: 5s
       retries: 3
 
-  cache-cleaner:
-    image: alpine
-    container_name: lumigate-cache-cleaner
-    restart: unless-stopped
-    cap_add:
-      - SYS_ADMIN
-    command: sh -c "while true; do sleep 21600; sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; done"
-
   # Whisper.cpp — speech-to-text (port 17863)
   whisper:
     image: onerahmet/openai-whisper-asr-webservice:latest

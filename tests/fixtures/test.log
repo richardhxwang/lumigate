@@ -1,0 +1,5 @@
+2026-03-16 10:00:01 [INFO] Server started on port 9471
+2026-03-16 10:00:02 [INFO] Connected to database
+2026-03-16 10:00:05 [WARN] Rate limit threshold approaching for project "demo"
+2026-03-16 10:00:10 [ERROR] Failed to connect to provider: timeout after 30s
+2026-03-16 10:00:15 [INFO] Retry successful, connection restored

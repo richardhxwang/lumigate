@@ -66,7 +66,8 @@ class ToolRegistry {
     try {
       const res = await fetch(`${DOC_GEN_URL}/tools`, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
-        this.schemas = await res.json();
+        const data = await res.json();
+        this.schemas = Array.isArray(data) ? data : [];
       } else {
         console.warn(`[tool-registry] Failed to fetch doc-gen tools: ${res.status}`);
         this.schemas = [];

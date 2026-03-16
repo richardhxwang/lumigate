@@ -151,6 +151,7 @@ function applyDeployMode(mode, customModules) {
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 9471;
 const startTime = Date.now();
 
@@ -1496,6 +1497,12 @@ app.get("/collector/health", (req, res) => {
   res.json({ providers: result });
 });
 
+// Cache HTML templates at startup (nonce injected per-request)
+const _dashboardHtml = fs.existsSync(path.join(__dirname, "public", "index.html"))
+  ? fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8") : null;
+const _lumichatHtml = fs.existsSync(path.join(__dirname, "public", "lumichat.html"))
+  ? fs.readFileSync(path.join(__dirname, "public", "lumichat.html"), "utf8") : null;
+
 // Static files (CSS/JS/images only, HTML served dynamically below)
 app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
 app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
@@ -1512,14 +1519,14 @@ app.get("/", (req, res) => {
 
 // Serve dashboard (nonce-CSP injected; 'unsafe-inline' kept as fallback for inline event handlers)
 app.get("/v1/sys/panel", (req, res) => {
-  const htmlPath = path.join(__dirname, "public", "index.html");
+  if (!_dashboardHtml) return res.status(503).send("Dashboard not available");
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader("Content-Security-Policy",
     `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'`
   );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  const html = fs.readFileSync(htmlPath, 'utf8').replace(/\{\{NONCE\}\}/g, nonce);
+  const html = _dashboardHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
 });
 
@@ -1537,8 +1544,7 @@ app.get("/chat", (req, res) => {
 
 // Serve LumiChat interface (nonce injected into HTML for CSP)
 app.get("/lumichat", (req, res) => {
-  const htmlPath = path.join(__dirname, "public", "lumichat.html");
-  if (!fs.existsSync(htmlPath)) {
+  if (!_lumichatHtml) {
     return res.status(503).send("LumiChat not yet deployed");
   }
   const nonce = crypto.randomBytes(16).toString('base64');
@@ -1548,7 +1554,7 @@ app.get("/lumichat", (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   // Inject nonce into all <script nonce="{{NONCE}}"> and <style nonce="{{NONCE}}"> placeholders
-  const html = fs.readFileSync(htmlPath, 'utf8').replace(/\{\{NONCE\}\}/g, nonce);
+  const html = _lumichatHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
 });
 
@@ -1913,10 +1919,10 @@ app.put("/admin/projects/:name", requireRole("root", "admin"), (req, res) => {
       }
       // Cascade: update provider keys linked to this project
       let keysDirty = false;
-      for (const k of keys) {
+      for (const k of Object.values(providerKeys).flat()) {
         if (k.project === oldName) { k.project = newName; keysDirty = true; }
       }
-      if (keysDirty) saveKeys(keys);
+      if (keysDirty) saveKeys(providerKeys);
       // Cascade: rename in-memory rate buckets and anomaly history
       const oldBucket = projectRateBuckets.get(oldName);
       if (oldBucket) { projectRateBuckets.delete(oldName); projectRateBuckets.set(newName, oldBucket); }
@@ -3468,6 +3474,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
   try {
     anthropicResp = await fetch(`${PROVIDERS.anthropic.baseUrl}/v1/messages`, {
       method: "POST", headers: fetchHeaders, body: JSON.stringify(anthropicBody),
+      signal: AbortSignal.timeout(120000),
     });
   } catch (e) {
     return res.status(502).json({ error: "Upstream connection error", message: e.message });
@@ -3920,9 +3927,9 @@ const proxyMiddleware = createProxyMiddleware({
           sli.proxy.total++; sli.proxy.success++;
           if (!req._proxyProject?.privacyMode) recordUsage(projectName, providerName, req._isSubscriptionKey ? `${modelId}:subscription` : modelId, tokens);
           // Phase 1a: Track budget spend (skip for subscription keys — cost not real)
-          if ((!req._isSubscriptionKey || req._proxyProject?.subscriptionCountsSpending) && (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin)) {
+          if (req._proxyProject && (!req._isSubscriptionKey || req._proxyProject?.subscriptionCountsSpending) && (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin)) {
             const cost = calcRequestCost(providerName, modelId, tokens);
-            if (req._proxyProject.maxBudgetUsd != null) {
+            if (req._proxyProject?.maxBudgetUsd != null) {
               req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost;
               markProjectsDirty();
             }
@@ -4008,7 +4015,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 function otpEmailHtml(code) {
@@ -5301,9 +5308,10 @@ app.post("/lc/user/apikeys", requireLcAuth, async (req, res) => {
       headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: req.lcUser.id, provider, key_encrypted: encrypted, label: label || provider, enabled: true }),
     });
-    if (!r.ok) return res.status(r.status).json(await r.json());
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json(data);
     lcTierCache.delete(req.lcUser.id);
-    res.json({ success: true, id: (await r.json()).id });
+    res.json({ success: true, id: data.id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5331,10 +5339,28 @@ app.delete("/lc/user/apikeys/:id", requireLcAuth, async (req, res) => {
 // ── End LumiChat routes ───────────────────────────────────────────────────────
 
 // ── Agent Platform API routes ─────────────────────────────────────────────────
-app.use("/v1/parse", apiLimiter, require("./routes/parse"));
-app.use("/v1/audio", apiLimiter, require("./routes/audio"));
-app.use("/v1/vision", apiLimiter, require("./routes/vision"));
-app.use("/v1/code", apiLimiter, require("./routes/code"));
+// Agent Platform API — requires project key or admin session
+const platformAuth = async (req, res, next) => {
+  const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
+  if (safeEqual(projectKey, INTERNAL_CHAT_KEY)) return next();
+  if (["root", "admin"].includes(getSessionRole(req))) return next();
+  // Check LumiChat token
+  const lcCookies = parseCookies(req);
+  if (lcCookies.lc_token && validateLcTokenPayload(lcCookies.lc_token)) return next();
+  // Check project key
+  const proj = projects.find(p => p.enabled && safeEqual(p.key, projectKey));
+  if (proj) return next();
+  // Check ephemeral token
+  if (projectKey.startsWith("et_")) {
+    const tokenInfo = ephemeralTokens.get(projectKey);
+    if (tokenInfo && Date.now() <= tokenInfo.expiresAt) return next();
+  }
+  return res.status(401).json({ error: "Authentication required" });
+};
+app.use("/v1/parse", apiLimiter, platformAuth, require("./routes/parse"));
+app.use("/v1/audio", apiLimiter, platformAuth, require("./routes/audio"));
+app.use("/v1/vision", apiLimiter, platformAuth, require("./routes/vision"));
+app.use("/v1/code", apiLimiter, platformAuth, require("./routes/code"));
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
 app.use("/v1/:provider", apiLimiter, async (req, res, next) => {

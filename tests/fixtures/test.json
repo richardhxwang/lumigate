@@ -1,0 +1,9 @@
+{
+  "name": "LumiChat Test",
+  "version": "1.0.0",
+  "features": ["streaming", "file-upload", "presets"],
+  "config": {
+    "maxTokens": 4096,
+    "temperature": 0.7
+  }
+}

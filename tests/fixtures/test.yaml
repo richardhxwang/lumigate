@@ -1,0 +1,13 @@
+server:
+  host: localhost
+  port: 9471
+  mode: production
+
+database:
+  type: sqlite
+  path: ./data/app.db
+
+features:
+  - streaming
+  - file_upload
+  - presets

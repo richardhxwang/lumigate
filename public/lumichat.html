@@ -119,7 +119,7 @@
     /* LAYOUT */
     /* Note: top/height overridden by JS visualViewport on iOS to fix keyboard dismiss bug */
     #app{display:flex;position:fixed;top:0;left:0;right:0;height:100%;height:100dvh}
-    #sidebar{width:var(--sw);background:var(--sb);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow:hidden;transition:width .2s;opacity:0}
+    #sidebar{width:var(--sw);height:100%;height:100dvh;background:var(--sb);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow:hidden;transition:width .2s;opacity:0}
     #sidebar.sb-entered{opacity:1;transition:opacity 1s cubic-bezier(0.16,1,0.3,1),width .2s,transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s}
     #sidebar.collapsed{width:0;border-right:none}
     /* Sidebar top bar */
@@ -137,7 +137,7 @@
     .sb-search-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--t3);pointer-events:none}
     .sb-search-ico svg{width:13px;height:13px}
     /* Sidebar scroll area */
-    .sb-list{flex:1;overflow-y:auto;padding:2px 8px 8px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    .sb-list{flex:1;overflow-y:auto;min-height:0;padding:2px 8px 8px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
     .sb-list::-webkit-scrollbar{width:4px}
     .sb-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
     /* Group labels */
@@ -164,7 +164,7 @@
     .proj-acts{display:none;gap:2px;flex-shrink:0}
     .proj-item:hover .proj-acts{display:flex}
     /* Sidebar footer */
-    .sb-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--t3)}
+    .sb-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--t3);flex-shrink:0}
     .sb-foot .user-dot{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
     .sb-foot-info{flex:1;overflow:hidden}
     .sb-foot-name{font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -551,6 +551,7 @@
       #sidebar, #sidebar.sb-entered {
         position: fixed;
         left: 0; top: 0; bottom: 0;
+        height: auto;
         z-index: 300;
         width: 80vw !important;
         max-width: 300px;
@@ -1652,14 +1653,27 @@ function runSplashToAuthTransition(){
         });
       }, FORM_DELAY);
 
-      // Swap flying→real logo after form is well into its entrance
+      // Cross-fade flying→real logo: fade real logo in while fading flying elements out
       setTimeout(()=>{
-        if(authLogo) authLogo.style.opacity = '1';
-        splashSvg.remove();
-        if(splashTitleEl) splashTitleEl.remove();
-        splash.remove();
-        authWrap.style.transition = '';
-        formSteps.forEach(s=>{ s.style.transition = ''; s.style.transform = ''; });
+        if(authLogo){
+          authLogo.style.transition = 'opacity 200ms ease';
+          authLogo.style.opacity = '1';
+        }
+        splashSvg.style.transition = 'opacity 200ms ease';
+        splashSvg.style.opacity = '0';
+        if(splashTitleEl){
+          splashTitleEl.style.transition = 'opacity 200ms ease';
+          splashTitleEl.style.opacity = '0';
+        }
+        // Clean up after cross-fade completes
+        setTimeout(()=>{
+          splashSvg.remove();
+          if(splashTitleEl) splashTitleEl.remove();
+          splash.remove();
+          if(authLogo) authLogo.style.transition = '';
+          authWrap.style.transition = '';
+          formSteps.forEach(s=>{ s.style.transition = ''; s.style.transform = ''; });
+        }, 220);
       }, FORM_DELAY + FORM_DUR + 16);
     }, DUR + 16);
   }));
@@ -2003,7 +2017,7 @@ function renderMarkdown(el, text){
 // Stream render: fast, no hljs (called every RAF during streaming)
 function renderMarkdownStream(el, text){
   const raw=marked.parse(text||'');
-  el.innerHTML=DOMPurify.sanitize(raw,{FORCE_BODY:true});
+  el.innerHTML=DOMPurify.sanitize(raw,{ADD_ATTR:['onclick'],FORCE_BODY:true});
 }
 window.cpCode=function(btn){
   const c=btn.closest('pre').querySelector('code'); if(!c) return;
@@ -2148,7 +2162,7 @@ async function sendMessage(){
   if(isStreaming){
     pendingQueue={text,files:[...pendingFiles]};
     msgIn.value=''; msgIn.style.height='auto';
-    pendingFiles=[]; renderFileChips(); updateSendBtn();
+    pendingFiles=[]; renderChips(); updateSendBtn();
     toast(t('chat.message_queued'),2500,'#10a37f');
     return;
   }
@@ -2180,7 +2194,7 @@ async function sendMessage(){
     try{
       const sess=await apiJSON('/lc/sessions',{method:'POST',body:JSON.stringify({title:userContent.slice(0,50)||'New Chat',provider:selectedProvider,model:selectedModel})});
       currentSid=sess.id; sessions.unshift(sess); renderSidebar(); updateActive();
-    }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; sendBtn.style.display='flex'; stopBtn.style.display='none'; return; }
+    }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
   }
 
   // Save user message to PB, then backfill msgId on DOM row for edit support
@@ -2190,7 +2204,7 @@ async function sendMessage(){
     userMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'user',content:userContent})});
     messages.push(userMsg);
     userRow.dataset.msgId=userMsg.id;
-  }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; sendBtn.style.display='flex'; stopBtn.style.display='none'; return; }
+  }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
 
   // Truncation notice
   const total=messages.length;
@@ -2305,16 +2319,7 @@ async function sendMessage(){
                 rafId=requestAnimationFrame(()=>{
                   rafId=null;
                   if(streamEl&&pendingDelta){
-                    streamText_len=(streamText_len||0)+pendingDelta.length;
-                    // Use markdown rendering periodically for formatted output
-                    // Short responses: use text node (fast); longer: render markdown every ~500 chars
-                    if(streamText.length<200){
-                      streamNode.data+=pendingDelta;
-                    } else {
-                      // Remove text node, render full markdown
-                      if(streamNode.parentNode) streamNode.parentNode.removeChild(streamNode);
-                      renderMarkdownStream(streamEl,streamText);
-                    }
+                    streamNode.data+=pendingDelta;
                     pendingDelta='';
                     const tRow=$('typ-row');
                     if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
@@ -2418,17 +2423,17 @@ async function sendMessage(){
       if(streamEl&&!streamText) streamEl.closest('.msg-row')?.remove();
     }
   }finally{
+    const queued=pendingQueue; pendingQueue=null;
     isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; pendingDelta=''; streamRow=null; streamNode=null;
     cancelAnimationFrame(rafId);
     stopBtn.style.display='none'; sendBtn.style.display='flex';
     updateSendBtn(); scrollBot(); msgIn.focus();
     document.querySelectorAll('.trunc-bar').forEach(b=>b.remove());
-    // Process queued message (sent during streaming)
-    if(pendingQueue){
-      const q=pendingQueue; pendingQueue=null;
-      msgIn.value=q.text; pendingFiles=q.files; renderFileChips();
+    // Process queued message (sent during streaming) — after partial save resolved
+    if(queued){
+      msgIn.value=queued.text; pendingFiles=queued.files; renderChips();
       msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
-      setTimeout(()=>sendMessage(),80);
+      sendMessage();
     }
   }
 }
@@ -2543,7 +2548,7 @@ async function autoTitle(sessId, firstText){
     const r=await fetch(`/v1/${prov.name}/v1/chat/completions`,{
       method:'POST',credentials:'same-origin',
       headers:{'Content-Type':'application/json','X-LumiChat-Internal':'title'},
-      body:JSON.stringify({model:cheap.id,messages:[{role:'user',content:`Give a short title (max 5 words) for a chat starting with: "${firstText.slice(0,200)}". Reply with ONLY the title.`}],max_tokens:20,stream:false}),
+      body:JSON.stringify({model:cheap.id,messages:[{role:'user',content:(t('misc.auto_title_prompt')||'Give a short title (max 5 words) for a chat starting with: "{text}". Reply with ONLY the title.').replace('{text}',firstText.slice(0,200))}],max_tokens:20,stream:false}),
     });
     if(!r.ok) return;
     const d=await r.json();
@@ -3811,6 +3816,7 @@ function execSlashCommand(cmdStr){
   if(trimmed === '/new'){ newChat(); return; }
   if(trimmed === '/clear'){
     document.querySelectorAll('.msg-row').forEach(r=>r.remove());
+    messages = [];
     emptyEl.style.display='flex';
     return;
   }
@@ -3874,12 +3880,6 @@ document.addEventListener('click', e=>{
 });
 
 // Slash panel item click
-getSlashPanel()?.addEventListener('click', e=>{
-  const item = e.target.closest('.slash-item');
-  if(!item) return;
-  execSlashCommand(item.dataset.cmd);
-  msgIn.value=''; msgIn.style.height='auto'; updateSendBtn(); hideSlashPanel();
-});
 // Use event delegation since panel is re-rendered; attach to parent
 $('input-wrap').addEventListener('click', e=>{
   const item = e.target.closest('#slash-panel .slash-item');
