@@ -1,0 +1,14 @@
+{
+  "name": "collector",
+  "version": "1.0.0",
+  "description": "AI web collection adapters for LumiGate - pure HTTP reverse-engineered web API clients",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "playwright-core": "^1.58.2"
+  }
+}
