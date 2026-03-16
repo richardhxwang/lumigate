@@ -326,7 +326,7 @@
     .tdot:nth-child(3){animation-delay:.4s}
     @keyframes typ{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
     .streaming-active>p:last-of-type::after,.streaming-active>li:last-of-type::after,.streaming-active>div:last-of-type::after{content:'';display:inline-block;width:2px;height:.9em;background:var(--accent);margin-left:2px;vertical-align:text-bottom;animation:blink-cursor .8s step-end infinite}
-    .streaming-active:empty::after{content:'';display:inline-block;width:2px;height:1em;background:var(--accent);animation:blink-cursor .8s step-end infinite}
+    /* removed: .streaming-active:empty cursor — use typing dots instead */
     @keyframes blink-cursor{0%,100%{opacity:1}50%{opacity:0}}
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
@@ -2396,9 +2396,10 @@ async function sendMessage(){
                   if(streamEl&&pendingDelta){
                     pendingDelta='';
                     const tRow=$('typ-row');
-                    if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
+                    if(tRow) tRow.remove();
+                    if(streamRow) streamRow.style.display='';
                     // Render markdown — strip all tool markup before display
-                    const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[｜︱|]DSML[｜︱|][^>]*>[\s\S]*/,'');
+                    const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
                     streamEl.innerHTML=DOMPurify.sanitize(marked.parse(displayText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
                     streamEl.classList.add('streaming-active');
                     const{scrollHeight,clientHeight,scrollTop}=chatEl;
@@ -2415,7 +2416,8 @@ async function sendMessage(){
       if(pendingDelta&&streamEl){
         pendingDelta='';
         const tRow=$('typ-row');
-        if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
+        if(tRow) tRow.remove();
+        if(streamRow) streamRow.style.display='';
         const cursor='<span class="stream-cursor"></span>';
         streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
       }
@@ -2493,7 +2495,14 @@ async function sendMessage(){
         }
         // Reset for next round — clear streaming state but keep the row
         streamText=''; pendingDelta=''; streamEl.textContent='';
+        streamEl.classList.remove('streaming-active');
         streamRow.style.display='none'; // hide until first content of final response
+        // Show typing dots while waiting for next AI response
+        const typRow2=document.createElement('div'); typRow2.className='msg-row assistant'; typRow2.id='typ-row';
+        const typBub2=document.createElement('div'); typBub2.className='typing';
+        const dotsWrap2=document.createElement('div'); dotsWrap2.className='typing-dots';
+        for(let di=0;di<3;di++){const d=document.createElement('div');d.className='tdot';dotsWrap2.appendChild(d);}
+        typBub2.appendChild(dotsWrap2); typRow2.appendChild(typBub2); chatEl.appendChild(typRow2); scrollBot(false);
         continue; // next loop iteration = final response
       }
 
@@ -2513,8 +2522,7 @@ async function sendMessage(){
         .replace(/<\/?invoke[^>]*>/g,'')
         .replace(/<\/?parameter[^>]*>/g,'')
         .replace(/<function_call>[\s\S]*?<\/function_call>/g,'')
-        .replace(/<[｜︱|]DSML[｜︱|][^>]*>[\s\S]*?<\/[｜︱|]DSML[｜︱|][^>]*>/g,'')
-        .replace(/<[｜︱|]DSML[｜︱|][^>]*>/g,'')
+        .replace(/<\/?[^<]*?DSML[^>]*>/g,'')
         .trim();
       streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);
     }
