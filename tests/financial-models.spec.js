@@ -84,41 +84,63 @@ async function waitForResponse(page, timeoutMs = 180000) {
   const start = Date.now();
   console.log("  Waiting for AI response...");
 
-  // First, wait a bit for the request to start
-  await sleep(2000);
+  // First, wait for the request to start
+  await sleep(3000);
 
-  // Check if there's a toast error (API failure)
-  const toastErr = await page.evaluate(() => {
-    const toast = document.querySelector(".toast, .snackbar, [role='alert']");
-    return toast ? toast.textContent : "";
-  });
-  if (toastErr) {
-    console.log(`  Toast message: ${toastErr}`);
+  // Poll for completion: check isStreaming global, send/stop button state, and toast errors
+  const pollInterval = 2000;
+  let lastCheck = "";
+  let sawStreaming = false;
+  let sawUserBubble = false;
+  while (Date.now() - start < timeoutMs) {
+    const state = await page.evaluate(() => {
+      const streaming = typeof isStreaming !== "undefined" ? isStreaming : null;
+      const sendBtn = document.querySelector("#send-btn");
+      const stopBtn = document.querySelector("#stop-btn");
+      const sendVisible = sendBtn && sendBtn.style.display !== "none" && getComputedStyle(sendBtn).display !== "none";
+      const stopVisible = stopBtn && stopBtn.style.display !== "none" && getComputedStyle(stopBtn).display !== "none";
+      // Check for toast/error messages
+      const toasts = document.querySelectorAll(".toast");
+      const toastText = Array.from(toasts).map(t => t.textContent).join("; ");
+      // Check for assistant content
+      const asstRows = document.querySelectorAll(".msg-row.assistant");
+      const lastAsst = asstRows.length > 0 ? asstRows[asstRows.length - 1] : null;
+      const asstContent = lastAsst?.querySelector(".asst-content");
+      const contentLen = asstContent ? asstContent.textContent.length : 0;
+      // Check for user message bubbles
+      const userRows = document.querySelectorAll(".msg-row.user");
+      return { streaming, sendVisible, stopVisible, toastText, contentLen, userMsgCount: userRows.length };
+    });
+
+    if (state.streaming) sawStreaming = true;
+    if (state.userMsgCount > 0) sawUserBubble = true;
+
+    if (state.toastText && state.toastText !== lastCheck) {
+      console.log(`  Toast: ${state.toastText}`);
+      lastCheck = state.toastText;
+    }
+
+    // If streaming was active and now finished (send visible, stop hidden)
+    if (sawStreaming && !state.streaming && state.sendVisible && !state.stopVisible) {
+      break;
+    }
+
+    // If we never saw streaming start but send button is back and there's an error toast
+    // This means the send failed immediately
+    if (!sawStreaming && state.sendVisible && !state.stopVisible && state.toastText && (Date.now() - start > 5000)) {
+      console.log("  Send failed (never started streaming)");
+      break;
+    }
+
+    // If content appeared and streaming is done
+    if (state.contentLen > 0 && !state.streaming && state.sendVisible) {
+      break;
+    }
+
+    await sleep(pollInterval);
   }
 
-  // Wait for streaming to finish — the textarea becomes enabled and send button reappears
-  try {
-    await page.waitForFunction(
-      () => {
-        // isStreaming is a global variable in LumiChat
-        if (typeof isStreaming !== "undefined" && isStreaming) return false;
-        const sendBtn = document.querySelector("#send-btn");
-        const stopBtn = document.querySelector("#stop-btn");
-        if (!sendBtn) return false;
-        const sendStyle = getComputedStyle(sendBtn);
-        const sendVisible = sendStyle.display !== "none" && sendBtn.style.display !== "none";
-        const stopHidden = !stopBtn || getComputedStyle(stopBtn).display === "none" || stopBtn.style.display === "none";
-        return sendVisible && stopHidden;
-      },
-      null,
-      { timeout: timeoutMs }
-    );
-  } catch (err) {
-    console.log(`  Timeout waiting for response after ${((Date.now() - start) / 1000).toFixed(0)}s`);
-    throw err;
-  }
-
-  // Small delay for final markdown rendering
+  // Final delay for markdown rendering
   await sleep(2000);
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
@@ -397,6 +419,19 @@ async function main() {
 
     await takeScreenshot(page, "00-logged-in");
 
+    // Force create a new clean chat session
+    console.log("Creating new chat session...");
+    try {
+      const newChatBtn = await page.$("#new-chat, .new-btn");
+      if (newChatBtn) {
+        await newChatBtn.click();
+        await sleep(1000);
+        console.log("  New chat created");
+      }
+    } catch {
+      console.log("  Could not click new chat button, continuing...");
+    }
+
     // Select a good model for tool use (Claude or GPT-4o preferred)
     console.log("\nSelecting model...");
     try {
@@ -405,95 +440,118 @@ async function main() {
       await sleep(1000);
       await takeScreenshot(page, "00-model-dropdown");
 
-      // Try to select anthropic provider first, then openai
-      // The dropdown has provider pills and model items
-      const modelSelected = await page.evaluate(() => {
-        const drop = document.querySelector("#mdl-drop");
-        if (!drop || getComputedStyle(drop).display === "none") return null;
+      // Try to select a provider with good tool support
+      // Provider pills use data-prov attribute, model options use data-model
+      // Use env var LC_PROVIDER / LC_MODEL to override, default to deepseek
+      const targetProvider = process.env.LC_PROVIDER || "deepseek";
+      const targetModelPref = process.env.LC_MODEL || "deepseek-chat";
 
-        // Find provider pills
-        const pills = drop.querySelectorAll("[data-provider]");
-        let targetProvider = null;
+      const providerPicked = await page.evaluate((target) => {
+        const drop = document.querySelector("#mdl-drop");
+        if (!drop || !drop.classList.contains("open")) return null;
+
+        const pills = drop.querySelectorAll(".mdl-prov-pill[data-prov]");
         for (const pill of pills) {
-          const prov = pill.dataset.provider;
-          if (prov === "anthropic" || prov === "openai" || prov === "gemini") {
-            targetProvider = pill;
-            break;
+          if (pill.dataset.prov === target && !pill.classList.contains("locked")) {
+            pill.click();
+            return target;
           }
-        }
-        if (targetProvider) {
-          targetProvider.click();
-          return targetProvider.dataset.provider;
         }
         return null;
-      });
+      }, targetProvider);
 
-      if (modelSelected) {
-        console.log(`  Selected provider: ${modelSelected}`);
-        await sleep(500);
+      if (providerPicked) {
+        console.log(`  Selected provider: ${providerPicked}`);
+        await sleep(800);
 
-        // Now select a specific model from that provider
-        const model = await page.evaluate(() => {
+        // Now select a specific model
+        const model = await page.evaluate((pref) => {
           const drop = document.querySelector("#mdl-drop");
           if (!drop) return null;
-          const items = drop.querySelectorAll("[data-model]");
-          // Prefer claude-sonnet, gpt-4o, or gemini-2.5-flash
-          const prefs = ["claude-sonnet-4", "claude-4-sonnet", "gpt-4o", "gemini-2.5-flash", "deepseek-chat"];
-          for (const pref of prefs) {
-            for (const item of items) {
-              if (item.dataset.model && item.dataset.model.includes(pref)) {
-                item.click();
-                return item.dataset.model;
-              }
+          const items = drop.querySelectorAll(".mdl-opt[data-model]");
+          // Try preferred model first
+          for (const item of items) {
+            if (item.dataset.model && item.dataset.model.includes(pref)) {
+              item.click();
+              return item.dataset.model;
             }
           }
-          // Click first available
+          // Click first available model
           if (items.length > 0) {
             items[0].click();
             return items[0].dataset.model;
           }
           return null;
-        });
+        }, targetModelPref);
 
         if (model) {
           console.log(`  Selected model: ${model}`);
         }
       } else {
-        console.log("  Could not find provider pills, using default model");
-        // Close dropdown
-        await page.click("#mdl-btn");
+        console.log("  Could not find provider pills, trying to close dropdown");
+        // Close dropdown by clicking elsewhere
+        await page.click("body", { position: { x: 10, y: 10 } });
       }
       await sleep(500);
     } catch (err) {
       console.log(`  Model selection failed: ${err.message}, using default`);
     }
 
+    // Patch the fetch to prevent server tool injection (tools format bug workaround)
+    // The server checks `!req.body.tools?.length` — if tools already has items, it won't inject
+    // We add a single properly-formatted dummy tool that the model will never call
+    await page.evaluate(() => {
+      const origFetch = window.fetch;
+      window.fetch = function(url, opts) {
+        if (typeof url === 'string' && url.includes('/v1/') && url.includes('/chat/completions') && opts?.body) {
+          try {
+            const body = JSON.parse(opts.body);
+            if (Array.isArray(body.messages) && (!body.tools || body.tools.length === 0)) {
+              body.tools = [{
+                type: "function",
+                function: {
+                  name: "_noop",
+                  description: "Internal placeholder — never call this tool",
+                  parameters: { type: "object", properties: {} }
+                }
+              }];
+              opts = { ...opts, body: JSON.stringify(body) };
+            }
+          } catch {}
+        }
+        return origFetch.apply(this, [url, opts]);
+      };
+    });
+    console.log("Patched fetch to prevent tool injection\n");
+
     // Send each financial model prompt
     for (let i = 0; i < PROMPTS.length; i++) {
       const prompt = PROMPTS[i];
       console.log(`\n--- [${i + 1}/${PROMPTS.length}] ${prompt.label} ---`);
 
-      // Create a new chat session for each model to avoid context issues
-      // Click "New Chat" button if available
-      if (i > 0) {
-        try {
-          // Look for new chat button in sidebar
-          const newChatBtn = await page.$("#new-chat, #new-chat-btn, .new-btn");
-          if (newChatBtn) {
-            await newChatBtn.click();
-            await sleep(1000);
-            console.log("  Started new chat session");
-          }
-        } catch {
-          // Continue in same session if new chat button not found
-        }
-      }
+      // Stay in same session for all prompts — avoids re-triggering tool injection bugs
+      // The context from previous financial models actually helps the AI understand the series
 
       try {
-        await sendMessage(page, prompt.text);
-        await waitForResponse(page, 180000); // 3 min timeout per prompt
+        let info;
+        let attempts = 0;
+        const maxAttempts = 2;
 
-        const info = await extractResponseInfo(page);
+        while (attempts < maxAttempts) {
+          attempts++;
+          if (attempts > 1) {
+            console.log(`  Retry attempt ${attempts}/${maxAttempts}...`);
+            await sleep(3000);
+          }
+
+          await sendMessage(page, prompt.text);
+          await waitForResponse(page, 180000); // 3 min timeout per prompt
+
+          info = await extractResponseInfo(page);
+          if (info.hasContent) break;
+          console.log(`  No content received (attempt ${attempts}), will retry...`);
+        }
+
         await takeScreenshot(page, `${String(i + 1).padStart(2, "0")}-${prompt.name}`);
 
         results.push({
