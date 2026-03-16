@@ -1,7 +1,8 @@
 # LumiGate — Project-Focused Dev Guide
 
 ## What this repo is
-Self-hosted multi-provider AI gateway (Express + Nginx + Docker), optimized for SME and low-memory hosts.
+Self-hosted multi-provider AI Agent Platform (Express + Nginx + Docker), evolved from AI API gateway.
+Features: 8-provider AI proxy, tool execution pipeline, file parsing, speech-to-text, vision analysis, code sandbox, MCP gateway integration.
 Chat UI: `public/lumichat.html` (LumiChat). Dashboard: `public/index.html`.
 
 ## Run (most common)
@@ -23,11 +24,16 @@ curl http://localhost:9471/health
 ```
 
 ## Files that matter first
-- `server.js`: auth, modules, proxy, usage, backup/audit/metrics APIs
+- `server.js`: auth, modules, proxy, usage, backup/audit/metrics APIs, route mounting
 - `public/lumichat.html`: LumiChat UI — SSE streaming, PocketBase auth, settings modal
 - `nginx/nginx.conf`: reverse proxy, health fallback, security headers
 - `public/index.html`: dashboard + admin flows
 - `docker-compose.yml`: prod deployment
+- `security/`: PII detection, secret masking, command guard, Ollama semantic detection
+- `tools/`: tool registry, unified registry, MCP client, tool schemas
+- `routes/`: Agent Platform API (parse, audio, vision, code)
+- `middleware/`: security + audit middleware (PB event logging)
+- `deploy/`: NAS/Mac Mini split deployment configs + migration script
 - `reviews/docker-compose.test.yml`: isolated test/chaos environment
 
 ## Project rules (high signal)
@@ -37,6 +43,21 @@ curl http://localhost:9471/health
 - Never log secrets (`ADMIN_SECRET`, API keys, tunnel tokens).
 - Use `safeEqual()` for secret comparison; do not replace with plain equality.
 - Keep 10MB body limit unless there is a scoped and tested reason to change it.
+
+## Agent Platform API endpoints
+- `POST /v1/parse` — Upload file (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) → extracted text
+- `POST /v1/audio/transcribe` — Upload audio → text (whisper.cpp)
+- `POST /v1/audio/transcriptions` — OpenAI-compatible transcription
+- `POST /v1/vision/analyze` — Upload image → description (Ollama vision model)
+- `POST /v1/code/run` — Execute code in Docker sandbox (Python/JS/Shell)
+- Tool execution: AI `tool_use` responses → unified registry → auto-execute + return results
+
+## Security pipeline
+- PII/secret detection: regex (presidio-layer) + optional Ollama semantic analysis
+- Command guard: blocks dangerous shell commands in AI messages (17 rules)
+- Secret masking: `[SEC_xxx]` placeholders in LLM context, restored on tool execution
+- All events → PocketBase `security_events` collection (non-blocking)
+- Audit logging → PocketBase `audit_log` collection
 
 ## Mode policy
 - `lite`: keep data-plane security/perf behavior; trim management modules only.

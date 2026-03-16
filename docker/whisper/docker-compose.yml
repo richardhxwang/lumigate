@@ -1,0 +1,13 @@
+services:
+  whisper:
+    image: ghcr.io/ggerganov/whisper.cpp:main
+    container_name: lumigate-whisper
+    ports:
+      - "127.0.0.1:17863:8080"
+    command: ["--model", "/models/ggml-base.bin", "--port", "8080"]
+    volumes:
+      - whisper-models:/models
+    restart: unless-stopped
+
+volumes:
+  whisper-models:

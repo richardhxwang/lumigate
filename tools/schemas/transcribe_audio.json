@@ -1,0 +1,20 @@
+{
+  "name": "transcribe_audio",
+  "description": "Transcribe audio to text using Whisper speech recognition. Supports WAV, WebM, OGG, and MP3 formats.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "audio_url": {
+        "type": "string",
+        "description": "URL to download the audio file from"
+      },
+      "content_type": {
+        "type": "string",
+        "description": "Audio MIME type",
+        "enum": ["audio/wav", "audio/webm", "audio/ogg", "audio/mp3"],
+        "default": "audio/wav"
+      }
+    },
+    "required": ["audio_url"]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "code_run",
+  "description": "Execute code in a sandboxed environment and return stdout/stderr output. Supports Python and JavaScript.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "type": "string",
+        "enum": ["python", "javascript"],
+        "description": "Programming language to execute"
+      },
+      "code": {
+        "type": "string",
+        "description": "Source code to execute"
+      },
+      "timeout": {
+        "type": "number",
+        "description": "Maximum execution time in seconds",
+        "default": 30
+      },
+      "stdin": {
+        "type": "string",
+        "description": "Optional standard input to provide to the program"
+      }
+    },
+    "required": ["language", "code"]
+  }
+}

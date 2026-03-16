@@ -1,10 +1,10 @@
 # LumiGate
 
-**Enterprise-grade AI gateway. ~22 MiB (lite app-only) to ~37 MiB (enterprise app+nginx) runtime footprint. One command to deploy.**
+**Self-hosted AI Agent Platform. Multi-provider proxy + tool execution + file parsing + speech-to-text + vision + code sandbox + MCP gateway.**
 
-LumiGate is a self-hosted, multi-provider AI API gateway with modular enterprise features — per-project budgets, model access control, token-level cost tracking, audit logging, auto-recovery, and high-availability failover — in a single Node.js process with zero external dependencies. No database, no Redis, no DevOps team required.
+LumiGate is a self-hosted, multi-provider AI Agent Platform with enterprise security — per-project budgets, model access control, PII detection, secret masking, audit logging, auto-recovery, and MCP tool integration — in a single Node.js process. 8 AI providers, unified tool execution pipeline, and a full chat UI (LumiChat).
 
-Designed to run on a NAS, mini PC, or any edge device where every megabyte counts.
+Designed to run on a NAS, mini PC, or any edge device.
 
 ## Table of Contents
 
@@ -15,6 +15,7 @@ Designed to run on a NAS, mini PC, or any edge device where every megabyte count
 - [Modular Design](#modular-design)
 - [Features](#features)
 - [Self-Healing & Data Safety](#self-healing--data-safety)
+- [Agent Platform API](#agent-platform-api)
 - [API Reference](#api-reference)
 - [Security](#security)
 - [Performance](#performance)
@@ -177,6 +178,46 @@ sudo lg watchdog-install  # Re-enable after kill
 ```
 
 > **Why `--build`?** LumiGate uses a local Docker build (`build: .` in `docker-compose.yml`) rather than a registry image. This is intentional for self-hosted deployments where you run your own code. After a Docker daemon crash the image cache may be cleared; `--build` reconstructs it from the `Dockerfile` (cached layers are reused when available, so it's fast in normal cases).
+
+## Agent Platform API
+
+LumiGate includes an Agent Platform layer that provides tool execution, file processing, and multimodal capabilities to all connected apps.
+
+### Platform Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/parse` | Parse files (PDF, XLSX, DOCX, PPTX, HTML, TXT, MD) to text |
+| POST | `/v1/audio/transcribe` | Speech-to-text via whisper.cpp |
+| POST | `/v1/audio/transcriptions` | OpenAI-compatible transcription |
+| POST | `/v1/vision/analyze` | Image analysis via Ollama vision model |
+| POST | `/v1/code/run` | Execute code in Docker sandbox (Python/JS/Shell) |
+
+### Tool Execution Pipeline
+
+When an AI model returns `tool_use` in its response, LumiGate automatically:
+1. Intercepts the tool call
+2. Routes to the appropriate executor (built-in, MCP, or custom)
+3. Returns results to the model for continued generation
+4. Logs execution to PocketBase `tool_calls` collection
+
+Built-in tools: `web_search`, `parse_file`, `transcribe_audio`, `vision_analyze`, `code_run`, `browser_action`, `generate_document`, `generate_presentation`, `generate_spreadsheet`
+
+### Security Pipeline
+
+All requests pass through the security middleware:
+- **PII Detection**: Regex patterns (20+ types) + optional Ollama semantic analysis
+- **Secret Masking**: Detected secrets replaced with `[SEC_xxx]` placeholders before reaching LLM
+- **Command Guard**: 17 rules blocking dangerous shell commands (rm -rf, mkfs, fork bombs, etc.)
+- **Audit Logging**: All events written to PocketBase (non-blocking, fire-and-forget)
+
+### MCP Gateway (MCPJungle)
+
+External tools can be added via MCP (Model Context Protocol):
+```bash
+cd docker/mcp && docker compose up -d
+```
+Registers Playwright (browser automation) and Filesystem MCP servers. LumiGate auto-discovers and injects MCP tools into LLM requests.
 
 ## API Reference
 
@@ -403,20 +444,23 @@ lg v1.0.0 — LumiGate CLI
 ## Project Structure
 
 ```
-├── server.js               # Express monolith — proxy, auth, usage, admin API
+├── server.js               # Express monolith — proxy, auth, usage, admin API, route mounting
+├── security/               # PII detection, secret masking, command guard, Ollama detector
+├── tools/                  # Tool registry, unified registry, MCP client, schemas
+├── routes/                 # Agent Platform API (parse, audio, vision, code)
+├── middleware/             # Security + audit middleware (PB event logging)
 ├── cli.sh                  # lg CLI — full lifecycle & management tool
 ├── setup.sh                # One-line installer & onboard wizard
-├── watchdog.sh             # Legacy watchdog (container-level)
-├── watchdog-launchd.js     # macOS LaunchDaemon watchdog (survives Docker crash, email alerts)
-├── tui.js                  # Full-screen terminal dashboard
+├── watchdog-launchd.js     # macOS LaunchDaemon watchdog (survives Docker crash)
 ├── nginx/nginx.conf        # Reverse proxy — cache, failover, maintenance
 ├── public/
 │   ├── index.html          # Dashboard SPA (Canvas charts, Apple HIG)
-│   └── chat.html           # Built-in chat with SSE streaming
-├── failover/               # HA configs (cold/hot standby)
-├── reviews/                # Review reports & test results
+│   ├── lumichat.html       # LumiChat UI (SSE streaming, PocketBase auth)
+│   └── chat.html           # Built-in admin chat
+├── docker/                 # Additional Docker configs (MCP, whisper)
+├── deploy/                 # NAS/Mac Mini split deployment + migration script
 ├── data/                   # JSON persistence (Docker volume)
-├── docker-compose.yml      # Nginx + Express + Cloudflare Tunnel
+├── docker-compose.yml      # Production deployment
 ├── .env.example            # Config template
 └── CLAUDE.md               # AI development guide
 ```

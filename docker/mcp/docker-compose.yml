@@ -1,0 +1,96 @@
+# MCPJungle gateway stack for LumiGate
+# Provides MCP tool gateway with Playwright and Filesystem servers
+#
+# Usage:
+#   docker compose -f docker/mcp/docker-compose.yml up -d
+#
+# MCPJungle dashboard: http://localhost:18790
+# Servers are registered via config.json mounted into the container.
+
+services:
+  mcpjungle-db:
+    image: postgres:17-alpine
+    container_name: lumigate-mcpjungle-db
+    environment:
+      POSTGRES_USER: mcpjungle
+      POSTGRES_PASSWORD: mcpjungle
+      POSTGRES_DB: mcpjungle
+    volumes:
+      - mcpjungle-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=mcpjungle pg_isready -U mcpjungle"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - lumigate
+
+  mcpjungle:
+    image: ghcr.io/mcpjungle/mcpjungle:latest-stdio
+    container_name: lumigate-mcpjungle
+    environment:
+      DATABASE_URL: postgres://mcpjungle:mcpjungle@lumigate-mcpjungle-db:5432/mcpjungle
+      SERVER_MODE: development
+      MCP_SERVER_INIT_REQ_TIMEOUT_SEC: 15
+    ports:
+      - "127.0.0.1:18790:8080"
+    expose:
+      - "8080"
+    volumes:
+      # Mount config for auto-registering MCP servers
+      - ./config.json:/app/config.json:ro
+      # Mount shared workspace for filesystem MCP server access
+      - mcp-workspace:/workspace
+    depends_on:
+      mcpjungle-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - lumigate
+
+  # Playwright MCP server — browser automation via MCP
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    container_name: lumigate-playwright-mcp
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:18791:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+    shm_size: '256m'
+    networks:
+      - lumigate
+
+  # Filesystem MCP server — scoped file access via MCP
+  filesystem-mcp:
+    image: node:22-alpine
+    container_name: lumigate-filesystem-mcp
+    working_dir: /app
+    command: npx -y @modelcontextprotocol/server-filesystem --transport http --port 3000 /workspace
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:18792:3000"
+    volumes:
+      - mcp-workspace:/workspace
+    restart: unless-stopped
+    networks:
+      - lumigate
+
+volumes:
+  mcpjungle-db-data:
+  mcp-workspace:
+
+networks:
+  lumigate:
+    name: lumigate_default
+    external: true

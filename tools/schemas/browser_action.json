@@ -1,0 +1,36 @@
+{
+  "name": "browser_action",
+  "description": "Perform browser automation actions using Playwright. Navigate pages, click elements, fill forms, take screenshots, and extract page content.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["navigate", "click", "fill", "screenshot", "get_text", "evaluate", "wait"],
+        "description": "The browser action to perform"
+      },
+      "url": {
+        "type": "string",
+        "description": "URL to navigate to (required for 'navigate' action)"
+      },
+      "selector": {
+        "type": "string",
+        "description": "CSS or text selector for the target element (required for 'click', 'fill', 'get_text')"
+      },
+      "value": {
+        "type": "string",
+        "description": "Value to fill into a form field (required for 'fill' action)"
+      },
+      "script": {
+        "type": "string",
+        "description": "JavaScript code to evaluate in the page context (required for 'evaluate' action)"
+      },
+      "timeout": {
+        "type": "number",
+        "description": "Maximum wait time in milliseconds",
+        "default": 10000
+      }
+    },
+    "required": ["action"]
+  }
+}

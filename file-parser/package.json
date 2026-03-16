@@ -1,0 +1,15 @@
+{
+  "name": "lumigate-file-parser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "File parsing microservice for LumiGate — PDF, Excel, Word, PPTX text extraction",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5",
+    "mammoth": "^1.8.0",
+    "unzipper": "^0.12.3"
+  }
+}

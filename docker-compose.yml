@@ -1,5 +1,6 @@
+name: lumigate
+
 services:
-  # Nginx reverse proxy — always running, serves maintenance page during app restarts
   nginx:
     image: nginx:alpine
     container_name: lumigate-nginx
@@ -9,8 +10,11 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./data:/app/data:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - lumigate
+      - file-parser
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 5s
@@ -18,39 +22,49 @@ services:
       retries: 2
       start_period: 3s
 
-  # SearXNG — private web search engine, accessible only within Docker network
   searxng:
     image: searxng/searxng:latest
     container_name: lumigate-searxng
     expose:
       - "8080"
+    ports:
+      - "127.0.0.1:18780:8080"
     volumes:
       - ./searxng:/etc/searxng:ro
     environment:
       - SEARXNG_BASE_URL=http://lumigate-searxng:8080
     restart: unless-stopped
 
-  # App server — can be rebuilt/restarted without downtime
+  # LumiGate + Collector Chrome (combined)
+  # Chromium runs inside the same container on 127.0.0.1:9223
+  # noVNC on :7900 for visual login when needed
   lumigate:
     build: .
     container_name: lumigate
     restart: unless-stopped
-    # No ports exposed — only accessible via nginx
     expose:
       - "9471"
+    ports:
+      - "127.0.0.1:${COLLECTOR_VNC_PORT:-7900}:7900"  # localhost only, not exposed to internet
     env_file:
       - .env
+    environment:
+      - CDP_HOST=127.0.0.1
+      - CDP_PORT=9223
+      - RESOLUTION=1280x800x24
     volumes:
       - ./data:/app/data
+      - collector-chrome-profile:/home/chrome/.chrome-profile
     depends_on:
       - searxng
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:9471/health',r=>{r.statusCode===200?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9471/health"]
       interval: 5s
       timeout: 3s
       retries: 2
-      start_period: 8s
+      start_period: 15s
     stop_grace_period: 15s
+    shm_size: '512m'
 
   cloudflare-lumigate:
     image: cloudflare/cloudflared:latest
@@ -65,9 +79,84 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  file-parser:
+    image: node:22-alpine
+    container_name: lumigate-file-parser
+    volumes:
+      - ./file-parser:/app
+    working_dir: /app
+    command: sh -c "npm install --production && node server.js"
+    expose:
+      - "3100"
+    ports:
+      - "127.0.0.1:18782:3100"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3100/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 2
+      start_period: 15s
+
+  doc-gen:
+    image: node:22-alpine
+    container_name: lumigate-doc-gen
+    volumes:
+      - ./doc-gen:/app
+    working_dir: /app
+    command: sh -c "npm install --production && node server.js"
+    expose:
+      - "3101"
+    ports:
+      - "127.0.0.1:18783:3101"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3101/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 2
+      start_period: 15s
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: lumigate-gotenberg
+    command:
+      - "gotenberg"
+      - "--api-port=3000"
+      - "--api-timeout=120s"
+    ports:
+      - "127.0.0.1:18785:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   cache-cleaner:
     image: alpine
     container_name: lumigate-cache-cleaner
     restart: unless-stopped
-    privileged: true
-    command: sh -c "while true; do sleep 21600; sync; echo 3 > /proc/sys/vm/drop_caches; done"
+    cap_add:
+      - SYS_ADMIN
+    command: sh -c "while true; do sleep 21600; sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; done"
+
+  # Whisper.cpp — speech-to-text (port 17863)
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: lumigate-whisper
+    ports:
+      - "127.0.0.1:17863:9000"
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=openai_whisper
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  collector-chrome-profile:

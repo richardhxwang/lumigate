@@ -1,0 +1,75 @@
+# LumiGate Mac Mini Deployment
+# Target: Mac Mini (M2, ARM64, 16GB RAM)
+# Lighter footprint: Ollama (GPU) + whisper (temporary) + dev services
+
+name: lumigate-mac
+
+services:
+  # ──────────────────────────────────────────────
+  # Ollama (Metal GPU acceleration)
+  # Will migrate to Jetson once available
+  # ──────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lumigate-ollama
+    ports:
+      - "0.0.0.0:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_FLASH_ATTENTION=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:11434/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Note: Docker Desktop for Mac provides GPU passthrough
+    # via Metal automatically — no extra device config needed
+
+  # ──────────────────────────────────────────────
+  # whisper.cpp (ASR, temporary until Jetson)
+  # Uses CPU on Mac — still fast enough for light use
+  # ──────────────────────────────────────────────
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest-cpu
+    container_name: lumigate-whisper-mac
+    ports:
+      - "127.0.0.1:17863:8080"
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=faster_whisper
+    volumes:
+      - whisper-models:/root/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ──────────────────────────────────────────────
+  # OpenSuperWhisper HTTP wrapper (placeholder)
+  # For future: wrap the native macOS app's CoreML
+  # whisper engine with an HTTP API
+  # ──────────────────────────────────────────────
+  # opensuperwhisper-wrapper:
+  #   build: ./opensuperwhisper-wrapper
+  #   container_name: lumigate-osw-wrapper
+  #   ports:
+  #     - "127.0.0.1:17864:8080"
+  #   environment:
+  #     - OSW_MODEL=large-v3-turbo
+  #   restart: unless-stopped
+  #   # Requires native macOS access — cannot run in Docker
+  #   # Will need a small Swift/Python HTTP server running on host
+  #   # that proxies to OpenSuperWhisper's local processing
+
+volumes:
+  ollama-models:
+  whisper-models:

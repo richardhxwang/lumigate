@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>LumiGate — AI Gateway</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&display=swap');
+
+  :root {
+    --bg: #0a0a0a; --t1: #f0f0f0; --t2: rgba(255,255,255,0.6); --t3: rgba(255,255,255,0.35);
+    --accent: #10a37f; --accent-dim: rgba(16,163,127,0.12); --accent-glow: rgba(16,163,127,0.25);
+    --card: rgba(255,255,255,0.04); --card-border: rgba(255,255,255,0.06);
+    --font: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  html { background: var(--bg); }
+  body {
+    font-family: var(--font);
+    background: var(--bg); color: var(--t1);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise texture overlay ── */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat; background-size: 256px;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: env(safe-area-inset-top, 0) 40px 0;
+    height: calc(64px + env(safe-area-inset-top, 0));
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.3s;
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 17px; font-weight: 600; letter-spacing: -0.3px;
+    color: var(--t1); text-decoration: none;
+  }
+  .nav-logo svg { flex-shrink: 0; }
+  .nav-links { display: flex; align-items: center; gap: 8px; }
+  .nav-link {
+    padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500;
+    color: var(--t2); text-decoration: none; transition: all 0.2s;
+    border: none; background: none; cursor: pointer; font-family: var(--font);
+  }
+  .nav-link:hover { color: var(--t1); background: rgba(255,255,255,0.06); }
+  .nav-link.pri {
+    background: var(--accent); color: #fff; font-weight: 600;
+  }
+  .nav-link.pri:hover { background: #0d9268; }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 120px 24px 80px; position: relative;
+  }
+
+  /* Radial glow behind hero */
+  .hero::before {
+    content: ''; position: absolute;
+    width: 800px; height: 800px; top: 50%; left: 50%;
+    transform: translate(-50%, -55%);
+    background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0.4; pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px 6px 8px; border-radius: 20px;
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+    margin-bottom: 32px; position: relative;
+  }
+  .hero-badge-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    animation: pulse-dot 2s ease infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  .hero h1 {
+    font-size: clamp(48px, 8vw, 88px); font-weight: 700;
+    letter-spacing: -2px; line-height: 1.05;
+    max-width: 800px; position: relative;
+  }
+  .hero h1 .accent { color: var(--accent); }
+
+  .hero-sub {
+    font-size: clamp(16px, 2.5vw, 20px); color: var(--t2);
+    max-width: 560px; line-height: 1.6; margin-top: 24px;
+    font-weight: 300; position: relative;
+  }
+
+  .hero-ctas {
+    display: flex; gap: 12px; margin-top: 40px; position: relative; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero-btn {
+    padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 600;
+    text-decoration: none; transition: all 0.2s; font-family: var(--font);
+    border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .hero-btn.pri {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 0 40px var(--accent-glow);
+  }
+  .hero-btn.pri:hover { background: #0d9268; transform: translateY(-1px); box-shadow: 0 0 60px var(--accent-glow); }
+  .hero-btn.sec {
+    background: rgba(255,255,255,0.06); color: var(--t1);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .hero-btn.sec:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+
+  .hero-btn svg { width: 16px; height: 16px; }
+
+  /* Scroll hint */
+  .scroll-hint {
+    position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: var(--t3); font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    animation: float 3s ease infinite;
+  }
+  @keyframes float { 0%,100%{ transform: translateX(-50%) translateY(0); } 50%{ transform: translateX(-50%) translateY(6px); } }
+
+  /* ── Sections ── */
+  section { padding: 120px 24px; position: relative; }
+  .section-inner { max-width: 1080px; margin: 0 auto; }
+
+  .section-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: clamp(32px, 5vw, 48px); font-weight: 700; letter-spacing: -1px;
+    line-height: 1.15; max-width: 600px;
+  }
+  .section-desc {
+    font-size: 17px; color: var(--t2); line-height: 1.7; margin-top: 16px;
+    max-width: 520px; font-weight: 300;
+  }
+
+  /* ── Feature grid ── */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px; }
+  .feat {
+    padding: 32px 28px; border-radius: 16px;
+    background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.3s;
+  }
+  .feat:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+  .feat-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent-dim); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .feat-icon svg { width: 20px; height: 20px; color: var(--accent); }
+  .feat h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .feat p { font-size: 14px; color: var(--t2); line-height: 1.6; font-weight: 300; }
+
+  /* ── Providers strip ── */
+  .providers-strip {
+    display: flex; align-items: center; justify-content: center; gap: 40px;
+    padding: 60px 24px; border-top: 1px solid var(--card-border);
+    border-bottom: 1px solid var(--card-border);
+    flex-wrap: wrap;
+  }
+  .prov-item {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 15px; font-weight: 500; color: var(--t3);
+    transition: color 0.2s;
+  }
+  .prov-item:hover { color: var(--t2); }
+  .prov-item img { width: 24px; height: 24px; border-radius: 6px; opacity: 0.5; filter: grayscale(1); transition: all 0.2s; }
+  .prov-item:hover img { opacity: 0.8; filter: grayscale(0); }
+
+  /* ── LumiChat section ── */
+  .chat-section { background: linear-gradient(180deg, var(--bg) 0%, #0d0d0d 100%); }
+  .chat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; margin-top: 64px; }
+  .chat-preview {
+    border-radius: 20px; overflow: hidden;
+    background: #1a1a1a; border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 40px 120px rgba(0,0,0,0.5), 0 0 80px var(--accent-glow);
+    aspect-ratio: 4/3; position: relative;
+  }
+  .chat-preview-inner {
+    padding: 20px; height: 100%; display: flex; flex-direction: column;
+  }
+  .cp-header {
+    display: flex; align-items: center; gap: 8px; padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 16px;
+  }
+  .cp-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cp-model {
+    font-size: 13px; font-weight: 500; color: var(--t2); margin-left: auto;
+    padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.06);
+  }
+  .cp-msgs { flex: 1; display: flex; flex-direction: column; gap: 12px; justify-content: flex-end; }
+  .cp-msg {
+    padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+    max-width: 80%; animation: msg-in 0.4s ease backwards;
+  }
+  .cp-msg.user {
+    align-self: flex-end; background: var(--accent); color: #fff;
+  }
+  .cp-msg.ai {
+    align-self: flex-start; background: rgba(255,255,255,0.06); color: var(--t1);
+  }
+  .cp-msg:nth-child(1) { animation-delay: 0.3s; }
+  .cp-msg:nth-child(2) { animation-delay: 0.8s; }
+  .cp-msg:nth-child(3) { animation-delay: 1.4s; }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(8px); } }
+
+  .chat-features { list-style: none; margin-top: 32px; }
+  .chat-features li {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0; font-size: 15px; color: var(--t2); line-height: 1.5;
+  }
+  .chat-features li svg { flex-shrink: 0; color: var(--accent); margin-top: 2px; }
+
+  /* ── Stats ── */
+  .stats { display: flex; gap: 48px; margin-top: 48px; flex-wrap: wrap; }
+  .stat-val { font-size: 36px; font-weight: 700; letter-spacing: -1px; }
+  .stat-label { font-size: 13px; color: var(--t3); margin-top: 4px; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 48px 24px; text-align: center;
+    border-top: 1px solid var(--card-border);
+    font-size: 13px; color: var(--t3);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── Scroll reveal ── */
+  .reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1);
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+  .reveal-d1 { transition-delay: 0.1s; }
+  .reveal-d2 { transition-delay: 0.2s; }
+  .reveal-d3 { transition-delay: 0.3s; }
+  .reveal-d4 { transition-delay: 0.4s; }
+  .reveal-d5 { transition-delay: 0.5s; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    nav { padding: 0 16px; }
+    .features { grid-template-columns: 1fr; }
+    .chat-grid { grid-template-columns: 1fr; gap: 40px; }
+    .chat-preview { order: -1; }
+    .providers-strip { gap: 24px; }
+    .stats { gap: 32px; }
+    section { padding: 80px 20px; }
+    .hero { padding: calc(100px + env(safe-area-inset-top, 0)) 20px 60px; }
+    nav { padding: env(safe-area-inset-top, 0) 20px 0; }
+  }
+  @media (max-width: 480px) {
+    .nav-link.hide-m { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <svg viewBox="0 0 40 40" width="28" height="28"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fff"/></svg>
+    LumiGate
+  </a>
+  <div class="nav-links">
+    <a href="#features" class="nav-link hide-m">Features</a>
+    <a href="/lumichat" class="nav-link pri">LumiChat</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge reveal"><span class="hero-badge-dot"></span>Self-hosted AI Gateway</div>
+  <h1 class="reveal reveal-d1">One gateway,<br>every <span class="accent">AI model</span></h1>
+  <p class="hero-sub reveal reveal-d2">Route requests across OpenAI, Anthropic, Gemini, DeepSeek and more through a single, lightweight endpoint you own.</p>
+  <div class="hero-ctas reveal reveal-d3">
+    <a href="/lumichat" class="hero-btn pri">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Start chatting
+    </a>
+  </div>
+  <div class="scroll-hint">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+  </div>
+</div>
+
+<!-- Providers -->
+<div class="providers-strip reveal">
+  <div class="prov-item"><img src="/logos/openai.svg" alt="">OpenAI</div>
+  <div class="prov-item"><img src="/logos/anthropic.svg" alt="">Anthropic</div>
+  <div class="prov-item"><img src="/logos/gemini.svg" alt="">Gemini</div>
+  <div class="prov-item"><img src="/logos/deepseek.svg" alt="">DeepSeek</div>
+  <div class="prov-item"><img src="/logos/minimax.svg" alt="">MiniMax</div>
+  <div class="prov-item"><img src="/logos/qwen.svg" alt="">Qwen</div>
+  <div class="prov-item"><img src="/logos/kimi.svg" alt="">Kimi</div>
+  <div class="prov-item"><img src="/logos/doubao.svg" alt="">Doubao</div>
+</div>
+
+<!-- Stats bar -->
+<section style="padding:80px 24px 0">
+  <div class="section-inner">
+    <div class="stats" style="justify-content:center;gap:64px">
+      <div class="reveal"><div class="stat-val">8+</div><div class="stat-label">AI providers built-in</div></div>
+      <div class="reveal reveal-d1"><div class="stat-val">50+</div><div class="stat-label">Models available</div></div>
+      <div class="reveal reveal-d2"><div class="stat-val">2,300+</div><div class="stat-label">Requests per second</div></div>
+      <div class="reveal reveal-d3"><div class="stat-val">~24 MB</div><div class="stat-label">Total memory footprint</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-label reveal">Features</div>
+    <h2 class="section-title reveal reveal-d1">Everything you need to manage AI at scale</h2>
+    <p class="section-desc reveal reveal-d2">Enterprise-grade capabilities in a lightweight Docker stack that runs anywhere — from a Raspberry Pi to a production cluster.</p>
+
+    <div class="features">
+      <div class="feat reveal">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Defense in depth</h3>
+        <p>HMAC signatures, ephemeral tokens, per-project RPM limits, IP allowlists, budget caps, anomaly auto-suspend, and MFA for admin access. Every layer independently enforced.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Sub-millisecond overhead</h3>
+        <p>2,300+ QPS with full auth stack active on commodity hardware. All security checks are O(1) in-memory — auth adds zero measurable latency to your AI calls.</p>
+      </div>
+      <div class="feat reveal reveal-d2">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+        <h3>Multi-key rotation</h3>
+        <p>Multiple API keys per provider with automatic round-robin, intelligent failover, and per-project key assignment. No single point of failure.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 019-9"/></svg></div>
+        <h3>8+ AI providers</h3>
+        <p>OpenAI, Anthropic, Gemini, DeepSeek, Qwen, MiniMax, Kimi, Doubao — all through one endpoint. Add any OpenAI-compatible provider in seconds.</p>
+      </div>
+      <div class="feat reveal reveal-d2">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+        <h3>Usage analytics</h3>
+        <p>Real-time cost tracking across all providers with per-project breakdown. 10 currencies, automatic budget enforcement, and exportable usage reports.</p>
+      </div>
+      <div class="feat reveal reveal-d3">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <h3>Zero-config deployment</h3>
+        <p>One-line install with interactive setup wizard. Auto-TLS via Cloudflare Tunnel, built-in watchdog with &lt;10s crash recovery, atomic writes for zero data loss.</p>
+      </div>
+    </div>
+
+    <!-- Second row of features -->
+    <div class="features" style="margin-top:16px">
+      <div class="feat reveal">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Admin dashboard</h3>
+        <p>Full-featured web UI for managing projects, keys, providers, users, and usage. Role-based access control with root, admin, and user tiers.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></div>
+        <h3>Multi-tenant projects</h3>
+        <p>Isolate apps with dedicated projects — each with its own keys, rate limits, budget, model allowlist, and auth mode. Ship AI features without sharing credentials.</p>
+      </div>
+      <div class="feat reveal reveal-d2">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8M10 9H8"/></svg></div>
+        <h3>Audit trail</h3>
+        <p>Enterprise-grade audit logging for every admin action, key rotation, and configuration change. Automated daily backups with one-click restore.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LumiChat -->
+<section id="lumichat" class="chat-section">
+  <div class="section-inner">
+    <div class="chat-grid">
+      <div>
+        <div class="section-label reveal">LumiChat</div>
+        <h2 class="section-title reveal reveal-d1">Chat with any model,<br>one interface</h2>
+        <p class="section-desc reveal reveal-d2">A built-in chat UI that connects to every provider through your gateway. Switch models mid-conversation.</p>
+        <ul class="chat-features reveal reveal-d3">
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            SSE streaming with real-time markdown rendering and syntax highlighting
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Multi-modal: images, audio, video, and PDF attachments
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Custom presets, system prompts, 4 response modes, and persistent memory
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Built-in web search with SearXNG integration
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Switch providers and models mid-conversation without losing context
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Voice input, session history, auto-titling, and dark/light themes
+          </li>
+        </ul>
+        <div style="margin-top:32px" class="reveal reveal-d4">
+          <a href="/lumichat" class="hero-btn pri">Open LumiChat</a>
+        </div>
+      </div>
+      <div class="chat-preview reveal reveal-d2">
+        <div class="chat-preview-inner">
+          <div class="cp-header">
+            <span class="cp-dot" style="background:#ff5f57"></span>
+            <span class="cp-dot" style="background:#febc2e"></span>
+            <span class="cp-dot" style="background:#28c840"></span>
+            <span class="cp-model">claude-sonnet</span>
+          </div>
+          <div class="cp-msgs">
+            <div class="cp-msg user">Explain quantum entanglement simply</div>
+            <div class="cp-msg ai">Imagine two coins that are magically linked. When you flip one and it lands heads, the other instantly lands tails — no matter how far apart they are. That's entanglement: particles sharing a connected state across any distance.</div>
+            <div class="cp-msg user">Now explain it to a physicist</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Why self-host -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-label reveal" style="text-align:center">Why self-host</div>
+    <h2 class="section-title reveal reveal-d1" style="margin:0 auto">Your keys, your data,<br>your infrastructure</h2>
+    <p class="section-desc reveal reveal-d2" style="margin:16px auto 0">No third-party SaaS between you and the AI providers. No vendor lock-in. No usage data leaving your network. Full control over every request, every response, every byte.</p>
+    <div class="features" style="margin-top:48px;grid-template-columns:repeat(3,1fr)">
+      <div class="feat reveal" style="text-align:center">
+        <div class="feat-icon" style="margin:0 auto 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+        <h3>Zero data exposure</h3>
+        <p>API keys and conversations never leave your server. No third-party logging, no training on your data.</p>
+      </div>
+      <div class="feat reveal reveal-d1" style="text-align:center">
+        <div class="feat-icon" style="margin:0 auto 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+        <h3>Infinitely extensible</h3>
+        <p>Add any OpenAI-compatible provider. Custom models, private endpoints, on-premise LLMs — if it speaks HTTP, LumiGate can route to it.</p>
+      </div>
+      <div class="feat reveal reveal-d2" style="text-align:center">
+        <div class="feat-icon" style="margin:0 auto 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+        <h3>Run anywhere</h3>
+        <p>Docker on a $35 Raspberry Pi, a home NAS, a VPS, or a Kubernetes cluster. Same config, same performance, any scale.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+    <svg viewBox="0 0 40 40" width="20" height="20"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fff"/></svg>
+    <span style="font-weight:600;color:var(--t1)">LumiGate</span>
+  </div>
+  Self-hosted AI gateway &middot; <a href="/lumichat">LumiChat</a>
+</footer>
+
+<script>
+// Scroll reveal
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+// Nav background on scroll
+const nav = document.querySelector('nav');
+window.addEventListener('scroll', () => {
+  nav.style.background = window.scrollY > 40 ? 'rgba(10,10,10,0.92)' : 'rgba(10,10,10,0.7)';
+}, { passive: true });
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Secret dashboard entrance: triple-click the logo
+let _lc=0, _lt=0;
+document.querySelector('.nav-logo').addEventListener('click', e => {
+  e.preventDefault();
+  const now=Date.now();
+  if(now-_lt>600) _lc=0;
+  _lt=now; _lc++;
+  if(_lc>=3){ _lc=0; location.href='/dashboard'; }
+});
+</script>
+</body>
+</html>

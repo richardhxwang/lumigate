@@ -1,0 +1,14 @@
+{
+  "name": "lumigate-doc-gen",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Document generation microservice — Word, PowerPoint, Excel",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "docx": "^9.0.2",
+    "pptxgenjs": "^3.12.0",
+    "exceljs": "^4.4.0"
+  }
+}

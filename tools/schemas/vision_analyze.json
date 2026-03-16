@@ -1,0 +1,25 @@
+{
+  "name": "vision_analyze",
+  "description": "Analyze an image using vision capabilities. Can describe content, extract text (OCR), identify objects, read charts/diagrams, and answer questions about images.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "image_url": {
+        "type": "string",
+        "description": "URL of the image to analyze"
+      },
+      "prompt": {
+        "type": "string",
+        "description": "Question or instruction about the image (e.g. 'Describe this image', 'Extract all text', 'What objects are visible?')",
+        "default": "Describe this image in detail."
+      },
+      "detail": {
+        "type": "string",
+        "enum": ["low", "high", "auto"],
+        "description": "Image resolution for analysis. 'low' is faster/cheaper, 'high' provides more detail.",
+        "default": "auto"
+      }
+    },
+    "required": ["image_url"]
+  }
+}

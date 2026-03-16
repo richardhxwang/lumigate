@@ -1,0 +1,29 @@
+{
+  "name": "web_search",
+  "description": "Search the web for current information using SearXNG. Returns up to 8 results with title, URL, and content snippet.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "q": {
+        "type": "string",
+        "description": "The search query string"
+      },
+      "categories": {
+        "type": "string",
+        "description": "Comma-separated search categories (e.g. 'general', 'news', 'images', 'science', 'it')",
+        "default": "general"
+      },
+      "time_range": {
+        "type": "string",
+        "enum": ["day", "week", "month", "year"],
+        "description": "Limit results to a specific time range"
+      },
+      "language": {
+        "type": "string",
+        "description": "Search language code (e.g. 'en', 'zh', 'ja', 'de')",
+        "default": "en"
+      }
+    },
+    "required": ["q"]
+  }
+}

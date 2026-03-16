@@ -1,0 +1,18 @@
+{
+  "name": "parse_file",
+  "description": "Parse an uploaded file (PDF/Excel/Word/PPTX/CSV) and extract text content for analysis.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_url": {
+        "type": "string",
+        "description": "URL to download the file from"
+      },
+      "filename": {
+        "type": "string",
+        "description": "Original filename with extension (used to determine parser type)"
+      }
+    },
+    "required": ["file_url", "filename"]
+  }
+}

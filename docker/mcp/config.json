@@ -1,0 +1,16 @@
+{
+  "servers": [
+    {
+      "name": "playwright",
+      "transport": "streamable_http",
+      "description": "Browser automation: navigate pages, take screenshots, click elements, fill forms, run accessibility audits",
+      "url": "http://lumigate-playwright-mcp:3000/mcp"
+    },
+    {
+      "name": "filesystem",
+      "transport": "streamable_http",
+      "description": "Scoped filesystem access: read, write, list, search, and move files within /workspace",
+      "url": "http://lumigate-filesystem-mcp:3000/mcp"
+    }
+  ]
+}

@@ -7,6 +7,9 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* Hide main content until auth completes — prevents flash behind splash */
+  .container { visibility: hidden; }
+  .container.authed { visibility: visible; }
   body {
     font-family: 'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
     min-height: 100vh; min-height: 100dvh;
@@ -934,39 +937,69 @@
     <div class="modal-foot"><button class="btn" onclick="closeEditProj()">Cancel</button><button class="btn pri" onclick="saveEditProj()">Save</button></div>
   </div>
 </div>
-<div class="overlay" id="loginOverlay">
-  <div class="modal">
-    <h3>Login</h3>
+<!-- Splash screen -->
+<style nonce="{{NONCE}}">
+  #lgSplash{position:fixed;inset:0;z-index:600;background:#f2f2f7;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px;box-sizing:border-box}
+  #lgBallWrap{transform-origin:center bottom}
+  #lgBall{display:block;animation:lg-ball-drop 1.5s ease forwards;transform-origin:center bottom}
+  @keyframes lg-ball-drop{
+    0%  {transform:translateY(-300px);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    36% {transform:translateY(0) scaleY(.91) scaleX(1.09);animation-timing-function:cubic-bezier(0,.55,.45,1)}
+    52% {transform:translateY(-90px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    65% {transform:translateY(0) scaleY(.95) scaleX(1.05);animation-timing-function:cubic-bezier(0,.55,.45,1)}
+    74% {transform:translateY(-34px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+    82% {transform:translateY(0) scaleY(.98) scaleX(1.02);animation-timing-function:ease-out}
+    88% {transform:translateY(-6px)}
+    100%{transform:translateY(0)}
+  }
+  #lgTitle{font-size:28px;font-weight:700;letter-spacing:-.5px;opacity:0;animation:lg-title-in .5s ease forwards;animation-delay:1.1s;color:#1c1c1e}
+  @keyframes lg-title-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  #lgSubtitle{font-size:13px;color:rgba(0,0,0,0.4);margin-top:2px;opacity:0}
+  #lgFormArea{width:100%;max-width:340px;opacity:0;transform:translateY(16px);visibility:hidden}
+</style>
+
+<!-- Single full-screen overlay: splash + login in one -->
+<div id="lgSplash">
+  <!-- Logo group: starts centered, will move up when form appears -->
+  <div id="lgLogoGroup" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:16px">
+    <div id="lgBallWrap">
+      <svg id="lgBall" viewBox="0 0 40 40" width="64" height="64">
+        <circle cx="20" cy="20" r="20" fill="#10a37f"/>
+        <path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        <circle cx="20" cy="20" r="3" fill="#fff"/>
+      </svg>
+    </div>
+    <div id="lgTitle">Lumi<span id="lgAccent" style="color:inherit">Gate</span></div>
+    <div id="lgSubtitle">Admin Dashboard</div>
+  </div>
+  <!-- Form: hidden initially, fades in after logo settles -->
+  <div id="lgFormArea">
     <!-- Step 1: credentials -->
     <div id="loginStep1">
-      <div class="login-tabs" style="display:flex;gap:0;margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid rgba(0,0,0,0.08)">
-        <button class="login-tab active" onclick="switchLoginTab('secret')" id="ltSecret" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:rgba(0,113,227,0.08);color:#0071e3">Admin Secret</button>
-        <button class="login-tab" onclick="switchLoginTab('user')" id="ltUser" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:transparent;color:rgba(0,0,0,0.4)">Username</button>
+      <div style="display:flex;gap:0;margin-bottom:16px;border-radius:10px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
+        <button onclick="switchLoginTab('secret')" id="ltSecret" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:rgba(16,163,127,0.08);color:#10a37f;font-family:inherit;transition:all .15s">Admin Secret</button>
+        <button onclick="switchLoginTab('user')" id="ltUser" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:rgba(0,0,0,0.4);font-family:inherit;transition:all .15s">Username</button>
       </div>
       <div id="loginSecretPane">
-        <div class="fg"><label>Admin Secret</label><input type="password" id="loginSecret" placeholder="Enter ADMIN_SECRET"></div>
+        <input type="password" id="loginSecret" placeholder="Admin Secret" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid rgba(0,0,0,0.06);font-size:15px;font-family:inherit;color:#1c1c1e;background:rgba(255,255,255,0.6);min-height:48px;outline:none;margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <div id="loginUserPane" style="display:none">
-        <div class="fg"><label>Username</label><input type="text" id="loginUsername" placeholder="Username" autocomplete="username"></div>
-        <div class="fg"><label>Password</label><input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password"></div>
+        <input type="text" id="loginUsername" placeholder="Username" autocomplete="username" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid rgba(0,0,0,0.06);font-size:15px;font-family:inherit;color:#1c1c1e;background:rgba(255,255,255,0.6);min-height:48px;outline:none;margin-bottom:10px" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid rgba(0,0,0,0.06);font-size:15px;font-family:inherit;color:#1c1c1e;background:rgba(255,255,255,0.6);min-height:48px;outline:none;margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
-      <div class="modal-foot"><button class="btn pri" onclick="doLogin()">Login</button></div>
+      <button class="btn pri" onclick="doLogin()" style="width:100%;padding:14px;font-size:15px;font-weight:600;border-radius:12px;min-height:48px;background:#10a37f;border-color:#10a37f">Continue</button>
+      <div id="loginError" style="text-align:center;font-size:12px;color:#ff3b30;margin-top:10px;min-height:18px"></div>
     </div>
     <!-- Step 2: MFA code -->
     <div id="loginStep2" style="display:none">
-      <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:32px;margin-bottom:8px">🔐</div>
-        <div style="font-size:13px;color:rgba(0,0,0,0.5);line-height:1.5">Enter the 6-digit code from<br>Google Authenticator or Okta Verify</div>
+      <div style="text-align:center;margin-bottom:20px">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#10a37f" stroke-width="1.8" style="margin-bottom:8px"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        <div style="font-size:13px;color:rgba(0,0,0,0.4);line-height:1.5">Enter the 6-digit code from your<br>authenticator app</div>
       </div>
-      <div class="fg">
-        <label>Authentication Code</label>
-        <input type="text" id="mfaCode" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*"
-          style="letter-spacing:8px;font-size:22px;text-align:center;font-weight:600"
-          onkeydown="if(event.key==='Enter')doMfaLogin()">
-      </div>
-      <div class="modal-foot" style="gap:8px">
-        <button class="btn" onclick="cancelMfa()">Back</button>
-        <button class="btn pri" onclick="doMfaLogin()">Verify</button>
+      <input type="text" id="mfaCode" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="width:100%;padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.06);font-size:24px;text-align:center;font-weight:700;letter-spacing:8px;font-family:inherit;color:#1c1c1e;background:rgba(255,255,255,0.6);min-height:48px;outline:none;margin-bottom:12px" onkeydown="if(event.key==='Enter')doMfaLogin()">
+      <div style="display:flex;gap:10px">
+        <button class="btn" onclick="cancelMfa()" style="flex:1;padding:14px;font-size:15px;border-radius:12px;min-height:48px">Back</button>
+        <button class="btn pri" onclick="doMfaLogin()" style="flex:1;padding:14px;font-size:15px;font-weight:600;border-radius:12px;min-height:48px;background:#10a37f;border-color:#10a37f">Verify</button>
       </div>
     </div>
   </div>
@@ -1001,7 +1034,7 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script nonce="{{NONCE}}">
 const B = location.origin;
 const modelsCache = {};
 let providers = [];
@@ -1375,24 +1408,104 @@ async function saveFreeTierMode() {
   loadUsage();
 }
 
+// ── Splash → Login animation ──
+// Single overlay (#lgSplash). Ball bounces, title fades in (centered).
+// Then logo group moves up, shrinks slightly, "Gate" turns green.
+// Subtitle + form fade in below.
+
+function showLoginForm() {
+  const splash = document.getElementById('lgSplash');
+  const ball = document.getElementById('lgBall');
+  const logoGroup = document.getElementById('lgLogoGroup');
+  const subtitle = document.getElementById('lgSubtitle');
+  const accent = document.getElementById('lgAccent');
+  const formArea = document.getElementById('lgFormArea');
+
+  if (!splash || !ball) return Promise.resolve();
+
+  return new Promise(resolve => {
+    // Wait for ball bounce (1.5s) + title fade (0.5s after 1.1s delay) = ~1.6s
+    // Then start the move-up transition
+    setTimeout(() => {
+      // "Gate" gradually turns green
+      if (accent) {
+        accent.style.transition = 'color .8s cubic-bezier(.4,0,.2,1)';
+        accent.style.color = '#10a37f';
+      }
+
+      // Ball shrinks from 64 to 54
+      ball.style.animation = 'none';
+      ball.style.transition = 'width .8s cubic-bezier(.4,0,.2,1), height .8s cubic-bezier(.4,0,.2,1)';
+      ball.style.width = '54px';
+      ball.style.height = '54px';
+
+      // After shrink + color: show subtitle, then form slides up
+      setTimeout(() => {
+        // Subtitle fades in
+        subtitle.style.transition = 'opacity .4s ease';
+        subtitle.style.opacity = '1';
+
+        // Form: make visible, force reflow, then animate
+        formArea.style.visibility = 'visible';
+        formArea.getBoundingClientRect();
+
+        setTimeout(() => {
+          formArea.style.transition = 'opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1)';
+          formArea.style.opacity = '1';
+          formArea.style.transform = 'translateY(0)';
+
+          setTimeout(() => {
+            formArea.style.transition = '';
+            resolve();
+          }, 550);
+        }, 120);
+      }, 820);
+    }, 1700);
+  });
+}
+
+function showLoginOverlay() {
+  const splash = document.getElementById('lgSplash');
+  if (splash) splash.style.display = 'flex';
+  const formArea = document.getElementById('lgFormArea');
+  if (formArea) { formArea.style.visibility = 'visible'; formArea.style.opacity = '1'; formArea.style.transform = 'none'; }
+  const subtitle = document.getElementById('lgSubtitle');
+  if (subtitle) subtitle.style.opacity = '1';
+  const accent = document.getElementById('lgAccent');
+  if (accent) accent.style.color = '#10a37f';
+  const ball = document.getElementById('lgBall');
+  if (ball) { ball.style.animation = 'none'; ball.style.width = '54px'; ball.style.height = '54px'; }
+}
+
 async function checkAuth() {
   try {
     const d = await fetch(B + '/admin/auth').then(r => r.json());
     adminAuthed = d.authenticated;
     userRole = d.role || '';
     userProjects = d.projects || [];
-    if (!adminAuthed) document.getElementById('loginOverlay').classList.add('show');
-    else applyRoleUI();
+
+    if (!adminAuthed) {
+      await showLoginForm();
+    } else {
+      // Already authed — hide splash quickly
+      const splash = document.getElementById('lgSplash');
+      if (splash) { splash.style.transition = 'opacity .3s'; splash.style.opacity = '0'; setTimeout(() => splash.style.display = 'none', 300); }
+      document.querySelector('.container')?.classList.add('authed');
+      applyRoleUI();
+    }
     return adminAuthed;
-  } catch { return false; }
+  } catch {
+    await showLoginForm();
+    return false;
+  }
 }
 
 function switchLoginTab(tab) {
   document.getElementById('loginSecretPane').style.display = tab === 'secret' ? '' : 'none';
   document.getElementById('loginUserPane').style.display = tab === 'user' ? '' : 'none';
   const s = document.getElementById('ltSecret'), u = document.getElementById('ltUser');
-  if (tab === 'secret') { s.style.background = 'rgba(0,113,227,0.08)'; s.style.color = '#0071e3'; u.style.background = 'transparent'; u.style.color = 'rgba(0,0,0,0.4)'; }
-  else { u.style.background = 'rgba(0,113,227,0.08)'; u.style.color = '#0071e3'; s.style.background = 'transparent'; s.style.color = 'rgba(0,0,0,0.4)'; }
+  if (tab === 'secret') { s.style.background = 'rgba(16,163,127,0.08)'; s.style.color = '#10a37f'; u.style.background = 'transparent'; u.style.color = 'var(--t3,rgba(0,0,0,0.4))'; }
+  else { u.style.background = 'rgba(16,163,127,0.08)'; u.style.color = '#10a37f'; s.style.background = 'transparent'; s.style.color = 'var(--t3,rgba(0,0,0,0.4))'; }
 }
 
 let _pendingMfaToken = null;
@@ -1459,7 +1572,9 @@ function cancelMfa() {
 }
 
 function onLoginSuccess(role) {
-  document.getElementById('loginOverlay').classList.remove('show');
+  const splash = document.getElementById('lgSplash');
+  if (splash) { splash.style.transition = 'opacity .4s'; splash.style.opacity = '0'; setTimeout(() => splash.style.display = 'none', 400); }
+  document.querySelector('.container')?.classList.add('authed');
   adminAuthed = true;
   userRole = role;
   applyRoleUI();
@@ -1472,7 +1587,9 @@ async function doLogout() {
   await fetch(B + '/admin/logout', { method: 'POST' }).catch(() => {});
   adminAuthed = false;
   clearTimeout(_inactivityTimer);
-  document.getElementById('loginOverlay').classList.add('show');
+  const splash = document.getElementById('lgSplash');
+  if (splash) { splash.style.opacity = '1'; splash.style.display = 'flex'; }
+  showLoginOverlay();
   document.getElementById('loginStep1').style.display = '';
   document.getElementById('loginStep2').style.display = 'none';
 }
@@ -1487,7 +1604,9 @@ function resetInactivityTimer() {
     if (!adminAuthed) return;
     await fetch(B + '/admin/logout', { method: 'POST' }).catch(() => {});
     adminAuthed = false;
-    document.getElementById('loginOverlay').classList.add('show');
+    const sp = document.getElementById('lgSplash');
+    if (sp) { sp.style.opacity = '1'; sp.style.display = 'flex'; }
+    showLoginOverlay();
     document.getElementById('loginStep1').style.display = '';
     document.getElementById('loginStep2').style.display = 'none';
     showT('已因无操作自动登出', 'success');

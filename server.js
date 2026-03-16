@@ -12,6 +12,12 @@ const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 require("dotenv").config();
 
+const { detectPII, getMapping, checkCommand, detectSecrets } = require("./security");
+const { registry, executeToolCall, TOOL_SYSTEM_PROMPT } = require("./tools/registry");
+const { unifiedRegistry } = require("./tools/unified-registry");
+const { createSecurityMiddleware } = require("./middleware/security-middleware");
+const { createAuditMiddleware } = require("./middleware/audit-middleware");
+
 const dnsLookup = promisify(dns.lookup);
 
 function safeEqual(a, b) {
@@ -183,6 +189,11 @@ function validateProjectName(name) {
   if (name.length > 64) return false;
   if (/[<>"';&|`$\\]/.test(name)) return false;
   return true;
+}
+
+// Validate PocketBase record ID format (15-char alphanumeric)
+function isValidPbId(id) {
+  return typeof id === 'string' && /^[a-z0-9]{15}$/i.test(id);
 }
 
 function validateSmartRouting(sr) {
@@ -568,7 +579,8 @@ function applyStealthConf(enabled) {
 }
 if (!fs.existsSync(STEALTH_CONF_FILE)) applyStealthConf(!!settings.stealthMode);
 
-// --- Collector token management ---
+// --- Collector token management (multi-account, encrypted, PB backup) ---
+// Structure: { deepseek: [{ id, label, credentials: "ENC:...", enabled }], ... }
 function loadCollectorTokens() {
   try {
     ensureDataDir();
@@ -581,8 +593,91 @@ function saveCollectorTokens(tokens) {
   const tmp = COLLECTOR_TOKENS_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, COLLECTOR_TOKENS_FILE);
+  // Non-blocking PB backup
+  backupCollectorTokensToPB(tokens).catch(() => {});
 }
 let collectorTokens = loadCollectorTokens();
+
+// Collector health state: { providerName: { status: 'ok'|'auth_expired'|'error'|'unknown', lastOk: ts, lastError: ts, error: string } }
+const collectorHealth = {};
+function setCollectorHealth(name, ok, errorMsg) {
+  if (!collectorHealth[name]) collectorHealth[name] = { status: 'unknown', lastOk: 0, lastError: 0, error: '' };
+  const h = collectorHealth[name];
+  if (ok) { h.status = 'ok'; h.lastOk = Date.now(); h.error = ''; }
+  else {
+    h.lastError = Date.now();
+    h.error = (errorMsg || '').slice(0, 200);
+    // Detect auth-specific errors
+    const msg = (errorMsg || '').toLowerCase();
+    h.status = (msg.includes('401') || msg.includes('403') || msg.includes('expired') || msg.includes('login') || msg.includes('auth') || msg.includes('session') || msg.includes('cookie') || msg.includes('unauthorized'))
+      ? 'auth_expired' : 'error';
+  }
+}
+
+// Get the first enabled account's decrypted credentials for a provider
+function getCollectorCredentials(providerName) {
+  const accounts = collectorTokens[providerName];
+  if (!Array.isArray(accounts)) {
+    // Legacy format: single encrypted string → migrate
+    if (typeof accounts === 'string') {
+      return JSON.parse(decryptValue(accounts, ADMIN_SECRET));
+    }
+    return null;
+  }
+  const active = accounts.find(a => a.enabled);
+  if (!active) return null;
+  return JSON.parse(decryptValue(active.credentials, ADMIN_SECRET));
+}
+
+// Check if provider has any collector accounts
+function hasCollectorToken(providerName) {
+  const accounts = collectorTokens[providerName];
+  if (!accounts) return false;
+  if (typeof accounts === 'string') return true; // legacy
+  return Array.isArray(accounts) && accounts.some(a => a.enabled);
+}
+
+// --- PB backup for collector tokens ---
+async function backupCollectorTokensToPB(tokens) {
+  try {
+    const pbToken = await getPbAdminToken();
+    if (!pbToken) return; // No PB auth = skip backup silently
+    const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${pbToken}` };
+    const payload = encryptValue(JSON.stringify(tokens), ADMIN_SECRET);
+    const list = await fetch(`${PB_URL}/api/collections/lc_collector_backup/records?perPage=1`, {
+      headers: authHeaders,
+    }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+    if (list && list.items && list.items.length > 0) {
+      await fetch(`${PB_URL}/api/collections/lc_collector_backup/records/${list.items[0].id}`, {
+        method: "PATCH", headers: authHeaders,
+        body: JSON.stringify({ data: payload, updated_at: new Date().toISOString() }),
+      });
+    } else {
+      await fetch(`${PB_URL}/api/collections/lc_collector_backup/records`, {
+        method: "POST", headers: authHeaders,
+        body: JSON.stringify({ data: payload }),
+      });
+    }
+  } catch {
+    // PB backup is best-effort, never block main flow
+  }
+}
+
+async function restoreCollectorTokensFromPB() {
+  const pbToken = await getPbAdminToken();
+  const headers = pbToken ? { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  const list = await fetch(`${PB_URL}/api/collections/lc_collector_backup/records?perPage=1`, {
+    headers,
+  }).then(r => r.json());
+  if (!list?.items?.length) throw new Error("No collector backup found in PocketBase");
+  const encrypted = list.items[0].data;
+  const decrypted = decryptValue(encrypted, ADMIN_SECRET);
+  const tokens = JSON.parse(decrypted);
+  collectorTokens = tokens;
+  saveCollectorTokens(tokens); // save locally (also re-backs-up, but idempotent)
+  return { restored: Object.keys(tokens).length };
+}
 
 // Provider access mode: "api_key" (default) or "collector"
 // Persisted in settings.providerAccessModes = { deepseek: "collector", ... }
@@ -638,7 +733,7 @@ function createBackup() {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = path.join(BACKUP_DIR, `backup-${ts}`);
   fs.mkdirSync(backupPath);
-  const files = [PROJECTS_FILE, USAGE_FILE, RATE_FILE, USERS_FILE, SETTINGS_FILE, KEYS_FILE];
+  const files = [PROJECTS_FILE, USAGE_FILE, RATE_FILE, USERS_FILE, SETTINGS_FILE, KEYS_FILE, COLLECTOR_TOKENS_FILE];
   let copied = 0;
   for (const f of files) {
     if (fs.existsSync(f)) {
@@ -1172,9 +1267,18 @@ const loginLimiter = rateLimit({
 const lcAuthLimiter = rateLimit({
   ...rateLimitOpts,
   windowMs: 15 * 60 * 1000,
-  max: 15, // 15 attempts per 15 min per IP (covers login + register + check-email)
+  max: 15, // 15 attempts per 15 min per IP (covers login + check-email)
   message: { error: "Too many requests, please try again later" },
 });
+// Strict registration limiter: 3 per hour per IP + global 20 per hour
+const lcRegisterLimiter = rateLimit({
+  ...rateLimitOpts,
+  windowMs: 60 * 60 * 1000,
+  max: 3, // 3 registrations per hour per IP
+  message: { error: "Registration limit reached, try again later" },
+});
+let _globalRegCount = 0;
+setInterval(() => { _globalRegCount = 0; }, 60 * 60 * 1000); // reset hourly
 
 // 4. Body parser with size limit (F-09: reduced from 100mb)
 app.use(express.json({
@@ -1187,6 +1291,21 @@ app.use((req, res, next) => {
   req.setTimeout(120000); // 2 min for AI responses
   next();
 });
+
+// 5b. Security middleware — PII/command detection + PB security_events logging
+app.use(createSecurityMiddleware({
+  pbUrl: process.env.PB_URL || "http://host.docker.internal:8090",
+  enabled: true,
+  ollamaEnabled: !!process.env.OLLAMA_URL,
+  ollamaUrl: process.env.OLLAMA_URL || "http://host.docker.internal:11434",
+  ollamaModel: process.env.OLLAMA_MODEL || "qwen2.5:1.5b",
+}));
+
+// 5c. Audit middleware — logs significant events to PB audit_log
+app.use(createAuditMiddleware({
+  pbUrl: process.env.PB_URL || "http://host.docker.internal:8090",
+  enabled: mod("audit"),
+}));
 
 // 6. SLI metrics tracking (requires "metrics" module)
 if (mod("metrics")) {
@@ -1336,7 +1455,7 @@ app.get("/health", (req, res) => {
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
-  res.json({ ...base, mode: DEPLOY_MODE, modules: [...modules], providers: available });
+  res.json({ ...base, mode: DEPLOY_MODE, modules: [...modules], providers: available, platform: { parse: true, audio: true, vision: true, code: true } });
 });
 
 // Public: { name, baseUrl, available } — minimum needed by dashboard UI per CLAUDE.md.
@@ -1346,8 +1465,13 @@ app.get("/providers", (req, res) => {
   res.json(Object.entries(PROVIDERS).map(([name, cfg]) => {
     const allKeys = providerKeys[name] || [];
     const enabledKeys = allKeys.filter(k => k.enabled);
-    const isCollector = getProviderAccessMode(name) === "collector" && !!collectorTokens[name];
-    const entry = { name, baseUrl: cfg.baseUrl, available: enabledKeys.length > 0 || isCollector, accessMode: getProviderAccessMode(name) };
+    const mode = getProviderAccessMode(name);
+    const isCollector = mode === "collector" && hasCollectorToken(name);
+    const entry = { name, baseUrl: cfg.baseUrl, available: enabledKeys.length > 0 || isCollector, accessMode: mode };
+    // Collector health signal: clients use this to show auth status
+    if (mode === "collector" && collectorHealth[name]) {
+      entry.collectorStatus = collectorHealth[name].status; // 'ok' | 'auth_expired' | 'error' | 'unknown'
+    }
     if (admin) { entry.keyCount = allKeys.length; entry.enabledCount = enabledKeys.length; }
     return entry;
   }));
@@ -1358,22 +1482,55 @@ app.get("/models/:provider", (req, res) => {
   res.json(MODELS[name] || []);
 });
 
+// Collector health signal — lightweight, no admin auth, for any client app
+// Returns: { providers: { doubao: { status, lastOk, lastError }, ... } }
+app.get("/collector/health", (req, res) => {
+  const result = {};
+  for (const [name] of Object.entries(PROVIDERS)) {
+    if (getProviderAccessMode(name) !== "collector") continue;
+    const h = collectorHealth[name];
+    result[name] = h
+      ? { status: h.status, lastOk: h.lastOk || null, lastError: h.lastError || null, error: h.error || null }
+      : { status: hasCollectorToken(name) ? 'unknown' : 'no_credentials', lastOk: null, lastError: null, error: null };
+  }
+  res.json({ providers: result });
+});
+
 // Static files (CSS/JS/images only, HTML served dynamically below)
 app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
 app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
 app.use("/lumichat-icon.svg", express.static(path.join(__dirname, "public", "lumichat-icon.svg")));
 app.use("/lumichat-libs", express.static(path.join(__dirname, "public", "lumichat-libs")));
 
-// Serve dashboard — inject nothing (auth handled by cookie)
+// Landing page
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  const htmlPath = path.join(__dirname, "public", "landing.html");
+  if (fs.existsSync(htmlPath)) return res.sendFile(htmlPath);
+  // Fallback: redirect to dashboard if landing page not yet created
+  res.redirect("/v1/sys/panel");
 });
+
+// Serve dashboard (nonce-CSP injected; 'unsafe-inline' kept as fallback for inline event handlers)
+app.get("/v1/sys/panel", (req, res) => {
+  const htmlPath = path.join(__dirname, "public", "index.html");
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader("Content-Security-Policy",
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'`
+  );
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  const html = fs.readFileSync(htmlPath, 'utf8').replace(/\{\{NONCE\}\}/g, nonce);
+  res.send(html);
+});
+
+// Old dashboard path — return 404
+app.get("/dashboard", (req, res) => res.status(404).end());
 
 // F-02: Serve chat — requires root/admin session (no key exposed to browser)
 app.get("/chat", (req, res) => {
-  if (!mod("chat")) return res.redirect("/");
+  if (!mod("chat")) return res.redirect("/v1/sys/panel");
   const role = getSessionRole(req);
-  if (!role || role === "user") return res.redirect("/");
+  if (!role || role === "user") return res.redirect("/v1/sys/panel");
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.sendFile(path.join(__dirname, "public", "chat.html"));
 });
@@ -2045,6 +2202,9 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
     authRotateHours: settings.authRotateHours || 24,
     authLastRotated: settings.authLastRotated || null,
     stealthMode: !!settings.stealthMode,
+    // LumiChat approval
+    approvalEmail: settings.approvalEmail || "",
+    approvalEnabled: settings.approvalEnabled !== false,
     // SMTP (password redacted)
     smtpHost: settings.smtpHost || "",
     smtpPort: settings.smtpPort || 587,
@@ -2059,7 +2219,7 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
 app.put("/admin/settings", requireRole("root"), (req, res) => {
   const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours, confirmSecret,
           smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpTo, smtpEnabled,
-          stealthMode } = req.body;
+          stealthMode, approvalEmail, approvalEnabled } = req.body;
   // Require re-authentication for settings changes
   if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
     return res.status(403).json({ error: "Admin secret required to change settings" });
@@ -2128,6 +2288,8 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   if (typeof smtpFrom === "string") { settings.smtpFrom = smtpFrom.trim(); changes.smtpFrom = settings.smtpFrom; }
   if (typeof smtpTo === "string") { settings.smtpTo = smtpTo.trim(); changes.smtpTo = settings.smtpTo; }
   if (smtpEnabled !== undefined) { settings.smtpEnabled = !!smtpEnabled; changes.smtpEnabled = settings.smtpEnabled; }
+  if (typeof approvalEmail === "string") { settings.approvalEmail = approvalEmail.trim(); changes.approvalEmail = settings.approvalEmail; }
+  if (approvalEnabled !== undefined) { settings.approvalEnabled = !!approvalEnabled; changes.approvalEnabled = settings.approvalEnabled; }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
   res.json({
@@ -2185,6 +2347,203 @@ async function rotateAdminToken() {
 
 // Start rotation schedule if configured
 scheduleTokenRotation();
+
+// --- PocketBase admin token (for managing LumiChat user tiers) ---
+let _pbAdminToken = null;
+let _pbAdminTokenPromise = null;
+async function getPbAdminToken() {
+  if (_pbAdminToken) return _pbAdminToken;
+  if (_pbAdminTokenPromise) return _pbAdminTokenPromise;
+  const email = process.env.PB_ADMIN_EMAIL;
+  const password = process.env.PB_ADMIN_PASSWORD;
+  if (!email || !password) return null;
+  _pbAdminTokenPromise = (async () => {
+    try {
+      const r = await fetch(`${PB_URL}/api/collections/_superusers/auth-with-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity: email, password }),
+      });
+      if (!r.ok) return null;
+      const data = await r.json();
+      _pbAdminToken = data.token;
+      setTimeout(() => { _pbAdminToken = null; }, 30 * 60 * 1000);
+      return _pbAdminToken;
+    } catch { return null; }
+  })().finally(() => { _pbAdminTokenPromise = null; });
+  return _pbAdminTokenPromise;
+}
+
+// --- LumiChat Tier Cache ---
+const lcTierCache = new Map(); // userId → { tier, byokKeys[], updatedAt }
+const LC_TIER_CACHE_TTL = 5 * 60 * 1000;
+const TIER_RPM = { basic: 30, premium: 120, selfservice: 60 };
+const COLLECTOR_PROVIDERS = ["doubao", "kimi", "qwen"];
+
+async function getLcUserTier(userId, lcToken) {
+  if (!isValidPbId(userId)) return { tier: null, byokKeys: [], updatedAt: Date.now() };
+  const cached = lcTierCache.get(userId);
+  if (cached && Date.now() - cached.updatedAt < LC_TIER_CACHE_TTL) return cached;
+
+  try {
+    // Fetch tier from lc_user_settings
+    const settingsRes = await fetch(
+      `${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`,
+      { headers: { Authorization: lcToken ? `Bearer ${lcToken}` : undefined } }
+    );
+    const settingsData = await settingsRes.json();
+    const tier = settingsData.items?.[0]?.tier || null; // null = pending approval
+    const upgradeRequest = settingsData.items?.[0]?.upgrade_request || '';
+
+    // Fetch BYOK keys
+    let byokKeys = [];
+    if (tier === 'selfservice') {
+      const keysRes = await fetch(
+        `${PB_URL}/api/collections/lc_user_apikeys/records?filter=user='${userId}'&perPage=50`,
+        { headers: { Authorization: lcToken ? `Bearer ${lcToken}` : undefined } }
+      );
+      const keysData = await keysRes.json();
+      byokKeys = (keysData.items || []).map(k => ({
+        id: k.id, provider: k.provider, key_encrypted: k.key_encrypted,
+        label: k.label, enabled: k.enabled,
+      }));
+    }
+
+    const entry = { tier, byokKeys, upgradeRequest, updatedAt: Date.now() };
+    lcTierCache.set(userId, entry);
+    return entry;
+  } catch {
+    return { tier: null, byokKeys: [], updatedAt: Date.now() }; // fail-closed: pending
+  }
+}
+
+// --- Admin API: LumiChat User Management ---
+app.get("/admin/lc-users", requireRole("root", "admin"), async (req, res) => {
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
+  try {
+    const page = req.query.page || 1;
+    const perPage = req.query.perPage || 50;
+    const usersRes = await fetch(`${PB_URL}/api/collections/users/records?perPage=${perPage}&page=${page}&sort=-created`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    const usersData = await usersRes.json();
+
+    // Batch fetch tiers from lc_user_settings
+    const userIds = (usersData.items || []).map(u => u.id);
+    let tierMap = {};
+    if (userIds.length) {
+      const filter = userIds.map(id => `user='${id}'`).join('||');
+      const settingsRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=${encodeURIComponent(filter)}&perPage=100`, {
+        headers: { Authorization: `Bearer ${pbToken}` },
+      });
+      const settingsData = await settingsRes.json();
+      for (const s of (settingsData.items || [])) {
+        tierMap[s.user] = { tier: s.tier || 'basic', settingsId: s.id };
+      }
+    }
+
+    const result = (usersData.items || []).map(u => ({
+      id: u.id, email: u.email, name: u.name, verified: u.verified,
+      created: u.created, avatar: u.avatar,
+      tier: tierMap[u.id]?.tier || 'basic',
+      settingsId: tierMap[u.id]?.settingsId,
+    }));
+
+    res.json({ items: result, totalItems: usersData.totalItems, totalPages: usersData.totalPages, page: usersData.page });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
+  const { tier } = req.body;
+  if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid user id" });
+  if (!['basic', 'premium', 'selfservice'].includes(tier)) {
+    return res.status(400).json({ error: "tier must be basic, premium, or selfservice" });
+  }
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
+
+  const userId = req.params.id;
+  try {
+    // Find or create settings record
+    const findRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    const findData = await findRes.json();
+
+    if (findData.items?.length) {
+      // Update existing
+      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, tier_updated: new Date().toISOString() }),
+      });
+    } else {
+      // Create new settings record
+      await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: userId, tier, tier_updated: new Date().toISOString() }),
+      });
+    }
+
+    // Invalidate cache
+    lcTierCache.delete(userId);
+    audit(req.userName, "lc_user_tier_change", userId, { tier });
+    res.json({ success: true, tier });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/admin/lc-subscriptions", requireRole("root", "admin"), async (req, res) => {
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
+  try {
+    const r = await fetch(`${PB_URL}/api/collections/lc_subscriptions/records?perPage=100&sort=-created&expand=user`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/admin/lc-subscriptions", requireRole("root"), async (req, res) => {
+  const { userId, expiresAt, notes } = req.body;
+  if (!userId || !expiresAt) return res.status(400).json({ error: "userId and expiresAt required" });
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
+  try {
+    const r = await fetch(`${PB_URL}/api/collections/lc_subscriptions/records`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user: userId, plan: 'premium', status: 'active',
+        starts_at: new Date().toISOString(), expires_at: expiresAt,
+        notes: notes || '',
+      }),
+    });
+    const data = await r.json();
+    // Auto-set tier to premium
+    await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    }).then(async findRes => {
+      const findData = await findRes.json();
+      const url = findData.items?.length
+        ? `${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`
+        : `${PB_URL}/api/collections/lc_user_settings/records`;
+      await fetch(url, {
+        method: findData.items?.length ? 'PATCH' : 'POST',
+        headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(findData.items?.length ? {} : { user: userId }), tier: 'premium', tier_updated: new Date().toISOString() }),
+      });
+    });
+    lcTierCache.delete(userId);
+    audit(req.userName, "lc_subscription_create", userId, { expiresAt });
+    res.json({ success: true, id: data.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // Update API key at runtime + persist to .env (sanitized)
 app.post("/admin/key", requireRole("root"), async (req, res) => {
@@ -2424,17 +2783,22 @@ app.delete("/admin/keys/:provider/:keyId", requireModule("multikey"), requireRol
   res.json({ success: true });
 });
 
-// --- Collector management (web collection adapters) ---
-const COLLECTOR_SUPPORTED = ["deepseek", "doubao", "chatgpt", "kimi", "qwen"];
+// --- Collector management (multi-account, encrypted, PB backup) ---
+const COLLECTOR_SUPPORTED = ["deepseek", "doubao", "kimi", "qwen"];
 
-// Get collector status for all providers
+// Get collector status for all providers (with per-account info)
 app.get("/admin/collector/status", requireRole("root", "admin"), (req, res) => {
   const status = {};
   for (const name of Object.keys(PROVIDERS)) {
+    const accounts = collectorTokens[name];
+    const accountList = Array.isArray(accounts) ? accounts.map(a => ({
+      id: a.id, label: a.label, enabled: a.enabled,
+    })) : [];
     status[name] = {
       accessMode: getProviderAccessMode(name),
       collectorSupported: COLLECTOR_SUPPORTED.includes(name),
-      hasToken: !!collectorTokens[name],
+      hasToken: hasCollectorToken(name),
+      accounts: accountList,
       keyUrl: PROVIDERS[name].keyUrl || null,
     };
   }
@@ -2443,22 +2807,203 @@ app.get("/admin/collector/status", requireRole("root", "admin"), (req, res) => {
   res.json({ providers: status, credentialFields });
 });
 
-// Save collector session token (encrypted)
+// Add collector account (multi-account)
+app.post("/admin/collector/accounts/:provider", requireRole("root", "admin"), (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  if (!PROVIDERS[name]) return res.status(404).json({ error: "Unknown provider" });
+  if (!COLLECTOR_SUPPORTED.includes(name)) return res.status(400).json({ error: `Collector not supported for ${name}` });
+  const { label, credentials } = req.body;
+  if (!credentials || typeof credentials !== "object") return res.status(400).json({ error: "credentials object required" });
+  if (!label || typeof label !== "string") return res.status(400).json({ error: "label required" });
+  if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+  if (collectorTokens[name].length >= 20) return res.status(400).json({ error: "Maximum 20 accounts per provider" });
+  const entry = {
+    id: crypto.randomBytes(8).toString('hex'),
+    label: label.slice(0, 32),
+    credentials: encryptValue(JSON.stringify(credentials), ADMIN_SECRET),
+    enabled: true,
+  };
+  collectorTokens[name].push(entry);
+  saveCollectorTokens(collectorTokens);
+  audit(req.userName, "collector_account_add", name, { label: entry.label });
+  log("info", "Collector account added", { provider: name, label: entry.label });
+  res.json({ success: true, id: entry.id });
+});
+
+// Update collector account (enable/disable, relabel)
+app.put("/admin/collector/accounts/:provider/:accountId", requireRole("root", "admin"), (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  const accounts = collectorTokens[name];
+  if (!Array.isArray(accounts)) return res.status(404).json({ error: "No accounts for this provider" });
+  const entry = accounts.find(a => a.id === req.params.accountId);
+  if (!entry) return res.status(404).json({ error: "Account not found" });
+  if (req.body.label) entry.label = String(req.body.label).slice(0, 32);
+  if (req.body.enabled !== undefined) entry.enabled = req.body.enabled === true;
+  if (req.body.credentials && typeof req.body.credentials === "object") {
+    entry.credentials = encryptValue(JSON.stringify(req.body.credentials), ADMIN_SECRET);
+  }
+  saveCollectorTokens(collectorTokens);
+  audit(req.userName, "collector_account_update", `${name}/${req.params.accountId}`);
+  res.json({ success: true });
+});
+
+// Delete collector account
+app.delete("/admin/collector/accounts/:provider/:accountId", requireRole("root", "admin"), (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  if (!Array.isArray(collectorTokens[name])) return res.status(404).json({ error: "No accounts" });
+  collectorTokens[name] = collectorTokens[name].filter(a => a.id !== req.params.accountId);
+  if (collectorTokens[name].length === 0) delete collectorTokens[name];
+  saveCollectorTokens(collectorTokens);
+  audit(req.userName, "collector_account_delete", `${name}/${req.params.accountId}`);
+  res.json({ success: true });
+});
+
+// Login: open Chrome login window, detect cookie, auto-close, save credentials
+const COLLECTOR_LOGIN_SITES = {
+  doubao:  { url: 'https://www.doubao.com/chat/', cookie: 'sessionid', name: '豆包' },
+  qwen:   { url: 'https://chat.qwen.ai/',         cookie: 'qwen_session', name: '通义千问' },
+  kimi:   { url: 'https://www.kimi.com/',          cookie: 'kimi-auth', name: 'Kimi' },
+};
+// Login state: background polling runs after login starts
+let _loginState = { active: false, provider: null, status: 'idle', page: null, ctx: null };
+
+// Step 1: Start login — navigate Chrome to login page, return immediately
+app.post("/admin/collector/login/:provider", requireRole("root", "admin"), async (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  if (!COLLECTOR_LOGIN_SITES[name]) return res.status(400).json({ error: "Unsupported provider" });
+  if (_loginState.active) return res.status(409).json({ error: `Login in progress: ${_loginState.provider}` });
+
+  const site = COLLECTOR_LOGIN_SITES[name];
+  const cdpPort = process.env.CDP_PORT || 9223;
+  const cdpHost = process.env.CDP_HOST || 'localhost';
+
+  try {
+    const { chromium } = require('playwright-core');
+    let wsUrl;
+    try {
+      const r = await fetch(`http://${cdpHost}:${cdpPort}/json/version`, { signal: AbortSignal.timeout(2000) });
+      wsUrl = (await r.json()).webSocketDebuggerUrl;
+      // CDP WebSocket URL may have localhost — replace with correct host for Docker
+      if (cdpHost !== 'localhost') wsUrl = wsUrl.replace('localhost', cdpHost).replace('127.0.0.1', cdpHost);
+    } catch {
+      return res.status(500).json({ error: "Collector Chrome not running" });
+    }
+
+    const browser = await chromium.connectOverCDP(wsUrl);
+    const ctx = browser.contexts()[0];
+
+    // Check if already logged in
+    const existing = await ctx.cookies([site.url]);
+    if (existing.find(c => c.name === site.cookie && c.value.length > 5)) {
+      // Already logged in — save directly
+      if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+      if (!collectorTokens[name].some(a => a.enabled)) {
+        collectorTokens[name].push({
+          id: crypto.randomBytes(8).toString('hex'),
+          label: req.body?.label || 'Default',
+          credentials: encryptValue(JSON.stringify({ cdpPort: Number(cdpPort), cdpHost }), ADMIN_SECRET),
+          enabled: true,
+        });
+        saveCollectorTokens(collectorTokens);
+      }
+      return res.json({ success: true, status: 'already_logged_in', message: `${site.name} already logged in` });
+    }
+
+    // Open login page
+    const page = await ctx.newPage();
+    await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+
+    _loginState = { active: true, provider: name, status: 'waiting', page, ctx, label: req.body?.label || 'Default', cdpPort, cdpHost };
+
+    // Start background polling (non-blocking)
+    (async () => {
+      const site = COLLECTOR_LOGIN_SITES[name];
+      for (let i = 0; i < 300; i++) {
+        if (!_loginState.active) return;
+        const cookies = await ctx.cookies([site.url]).catch(() => []);
+        if (cookies.find(c => c.name === site.cookie && c.value.length > 5)) {
+          // Login detected! Close tab immediately (before chat page loads)
+          await page.close().catch(() => {});
+          // Save credentials
+          if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+          collectorTokens[name].push({
+            id: crypto.randomBytes(8).toString('hex'),
+            label: _loginState.label,
+            credentials: encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET),
+            enabled: true,
+          });
+          saveCollectorTokens(collectorTokens);
+          audit(null, "collector_login", name, { label: _loginState.label });
+          _loginState = { active: false, provider: null, status: 'success' };
+          return;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      // Timeout
+      await page.close().catch(() => {});
+      _loginState = { active: false, provider: null, status: 'timeout' };
+    })();
+
+    res.json({ success: true, status: 'waiting', provider: name });
+  } catch (e) {
+    _loginState = { active: false, provider: null, status: 'error' };
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Step 2: Poll login status (Dashboard calls this every 2s)
+app.get("/admin/collector/login/status", requireRole("root", "admin"), (req, res) => {
+  res.json({
+    active: _loginState.active,
+    provider: _loginState.provider,
+    status: _loginState.status, // 'idle' | 'waiting' | 'success' | 'timeout' | 'error'
+  });
+});
+
+// Cancel ongoing login
+app.delete("/admin/collector/login", requireRole("root", "admin"), async (req, res) => {
+  if (_loginState.active && _loginState.page) {
+    await _loginState.page.close().catch(() => {});
+  }
+  _loginState = { active: false, provider: null, status: 'idle' };
+  res.json({ success: true });
+});
+
+// Restore collector tokens from PB backup
+app.post("/admin/collector/restore", requireRole("root"), async (req, res) => {
+  try {
+    const result = await restoreCollectorTokensFromPB();
+    audit(req.userName, "collector_restore_from_pb", null, result);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Legacy: save single token (backward compat — converts to multi-account)
 app.put("/admin/collector/token/:provider", requireRole("root", "admin"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!PROVIDERS[name]) return res.status(404).json({ error: "Unknown provider" });
   if (!COLLECTOR_SUPPORTED.includes(name)) return res.status(400).json({ error: `Collector not supported for ${name}` });
   const { credentials } = req.body;
   if (!credentials || typeof credentials !== "object") return res.status(400).json({ error: "credentials object required" });
-  // Encrypt and save
-  collectorTokens[name] = encryptValue(JSON.stringify(credentials), ADMIN_SECRET);
+  // Convert to multi-account format
+  if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+  const entry = {
+    id: crypto.randomBytes(8).toString('hex'),
+    label: req.body.label || 'Default',
+    credentials: encryptValue(JSON.stringify(credentials), ADMIN_SECRET),
+    enabled: true,
+  };
+  // Replace if only one account, otherwise append
+  if (collectorTokens[name].length <= 1) collectorTokens[name] = [entry];
+  else collectorTokens[name].push(entry);
   saveCollectorTokens(collectorTokens);
   audit(req.userName, "collector_token_update", name);
-  log("info", "Collector token updated", { provider: name });
-  res.json({ success: true });
+  res.json({ success: true, id: entry.id });
 });
 
-// Delete collector session token
+// Legacy: delete all tokens for provider
 app.delete("/admin/collector/token/:provider", requireRole("root", "admin"), (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!collectorTokens[name]) return res.status(404).json({ error: "No collector token for this provider" });
@@ -2477,8 +3022,8 @@ app.put("/admin/providers/:name/access-mode", requireRole("root", "admin"), (req
   if (mode === "collector" && !COLLECTOR_SUPPORTED.includes(name)) {
     return res.status(400).json({ error: `Collector not supported for ${name}` });
   }
-  if (mode === "collector" && !collectorTokens[name]) {
-    return res.status(400).json({ error: "Save collector credentials first before switching to collector mode" });
+  if (mode === "collector" && !hasCollectorToken(name)) {
+    return res.status(400).json({ error: "Add a collector account first before switching to collector mode" });
   }
   setProviderAccessMode(name, mode);
   audit(req.userName, "access_mode_change", name, { mode });
@@ -2993,8 +3538,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
   }
 
   // Non-streaming
-  const anthropicData = await anthropicResp.json();
-  const openaiData = anthropicToOpenaiResponse(anthropicData, requestedModel);
+  let anthropicData = await anthropicResp.json();
   const tokens = { input: anthropicData.usage?.input_tokens || 0, cacheHit: 0, output: anthropicData.usage?.output_tokens || 0 };
   if (!req._proxyProject?.privacyMode) recordUsage(req._proxyProjectName, "anthropic", req._isSubscriptionKey ? `${requestedModel}:subscription` : requestedModel, tokens);
   if (req._proxyProject && (!req._isSubscriptionKey || req._proxyProject.subscriptionCountsSpending)) {
@@ -3002,6 +3546,111 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
     if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
     if (req._proxyProject.maxCostPerMin) recordCostForRateLimit(req._proxyProjectName, cost);
   }
+
+  // D. Non-streaming tool use execution
+  const toolUseBlocks = (anthropicData.content || []).filter(b => b.type === "tool_use");
+  if (toolUseBlocks.length > 0) {
+    try {
+      const toolResults = [];
+      for (const block of toolUseBlocks) {
+        const toolName = block.name;
+        const toolInput = block.input;
+        const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
+
+        // F. Tool call logging (async, non-blocking)
+        const userId = req._lcUserId || req._tokenUserId;
+        const projectId = projectName || req._proxyProjectName;
+        const sessionId = req._secSessionId || req.body?.session_id || req.headers?.["x-session-id"] || "";
+        getPbAdminToken().then(token => {
+          if (!token) return;
+          fetch(`${PB_URL}/api/collections/tool_calls/records`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: token },
+            body: JSON.stringify({
+              user: userId || projectId || "unknown",
+              source: req.get("X-Source") || "api",
+              tool_name: toolName,
+              input_json: JSON.stringify(toolInput),
+              output_json: JSON.stringify(result.data || { file: result.filename }),
+              status: result.ok ? "success" : "error",
+              error_message: result.error || "",
+              duration_ms: result.duration || 0,
+              session_id: sessionId,
+            }),
+          }).catch(() => {});
+        }).catch(() => {});
+
+        // If tool generated a file, save to PocketBase generated_files collection
+        if (result.ok && result.file) {
+          try {
+            const pbToken = await getPbAdminToken();
+            if (pbToken) {
+              const boundary = "----FormBoundary" + crypto.randomBytes(8).toString("hex");
+              const fieldParts = [];
+              fieldParts.push(`--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${result.filename}`);
+              fieldParts.push(`--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${result.mimeType}`);
+              fieldParts.push(`--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId || projectId || "unknown"}`);
+              const headerBuf = Buffer.from(`${fieldParts.join("\r\n")}\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${result.filename}"\r\nContent-Type: ${result.mimeType}\r\n\r\n`);
+              const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
+              const body = Buffer.concat([headerBuf, result.file, footerBuf]);
+              fetch(`${PB_URL}/api/collections/generated_files/records`, {
+                method: "POST",
+                headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
+                body,
+              }).catch(() => {});
+            }
+          } catch {}
+        }
+
+        // Build tool_result content
+        if (result.ok) {
+          const content = result.file
+            ? JSON.stringify({ filename: result.filename, mimeType: result.mimeType, size: result.file.length })
+            : JSON.stringify(result.data);
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content });
+        } else {
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify({ error: result.error }), is_error: true });
+        }
+      }
+
+      // Send new request to LLM with original messages + assistant tool_use + tool_results
+      const followupBody = {
+        ...req.body,
+        messages: [
+          ...(anthropicData._originalMessages || req.body.messages || []),
+          { role: "assistant", content: anthropicData.content },
+          { role: "user", content: toolResults },
+        ],
+      };
+      // Remove stream override — keep non-streaming
+      delete followupBody.stream;
+
+      const followupHeaders = { "Content-Type": "application/json", ...anthropicAuthHeaders(apiKey) };
+      if (req.traceId) followupHeaders["x-request-id"] = req.traceId;
+
+      const followupResp = await fetch(`${PROVIDERS.anthropic.baseUrl}/v1/messages`, {
+        method: "POST", headers: followupHeaders, body: JSON.stringify(followupBody),
+      });
+
+      if (followupResp.ok) {
+        anthropicData = await followupResp.json();
+        // Track usage for followup
+        const followupTokens = { input: anthropicData.usage?.input_tokens || 0, cacheHit: 0, output: anthropicData.usage?.output_tokens || 0 };
+        if (!req._proxyProject?.privacyMode) recordUsage(req._proxyProjectName, "anthropic", req._isSubscriptionKey ? `${requestedModel}:subscription` : requestedModel, followupTokens);
+      }
+    } catch (err) {
+      log("error", "Tool use execution failed", { error: err.message, traceId: req.traceId });
+      // Fall through — return original response with tool_use blocks
+    }
+  }
+
+  // Resolve PII placeholders in response before sending to client
+  let openaiData = anthropicToOpenaiResponse(anthropicData, requestedModel);
+  if (req._secMapping?.hasSecrets()) {
+    const mapping = req._secMapping;
+    openaiData = JSON.parse(mapping.resolve(JSON.stringify(openaiData)));
+  }
+
   return res.json(openaiData);
 }
 
@@ -3121,6 +3770,8 @@ const proxyMiddleware = createProxyMiddleware({
       // Strip browser-origin headers — upstream APIs reject direct-browser CORS requests
       proxyReq.removeHeader("origin");
       proxyReq.removeHeader("referer");
+      // Prevent upstream from sending compressed responses — we parse SSE chunks as text
+      proxyReq.removeHeader("accept-encoding");
       // Set X-Request-ID BEFORE write() — setHeader() throws after body write flushes headers
       if (req.traceId) proxyReq.setHeader("X-Request-ID", req.traceId);
       if (req.body && ["POST", "PUT", "PATCH"].includes(req.method)) {
@@ -3223,8 +3874,12 @@ const proxyMiddleware = createProxyMiddleware({
       }
 
       let tail = "";
+      // Use StringDecoder to safely handle multi-byte UTF-8 chars split across chunk boundaries
+      // (critical for Chinese text from Doubao/Qwen/Kimi)
+      const { StringDecoder } = require("string_decoder");
+      const utf8Decoder = new StringDecoder("utf8");
       proxyRes.on("data", (chunk) => {
-        const str = chunk.toString();
+        const str = utf8Decoder.write(chunk);
         tail = (tail + str).slice(-8192);
         if (thinkState) {
           const filtered = stripThinkFromSSEChunk(str);
@@ -3453,6 +4108,28 @@ async function sendOtpEmail(toEmail, code) {
   log("info", "[OTP] Email sent", { toEmail });
 }
 
+// Send admin notification email (upgrade requests, etc.)
+async function sendAdminNotify(subject, htmlBody) {
+  if (!settings.smtpEnabled || !settings.smtpHost || !settings.smtpUser || !settings.smtpPass || !settings.smtpTo) {
+    log("warn", "[notify] SMTP not configured, skipping email", { subject });
+    return;
+  }
+  try {
+    const nodemailer = require("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host: settings.smtpHost, port: settings.smtpPort || 587,
+      secure: (settings.smtpPort || 587) === 465,
+      auth: { user: settings.smtpUser, pass: settings.smtpPass },
+    });
+    await transporter.sendMail({
+      from: settings.smtpFrom || settings.smtpUser,
+      to: settings.smtpTo,
+      subject, html: htmlBody,
+    });
+    log("info", "[notify] Email sent", { to: settings.smtpTo, subject });
+  } catch (e) { log("error", "[notify] Email failed", { error: e.message }); }
+}
+
 function resolveOtpAuth(req) {
   const bearer = (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
   if (bearer.startsWith("et_")) {
@@ -3597,7 +4274,32 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
     const data = await r.json();
     if (!r.ok) return res.redirect(`/lumichat?oauth_err=${encodeURIComponent(data.message || "auth_failed")}`);
 
+    // Create pending approval for OAuth users (same as register)
+    if (data.record?.id && settings.approvalEnabled !== false) {
+      const pbToken = await getPbAdminToken();
+      if (pbToken) {
+        const existing = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${isValidPbId(data.record.id) ? data.record.id : ''}'&perPage=1`, {
+          headers: { Authorization: `Bearer ${pbToken}` },
+        }).then(r => r.json()).catch(() => ({ items: [] }));
+        if (!existing.items?.length) {
+          await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+            method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ user: data.record.id }),
+          }).catch(() => {});
+          const approvalTo = settings.approvalEmail || settings.authEmail;
+          if (approvalTo) sendApprovalEmail(req, approvalTo, data.record.id, data.record.email || '', data.record.name || '').catch(() => {});
+        }
+      }
+    }
+
     const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
+    // For app deep-link schemes (e.g. lumichat://), pass token via URL param
+    // since httpOnly cookies aren't accessible from native apps
+    if (redirect.includes("://") && !redirect.startsWith("http")) {
+      const sep = redirect.includes("?") ? "&" : "?";
+      return res.redirect(`${redirect}${sep}token=${encodeURIComponent(data.token)}&oauth=1`);
+    }
+
     res.cookie("lc_token", data.token, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
@@ -3623,8 +4325,10 @@ app.post("/lc/auth/check-email", lcAuthLimiter, async (req, res) => {
   } catch { res.json({ exists: false }); }
 });
 
-// POST /lc/auth/register → proxy to PB
-app.post("/lc/auth/register", lcAuthLimiter, async (req, res) => {
+// POST /lc/auth/register → proxy to PB + approval email
+app.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, res) => {
+  // Global hourly registration cap
+  if (_globalRegCount >= 20) return res.status(429).json({ error: "Too many registrations, try again later" });
   try {
     const r = await pbFetch("/api/collections/users/records", {
       method: "POST",
@@ -3632,10 +4336,64 @@ app.post("/lc/auth/register", lcAuthLimiter, async (req, res) => {
       body: JSON.stringify(req.body),
     });
     const data = await r.json();
+    if (r.ok && data.id) _globalRegCount++;
+    if (r.ok && data.id && settings.approvalEnabled !== false) {
+      const pbToken = await getPbAdminToken();
+      if (pbToken) {
+        await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+          method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ user: data.id }),
+        }).catch(() => {});
+      }
+      const approvalTo = settings.approvalEmail || settings.authEmail;
+      if (approvalTo) {
+        sendApprovalEmail(req, approvalTo, data.id, data.email || req.body.email, data.name || '').catch(e => log("warn", "Approval email failed", { error: e.message }));
+      }
+    }
     res.status(r.status).json(data);
-  } catch (err) {
-    res.status(502).json({ error: "PocketBase unavailable" });
+  } catch (err) { res.status(502).json({ error: "PocketBase unavailable" }); }
+});
+
+async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) {
+  const smtpHost = process.env.SMTP_HOST || settings.smtpHost;
+  const smtpUser = process.env.SMTP_USER || settings.smtpUser;
+  const smtpPass = process.env.SMTP_PASS || settings.smtpPass;
+  const smtpPort = parseInt(process.env.SMTP_PORT || settings.smtpPort || "587");
+  const smtpFrom = process.env.SMTP_FROM || settings.smtpFrom || `LumiChat <${smtpUser}>`;
+  if (!smtpHost || !smtpUser || !smtpPass) return;
+  const token = crypto.randomBytes(16).toString('hex');
+  if (!settings._approvalTokens) settings._approvalTokens = {};
+  settings._approvalTokens[token] = { userId, userEmail, createdAt: Date.now() };
+  for (const [k, v] of Object.entries(settings._approvalTokens)) { if (Date.now() - v.createdAt > 86400000) delete settings._approvalTokens[k]; }
+  saveSettings(settings);
+  const host = httpReq?.get?.('host') || 'localhost:9471';
+  const proto = httpReq?.headers?.['x-forwarded-proto'] === 'https' || httpReq?.secure ? 'https' : 'http';
+  const url = `${proto}://${host}/admin/lc-approve?token=${token}`;
+  const nodemailer = require("nodemailer");
+  await nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } }).sendMail({
+    from: smtpFrom, to: toEmail, subject: `LumiChat — New User: ${userEmail}`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><div style="background:#10a37f;padding:24px 32px;text-align:center"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><h2 style="margin:0 0 8px;font-size:18px;color:#1c1c1e">New User Registration</h2><p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.6">A new user has requested access.</p><div style="background:#f8f8f8;border-radius:10px;padding:16px;margin-bottom:24px"><div style="font-size:13px;color:#999;margin-bottom:4px">Email</div><div style="font-size:15px;font-weight:600;color:#1c1c1e">${userEmail}</div>${userName ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Name</div><div style="font-size:15px;color:#1c1c1e">${userName}</div>` : ''}</div><a href="${url}" style="display:block;text-align:center;background:#10a37f;color:#fff;text-decoration:none;padding:14px;border-radius:10px;font-size:15px;font-weight:600">Approve User</a><p style="margin:16px 0 0;font-size:12px;color:#999;text-align:center">Link expires in 24h</p></div></div></body></html>`,
+  });
+  log("info", "Approval email sent", { to: toEmail, userId, userEmail });
+}
+
+app.get("/admin/lc-approve", lcAuthLimiter, async (req, res) => {
+  const { token } = req.query;
+  if (!token || !settings._approvalTokens?.[token]) {
+    return res.status(404).send('<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>Invalid or expired link</h2><p>Approve users from LumiGate Dashboard.</p></body></html>');
   }
+  const { userId, userEmail } = settings._approvalTokens[token];
+  if (!isValidPbId(userId)) return res.status(400).send('Invalid');
+  delete settings._approvalTokens[token]; saveSettings(settings);
+  const pbToken = await getPbAdminToken();
+  if (pbToken) {
+    const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
+    const ep = find.items?.length ? `${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}` : `${PB_URL}/api/collections/lc_user_settings/records`;
+    await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(find.items?.length ? {} : { user: userId }), tier: 'basic', tier_updated: new Date().toISOString() }) });
+  }
+  lcTierCache.delete(userId);
+  audit(null, "lc_user_approved", userId, { email: userEmail });
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:60px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);text-align:center"><div style="background:#10a37f;padding:24px 32px"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><div style="font-size:40px;margin-bottom:12px;color:#10a37f">&#10003;</div><h2 style="margin:0 0 8px;color:#1c1c1e">User Approved</h2><p style="color:#666;font-size:14px;margin-bottom:4px"><b>${userEmail}</b></p><p style="color:#999;font-size:13px;margin-bottom:24px">Tier: <b>Basic</b></p><a href="/" style="color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Open Dashboard &rarr;</a></div></div></body></html>`);
 });
 
 // POST /lc/auth/login → PB auth → set httpOnly cookie
@@ -3681,7 +4439,7 @@ app.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
     if (!r.ok) return res.status(r.status).json(data);
     const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
     res.cookie("lc_token", data.token, {
-      httpOnly: true, secure: isSecure, sameSite: "Lax", path: "/",
+      httpOnly: true, secure: isSecure, sameSite: "Strict", path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     res.json({ ok: true });
@@ -3835,7 +4593,8 @@ app.get("/lc/suggest", requireLcAuth, async (req, res) => {
 要求：
 - 如果有用户背景，结合其职业/兴趣生成用户**真正会遇到的问题**（如"某技术怎么用"、"某场景怎么解决"），不是问 AI 对该领域的看法
 - 其余问题基于最新新闻事件，问的是"这件事是什么/为什么/有什么影响"
-- 每个问题不超过 18 个字（中文），口语化，像真人在搜索框里打的那种${memSection}${newsSection}
+- 每个问题严格不超过 15 个字（中文）或 8 个英文单词，必须一行显示完，绝对不能太长
+- 口语化，像真人在搜索框里打的那种${memSection}${newsSection}
 
 只输出一个 JSON 数组，包含 4 个字符串，不要任何解释或 markdown。示例：["问题1","问题2","问题3","问题4"]`;
 
@@ -3876,7 +4635,7 @@ app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
     const cr = await pbFetch("/api/collections/lc_user_settings/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-      body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "dark", compact: false, presets: [] }),
+      body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "auto", compact: false, presets: [] }),
     });
     const created = await cr.json();
     res.status(cr.status).json(created);
@@ -3886,7 +4645,7 @@ app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
 // PATCH /lc/user/settings → update settings (upsert)
 app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
   try {
-    const allowed = ["memory", "sensitivity", "presets", "theme", "compact", "active_project"];
+    const allowed = ["memory", "sensitivity", "presets", "theme", "compact", "active_project", "default_provider", "default_model"];
     const body = {};
     for (const k of allowed) if (req.body && k in req.body) body[k] = req.body[k];
 
@@ -4027,6 +4786,24 @@ app.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify({ title: title.slice(0, 200) }),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch {
+    res.status(502).json({ error: "PocketBase unavailable" });
+  }
+});
+
+// PATCH /lc/sessions/:id/model → update provider/model
+app.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
+  try {
+    const { provider, model } = req.body || {};
+    if (!provider || !model) return res.status(400).json({ error: "Missing provider or model" });
+    const r = await pbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      body: JSON.stringify({ provider, model }),
     });
     const data = await r.json();
     res.status(r.status).json(data);
@@ -4350,7 +5127,215 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
   }
 });
 
+// --- LumiChat: User tier & BYOK API key management ---
+app.get("/lc/user/tier", requireLcAuth, async (req, res) => {
+  try {
+    const tierInfo = await getLcUserTier(req.lcUser.id, req.lcToken);
+    // Pending approval
+    if (!tierInfo.tier) {
+      return res.json({ tier: null, pending: true, rpm: 0, providers: [] });
+    }
+    // Build available providers list
+    const allProviders = Object.keys(PROVIDERS);
+    const available = allProviders.map(name => {
+      const isFreeProvider = COLLECTOR_SUPPORTED.includes(name);
+      const isCollectorMode = getProviderAccessMode(name) === "collector" && isFreeProvider;
+      const hasByok = tierInfo.byokKeys.some(k => k.provider === name && k.enabled);
+      let access = 'locked';
+      if (tierInfo.tier === 'premium') access = 'available';
+      else if (tierInfo.tier === 'basic' && isFreeProvider) access = isCollectorMode ? 'collector' : 'available';
+      else if (isCollectorMode) access = 'collector';
+      else if (tierInfo.tier === 'selfservice' && hasByok) access = 'byok';
+      return { name, access, keyUrl: PROVIDERS[name]?.keyUrl || null };
+    });
+    res.json({ tier: tierInfo.tier, rpm: TIER_RPM[tierInfo.tier] || 30, providers: available, upgradeRequest: tierInfo.upgradeRequest || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /lc/upgrade-request — user requests tier upgrade
+app.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
+  const { plan } = req.body;
+  if (plan !== 'premium') return res.status(400).json({ error: "Can only upgrade to premium" });
+  try {
+    const fr = await pbFetch(`/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`, { headers: { Authorization: `Bearer ${req.lcToken}` } });
+    const fd = await fr.json();
+    const existing = fd.items?.[0];
+    if (!existing) return res.status(404).json({ error: "Settings not found" });
+    if (existing.tier === plan) return res.json({ success: true, message: "Already on this plan" });
+    await pbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upgrade_request: plan, upgrade_requested_at: new Date().toISOString() }),
+    });
+    lcTierCache.delete(req.lcUser.id);
+    // Send email notification to admin
+    const userEmail = req.lcUser.email || 'unknown';
+    const userName = req.lcUser.name || userEmail.split('@')[0];
+    const settingsId = existing.id;
+    const token = require('crypto').createHmac('sha256', ADMIN_SECRET).update(settingsId).digest('hex').slice(0, 24);
+    const base = process.env.LUMICHAT_PUBLIC_URL || process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+    const approveUrl = `${base}/admin/upgrade-action?id=${settingsId}&action=approve&token=${token}`;
+    const rejectUrl = `${base}/admin/upgrade-action?id=${settingsId}&action=reject&token=${token}`;
+    sendAdminNotify(
+      `[LumiGate] Upgrade Request: ${userName} → ${plan}`,
+      `<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:24px">
+        <h2 style="color:#1c1c1e;font-size:18px;margin-bottom:16px">Upgrade Request</h2>
+        <p style="color:#555;font-size:14px;line-height:1.6"><b>${userName}</b> (${userEmail}) wants to upgrade to <b style="color:#10a37f">${plan}</b>.</p>
+        <div style="margin:24px 0;display:flex;gap:12px">
+          <a href="${approveUrl}" style="display:inline-block;padding:12px 32px;background:#10a37f;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Approve</a>
+          <a href="${rejectUrl}" style="display:inline-block;padding:12px 32px;background:#ff3b30;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Reject</a>
+        </div>
+        <p style="color:#999;font-size:11px">Or manage in <a href="${base}">LumiGate Dashboard</a> → Users tab.</p>
+      </div>`
+    ).catch(() => {});
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /admin/upgrade-action — one-click approve/reject from email
+app.get("/admin/upgrade-action", async (req, res) => {
+  const { id, action, token } = req.query;
+  if (!id || !action || !token) return res.status(400).send('Missing parameters');
+  const expected = require('crypto').createHmac('sha256', ADMIN_SECRET).update(id).digest('hex').slice(0, 24);
+  if (token !== expected) return res.status(403).send('Invalid token');
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).send('PB auth failed');
+  try {
+    const sr = await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, { headers: { Authorization: `Bearer ${pbToken}` } });
+    const s = await sr.json();
+    if (!s.upgrade_request) return res.send('<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px"><h2>No pending request</h2><p>This request has already been processed.</p></body></html>');
+    if (action === 'approve') {
+      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, {
+        method: 'PATCH', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: s.upgrade_request, tier_updated: new Date().toISOString(), upgrade_request: '', upgrade_requested_at: '' }),
+      });
+      lcTierCache.delete(s.user);
+      res.send(`<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px"><h2 style="color:#10a37f">Approved</h2><p>User has been upgraded to <b>${s.upgrade_request}</b>.</p></body></html>`);
+    } else {
+      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, {
+        method: 'PATCH', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
+      });
+      res.send('<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px"><h2 style="color:#ff3b30">Rejected</h2><p>Upgrade request has been rejected.</p></body></html>');
+    }
+  } catch (e) { res.status(500).send('Error: ' + e.message); }
+});
+
+// GET /admin/upgrade-requests — list pending upgrade requests
+app.get("/admin/upgrade-requests", requireRole("root", "admin"), async (req, res) => {
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
+  try {
+    const r = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=upgrade_request!%3D''&perPage=100&expand=user`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    const d = await r.json();
+    const requests = (d.items || []).map(s => ({
+      settingsId: s.id, userId: s.user, requestedPlan: s.upgrade_request, requestedAt: s.upgrade_requested_at,
+      currentTier: s.tier || 'basic',
+      email: s.expand?.user?.email || '', name: s.expand?.user?.name || '',
+    }));
+    res.json({ items: requests, count: requests.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /admin/upgrade-requests/:settingsId/approve — approve upgrade
+app.post("/admin/upgrade-requests/:settingsId/approve", requireRole("root"), async (req, res) => {
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
+  try {
+    const sr = await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    const s = await sr.json();
+    if (!s.upgrade_request) return res.status(400).json({ error: "No pending request" });
+    await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: s.upgrade_request, tier_updated: new Date().toISOString(), upgrade_request: '', upgrade_requested_at: '' }),
+    });
+    lcTierCache.delete(s.user);
+    audit(req.userName, "lc_upgrade_approved", s.user, { plan: s.upgrade_request });
+    res.json({ success: true, newTier: s.upgrade_request });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /admin/upgrade-requests/:settingsId/reject — reject upgrade
+app.post("/admin/upgrade-requests/:settingsId/reject", requireRole("root"), async (req, res) => {
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
+  try {
+    await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
+    });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/lc/user/apikeys", requireLcAuth, async (req, res) => {
+  try {
+    const r = await fetch(
+      `${PB_URL}/api/collections/lc_user_apikeys/records?filter=user='${req.lcUser.id}'&perPage=50`,
+      { headers: { Authorization: `Bearer ${req.lcToken}` } }
+    );
+    const data = await r.json();
+    // Return keys without the actual key value (security)
+    const keys = (data.items || []).map(k => ({
+      id: k.id, provider: k.provider, label: k.label, enabled: k.enabled,
+      keyPreview: (() => { try { const d = decryptValue(k.key_encrypted, ADMIN_SECRET); return d.slice(0, 6) + '...' + d.slice(-4); } catch { return '***'; } })(),
+    }));
+    res.json(keys);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/lc/user/apikeys", requireLcAuth, async (req, res) => {
+  const { provider, key, label } = req.body;
+  if (!provider || !key) return res.status(400).json({ error: "provider and key required" });
+  if (!PROVIDERS[provider]) return res.status(400).json({ error: "Unknown provider" });
+  const encrypted = encryptValue(key, ADMIN_SECRET);
+  try {
+    const r = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: req.lcUser.id, provider, key_encrypted: encrypted, label: label || provider, enabled: true }),
+    });
+    if (!r.ok) return res.status(r.status).json(await r.json());
+    lcTierCache.delete(req.lcUser.id);
+    res.json({ success: true, id: (await r.json()).id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete("/lc/user/apikeys/:id", requireLcAuth, async (req, res) => {
+  if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    // Verify ownership before delete
+    const check = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records/${req.params.id}`, {
+      headers: { Authorization: `Bearer ${req.lcToken}` },
+    });
+    if (!check.ok) return res.status(404).json({ error: "Not found" });
+    const rec = await check.json();
+    if (rec.user !== req.lcUser.id) return res.status(403).json({ error: "Forbidden" });
+    // Delete
+    const r = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records/${req.params.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${req.lcToken}` },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: "Delete failed" });
+    lcTierCache.delete(req.lcUser.id);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── End LumiChat routes ───────────────────────────────────────────────────────
+
+// ── Agent Platform API routes ─────────────────────────────────────────────────
+app.use("/v1/parse", apiLimiter, require("./routes/parse"));
+app.use("/v1/audio", apiLimiter, require("./routes/audio"));
+app.use("/v1/vision", apiLimiter, require("./routes/vision"));
+app.use("/v1/code", apiLimiter, require("./routes/code"));
+// ── End Agent Platform routes ─────────────────────────────────────────────────
 
 app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
   // Identify project: internal chat key, admin session, project key, or reject
@@ -4372,7 +5357,18 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
     if (!projectKey && lcToken && validateLcTokenPayload(lcToken)) {
       projectName = "_lumichat";
       req._proxyProjectName = "_lumichat";
-      // No per-project rate limits or budget enforcement for LumiChat
+
+      // Resolve LumiChat user tier for access control
+      const lcPayload = validateLcTokenPayload(lcToken);
+      if (lcPayload?.id) {
+        try {
+          const tierInfo = await getLcUserTier(lcPayload.id, lcToken);
+          req._lcTier = tierInfo.tier;
+          req._lcByokKeys = tierInfo.byokKeys;
+          req._lcUserId = lcPayload.id;
+          req._lcToken = lcToken;
+        } catch {}
+      }
     }
 
     if (!projectName) {
@@ -4471,14 +5467,57 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
     return res.status(404).json({ error: "Unknown provider" });
   }
 
+  // --- Tier-based access control for LumiChat users ---
+  if (req._proxyProjectName === "_lumichat") {
+    // Block unapproved users (no tier = pending approval)
+    if (!req._lcTier) {
+      return res.status(403).json({ error: "Your account is pending approval. Please wait for admin verification.", pending: true });
+    }
+    const tier = req._lcTier;
+    const isFreeProvider = COLLECTOR_SUPPORTED.includes(providerName);
+    const isCollectorProvider = getProviderAccessMode(providerName) === "collector" && isFreeProvider;
+
+    // Basic: only free-tier providers (collector-supported list)
+    if (tier === "basic" && !isFreeProvider) {
+      return res.status(403).json({
+        error: "Upgrade to Premium to access this provider",
+        tier: "basic", upgrade: true, provider: providerName,
+      });
+    }
+
+    // Self-service: collector or BYOK
+    if (tier === "selfservice" && !isCollectorProvider) {
+      const byokKey = (req._lcByokKeys || []).find(k => k.provider === providerName && k.enabled);
+      if (!byokKey) {
+        return res.status(403).json({
+          error: `Add your own API key for ${providerName} in Settings`,
+          tier: "selfservice", needsKey: true, provider: providerName,
+          keyUrl: PROVIDERS[providerName]?.keyUrl || null,
+        });
+      }
+      // Use BYOK key instead of gateway key
+      req._byokApiKey = decryptValue(byokKey.key_encrypted, ADMIN_SECRET);
+    }
+
+    // Per-tier RPM limiting (use Map API for proper cleanup)
+    const tierRpm = TIER_RPM[tier] || 30;
+    const lcRateKey = `lc_${req._lcUserId}`;
+    let bucket = projectRateBuckets.get(lcRateKey);
+    if (!bucket) { bucket = { count: 0, resetAt: Date.now() + 60000 }; projectRateBuckets.set(lcRateKey, bucket); }
+    if (Date.now() > bucket.resetAt) { bucket.count = 0; bucket.resetAt = Date.now() + 60000; }
+    bucket.count++;
+    if (bucket.count > tierRpm) {
+      return res.status(429).json({ error: "Rate limit exceeded for your subscription tier", tier, limit: tierRpm });
+    }
+  }
+
   // --- Collector branch: if provider is in collector mode, route through web collection ---
   if (getProviderAccessMode(providerName) === "collector" && COLLECTOR_SUPPORTED.includes(providerName)) {
-    const encToken = collectorTokens[providerName];
-    if (!encToken) {
+    if (!hasCollectorToken(providerName)) {
       return res.status(500).json({ error: `No collector credentials configured for ${providerName}` });
     }
     let credentials;
-    try { credentials = JSON.parse(decryptValue(encToken, ADMIN_SECRET)); } catch (e) {
+    try { credentials = getCollectorCredentials(providerName); } catch (e) {
       return res.status(500).json({ error: `Failed to decrypt collector credentials for ${providerName}` });
     }
     const messages = req.body?.messages;
@@ -4495,14 +5534,15 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
         res.setHeader("X-Accel-Buffering", "no");
-        for await (const chunk of collector.sendMessage(providerName, modelId, messages, credentials, req.signal)) {
+        for await (const chunk of collector.sendMessage(providerName, modelId, messages, credentials)) {
+          if (res.writableEnded) break;
           res.write(chunk);
         }
         res.end();
       } else {
         // Non-stream: collect all chunks and return as single response
         let fullContent = "";
-        for await (const chunk of collector.sendMessage(providerName, modelId, messages, credentials, req.signal)) {
+        for await (const chunk of collector.sendMessage(providerName, modelId, messages, credentials)) {
           const parsed = chunk.match(/^data: (.+)$/m);
           if (parsed && parsed[1] !== "[DONE]") {
             try {
@@ -4520,20 +5560,22 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
           choices: [{ index: 0, message: { role: "assistant", content: fullContent }, finish_reason: "stop" }],
         });
       }
+      setCollectorHealth(providerName, true);
       log("info", "Collector request completed", { provider: providerName, model: modelId, project: projectName });
     } catch (e) {
+      setCollectorHealth(providerName, false, e.message);
       log("error", "Collector error", { provider: providerName, error: e.message });
       if (!res.headersSent) res.status(502).json({ error: `Collector error: ${e.message}` });
     }
     return;
   }
 
-  // Select API key: project-specific first, then public
-  const selectedKey = selectApiKey(providerName, projectName);
-  if (!selectedKey && !provider.apiKey) {
+  // Select API key: BYOK (self-service) → project-specific → public
+  const selectedKey = req._byokApiKey ? null : selectApiKey(providerName, projectName);
+  if (!req._byokApiKey && !selectedKey && !provider.apiKey) {
     return res.status(403).json({ error: "Provider has no API key configured" });
   }
-  const proxyApiKey = selectedKey?.apiKey || provider.apiKey;
+  const proxyApiKey = req._byokApiKey || selectedKey?.apiKey || provider.apiKey;
   req._selectedKeyId = selectedKey?.keyId;
   req._isSubscriptionKey = proxyApiKey?.startsWith("sk-ant-oat");
 
@@ -4551,6 +5593,112 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
 
   // Stash project name for onProxyRes
   req._proxyProjectName = projectName;
+
+  // ── Tool Schema Injection + PII Detection (before forwarding to LLM) ──────
+  const proj = req._proxyProject;
+  const isChat = Array.isArray(req.body?.messages);
+  const isStreamReq = req.body?.stream === true;
+
+  // B. Tool schema injection — only for chat requests, skip if project opts out
+  if (isChat && proj?.toolInjection !== false) {
+    try {
+      const toolSchemas = await unifiedRegistry.getSchemas();
+      const toolPrompt = unifiedRegistry.getSystemPrompt();
+      if (toolSchemas.length > 0 && !req.body.tools?.length) {
+        req.body.tools = toolSchemas;
+        // Append tool system prompt to system message
+        if (providerName === "anthropic") {
+          // Anthropic native: system is top-level string or array
+          if (typeof req.body.system === "string") {
+            req.body.system = req.body.system + "\n\n" + toolPrompt;
+          } else if (Array.isArray(req.body.system)) {
+            req.body.system.push({ type: "text", text: toolPrompt });
+          } else {
+            req.body.system = toolPrompt;
+          }
+        } else {
+          // OpenAI format: system in messages[0]
+          const sysMsg = req.body.messages.find(m => m.role === "system");
+          if (sysMsg) {
+            sysMsg.content = (sysMsg.content || "") + "\n\n" + toolPrompt;
+          } else {
+            req.body.messages.unshift({ role: "system", content: toolPrompt });
+          }
+        }
+      }
+    } catch (err) {
+      log("warn", "Tool schema injection failed", { error: err.message });
+    }
+  }
+
+  // C. PII Detection + Secret Masking — only for chat requests
+  let secMapping = null;
+  let sessionId = null;
+  if (isChat) {
+    // Extract last user message content
+    const lastUserMsg = [...req.body.messages].reverse().find(m => m.role === "user");
+    const userContent = typeof lastUserMsg?.content === "string"
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.content)
+        ? lastUserMsg.content.filter(b => b.type === "text").map(b => b.text).join(" ")
+        : "";
+
+    if (userContent) {
+      const entities = detectPII(userContent);
+      if (entities.length > 0) {
+        sessionId = req.body.session_id || req.headers["x-session-id"] || req.traceId || crypto.randomUUID();
+        secMapping = getMapping(sessionId);
+        req._secMapping = secMapping;
+        req._secSessionId = sessionId;
+
+        // Register each detected entity and mask in message content
+        for (const ent of entities) {
+          secMapping.add(ent.value, ent.type);
+        }
+
+        // Mask all messages (deep transform)
+        req.body.messages = req.body.messages.map(msg => {
+          if (typeof msg.content === "string") {
+            return { ...msg, content: secMapping.mask(msg.content) };
+          }
+          if (Array.isArray(msg.content)) {
+            return { ...msg, content: msg.content.map(block =>
+              block.type === "text" ? { ...block, text: secMapping.mask(block.text) } : block
+            )};
+          }
+          return msg;
+        });
+
+        // For streaming: send security_notice SSE event before proxying starts
+        if (isStreamReq) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("X-Accel-Buffering", "no");
+          res.write(`event: security_notice\ndata: ${JSON.stringify({ message: "\u{1F512} 检测到隐私/密钥信息，正在进行加密处理..." })}\n\n`);
+        }
+
+        // E. Security event logging (async, non-blocking)
+        const userId = req._lcUserId || req._tokenUserId;
+        const projectId = projectName;
+        getPbAdminToken().then(token => {
+          if (!token) return;
+          fetch(`${PB_URL}/api/collections/security_events/records`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: token },
+            body: JSON.stringify({
+              user: userId || projectId || "unknown",
+              source: req.get("X-Source") || "api",
+              event_type: "pii_detected",
+              severity: entities.some(e => e.score > 0.9) ? "warning" : "info",
+              detail_json: JSON.stringify({ count: entities.length, types: entities.map(e => e.type) }),
+              session_id: sessionId || "",
+              ip_address: req.ip,
+            }),
+          }).catch(() => {});
+        }).catch(() => {});
+      }
+    }
+  }
 
   // Anthropic OpenAI-compat intercept: /v1/chat/completions → /v1/messages + format translation
   if (providerName === "anthropic" && incomingSubpath === "/v1/chat/completions") {
