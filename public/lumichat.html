@@ -2347,8 +2347,14 @@ async function sendMessage(){
                     <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
                     <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
                   streamEl.appendChild(card);
+                } else if(tr.html){
+                  // Server-formatted HTML (search results, template info, etc.)
+                  const card=document.createElement('div');
+                  card.style.cssText='margin:12px 0';
+                  card.innerHTML=tr.html;
+                  streamEl.appendChild(card);
                 } else if(tr.data){
-                  // Non-file result (e.g. search results) — show data block
+                  // Fallback: raw data block
                   const resBlock=document.createElement('div');
                   resBlock.style.cssText='margin:8px 0;padding:10px;background:var(--inp);border-radius:8px;font-size:13px;color:var(--t2);white-space:pre-wrap;max-height:200px;overflow-y:auto';
                   resBlock.textContent=typeof tr.data==='string'?tr.data:JSON.stringify(tr.data,null,2);
@@ -2497,7 +2503,15 @@ async function sendMessage(){
     if(streamEl&&streamText&&!streamEl._toolResultRendered){
       // Strip [TOOL:...]...[/TOOL] tags from displayed text (server handles execution)
       streamEl.classList.remove('streaming-active');
-      const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
+      // Strip tool tags AND XML function call markup (MiniMax etc.)
+      let cleanText=streamText
+        .replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'')
+        .replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/g,'')
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/g,'')
+        .replace(/<\/?invoke[^>]*>/g,'')
+        .replace(/<\/?parameter[^>]*>/g,'')
+        .replace(/<function_call>[\s\S]*?<\/function_call>/g,'')
+        .trim();
       streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);
     }
     // Token/cost footer

@@ -3702,11 +3702,39 @@ function repairJSON(str) {
   return str; // give up, return original
 }
 
-// Shared helper: execute text-based tool calls [TOOL:name]{params}[/TOOL] and upload files to PocketBase
+// Format tool results server-side — frontend only renders the HTML
+function formatToolResult(toolName, data) {
+  // Search results → HTML card
+  if (toolName === "web_search" && data.results) {
+    const items = (data.results || []).slice(0, 6);
+    if (items.length === 0) return { html: '<div style="padding:12px;color:#888">No results found</div>' };
+    const esc = s => String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    let html = '<div style="border:1px solid var(--border,#333);border-radius:12px;overflow:hidden">';
+    html += '<div style="padding:10px 14px;background:var(--inp,#2f2f2f);font-size:12px;font-weight:600;color:var(--t3,#888);display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>Search Results</div>';
+    for (const r of items) {
+      html += `<div style="padding:10px 14px;border-top:1px solid var(--border,#333)"><a href="${esc(r.url)}" target="_blank" style="color:var(--accent,#10a37f);font-size:14px;font-weight:500;text-decoration:none">${esc(r.title)}</a><div style="font-size:12px;color:var(--t3,#888);margin-top:4px;line-height:1.5">${esc((r.content || "").slice(0, 150))}</div></div>`;
+    }
+    html += '</div>';
+    return { html, query: data.query };
+  }
+
+  // Template result → info
+  if (data.based_on_template) {
+    return { html: `<div style="padding:8px 12px;background:var(--inp,#2f2f2f);border-radius:8px;font-size:13px;color:var(--t2,#ccc)">Based on template: <b>${String(data.based_on_template)}</b></div>`, data };
+  }
+
+  // Default — pass through
+  return { data };
+}
+
+// Shared helper: execute text-based tool calls and upload files to PocketBase
+// Supports: [TOOL:name]{json}[/TOOL] and <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
 async function executeTextToolCalls(contentText, userId) {
+  const results = [];
+
+  // 1. Parse [TOOL:name]{json}[/TOOL] format
   const toolTagRe = /\[TOOL:(\w+)\]([\s\S]*?)\[\/TOOL\]/g;
   let toolMatch;
-  const results = [];
   while ((toolMatch = toolTagRe.exec(contentText)) !== null) {
     const toolName = toolMatch[1];
     let toolInput = {};
@@ -3742,10 +3770,51 @@ async function executeTextToolCalls(contentText, userId) {
           duration: result.duration,
         });
       } else if (result.ok && result.data) {
-        results.push({ tool: toolName, data: result.data, duration: result.duration });
+        // Format data server-side — frontend only renders
+        const formatted = formatToolResult(toolName, result.data);
+        results.push({ tool: toolName, ...formatted, duration: result.duration });
       }
     } catch (e) { log("warn", "Tool tag execution failed", { tool: toolName, error: e.message }); }
   }
+  // 2. Parse XML tool calls: <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
+  const xmlToolRe = /<(?:minimax:)?tool_call>([\s\S]*?)<\/(?:minimax:)?tool_call>/g;
+  let xmlMatch;
+  while ((xmlMatch = xmlToolRe.exec(contentText)) !== null) {
+    const invokeRe = /<invoke\s+name="(\w+)">([\s\S]*?)<\/invoke>/g;
+    let invokeMatch;
+    while ((invokeMatch = invokeRe.exec(xmlMatch[1])) !== null) {
+      const toolName = invokeMatch[1];
+      const toolInput = {};
+      const paramRe = /<parameter\s+name="(\w+)">([\s\S]*?)<\/parameter>/g;
+      let paramMatch;
+      while ((paramMatch = paramRe.exec(invokeMatch[2])) !== null) {
+        let val = paramMatch[2].trim();
+        try { val = JSON.parse(val); } catch {} // try parsing JSON arrays/objects
+        toolInput[paramMatch[1]] = val;
+      }
+      try {
+        const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
+        if (result.ok && result.file) {
+          let downloadUrl = "";
+          try {
+            const pbToken = await getPbAdminToken();
+            if (pbToken) {
+              const fn = (result.filename || "file").replace(/"/g, "_");
+              const boundary = "----FB" + crypto.randomBytes(8).toString("hex");
+              const headerBuf = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${fn}\r\n--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${result.mimeType}\r\n--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId || "api"}\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fn}"\r\nContent-Type: ${result.mimeType}\r\n\r\n`);
+              const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
+              const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, { method: "POST", headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken }, body: Buffer.concat([headerBuf, result.file, footerBuf]) });
+              if (pbRes.ok) { const rec = await pbRes.json(); downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`; }
+            }
+          } catch {}
+          results.push({ tool: toolName, filename: result.filename, mimeType: result.mimeType, size: result.file.length, downloadUrl, base64: !downloadUrl ? result.file.toString("base64") : undefined, duration: result.duration });
+        } else if (result.ok && result.data) {
+          results.push({ tool: toolName, data: result.data, duration: result.duration });
+        }
+      } catch (e) { log("warn", "XML tool exec failed", { tool: toolName, error: e.message }); }
+    }
+  }
+
   return results;
 }
 
