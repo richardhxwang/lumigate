@@ -48,21 +48,21 @@
     #splash.out{opacity:0;visibility:hidden;pointer-events:none}
     #splash-scene{display:flex;flex-direction:column;align-items:center;gap:18px}
     #splash-ball-wrap{transform-origin:center bottom}
-    #splash-ball{display:block;animation:ball-drop 1.5s ease forwards;transform-origin:center bottom}
+    #splash-ball{display:block;animation:ball-drop 1.5s ease forwards;transform-origin:center bottom;will-change:transform}
     #splash-title{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.3px;opacity:0;animation:splash-title-in .5s ease forwards;animation-delay:1.1s}
     @keyframes ball-drop{
-      0%  {transform:translateY(-300px);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+      0%  {transform:translateY(-150px);animation-timing-function:cubic-bezier(.55,0,1,.45)}
       /* 第一次落地：只轻微压扁，保持圆感 */
       36% {transform:translateY(0) scaleY(.91) scaleX(1.09);animation-timing-function:cubic-bezier(0,.55,.45,1)}
       /* 弹起 */
-      52% {transform:translateY(-90px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+      52% {transform:translateY(-50px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
       /* 第二次落地：更轻 */
-      65% {transform:translateY(0) scaleY(.95) scaleX(1.05);animation-timing-function:cubic-bezier(0,.55,.45,1)}
+      65% {transform:translateY(0) scaleY(.96) scaleX(1.04);animation-timing-function:cubic-bezier(0,.55,.45,1)}
       /* 弹起 */
-      74% {transform:translateY(-34px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
-      /* 第三次（几乎没压扁，静止） */
-      82% {transform:translateY(0) scaleY(.98) scaleX(1.02);animation-timing-function:ease-out}
-      88% {transform:translateY(-6px)}
+      74% {transform:translateY(-18px) scaleY(1) scaleX(1);animation-timing-function:cubic-bezier(.55,0,1,.45)}
+      /* 第三次 */
+      82% {transform:translateY(0) scaleY(.99) scaleX(1.01);animation-timing-function:ease-out}
+      88% {transform:translateY(-4px)}
       100%{transform:translateY(0)}
     }
     @keyframes splash-title-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -776,8 +776,8 @@
     <div id="ctx-bar-wrap"><div id="ctx-bar"></div></div>
 
     <div id="chat">
-      <div id="empty">
-        <h2 data-t="chat.what_help">What can I help you with?</h2>
+      <div id="empty" style="display:none">
+        <h2 data-t="chat.what_help"></h2>
         <div class="sugg-grid" id="sugg-grid"></div>
       </div>
     </div>
@@ -1521,6 +1521,9 @@ function showAuth(){
 }
 function showApp(){
   authEl.style.display='none'; appEl.style.display='flex';
+  // Set empty state text before showing (prevents English flash)
+  applyLang();
+  emptyEl.style.display='flex';
   const sb=document.getElementById('sidebar');
   if(sb) requestAnimationFrame(()=>requestAnimationFrame(()=>sb.classList.add('sb-entered')));
 }
@@ -2372,20 +2375,12 @@ async function sendMessage(){
                 rafId=requestAnimationFrame(()=>{
                   rafId=null;
                   if(streamEl&&pendingDelta){
-                    streamNode.data+=pendingDelta;
                     pendingDelta='';
                     const tRow=$('typ-row');
                     if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
-                    // Debounced markdown render every 300ms during stream
-                    const now=Date.now();
-                    if(!streamEl._lastMdRender) streamEl._lastMdRender=0;
-                    if(now-streamEl._lastMdRender>300 && streamText.length>20){
-                      streamEl._lastMdRender=now;
-                      const cursor='<span class="stream-cursor"></span>';
-                      streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
-                      // Re-create text node for next deltas
-                      streamNode=document.createTextNode(''); streamEl.appendChild(streamNode);
-                    }
+                    // Render markdown directly — no raw text node (prevents flicker)
+                    const cursor='<span class="stream-cursor"></span>';
+                    streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
                     const{scrollHeight,clientHeight,scrollTop}=chatEl;
                     if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
                   }
