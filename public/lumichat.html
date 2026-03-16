@@ -325,7 +325,8 @@
     .tdot:nth-child(2){animation-delay:.2s}
     .tdot:nth-child(3){animation-delay:.4s}
     @keyframes typ{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-    .streaming-active>*:last-child::after{content:'';display:inline-block;width:2px;height:1em;background:var(--accent);margin-left:2px;vertical-align:text-bottom;animation:blink-cursor .8s step-end infinite}
+    .streaming-active>p:last-of-type::after,.streaming-active>li:last-of-type::after,.streaming-active>div:last-of-type::after{content:'';display:inline-block;width:2px;height:.9em;background:var(--accent);margin-left:2px;vertical-align:text-bottom;animation:blink-cursor .8s step-end infinite}
+    .streaming-active:empty::after{content:'';display:inline-block;width:2px;height:1em;background:var(--accent);animation:blink-cursor .8s step-end infinite}
     @keyframes blink-cursor{0%,100%{opacity:1}50%{opacity:0}}
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
@@ -2530,7 +2531,8 @@ async function sendMessage(){
     }
 
     // Save assistant message
-    const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
+    const cleanContent=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g,'').replace(/<\/?invoke[^>]*>|<\/?parameter[^>]*>/g,'').trim();
+    const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:cleanContent||streamText})});
     messages.push(aMsg);
 
     // Update session timestamp
@@ -2550,7 +2552,8 @@ async function sendMessage(){
         streamEl.textContent='';
         renderMarkdown(streamEl,streamText);
         try{
-          const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
+          const cleanContent=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g,'').replace(/<\/?invoke[^>]*>|<\/?parameter[^>]*>/g,'').trim();
+    const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:cleanContent||streamText})});
           messages.push(aMsg);
           // Update session timestamp
           const sess=sessions.find(s=>s.id===currentSid);
