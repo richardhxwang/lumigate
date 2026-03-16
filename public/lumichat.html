@@ -2308,10 +2308,12 @@ async function sendMessage(){
             try{
               const tr=JSON.parse(data);
               if(streamEl){
-                // First render markdown of accumulated text (strip any [TOOL:...] tags)
-                if(streamText){
+                // Render markdown with tool tags stripped (only once on first tool_result)
+                if(!streamEl._toolResultRendered && streamText){
+                  streamEl._toolResultRendered=true;
                   const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
                   if(cleanText){ streamEl.textContent=''; renderMarkdown(streamEl,cleanText); }
+                  else { streamEl.textContent=''; }
                 }
                 if(tr.downloadUrl||tr.base64||tr.filename){
                   // File download card
@@ -2484,7 +2486,7 @@ async function sendMessage(){
     }
 
     $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
-    if(streamEl&&streamText){
+    if(streamEl&&streamText&&!streamEl._toolResultRendered){
       // Strip [TOOL:...]...[/TOOL] tags from displayed text (server handles execution)
       const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
       streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);

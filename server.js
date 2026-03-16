@@ -4490,20 +4490,157 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
 app.get("/admin/lc-approve", lcAuthLimiter, async (req, res) => {
   const { token } = req.query;
   if (!token || !settings._approvalTokens?.[token]) {
-    return res.status(404).send('<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>Invalid or expired link</h2><p>Approve users from LumiGate Dashboard.</p></body></html>');
+    return res.status(404).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invalid Link</title></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:60px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);text-align:center"><div style="background:#10a37f;padding:24px 32px"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff9500" stroke-width="2" style="margin-bottom:12px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h2 style="margin:0 0 8px;color:#1c1c1e">Invalid or Expired Link</h2><p style="color:#666;font-size:14px">This approval link is no longer valid. You can manage users from the LumiGate Dashboard.</p></div></div></body></html>`);
   }
-  const { userId, userEmail } = settings._approvalTokens[token];
+  const { userId, userEmail, userName } = settings._approvalTokens[token];
   if (!isValidPbId(userId)) return res.status(400).send('Invalid');
-  delete settings._approvalTokens[token]; saveSettings(settings);
-  const pbToken = await getPbAdminToken();
-  if (pbToken) {
-    const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
-    const ep = find.items?.length ? `${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}` : `${PB_URL}/api/collections/lc_user_settings/records`;
-    await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(find.items?.length ? {} : { user: userId }), tier: 'basic', tier_updated: new Date().toISOString() }) });
+  const safeEmail = String(userEmail).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeName = userName ? String(userName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+  // Show approval page — token is NOT consumed here (only on POST)
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve User — LumiChat</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',system-ui,sans-serif;background:#f5f5f7;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{max-width:520px;width:100%;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+.hdr{background:#10a37f;padding:24px 32px;text-align:center}
+.hdr h1{font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.3px}
+.bd{padding:32px}
+.uinfo{background:#f8f8fa;border-radius:12px;padding:16px 20px;margin-bottom:28px}
+.uinfo .lbl{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px}
+.uinfo .val{font-size:15px;font-weight:600;color:#1c1c1e}
+.uinfo .row+.row{margin-top:14px}
+h2{font-size:16px;color:#1c1c1e;margin-bottom:16px;font-weight:600}
+.tiers{display:flex;gap:12px;margin-bottom:28px}
+.tier{flex:1;border:2px solid #e5e5ea;border-radius:14px;padding:16px 12px;text-align:center;cursor:pointer;transition:all 0.2s ease;position:relative}
+.tier:hover{border-color:#10a37f;background:#f0fdf8}
+.tier.sel{border-color:#10a37f;background:#f0fdf8;box-shadow:0 0 0 1px #10a37f}
+.tier input{position:absolute;opacity:0;pointer-events:none}
+.tier .tn{font-size:15px;font-weight:700;color:#1c1c1e;margin-bottom:4px}
+.tier .td{font-size:12px;color:#888;line-height:1.4}
+.tier .ti{width:36px;height:36px;margin:0 auto 10px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.tier .ti svg{width:20px;height:20px}
+.t-b .ti{background:#e8f5e9}.t-p .ti{background:#fff3e0}.t-s .ti{background:#e3f2fd}
+.acts{display:flex;gap:12px}
+.btn{flex:1;padding:14px;border-radius:12px;font-size:15px;font-weight:600;border:none;cursor:pointer;transition:all 0.15s ease;text-align:center}
+.btn:active{transform:scale(0.97)}
+.btn-a{background:#10a37f;color:#fff}.btn-a:hover{background:#0d9268}
+.btn-a:disabled{background:#b0b0b0;cursor:not-allowed}
+.btn-d{background:#f5f5f7;color:#ff3b30;border:1px solid #e5e5ea}.btn-d:hover{background:#fef2f2;border-color:#ff3b30}
+.rv{display:none;text-align:center;padding:20px 0}
+.rv svg{margin-bottom:12px}
+.rv h2{font-size:20px;margin-bottom:6px}
+.rv p{color:#666;font-size:14px}
+@media(max-width:500px){.tiers{flex-direction:column}.bd{padding:24px 20px}}
+</style></head><body>
+<div class="card">
+  <div class="hdr"><h1>LumiChat</h1></div>
+  <div class="bd">
+    <div id="fv">
+      <div class="uinfo">
+        <div class="row"><div class="lbl">Email</div><div class="val">${safeEmail}</div></div>
+        ${safeName ? `<div class="row"><div class="lbl">Name</div><div class="val">${safeName}</div></div>` : ''}
+      </div>
+      <h2>Select Tier</h2>
+      <div class="tiers">
+        <label class="tier t-b sel" onclick="sl(this,'basic')">
+          <input type="radio" name="tier" value="basic" checked>
+          <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#43a047" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div>
+          <div class="tn">Basic</div>
+          <div class="td">Standard access with default rate limits</div>
+        </label>
+        <label class="tier t-p" onclick="sl(this,'premium')">
+          <input type="radio" name="tier" value="premium">
+          <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#ef6c00" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+          <div class="tn">Premium</div>
+          <div class="td">Higher limits, priority access to all models</div>
+        </label>
+        <label class="tier t-s" onclick="sl(this,'selfservice')">
+          <input type="radio" name="tier" value="selfservice">
+          <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#1e88e5" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          <div class="tn">Self-Service</div>
+          <div class="td">User manages own API keys and usage</div>
+        </label>
+      </div>
+      <div class="acts">
+        <button class="btn btn-d" onclick="go('decline')">Decline</button>
+        <button class="btn btn-a" id="abtn" onclick="go('approve')">Approve User</button>
+      </div>
+    </div>
+    <div id="rv" class="rv"></div>
+  </div>
+</div>
+<script>
+var st='basic';
+function sl(el,t){st=t;document.querySelectorAll('.tier').forEach(function(x){x.classList.remove('sel')});el.classList.add('sel')}
+function go(action){
+  var fv=document.getElementById('fv'),rv=document.getElementById('rv');
+  var btns=fv.querySelectorAll('.btn');
+  btns.forEach(function(b){b.disabled=true;b.style.opacity='0.6'});
+  fetch('/admin/lc-approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',action:action,tier:st})})
+  .then(function(r){return r.json()})
+  .then(function(data){
+    fv.style.display='none';rv.style.display='block';
+    if(data.ok){
+      if(action==='approve'){
+        var tl=st.charAt(0).toUpperCase()+st.slice(1);
+        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><h2>User Approved</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Tier: <b>'+tl+'</b></p><a href="/" style="display:inline-block;margin-top:20px;color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Open Dashboard \\u2192</a>';
+      }else{
+        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><h2>User Declined</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Registration has been declined.</p><a href="/" style="display:inline-block;margin-top:20px;color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Open Dashboard \\u2192</a>';
+      }
+    }else{
+      rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff9500" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h2>Error</h2><p>'+(data.error||'Something went wrong')+'</p>';
+    }
+  })
+  .catch(function(){
+    btns.forEach(function(b){b.disabled=false;b.style.opacity='1'});
+    alert('Network error. Please try again.');
+  });
+}
+</script>
+</body></html>`);
+});
+
+app.post("/admin/lc-approve", express.json(), lcAuthLimiter, async (req, res) => {
+  const { token, action, tier } = req.body || {};
+  if (!token || !settings._approvalTokens?.[token]) {
+    return res.status(400).json({ ok: false, error: "Invalid or expired token. The link may have already been used." });
   }
-  lcTierCache.delete(userId);
-  audit(null, "lc_user_approved", userId, { email: userEmail });
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:60px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);text-align:center"><div style="background:#10a37f;padding:24px 32px"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><div style="font-size:40px;margin-bottom:12px;color:#10a37f">&#10003;</div><h2 style="margin:0 0 8px;color:#1c1c1e">User Approved</h2><p style="color:#666;font-size:14px;margin-bottom:4px"><b>${userEmail}</b></p><p style="color:#999;font-size:13px;margin-bottom:24px">Tier: <b>Basic</b></p><a href="/" style="color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Open Dashboard &rarr;</a></div></div></body></html>`);
+  const validTiers = ['basic', 'premium', 'selfservice'];
+  const validActions = ['approve', 'decline'];
+  if (!validActions.includes(action)) return res.status(400).json({ ok: false, error: "Invalid action" });
+  if (action === 'approve' && !validTiers.includes(tier)) return res.status(400).json({ ok: false, error: "Invalid tier" });
+
+  const { userId, userEmail } = settings._approvalTokens[token];
+  if (!isValidPbId(userId)) return res.status(400).json({ ok: false, error: "Invalid user ID" });
+
+  // Consume the token now (only on POST, not on GET)
+  delete settings._approvalTokens[token];
+  saveSettings(settings);
+
+  if (action === 'approve') {
+    const pbToken = await getPbAdminToken();
+    if (pbToken) {
+      const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
+      const ep = find.items?.length ? `${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}` : `${PB_URL}/api/collections/lc_user_settings/records`;
+      await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(find.items?.length ? {} : { user: userId }), tier, tier_updated: new Date().toISOString() }) });
+    }
+    lcTierCache.delete(userId);
+    audit(null, "lc_user_approved", userId, { email: userEmail, tier });
+    return res.json({ ok: true, action: 'approve', tier });
+  } else {
+    // Decline: remove lc_user_settings and delete the PB user record
+    const pbToken = await getPbAdminToken();
+    if (pbToken) {
+      const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
+      if (find.items?.length) {
+        await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+      }
+      await fetch(`${PB_URL}/api/collections/users/records/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+    }
+    lcTierCache.delete(userId);
+    audit(null, "lc_user_declined", userId, { email: userEmail });
+    return res.json({ ok: true, action: 'decline' });
+  }
 });
 
 // POST /lc/auth/login → PB auth → set httpOnly cookie
@@ -5773,26 +5910,13 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
   const isChat = Array.isArray(req.body?.messages);
   const isStreamReq = req.body?.stream === true;
 
-  // B. Tool schema injection — only for chat requests, skip if project opts out
+  // B. Tool prompt injection — text-based tool calling via [TOOL:name]{params}[/TOOL] tags
+  // Works with ANY model. Server-side proxy handler executes tools after stream ends.
   if (isChat && proj?.toolInjection !== false) {
     try {
-      const toolSchemas = await unifiedRegistry.getSchemas();
       const toolPrompt = unifiedRegistry.getSystemPrompt();
-      if (toolSchemas.length > 0 && !req.body.tools?.length) {
-        // Convert schemas to provider-specific format
+      if (toolPrompt && !toolPrompt.includes("No tools")) {
         if (providerName === "anthropic") {
-          // Anthropic native: { name, description, input_schema }
-          req.body.tools = toolSchemas;
-        } else {
-          // OpenAI/MiniMax/DeepSeek format: { type: "function", function: { name, description, parameters } }
-          req.body.tools = toolSchemas.map(s => ({
-            type: "function",
-            function: { name: s.name, description: s.description, parameters: s.input_schema || s.parameters || { type: "object", properties: {} } }
-          }));
-        }
-        // Append tool system prompt to system message
-        if (providerName === "anthropic") {
-          // Anthropic native: system is top-level string or array
           if (typeof req.body.system === "string") {
             req.body.system = req.body.system + "\n\n" + toolPrompt;
           } else if (Array.isArray(req.body.system)) {
@@ -5801,7 +5925,6 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
             req.body.system = toolPrompt;
           }
         } else {
-          // OpenAI format: system in messages[0]
           const sysMsg = req.body.messages.find(m => m.role === "system");
           if (sysMsg) {
             sysMsg.content = (sysMsg.content || "") + "\n\n" + toolPrompt;
@@ -5811,7 +5934,7 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
         }
       }
     } catch (err) {
-      log("warn", "Tool schema injection failed", { error: err.message });
+      log("warn", "Tool prompt injection failed", { error: err.message });
     }
   }
 

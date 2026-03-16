@@ -150,27 +150,11 @@ class UnifiedRegistry {
     });
 
     return [
-      "You have access to the following tools:",
-      "",
-      ...toolLines,
-      "",
-      "## How to use tools",
-      "To call a tool, output EXACTLY this format (on its own line):",
-      "```",
-      "[TOOL:tool_name]{\"param1\":\"value1\",\"param2\":\"value2\"}[/TOOL]",
-      "```",
-      "",
-      "Examples:",
-      '- Generate Excel: [TOOL:generate_spreadsheet]{"title":"Revenue Model","sheets":[{"name":"Sheet1","headers":["Year","Revenue"],"rows":[["2024","1000000"],["2025","=B2*1.2"]]}]}[/TOOL]',
-      '- Generate Word doc: [TOOL:generate_document]{"title":"Report","sections":[{"heading":"Summary","content":"Key findings..."}]}[/TOOL]',
-      '- Generate PPTX: [TOOL:generate_presentation]{"title":"Q1 Review","slides":[{"title":"Overview","bullets":["Revenue up 20%"]}]}[/TOOL]',
-      '- Web search: [TOOL:web_search]{"q":"latest AI news"}[/TOOL]',
-      "",
-      "RULES:",
-      "- When user asks to CREATE/GENERATE/MAKE a file (Excel, Word, PPT), you MUST use the tool. NEVER output file content as plain text.",
-      "- For spreadsheets, use real Excel formulas (=SUM, =B2*1.15, =IF) in the rows data.",
-      "- Output the [TOOL:...] tag, then continue your explanation after it.",
-      "- The system will automatically execute the tool and show a download button to the user.",
+      "You can generate files. To create a file, output: [TOOL:name]{json}[/TOOL]",
+      "Tools: generate_spreadsheet, generate_document, generate_presentation, web_search",
+      'Excel example: [TOOL:generate_spreadsheet]{"title":"Model","sheets":[{"name":"Sheet1","headers":["","2024","2025"],"rows":[["Revenue","1000","=B2*1.2"]]}]}[/TOOL]',
+      'Word example: [TOOL:generate_document]{"title":"Report","sections":[{"heading":"Summary","content":"..."}]}[/TOOL]',
+      "When asked to CREATE a file, ALWAYS use the tool. Never output file content as text.",
     ].join("\n");
   }
 
