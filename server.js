@@ -3682,6 +3682,26 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
 // API Proxy — /v1/:provider/*
 // ============================================================
 
+// Repair common AI-generated malformed JSON before parsing
+function repairJSON(str) {
+  let s = str.trim();
+  // Remove trailing commas before } or ]
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  // Try parsing as-is first
+  try { JSON.parse(s); return s; } catch {}
+  // Count brackets and add missing closing ones
+  let opens = 0, openb = 0;
+  for (const c of s) { if (c === '{') opens++; if (c === '}') opens--; if (c === '[') openb++; if (c === ']') openb--; }
+  while (opens > 0) { s += '}'; opens--; }
+  while (openb > 0) { s += ']'; openb--; }
+  // Try again
+  try { JSON.parse(s); return s; } catch {}
+  // Replace single quotes with double (but not inside strings)
+  s = s.replace(/'/g, '"');
+  try { JSON.parse(s); return s; } catch {}
+  return str; // give up, return original
+}
+
 // Shared helper: execute text-based tool calls [TOOL:name]{params}[/TOOL] and upload files to PocketBase
 async function executeTextToolCalls(contentText, userId) {
   const toolTagRe = /\[TOOL:(\w+)\]([\s\S]*?)\[\/TOOL\]/g;
@@ -3690,7 +3710,7 @@ async function executeTextToolCalls(contentText, userId) {
   while ((toolMatch = toolTagRe.exec(contentText)) !== null) {
     const toolName = toolMatch[1];
     let toolInput = {};
-    try { toolInput = JSON.parse(toolMatch[2].trim()); } catch { continue; }
+    try { toolInput = JSON.parse(repairJSON(toolMatch[2].trim())); } catch (e) { log("warn", "Tool JSON parse failed", { tool: toolName, error: e.message, raw: toolMatch[2].slice(0,200) }); continue; }
     try {
       const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
       if (result.ok && result.file) {
@@ -3990,10 +4010,19 @@ const proxyMiddleware = createProxyMiddleware({
           res.write(chunk);
         }
       });
-      proxyRes.on("end", async () => {
+      proxyRes.on("end", () => {
         // Execute text-based tool calls [TOOL:name]{params}[/TOOL] server-side
         const contentToScan = isStreaming ? _streamContentBuf : (nonStreamThinkBuf || "");
-        const toolResults = await executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api");
+        const hasToolTags = /\[TOOL:\w+\]/.test(contentToScan);
+        if (hasToolTags) log("info", "Tool tags detected in response", { provider: providerName, contentLen: contentToScan.length });
+
+        // Run async tool execution in a self-contained promise
+        const toolExecPromise = hasToolTags
+          ? executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api")
+              .catch(e => { log("error", "Tool execution failed", { error: e.message }); return []; })
+          : Promise.resolve([]);
+
+        toolExecPromise.then(toolResults => {
 
         if (nonStreamThinkBuf !== null) {
           try {
@@ -4005,16 +4034,17 @@ const proxyMiddleware = createProxyMiddleware({
             }
             res.end(JSON.stringify(j));
           } catch {
-            res.end(nonStreamThinkBuf); // parse failed, pass through
+            res.end(nonStreamThinkBuf);
           }
-        } else {
+        } else if (toolResults.length > 0 && isStreaming && !res.writableEnded) {
           // Send tool results as additional SSE events before closing
-          if (toolResults.length > 0 && isStreaming) {
-            for (const tr of toolResults) {
-              res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
-            }
+          for (const tr of toolResults) {
+            try { res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`); } catch {}
           }
-          res.end();
+          log("info", "Tool results sent to client", { count: toolResults.length });
+          try { res.end(); } catch {}
+        } else {
+          try { if (!res.writableEnded) res.end(); } catch {}
         }
         try {
           let tokens;
@@ -4043,7 +4073,8 @@ const proxyMiddleware = createProxyMiddleware({
         } catch (e) {
           log("error", "Usage tracking error", { error: e.message, traceId: req.traceId });
         }
-      });
+        }); // end toolExecPromise.then
+      }); // end proxyRes.on("end")
     },
     error: (err, req, res) => {
       const providerName = req.params?.provider?.toLowerCase() || "unknown";
