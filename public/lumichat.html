@@ -119,7 +119,7 @@
     /* LAYOUT */
     /* Note: top/height overridden by JS visualViewport on iOS to fix keyboard dismiss bug */
     #app{display:flex;position:fixed;top:0;left:0;right:0;height:100%;height:100dvh}
-    #sidebar{width:var(--sw);height:100%;height:100dvh;background:var(--sb);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow:hidden;transition:width .2s;opacity:0}
+    #sidebar{width:var(--sw);background:var(--sb);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow:hidden;transition:width .2s;opacity:0;height:100%;max-height:100vh;max-height:100dvh}
     #sidebar.sb-entered{opacity:1;transition:opacity 1s cubic-bezier(0.16,1,0.3,1),width .2s,transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s}
     #sidebar.collapsed{width:0;border-right:none}
     /* Sidebar top bar */
@@ -164,7 +164,7 @@
     .proj-acts{display:none;gap:2px;flex-shrink:0}
     .proj-item:hover .proj-acts{display:flex}
     /* Sidebar footer */
-    .sb-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--t3);flex-shrink:0}
+    .sb-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--t3);flex-shrink:0;min-height:fit-content;overflow:hidden}
     .sb-foot .user-dot{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
     .sb-foot-info{flex:1;overflow:hidden}
     .sb-foot-name{font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -330,6 +330,8 @@
     .tdot:nth-child(2){animation-delay:.2s}
     .tdot:nth-child(3){animation-delay:.4s}
     @keyframes typ{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+    .stream-cursor{display:inline-block;width:2px;height:1em;background:var(--accent);margin-left:1px;vertical-align:text-bottom;animation:blink-cursor .8s step-end infinite}
+    @keyframes blink-cursor{0%,100%{opacity:1}50%{opacity:0}}
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
     .trunc-bar{text-align:center;font-size:12px;color:var(--t3);padding:8px 24px 0;max-width:768px;margin:0 auto}
@@ -1403,7 +1405,7 @@ let currentUser = null, sessions = [], messages = [], currentSid = null;
 let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 
 // ── WEB SEARCH TOOL ───────────────────────────────────────────────────────
-const TOOL_PROVIDERS = new Set(['openai','deepseek','qwen','kimi','doubao','anthropic']);
+const TOOL_PROVIDERS = new Set(['openai','deepseek','qwen','kimi','doubao','anthropic','minimax']);
 const SEARCH_TOOL = {
   type:'function',
   function:{
@@ -1559,6 +1561,9 @@ function runSplashToAuthTransition(){
   authWrap.style.animation = 'none';
   authWrap.style.opacity = '0';
   authWrap.style.transform = 'translateY(0)';
+  // Pre-hide auth logo to prevent flash — FLIP will cross-fade it in later
+  const authLogo = authWrap.querySelector('.auth-logo');
+  if(authLogo){ authLogo.style.opacity = '0'; authLogo.style.visibility = 'hidden'; }
 
   // Measure where elements are and where they need to go
   const fromBall  = splashSvg.getBoundingClientRect();
@@ -1656,6 +1661,7 @@ function runSplashToAuthTransition(){
       // Cross-fade flying→real logo: fade real logo in while fading flying elements out
       setTimeout(()=>{
         if(authLogo){
+          authLogo.style.visibility = 'visible';
           authLogo.style.transition = 'opacity 200ms ease';
           authLogo.style.opacity = '1';
         }
@@ -2224,14 +2230,19 @@ async function sendMessage(){
     // Prepend global memory + active preset as system message
     const sysPr = getActiveSystemPrompt();
     if(sysPr) aiMsgs.unshift({role:'system',content:sysPr});
-    const useTools = webSearchEnabled && !useNative && TOOL_PROVIDERS.has(selectedProvider);
     const payload={model:selectedModel,messages:aiMsgs,stream:true};
     if(!useNative){
       if(O_SERIES.has(selectedModel)) payload.max_completion_tokens=4096;
       else payload.max_tokens=4096;
       payload.stream_options={include_usage:true};
     }
-    if(useTools){ payload.tools=[SEARCH_TOOL]; payload.tool_choice='auto'; }
+    // Tools are injected server-side by the proxy middleware (unified registry).
+    // Only add client-side search tool if web search is explicitly enabled AND
+    // server-side tools aren't available (e.g. direct Gemini native path).
+    if(webSearchEnabled && !useNative && TOOL_PROVIDERS.has(selectedProvider)){
+      // Search tool is added client-side as a supplement; server adds doc-gen, parse, etc.
+      payload.tools=[SEARCH_TOOL]; payload.tool_choice='auto';
+    }
 
     // Keep typRow visible until first chunk arrives
     const aRow=appendMsg('assistant','');
@@ -2323,6 +2334,16 @@ async function sendMessage(){
                     pendingDelta='';
                     const tRow=$('typ-row');
                     if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
+                    // Debounced markdown render every 300ms during stream
+                    const now=Date.now();
+                    if(!streamEl._lastMdRender) streamEl._lastMdRender=0;
+                    if(now-streamEl._lastMdRender>300 && streamText.length>20){
+                      streamEl._lastMdRender=now;
+                      const cursor='<span class="stream-cursor"></span>';
+                      streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
+                      // Re-create text node for next deltas
+                      streamNode=document.createTextNode(''); streamEl.appendChild(streamNode);
+                    }
                     const{scrollHeight,clientHeight,scrollTop}=chatEl;
                     if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
                   }
@@ -2350,15 +2371,40 @@ async function sendMessage(){
         }));
         loopMsgs.push({role:'assistant',content:null,tool_calls:tcList});
 
-        // Execute each tool call, show indicator in assistant row
+        // Execute each tool call via server-side unified registry
         $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
         for(const tc of tcList){
           let args={}; try{args=JSON.parse(tc.function.arguments||'{}');}catch{}
-          // Show searching indicator
-          const query=args.query||tc.function.name;
-          streamEl.innerHTML=`<span style="color:var(--t3);font-size:13px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg> Searching: <em>${esc(query)}</em>…</span>`;
-          const result=await execSearchTool(args);
-          loopMsgs.push({role:'tool',tool_call_id:tc.id,content:result});
+          const toolName=tc.function.name;
+          // Show tool execution indicator
+          const TOOL_ICONS={
+            web_search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
+            generate_document:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+            generate_spreadsheet:'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>',
+            generate_presentation:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+            parse_file:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+            transcribe_audio:'<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/>',
+            vision_analyze:'<circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>',
+            code_run:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+          };
+          const icon=TOOL_ICONS[toolName]||TOOL_ICONS.web_search;
+          const label=args.query||args.title||args.filename||toolName.replace(/_/g,' ');
+          streamEl.innerHTML=`<span style="color:var(--t3);font-size:13px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">${icon}</svg> ${esc(toolName.replace(/_/g,' '))}: <em>${esc(label)}</em>…</span>`;
+          let result;
+          if(toolName==='web_search'){
+            result=await execSearchTool(args);
+          } else {
+            // Execute via server-side tool registry
+            try{
+              const r=await apiFetch(`/v1/${selectedProvider}/v1/chat/completions`,{
+                method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({_tool_exec:true,tool_name:toolName,tool_input:args}),
+              });
+              const d=await r.json();
+              result=d.ok?JSON.stringify(d.data||d):`Tool error: ${d.error||'Unknown error'}`;
+            }catch(e){ result=`Tool execution failed: ${e.message}`; }
+          }
+          loopMsgs.push({role:'tool',tool_call_id:tc.id,content:typeof result==='string'?result:JSON.stringify(result)});
         }
         // Reset for next round — clear streaming state but keep the row
         streamText=''; pendingDelta=''; streamEl.textContent='';
