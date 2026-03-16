@@ -6,6 +6,10 @@ const crypto = require("node:crypto");
 
 const WHISPER_URL = process.env.WHISPER_URL || "http://host.docker.internal:17863";
 
+function sanitizeFilename(name) {
+  return (name || "file").replace(/["\r\n\0]/g, "_").slice(0, 255);
+}
+
 const ALLOWED_EXTENSIONS = new Set(["wav", "mp3", "m4a", "ogg", "webm", "flac"]);
 const ALLOWED_MIMES = new Set([
   "audio/wav", "audio/x-wav", "audio/wave",
@@ -35,10 +39,11 @@ const upload = multer({
  */
 async function forwardToWhisper(buffer, filename, contentType) {
   const boundary = "----WhisperBoundary" + crypto.randomBytes(8).toString("hex");
+  const safeName = sanitizeFilename(filename);
 
   const header = Buffer.from(
     `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+    `Content-Disposition: form-data; name="file"; filename="${safeName}"\r\n` +
     `Content-Type: ${contentType}\r\n\r\n`
   );
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
@@ -85,8 +90,8 @@ router.post("/transcribe", upload.single("file"), async (req, res) => {
       duration: parseFloat(((Date.now() - start) / 1000).toFixed(2)),
     });
   } catch (err) {
-    console.error("[audio] transcribe error:", err.message);
-    return res.status(502).json({ ok: false, error: err.message });
+    console.error("[audio] transcribe error:", err);
+    return res.status(502).json({ ok: false, error: "Transcription failed" });
   }
 });
 
@@ -120,8 +125,8 @@ router.post("/transcriptions", upload.single("file"), async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("[audio] transcriptions error:", err.message);
-    return res.status(502).json({ ok: false, error: err.message });
+    console.error("[audio] transcriptions error:", err);
+    return res.status(502).json({ ok: false, error: "Transcription failed" });
   }
 });
 
@@ -134,7 +139,8 @@ router.use((err, _req, res, _next) => {
     return res.status(400).json({ ok: false, error: err.message });
   }
   if (err) {
-    return res.status(400).json({ ok: false, error: err.message });
+    console.error("[audio] unhandled error:", err);
+    return res.status(400).json({ ok: false, error: "Transcription failed" });
   }
 });
 

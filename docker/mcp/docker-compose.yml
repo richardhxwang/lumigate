@@ -12,13 +12,13 @@ services:
     image: postgres:17-alpine
     container_name: lumigate-mcpjungle-db
     environment:
-      POSTGRES_USER: mcpjungle
-      POSTGRES_PASSWORD: mcpjungle
+      POSTGRES_USER: ${MCP_DB_USER:-mcpjungle}
+      POSTGRES_PASSWORD: ${MCP_DB_PASSWORD:-mcpjungle}
       POSTGRES_DB: mcpjungle
     volumes:
       - mcpjungle-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=mcpjungle pg_isready -U mcpjungle"]
+      test: ["CMD-SHELL", "PGPASSWORD=${MCP_DB_PASSWORD:-mcpjungle} pg_isready -U ${MCP_DB_USER:-mcpjungle}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
     image: ghcr.io/mcpjungle/mcpjungle:latest-stdio
     container_name: lumigate-mcpjungle
     environment:
-      DATABASE_URL: postgres://mcpjungle:mcpjungle@lumigate-mcpjungle-db:5432/mcpjungle
+      DATABASE_URL: postgres://${MCP_DB_USER:-mcpjungle}:${MCP_DB_PASSWORD:-mcpjungle}@lumigate-mcpjungle-db:5432/mcpjungle
       SERVER_MODE: development
       MCP_SERVER_INIT_REQ_TIMEOUT_SEC: 15
     ports:

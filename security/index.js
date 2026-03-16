@@ -4,6 +4,7 @@ const { SecretMapping, deepTransform } = require("./secret-mapping");
 const { detectWithOllama } = require("./ollama-detector");
 const { detectSecrets } = require("./detector");
 const { checkCommand } = require("./command-guard");
+const { validateExternalUrl } = require("./url-validator");
 
 const sessionMappings = new Map(); // sessionId → { mapping, lastActive }
 
@@ -24,4 +25,4 @@ setInterval(() => {
   }
 }, 5 * 60_000).unref();
 
-module.exports = { detectPII, SecretMapping, getMapping, deepTransform, sessionMappings, detectWithOllama, detectSecrets, checkCommand };
+module.exports = { detectPII, SecretMapping, getMapping, deepTransform, sessionMappings, detectWithOllama, detectSecrets, checkCommand, validateExternalUrl };

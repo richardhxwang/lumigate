@@ -2,6 +2,7 @@
 
 const express = require('express');
 const multer = require('multer');
+const { validateExternalUrl } = require('../security/url-validator');
 
 const router = express.Router();
 
@@ -48,10 +49,15 @@ router.post('/analyze', upload.single('image'), async (req, res) => {
       base64Image = req.body.image_base64;
       prompt = req.body.prompt;
     } else if (req.body?.image_url) {
+      const urlCheck = await validateExternalUrl(req.body.image_url);
+      if (!urlCheck.ok) {
+        return res.status(400).json({ ok: false, error: `Blocked image_url: ${urlCheck.error}` });
+      }
       try {
         base64Image = await fetchImageAsBase64(req.body.image_url);
       } catch (err) {
-        return res.status(400).json({ ok: false, error: `Could not fetch image_url: ${err.message}` });
+        console.error('[vision] Could not fetch image_url:', err);
+        return res.status(400).json({ ok: false, error: 'Could not fetch the provided image URL' });
       }
       prompt = req.body.prompt;
     } else {
@@ -84,16 +90,18 @@ router.post('/analyze', upload.single('image'), async (req, res) => {
       if (err.name === 'AbortError') {
         return res.status(504).json({ ok: false, error: 'Ollama request timed out (30s).' });
       }
-      return res.status(502).json({ ok: false, error: `Ollama unreachable: ${err.message}` });
+      console.error('[vision] Ollama unreachable:', err);
+      return res.status(502).json({ ok: false, error: 'Vision analysis failed: service unreachable' });
     } finally {
       clearTimeout(timeout);
     }
 
     if (!ollamaRes.ok) {
       const text = await ollamaRes.text().catch(() => '');
+      console.error(`[vision] Ollama returned HTTP ${ollamaRes.status}: ${text}`);
       return res.status(502).json({
         ok: false,
-        error: `Ollama returned HTTP ${ollamaRes.status}: ${text}`.slice(0, 500),
+        error: 'Vision analysis failed',
       });
     }
 
@@ -111,7 +119,8 @@ router.post('/analyze', upload.single('image'), async (req, res) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ ok: false, error: 'Image exceeds 20MB limit.' });
     }
-    return res.status(500).json({ ok: false, error: err.message || 'Internal error.' });
+    console.error('[vision] error:', err);
+    return res.status(500).json({ ok: false, error: 'Vision analysis failed' });
   }
 });
 

@@ -16,7 +16,6 @@ const MAX_TIMEOUT_MS = 60_000;
 const LANGUAGE_CONFIG = {
   python: { image: 'python:3.12-alpine', cmd: ['python3', '-u', '-'] },
   javascript: { image: 'node:22-alpine', cmd: ['node', '-'] },
-  shell: { image: 'alpine:latest', cmd: ['sh', '-s'] },
 };
 
 // ---------------------------------------------------------------------------
@@ -109,9 +108,10 @@ router.post('/run', (req, res) => {
       }
 
       // Other errors (e.g. docker not found)
+      console.error('[code] execution error:', err);
       return res.status(500).json({
         ok: false,
-        error: err.message || 'Execution failed',
+        error: 'Code execution failed',
         stderr: stderr || '',
         duration,
       });

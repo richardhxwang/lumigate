@@ -16,6 +16,7 @@ const MCP_GATEWAY_URL = process.env.MCP_GATEWAY_URL || "http://lumigate-mcpjungl
 const MCP_ENDPOINT = `${MCP_GATEWAY_URL}/mcp`;
 
 const CACHE_TTL = 5 * 60_000; // 5 minutes
+let _rpcId = 0;
 
 let _cachedTools = null;
 let _cacheTime = 0;
@@ -30,7 +31,7 @@ let _refreshPromise = null;
 async function rpcCall(method, params = {}) {
   const body = {
     jsonrpc: "2.0",
-    id: Date.now(),
+    id: ++_rpcId,
     method,
     params,
   };

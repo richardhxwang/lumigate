@@ -59,6 +59,7 @@ function deepTransform(obj, fn) {
   if (obj !== null && typeof obj === "object") {
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
       out[k] = deepTransform(v, fn);
     }
     return out;

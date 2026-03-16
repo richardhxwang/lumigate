@@ -7,6 +7,10 @@ const crypto = require("crypto");
 
 const router = express.Router();
 
+function sanitizeFilename(name) {
+  return (name || "file").replace(/["\r\n\0]/g, "_").slice(0, 255);
+}
+
 // --- Config ---
 
 const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
@@ -49,8 +53,9 @@ function detectMime(filename) {
  */
 async function sendToFileParser(buffer, filename) {
   const boundary = "----LumiParse" + crypto.randomBytes(8).toString("hex");
+  const safeName = sanitizeFilename(filename);
   const header = Buffer.from(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
   );
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
   const body = Buffer.concat([header, buffer, footer]);
@@ -75,8 +80,9 @@ async function sendToFileParser(buffer, filename) {
  */
 async function convertToPdfViaGotenberg(buffer, filename) {
   const boundary = "----LumiGoten" + crypto.randomBytes(8).toString("hex");
+  const safeName = sanitizeFilename(filename);
   const header = Buffer.from(
-    `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+    `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
   );
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
   const body = Buffer.concat([header, buffer, footer]);
@@ -207,7 +213,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       return res.status(413).json({ ok: false, error: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` });
     }
 
-    return res.status(500).json({ ok: false, error: err.message || String(err) });
+    return res.status(500).json({ ok: false, error: "File parsing failed" });
   }
 });
 
@@ -220,7 +226,7 @@ router.use((err, _req, res, _next) => {
     return res.status(400).json({ ok: false, error: err.message });
   }
   console.error("[parse] Unhandled error:", err);
-  return res.status(500).json({ ok: false, error: err.message || String(err) });
+  return res.status(500).json({ ok: false, error: "File parsing failed" });
 });
 
 module.exports = router;

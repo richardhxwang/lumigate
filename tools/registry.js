@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { validateExternalUrl } = require("../security/url-validator");
 
 /**
  * Tool Registry — Fetches and caches tool schemas from microservices.
@@ -170,6 +171,8 @@ async function executeToolCall(toolName, toolInput) {
         return { ok: true, data: { results, query: toolInput.q }, duration: Date.now() - startTime };
       }
       case "parse_file": {
+        const fileUrlCheck = await validateExternalUrl(toolInput.file_url);
+        if (!fileUrlCheck.ok) return { ok: false, error: `Blocked file_url: ${fileUrlCheck.error}`, duration: Date.now() - startTime };
         const fileRes = await fetch(toolInput.file_url, { signal: AbortSignal.timeout(30000) });
         if (!fileRes.ok) throw new Error(`Failed to download file: ${fileRes.status}`);
         const fileBuffer = Buffer.from(await fileRes.arrayBuffer());
@@ -191,6 +194,8 @@ async function executeToolCall(toolName, toolInput) {
         return { ok: true, data: { text: parseData.text, filename: toolInput.filename, pages: parseData.pages }, duration: Date.now() - startTime };
       }
       case "transcribe_audio": {
+        const audioUrlCheck = await validateExternalUrl(toolInput.audio_url);
+        if (!audioUrlCheck.ok) return { ok: false, error: `Blocked audio_url: ${audioUrlCheck.error}`, duration: Date.now() - startTime };
         const audioRes = await fetch(toolInput.audio_url, { signal: AbortSignal.timeout(30000) });
         if (!audioRes.ok) throw new Error(`Failed to download audio: ${audioRes.status}`);
         const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
