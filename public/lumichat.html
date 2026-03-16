@@ -776,7 +776,7 @@
       </button>
       <div id="header-inner">
         <button id="mdl-btn">
-          <span id="mdl-label">LumiChat</span>
+          <span id="mdl-label"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div id="mdl-drop"></div>
@@ -1760,12 +1760,13 @@ function updateUserDisplay(){
 async function onLoggedIn(){
   // Load user settings + projects from PB (parallel)
   await Promise.all([loadUserSettings(), loadProjects()]);
-  // Restore default model from PB settings (fallback: minimax/MiniMax-M1)
-  if(_userSettings.default_provider) selectedProvider = _userSettings.default_provider;
-  if(_userSettings.default_model) selectedModel = _userSettings.default_model;
+  // Restore default model from PB settings
+  if(_userSettings.default_provider && _userSettings.default_provider !== 'null') selectedProvider = _userSettings.default_provider;
+  if(_userSettings.default_model && _userSettings.default_model !== 'null') selectedModel = _userSettings.default_model;
+  // Ensure we always have a valid model label (never empty or "LumiChat")
+  mdlLabel.textContent = fmtModel(selectedModel || 'deepseek-chat');
   updateUserDisplay();
   showApp();
-  mdlLabel.textContent = fmtModel(selectedModel);
   updateProjBanner();
   // Defer heavy loads to next frame so UI paints first
   requestAnimationFrame(()=>{
