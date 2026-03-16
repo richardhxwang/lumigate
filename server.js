@@ -3682,6 +3682,53 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
 // API Proxy — /v1/:provider/*
 // ============================================================
 
+// Shared helper: execute text-based tool calls [TOOL:name]{params}[/TOOL] and upload files to PocketBase
+async function executeTextToolCalls(contentText, userId) {
+  const toolTagRe = /\[TOOL:(\w+)\]([\s\S]*?)\[\/TOOL\]/g;
+  let toolMatch;
+  const results = [];
+  while ((toolMatch = toolTagRe.exec(contentText)) !== null) {
+    const toolName = toolMatch[1];
+    let toolInput = {};
+    try { toolInput = JSON.parse(toolMatch[2].trim()); } catch { continue; }
+    try {
+      const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
+      if (result.ok && result.file) {
+        let downloadUrl = "";
+        try {
+          const pbToken = await getPbAdminToken();
+          if (pbToken) {
+            const fn = (result.filename || "file").replace(/"/g, "_");
+            const boundary = "----FB" + crypto.randomBytes(8).toString("hex");
+            const headerBuf = Buffer.from(
+              `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${fn}\r\n` +
+              `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${result.mimeType}\r\n` +
+              `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId || "api"}\r\n` +
+              `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fn}"\r\nContent-Type: ${result.mimeType}\r\n\r\n`
+            );
+            const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
+            const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, {
+              method: "POST",
+              headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
+              body: Buffer.concat([headerBuf, result.file, footerBuf]),
+            });
+            if (pbRes.ok) { const rec = await pbRes.json(); downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`; }
+          }
+        } catch {}
+        results.push({
+          tool: toolName, filename: result.filename, mimeType: result.mimeType,
+          size: result.file.length, downloadUrl,
+          base64: !downloadUrl ? result.file.toString("base64") : undefined,
+          duration: result.duration,
+        });
+      } else if (result.ok && result.data) {
+        results.push({ tool: toolName, data: result.data, duration: result.duration });
+      }
+    } catch (e) { log("warn", "Tool tag execution failed", { tool: toolName, error: e.message }); }
+  }
+  return results;
+}
+
 // Retry a failed proxy request with a different API key using fetch
 async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new Set()) {
   const provider = PROVIDERS[providerName];
@@ -3735,16 +3782,36 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
     const modelId = req.body?.model || "unknown";
     const isStreaming = req.body?.stream === true;
     let tail = "";
+    let _streamContentBuf = ""; // accumulate AI text content for tool tag detection
     try {
       const reader = upstream.body.getReader();
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = Buffer.from(value);
-        tail = (tail + chunk.toString()).slice(-8192);
+        const str = chunk.toString();
+        tail = (tail + str).slice(-8192);
+        // Extract content deltas for tool tag detection (SSE streaming)
+        if (isStreaming) {
+          for (const line of str.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            const d = line.slice(6).trim();
+            if (d === "[DONE]") continue;
+            try { const j = JSON.parse(d); const c = j.choices?.[0]?.delta?.content; if (c) _streamContentBuf += c; } catch {}
+          }
+        }
         res.write(chunk);
       }
     } catch (_) {}
+
+    // Execute text-based tool calls server-side before closing the response
+    const contentToScan = isStreaming ? _streamContentBuf : tail;
+    const toolResults = await executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api");
+    if (toolResults.length > 0 && isStreaming) {
+      for (const tr of toolResults) {
+        res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
+      }
+    }
     res.end();
     // Track usage
     try {
@@ -3898,12 +3965,22 @@ const proxyMiddleware = createProxyMiddleware({
       }
 
       let tail = "";
+      let _streamContentBuf = ""; // accumulate full AI text content for tool tag detection
       // Use StringDecoder to safely handle multi-byte UTF-8 chars split across chunk boundaries
       // (critical for Chinese text from Doubao/Qwen/Kimi)
       const utf8Decoder = new StringDecoder("utf8");
       proxyRes.on("data", (chunk) => {
         const str = utf8Decoder.write(chunk);
         tail = (tail + str).slice(-8192);
+        // Extract content deltas for tool tag detection (SSE streaming)
+        if (isStreaming) {
+          for (const line of str.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            const d = line.slice(6).trim();
+            if (d === "[DONE]") continue;
+            try { const j = JSON.parse(d); const c = j.choices?.[0]?.delta?.content; if (c) _streamContentBuf += c; } catch {}
+          }
+        }
         if (thinkState) {
           const filtered = stripThinkFromSSEChunk(str);
           if (filtered) res.write(filtered);
@@ -3913,7 +3990,11 @@ const proxyMiddleware = createProxyMiddleware({
           res.write(chunk);
         }
       });
-      proxyRes.on("end", () => {
+      proxyRes.on("end", async () => {
+        // Execute text-based tool calls [TOOL:name]{params}[/TOOL] server-side
+        const contentToScan = isStreaming ? _streamContentBuf : (nonStreamThinkBuf || "");
+        const toolResults = await executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api");
+
         if (nonStreamThinkBuf !== null) {
           try {
             const j = JSON.parse(nonStreamThinkBuf);
@@ -3927,6 +4008,12 @@ const proxyMiddleware = createProxyMiddleware({
             res.end(nonStreamThinkBuf); // parse failed, pass through
           }
         } else {
+          // Send tool results as additional SSE events before closing
+          if (toolResults.length > 0 && isStreaming) {
+            for (const tr of toolResults) {
+              res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
+            }
+          }
           res.end();
         }
         try {
@@ -4386,7 +4473,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   if (!smtpHost || !smtpUser || !smtpPass) return;
   const token = crypto.randomBytes(16).toString('hex');
   if (!settings._approvalTokens) settings._approvalTokens = {};
-  settings._approvalTokens[token] = { userId, userEmail, createdAt: Date.now() };
+  settings._approvalTokens[token] = { userId, userEmail, userName, createdAt: Date.now() };
   for (const [k, v] of Object.entries(settings._approvalTokens)) { if (Date.now() - v.createdAt > 86400000) delete settings._approvalTokens[k]; }
   saveSettings(settings);
   const host = httpReq?.get?.('host') || 'localhost:9471';
@@ -4395,7 +4482,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   const nodemailer = require("nodemailer");
   await nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } }).sendMail({
     from: smtpFrom, to: toEmail, subject: `LumiChat — New User: ${userEmail}`,
-    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><div style="background:#10a37f;padding:24px 32px;text-align:center"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><h2 style="margin:0 0 8px;font-size:18px;color:#1c1c1e">New User Registration</h2><p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.6">A new user has requested access.</p><div style="background:#f8f8f8;border-radius:10px;padding:16px;margin-bottom:24px"><div style="font-size:13px;color:#999;margin-bottom:4px">Email</div><div style="font-size:15px;font-weight:600;color:#1c1c1e">${userEmail}</div>${userName ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Name</div><div style="font-size:15px;color:#1c1c1e">${userName}</div>` : ''}</div><a href="${url}" style="display:block;text-align:center;background:#10a37f;color:#fff;text-decoration:none;padding:14px;border-radius:10px;font-size:15px;font-weight:600">Approve User</a><p style="margin:16px 0 0;font-size:12px;color:#999;text-align:center">Link expires in 24h</p></div></div></body></html>`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><div style="background:#10a37f;padding:24px 32px;text-align:center"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><h2 style="margin:0 0 8px;font-size:18px;color:#1c1c1e">New User Registration</h2><p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.6">A new user has requested access. Review and choose a tier to approve, or decline.</p><div style="background:#f8f8f8;border-radius:10px;padding:16px;margin-bottom:24px"><div style="font-size:13px;color:#999;margin-bottom:4px">Email</div><div style="font-size:15px;font-weight:600;color:#1c1c1e">${userEmail}</div>${userName ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Name</div><div style="font-size:15px;color:#1c1c1e">${userName}</div>` : ''}</div><a href="${url}" style="display:block;text-align:center;background:#10a37f;color:#fff;text-decoration:none;padding:14px;border-radius:10px;font-size:15px;font-weight:600">Review &amp; Approve / Decline</a><p style="margin:16px 0 0;font-size:12px;color:#999;text-align:center">Link expires in 24h. You can select a tier on the approval page.</p></div></div></body></html>`,
   });
   log("info", "Approval email sent", { to: toEmail, userId, userEmail });
 }
@@ -5377,6 +5464,50 @@ app.use("/v1/parse", apiLimiter, platformAuth, require("./routes/parse"));
 app.use("/v1/audio", apiLimiter, platformAuth, require("./routes/audio"));
 app.use("/v1/vision", apiLimiter, platformAuth, require("./routes/vision"));
 app.use("/v1/code", apiLimiter, platformAuth, require("./routes/code"));
+
+// Tool execution endpoint — called by LumiChat frontend when AI returns tool_use
+app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
+  const { tool_name, tool_input } = req.body;
+  if (!tool_name) return res.status(400).json({ ok: false, error: "Missing tool_name" });
+  try {
+    const result = await unifiedRegistry.executeToolCall(tool_name, tool_input || {});
+    if (result.file) {
+      // File result — save to PB generated_files and return download URL
+      const filename = result.filename || "file";
+      const mimeType = result.mimeType || "application/octet-stream";
+      try {
+        const pbToken = await getPbAdminToken();
+        if (pbToken) {
+          const boundary = "----FormBoundary" + crypto.randomBytes(8).toString("hex");
+          const headerBuf = Buffer.from(
+            `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${filename}\r\n` +
+            `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${mimeType}\r\n` +
+            `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${req._lcUserId || "api"}\r\n` +
+            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename.replace(/"/g, '_')}"\r\nContent-Type: ${mimeType}\r\n\r\n`
+          );
+          const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
+          const body = Buffer.concat([headerBuf, result.file, footerBuf]);
+          const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, {
+            method: "POST",
+            headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
+            body,
+          });
+          if (pbRes.ok) {
+            const rec = await pbRes.json();
+            const downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`;
+            return res.json({ ok: true, data: { filename, mimeType, size: result.file.length, downloadUrl, recordId: rec.id }, duration: result.duration });
+          }
+        }
+      } catch (e) { log("warn", "PB file upload failed", { error: e.message }); }
+      // Fallback: return file as base64 if PB upload fails
+      return res.json({ ok: true, data: { filename, mimeType, size: result.file.length, base64: result.file.toString("base64") }, duration: result.duration });
+    }
+    return res.json({ ok: true, data: result.data, duration: result.duration });
+  } catch (err) {
+    log("error", "Tool execution failed", { tool: tool_name, error: err.message });
+    return res.status(500).json({ ok: false, error: "Tool execution failed" });
+  }
+});
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
 app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
@@ -5569,8 +5700,9 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
       return res.status(400).json({ error: "messages array required" });
     }
     req._proxyProjectName = projectName;
+    let collector;
+    try { collector = require("./collector"); } catch { return res.status(503).json({ error: "Collector module not available" }); }
     try {
-      const collector = require("./collector");
       if (isStream) {
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -5647,7 +5779,17 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
       const toolSchemas = await unifiedRegistry.getSchemas();
       const toolPrompt = unifiedRegistry.getSystemPrompt();
       if (toolSchemas.length > 0 && !req.body.tools?.length) {
-        req.body.tools = toolSchemas;
+        // Convert schemas to provider-specific format
+        if (providerName === "anthropic") {
+          // Anthropic native: { name, description, input_schema }
+          req.body.tools = toolSchemas;
+        } else {
+          // OpenAI/MiniMax/DeepSeek format: { type: "function", function: { name, description, parameters } }
+          req.body.tools = toolSchemas.map(s => ({
+            type: "function",
+            function: { name: s.name, description: s.description, parameters: s.input_schema || s.parameters || { type: "object", properties: {} } }
+          }));
+        }
         // Append tool system prompt to system message
         if (providerName === "anthropic") {
           // Anthropic native: system is top-level string or array

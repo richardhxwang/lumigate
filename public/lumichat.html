@@ -2304,6 +2304,46 @@ async function sendMessage(){
             try{ const sn=JSON.parse(data); showSecurityNotice(sn.message); }catch{}
             sseEventType=''; continue;
           }
+          if(sseEventType==='tool_result'){
+            try{
+              const tr=JSON.parse(data);
+              if(streamEl){
+                // First render markdown of accumulated text (strip any [TOOL:...] tags)
+                if(streamText){
+                  const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
+                  if(cleanText){ streamEl.textContent=''; renderMarkdown(streamEl,cleanText); }
+                }
+                if(tr.downloadUrl||tr.base64||tr.filename){
+                  // File download card
+                  const fn=tr.filename||'file';
+                  const mime=tr.mimeType||'application/octet-stream';
+                  const size=tr.size?(tr.size>1048576?((tr.size/1048576).toFixed(1)+' MB'):((tr.size/1024).toFixed(1)+' KB')):'';
+                  let dlUrl=tr.downloadUrl||'';
+                  if(!dlUrl&&tr.base64){
+                    const bin=atob(tr.base64);const arr=new Uint8Array(bin.length);
+                    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                    dlUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
+                  }
+                  const card=document.createElement('div');
+                  card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:12px';
+                  card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
+                    <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+                  streamEl.appendChild(card);
+                } else if(tr.data){
+                  // Non-file result (e.g. search results) — show data block
+                  const resBlock=document.createElement('div');
+                  resBlock.style.cssText='margin:8px 0;padding:10px;background:var(--inp);border-radius:8px;font-size:13px;color:var(--t2);white-space:pre-wrap;max-height:200px;overflow-y:auto';
+                  resBlock.textContent=typeof tr.data==='string'?tr.data:JSON.stringify(tr.data,null,2);
+                  streamEl.appendChild(resBlock);
+                }
+                // Show the row if hidden
+                if(streamRow) streamRow.style.display='';
+                const tRow=$('typ-row'); if(tRow) tRow.remove();
+              }
+            }catch{}
+            sseEventType=''; continue;
+          }
           sseEventType='';
           try{
             const j=JSON.parse(data);
@@ -2394,14 +2434,40 @@ async function sendMessage(){
           if(toolName==='web_search'){
             result=await execSearchTool(args);
           } else {
-            // Execute via server-side tool registry
+            // Execute via server-side unified tool registry
             try{
-              const r=await apiFetch(`/v1/${selectedProvider}/v1/chat/completions`,{
-                method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({_tool_exec:true,tool_name:toolName,tool_input:args}),
+              const r=await fetch('/v1/tools/execute',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'same-origin',
+                body:JSON.stringify({tool_name:toolName,tool_input:args}),
               });
               const d=await r.json();
-              result=d.ok?JSON.stringify(d.data||d):`Tool error: ${d.error||'Unknown error'}`;
+              if(d.ok){
+                // If tool generated a downloadable file, show download card in chat
+                if(d.data?.downloadUrl || d.data?.base64){
+                  const fn=d.data.filename||'file';
+                  const size=d.data.size?(d.data.size>1024*1024?((d.data.size/1024/1024).toFixed(1)+'MB'):((d.data.size/1024).toFixed(1)+'KB')):'';
+                  const mime=d.data.mimeType||'application/octet-stream';
+                  // Create download URL — PocketBase URL or base64 blob
+                  let dlUrl=d.data.downloadUrl||'';
+                  if(!dlUrl && d.data.base64){
+                    const bin=atob(d.data.base64); const arr=new Uint8Array(bin.length);
+                    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                    dlUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
+                  }
+                  // Append download card to the stream element
+                  const card=document.createElement('div');
+                  card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
+                  card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${size}</div></div>
+                    <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+                  streamEl.appendChild(card);
+                }
+                result=JSON.stringify(d.data);
+              } else {
+                result=`Tool error: ${d.error||'Unknown error'}`;
+              }
             }catch(e){ result=`Tool execution failed: ${e.message}`; }
           }
           loopMsgs.push({role:'tool',tool_call_id:tc.id,content:typeof result==='string'?result:JSON.stringify(result)});
@@ -2418,7 +2484,11 @@ async function sendMessage(){
     }
 
     $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
-    if(streamEl&&streamText){ streamEl.textContent=''; renderMarkdown(streamEl,streamText); }
+    if(streamEl&&streamText){
+      // Strip [TOOL:...]...[/TOOL] tags from displayed text (server handles execution)
+      const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
+      streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);
+    }
     // Token/cost footer
     if(streamEl&&streamUsage){
       const minfo=(modelsData[selectedProvider]||[]).find(m=>m.id===selectedModel);
