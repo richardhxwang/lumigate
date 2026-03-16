@@ -240,8 +240,8 @@
     #mdl-btn{display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--t1);font-size:15px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:var(--r1);transition:background .15s}
     #mdl-btn:hover{background:var(--sb-hover)}
     #mdl-btn svg{width:16px;height:16px;color:var(--t2)}
-    #mdl-drop{position:fixed;background:rgba(30,30,32,0.72);-webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:8px;min-width:340px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;z-index:1000;box-shadow:0 12px 48px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06) inset;display:none;overscroll-behavior:contain}
-    #mdl-drop.open{display:block}
+    #mdl-drop{position:fixed;background:rgba(30,30,32,0.72);-webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:8px;min-width:340px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;z-index:1000;box-shadow:0 12px 48px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06) inset;overscroll-behavior:contain;opacity:0;transform:translateY(-8px) scale(0.98);transform-origin:top center;pointer-events:none;visibility:hidden;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s .2s}
+    #mdl-drop.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;visibility:visible;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s}
     :root.light #mdl-drop{background:rgba(240,240,245,0.78);border-color:rgba(0,0,0,0.08);box-shadow:0 12px 48px rgba(0,0,0,.18),0 1px 0 rgba(255,255,255,.9) inset}
     #mdl-drop::-webkit-scrollbar{width:4px}
     #mdl-drop::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
