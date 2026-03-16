@@ -9,8 +9,10 @@ RESOLUTION=${RESOLUTION:-1280x800x24}
 # ── Fix permissions ──
 mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 rm -f /tmp/.X${DISPLAY_NUM}-lock 2>/dev/null
-chown -R chrome:chrome /home/chrome/.chrome-profile 2>/dev/null
+mkdir -p /home/chrome/.cache/chromium /home/chrome/.config/chromium/Crash\ Reports
+mkdir -p /home/chrome/.chrome-profile
 rm -f /home/chrome/.chrome-profile/SingletonLock 2>/dev/null
+chown -R chrome:chrome /home/chrome 2>/dev/null
 chown -R chrome:chrome /app/data 2>/dev/null
 
 # ── Xvfb (virtual display) ──

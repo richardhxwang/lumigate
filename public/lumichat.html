@@ -577,6 +577,22 @@
       #sidebar-overlay.open { opacity: 1; pointer-events: auto; }
       #sb-toggle { display: flex; }
       .inp-hint { display: none; }
+      /* Model dropdown — bottom sheet on mobile */
+      #mdl-drop, #mdl-drop.open {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        max-height: 60vh;
+        border-radius: 16px 16px 0 0;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
+        transform-origin: bottom center;
+      }
+      #mdl-drop { transform: translateY(100%) !important; }
+      #mdl-drop.open { transform: translateY(0) !important; }
     }
     @media (min-width: 769px) {
       #sidebar-overlay { display: none !important; pointer-events: none !important; }
@@ -1423,7 +1439,7 @@ let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = nul
 let webSearchEnabled = false;
 let providersData = [], modelsData = {};
 let _tierData = null; // { tier, rpm, providers: [{ name, access, keyUrl }] }
-let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null, streamNode = null;
+let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null;
 let dropProvider = null;
 
 // DOM
@@ -2248,7 +2264,6 @@ async function sendMessage(){
     streamRow=aRow;
     const aEl=aRow.querySelector('.asst-content');
     streamEl=aEl; streamText=''; pendingDelta='';
-    streamNode=document.createTextNode(''); aEl.appendChild(streamNode);
 
     abortCtrl=new AbortController();
     const endpoint=useNative?'/lc/chat/gemini-native':`/v1/${selectedProvider}/v1/chat/completions`;
@@ -2388,9 +2403,11 @@ async function sendMessage(){
       if(rafId){cancelAnimationFrame(rafId);rafId=null;}
       // Flush any pending delta — content first, then swap visibility
       if(pendingDelta&&streamEl){
-        streamNode.data+=pendingDelta; pendingDelta='';
+        pendingDelta='';
         const tRow=$('typ-row');
         if(tRow){ if(streamRow) streamRow.style.display=''; tRow.remove(); }
+        const cursor='<span class="stream-cursor"></span>';
+        streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
       }
 
       // ── Tool call detected ──────────────────────────────────────────────
@@ -2466,7 +2483,6 @@ async function sendMessage(){
         }
         // Reset for next round — clear streaming state but keep the row
         streamText=''; pendingDelta=''; streamEl.textContent='';
-        streamNode=document.createTextNode(''); streamEl.appendChild(streamNode);
         streamRow.style.display='none'; // hide until first content of final response
         continue; // next loop iteration = final response
       }
@@ -2532,7 +2548,7 @@ async function sendMessage(){
     }
   }finally{
     const queued=pendingQueue; pendingQueue=null;
-    isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; pendingDelta=''; streamRow=null; streamNode=null;
+    isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; pendingDelta=''; streamRow=null;
     cancelAnimationFrame(rafId);
     stopBtn.style.display='none'; sendBtn.style.display='flex';
     updateSendBtn(); scrollBot(); msgIn.focus();
@@ -3098,11 +3114,15 @@ $('mdl-btn').addEventListener('click',e=>{
   mdlDrop.classList.toggle('open');
   if(!wasOpen){
     dropProvider=selectedProvider; renderModelDropdown();
-    // Position below the button, clamped to viewport
-    const r=$('mdl-btn').getBoundingClientRect();
-    mdlDrop.style.top=(r.bottom+6)+'px';
-    const left=Math.min(r.left, window.innerWidth-356);
-    mdlDrop.style.left=Math.max(8,left)+'px';
+    // Position below the button, clamped to viewport (skip on mobile — CSS bottom sheet handles it)
+    if(window.innerWidth>768){
+      const r=$('mdl-btn').getBoundingClientRect();
+      mdlDrop.style.top=(r.bottom+6)+'px';
+      const left=Math.min(r.left, window.innerWidth-356);
+      mdlDrop.style.left=Math.max(8,left)+'px';
+    } else {
+      mdlDrop.style.top=''; mdlDrop.style.left='';
+    }
   }
 });
 mdlDrop.addEventListener('click',e=>{

@@ -17,6 +17,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 # ── Chrome user + dirs ──
 RUN useradd -m -s /bin/bash chrome \
     && mkdir -p /home/chrome/.chrome-profile \
+    && mkdir -p /home/chrome/.cache /home/chrome/.local/share /home/chrome/.config/chromium \
     && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix \
     && chown -R chrome:chrome /home/chrome
 
