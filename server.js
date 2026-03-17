@@ -5025,8 +5025,27 @@ function getAttachmentSearchMode() {
 function buildPbFiltersFromQuery(configKey, query = {}) {
   const config = getLcCollectionConfig(configKey);
   const filters = [];
+  const normalizedQuery = query || {};
+
+  // New query contract:
+  // - filter[field][op]=value  (Excel-like per-column operators)
+  // Legacy still supported:
+  // - field__op=value
+  for (const [rawKey, rawValue] of Object.entries(normalizedQuery)) {
+    if (rawValue === undefined || rawValue === null || rawValue === "") continue;
+    const m = String(rawKey).match(/^filter\[([^\]]+)\]\[([^\]]+)\]$/);
+    if (!m) continue;
+    const [, field, opKey] = m;
+    if (!config.filterableFields?.includes(field)) continue;
+    const operator = PB_FILTER_OPERATORS[opKey];
+    if (!operator) continue;
+    filters.push(buildPbFilterClause(field, operator, rawValue));
+  }
+
+  // Fallback/legacy parser
   for (const [rawKey, rawValue] of Object.entries(query)) {
     if (rawValue === undefined || rawValue === null || rawValue === "") continue;
+    if (String(rawKey).startsWith("filter[")) continue;
     const [field, opKey = "eq"] = rawKey.split("__");
     if (!config.filterableFields?.includes(field)) continue;
     const operator = PB_FILTER_OPERATORS[opKey];
@@ -5044,12 +5063,26 @@ function buildPbSortFromQuery(configKey, rawSort) {
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => {
-      const desc = part.startsWith("-");
-      const field = desc ? part.slice(1) : part;
+      let desc = part.startsWith("-");
+      let field = desc ? part.slice(1) : part;
+      if (part.includes(":")) {
+        const [f, dir] = part.split(":").map((x) => String(x || "").trim());
+        field = f;
+        desc = /^desc$/i.test(dir);
+      }
       if (!config.sortableFields?.includes(field)) return null;
       return desc ? `-${field}` : field;
     })
     .filter(Boolean);
+}
+
+function resolveDomainCollectionConfig(domainKey, apiCollectionName) {
+  const domain = DOMAIN_API_REGISTRY[domainKey];
+  if (!domain) return null;
+  const configKey = domain.collections?.[apiCollectionName];
+  if (!configKey) return null;
+  const config = getLcCollectionConfig(configKey);
+  return { domainKey, apiCollectionName, configKey, config };
 }
 
 async function pbListOwnedRecords(configKey, { ownerId, token, extraFilters = [], sort = [], perPage } = {}) {
@@ -5255,6 +5288,55 @@ app.get("/api/domains/:domain/schema", (req, res) => {
   const schema = getDomainApiSchema(req.params.domain);
   if (!schema) return res.status(404).json({ error: "Unknown domain" });
   res.json(schema);
+});
+
+// GET /api/domains/:domain/:collection → generic domain collection list endpoint
+app.get("/api/domains/:domain/:collection", requireLcAuth, async (req, res) => {
+  const domainKey = String(req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+  if (domainKey !== "lc") return res.status(501).json({ error: "Domain auth adapter not implemented yet" });
+
+  try {
+    const { configKey } = resolved;
+    const includeDeleted = String(req.query.include_deleted || "") === "1";
+    const trashOnly = String(req.query.trash_only || "") === "1";
+    const extraFilters = buildPbFiltersFromQuery(configKey, req.query);
+
+    // Safety guard for messages (ownerField is null): require explicit session filter.
+    if (configKey === "messages") {
+      const sessionFilterRaw = req.query.session
+        || req.query.session__eq
+        || req.query["filter[session][eq]"]
+        || "";
+      const sessionId = String(sessionFilterRaw || "").trim();
+      if (!sessionId || !validPbId(sessionId)) {
+        return res.status(400).json({ error: "messages query requires session filter" });
+      }
+      const sessionOwnershipResp = await pbListOwnedRecords("sessions", {
+        ownerId: req.lcUser.id,
+        token: req.lcToken,
+        extraFilters: [buildPbFilterClause("id", "=", sessionId)],
+        perPage: 1,
+      });
+      const sessionOwnershipData = await sessionOwnershipResp.json();
+      if (!sessionOwnershipResp.ok) return res.status(sessionOwnershipResp.status).json(sessionOwnershipData);
+      if (!(sessionOwnershipData.items || []).length) return res.status(403).json({ error: "Session not owned by current user" });
+    }
+
+    const r = await pbListOwnedRecords(configKey, {
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      extraFilters: withSoftDeleteFilters(configKey, { extraFilters, includeDeleted, trashOnly }),
+      sort: buildPbSortFromQuery(configKey, req.query.sort) || [],
+      perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
+    });
+    const d = await r.json();
+    return res.status(r.status).json(d);
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
 });
 
 // Server-side PKCE state store: state → { codeVerifier, provider, redirect, redirectUrl, ts }
