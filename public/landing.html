@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>LumiGate — AI Gateway</title>
+<title>LumiGate — AI Agent Platform</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&display=swap');
@@ -294,9 +294,9 @@
 
 <!-- Hero -->
 <div class="hero">
-  <div class="hero-badge reveal"><span class="hero-badge-dot"></span>Self-hosted AI Gateway</div>
-  <h1 class="reveal reveal-d1">One gateway,<br>every <span class="accent">AI model</span></h1>
-  <p class="hero-sub reveal reveal-d2">Route requests across OpenAI, Anthropic, Gemini, DeepSeek and more through a single, lightweight endpoint you own.</p>
+  <div class="hero-badge reveal"><span class="hero-badge-dot"></span>Self-hosted AI Agent Platform</div>
+  <h1 class="reveal reveal-d1">One API,<br>clean <span class="accent">AI power</span></h1>
+  <p class="hero-sub reveal reveal-d2">8 AI providers, server-side tool execution, file generation, web search — all through POST /v1/chat. Your frontend only receives clean text and file downloads.</p>
   <div class="hero-ctas reveal reveal-d3">
     <a href="/lumichat" class="hero-btn pri">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -324,10 +324,10 @@
 <section style="padding:80px 24px 0">
   <div class="section-inner">
     <div class="stats" style="justify-content:center;gap:64px">
-      <div class="reveal"><div class="stat-val">8+</div><div class="stat-label">AI providers built-in</div></div>
-      <div class="reveal reveal-d1"><div class="stat-val">50+</div><div class="stat-label">Models available</div></div>
-      <div class="reveal reveal-d2"><div class="stat-val">2,300+</div><div class="stat-label">Requests per second</div></div>
-      <div class="reveal reveal-d3"><div class="stat-val">~24 MB</div><div class="stat-label">Total memory footprint</div></div>
+      <div class="reveal"><div class="stat-val">8</div><div class="stat-label">AI providers</div></div>
+      <div class="reveal reveal-d1"><div class="stat-val">224</div><div class="stat-label">Professional templates</div></div>
+      <div class="reveal reveal-d2"><div class="stat-val">6,400+</div><div class="stat-label">Requests/sec</div></div>
+      <div class="reveal reveal-d3"><div class="stat-val">~37 MB</div><div class="stat-label">Memory footprint</div></div>
     </div>
   </div>
 </section>
@@ -336,58 +336,58 @@
 <section id="features">
   <div class="section-inner">
     <div class="section-label reveal">Features</div>
-    <h2 class="section-title reveal reveal-d1">Everything you need to manage AI at scale</h2>
-    <p class="section-desc reveal reveal-d2">Enterprise-grade capabilities in a lightweight Docker stack that runs anywhere — from a Raspberry Pi to a production cluster.</p>
+    <h2 class="section-title reveal reveal-d1">Agent Platform, not just a proxy</h2>
+    <p class="section-desc reveal reveal-d2">AI proxy evolved — server-side tool execution, clean streaming, enterprise security. One Docker stack, runs anywhere.</p>
 
     <div class="features">
       <div class="feat reveal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-        <h3>Defense in depth</h3>
-        <p>HMAC signatures, ephemeral tokens, per-project RPM limits, IP allowlists, budget caps, anomaly auto-suspend, and MFA for admin access. Every layer independently enforced.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <h3>Clean Chat Proxy</h3>
+        <p>POST /v1/chat: clients receive only clean text + file downloads + status events. Zero tool logic on frontend.</p>
       </div>
       <div class="feat reveal reveal-d1">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-        <h3>Sub-millisecond overhead</h3>
-        <p>2,300+ QPS with full auth stack active on commodity hardware. All security checks are O(1) in-memory — auth adds zero measurable latency to your AI calls.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></div>
+        <h3>Server-side tools</h3>
+        <p>AI outputs tool tags, server intercepts and executes: Excel, Word, PPT, web search, code sandbox. Tags never reach the client.</p>
       </div>
       <div class="feat reveal reveal-d2">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
-        <h3>Multi-key rotation</h3>
-        <p>Multiple API keys per provider with automatic round-robin, intelligent failover, and per-project key assignment. No single point of failure.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8M10 9H8"/></svg></div>
+        <h3>224 templates</h3>
+        <p>Professional finance templates (DCF, LBO, Black-Scholes, Goldman), business docs, presentations. AI picks the right template automatically.</p>
       </div>
       <div class="feat reveal reveal-d1">
         <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 019-9"/></svg></div>
-        <h3>8+ AI providers</h3>
-        <p>OpenAI, Anthropic, Gemini, DeepSeek, Qwen, MiniMax, Kimi, Doubao — all through one endpoint. Add any OpenAI-compatible provider in seconds.</p>
+        <h3>8 AI providers</h3>
+        <p>OpenAI, Anthropic, Gemini, DeepSeek, MiniMax, Qwen, Kimi, Doubao. API keys or Collector (headless Chrome) — auto-fallback between both.</p>
       </div>
       <div class="feat reveal reveal-d2">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
-        <h3>Usage analytics</h3>
-        <p>Real-time cost tracking across all providers with per-project breakdown. 10 currencies, automatic budget enforcement, and exportable usage reports.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Defense in depth</h3>
+        <p>HMAC + ephemeral tokens, PII detection, secret masking, command guard, SSRF protection, tool injection prevention. Per-project RPM, budget, model allowlist.</p>
       </div>
       <div class="feat reveal reveal-d3">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-        <h3>Zero-config deployment</h3>
-        <p>One-line install with interactive setup wizard. Auto-TLS via Cloudflare Tunnel, built-in watchdog with &lt;10s crash recovery, atomic writes for zero data loss.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>
+        <h3>Smart web search</h3>
+        <p>Auto-detects search intent, AI generates keywords, multi-round SearXNG search, results injected as context. Models with built-in search skip SearXNG.</p>
       </div>
     </div>
 
     <!-- Second row of features -->
     <div class="features" style="margin-top:16px">
       <div class="feat reveal">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-        <h3>Admin dashboard</h3>
-        <p>Full-featured web UI for managing projects, keys, providers, users, and usage. Role-based access control with root, admin, and user tiers.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Sub-millisecond overhead</h3>
+        <p>6,400+ QPS on health, 200 concurrent /v1/chat with zero errors. All security checks O(1) in-memory.</p>
       </div>
       <div class="feat reveal reveal-d1">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></div>
-        <h3>Multi-tenant projects</h3>
-        <p>Isolate apps with dedicated projects — each with its own keys, rate limits, budget, model allowlist, and auth mode. Ship AI features without sharing credentials.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <h3>Self-healing</h3>
+        <p>Docker healthcheck, auto-restart, macOS watchdog, RPO &le;1s writes, QUIC tunnel. Collector cookies persist across restarts.</p>
       </div>
       <div class="feat reveal reveal-d2">
-        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8M10 9H8"/></svg></div>
-        <h3>Audit trail</h3>
-        <p>Enterprise-grade audit logging for every admin action, key rotation, and configuration change. Automated daily backups with one-click restore.</p>
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>LumiChat built-in</h3>
+        <p>Production chat UI: SSE streaming, markdown, file upload, voice input, PocketBase auth, mobile responsive, 10 presets, session history.</p>
       </div>
     </div>
   </div>
@@ -400,7 +400,7 @@
       <div>
         <div class="section-label reveal">LumiChat</div>
         <h2 class="section-title reveal reveal-d1">Chat with any model,<br>one interface</h2>
-        <p class="section-desc reveal reveal-d2">A built-in chat UI that connects to every provider through your gateway. Switch models mid-conversation.</p>
+        <p class="section-desc reveal reveal-d2">Built-in chat UI powered by the Clean Proxy architecture. Ask for spreadsheets, search the web, run code — the server handles all tool execution. Your browser just renders clean text and downloads.</p>
         <ul class="chat-features reveal reveal-d3">
           <li>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -482,7 +482,7 @@
     <svg viewBox="0 0 40 40" width="20" height="20"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fff"/></svg>
     <span style="font-weight:600;color:var(--t1)">LumiGate</span>
   </div>
-  Self-hosted AI gateway &middot; <a href="/lumichat">LumiChat</a>
+  Self-hosted AI Agent Platform &middot; <a href="/lumichat">LumiChat</a>
 </footer>
 
 <script>
