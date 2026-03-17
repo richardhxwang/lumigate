@@ -2281,6 +2281,9 @@ app.get("/admin/usage/summary", (req, res) => {
 
 // --- Settings API (root only) ---
 app.get("/admin/settings", requireRole("root"), (req, res) => {
+  const domainApiRegistry = settings.domainApiRegistry && typeof settings.domainApiRegistry === "object"
+    ? settings.domainApiRegistry
+    : {};
   res.json({
     freeTierMode: settings.freeTierMode || "global",
     deployMode: DEPLOY_MODE,
@@ -2309,6 +2312,7 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
     toolInjectionEnabled: settings.toolInjectionEnabled !== false,
     lcSoftDeleteEnabled: isLcSoftDeleteEnabled(),
     attachmentSearchMode: getAttachmentSearchMode(),
+    domainApiRegistry,
   });
 });
 
@@ -2318,7 +2322,7 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
           stealthMode, approvalEmail, approvalEnabled,
           searchKeywordProvider, searchKeywordModel, autoSearchEnabled, toolInjectionEnabled,
           attachmentSearchMode,
-          lcSoftDeleteEnabled } = req.body;
+          lcSoftDeleteEnabled, domainApiRegistry } = req.body;
   // Require re-authentication for settings changes
   if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
     return res.status(403).json({ error: "Admin secret required to change settings" });
@@ -2401,6 +2405,28 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
     changes.attachmentSearchMode = settings.attachmentSearchMode;
   }
   if (lcSoftDeleteEnabled !== undefined) { settings.lcSoftDeleteEnabled = !!lcSoftDeleteEnabled; changes.lcSoftDeleteEnabled = settings.lcSoftDeleteEnabled; }
+  if (domainApiRegistry && typeof domainApiRegistry === "object") {
+    const sanitized = {};
+    for (const [rawDomainKey, rawDomainSpec] of Object.entries(domainApiRegistry)) {
+      const domainKey = String(rawDomainKey || "").trim().toLowerCase();
+      if (!domainKey || !rawDomainSpec || typeof rawDomainSpec !== "object") continue;
+      const label = String(rawDomainSpec.label || domainKey).slice(0, 80);
+      const authAdapter = String(rawDomainSpec.authAdapter || domainKey).trim().toLowerCase();
+      const rawCollections = rawDomainSpec.collections && typeof rawDomainSpec.collections === "object" ? rawDomainSpec.collections : {};
+      const collections = {};
+      for (const [apiCollectionName, configKey] of Object.entries(rawCollections)) {
+        const apiName = String(apiCollectionName || "").trim();
+        const cfgKey = String(configKey || "").trim();
+        if (!apiName || !cfgKey) continue;
+        if (!LC_COLLECTION_CONFIG[cfgKey]) continue;
+        collections[apiName] = cfgKey;
+      }
+      if (!Object.keys(collections).length) continue;
+      sanitized[domainKey] = { label, authAdapter, collections };
+    }
+    settings.domainApiRegistry = sanitized;
+    changes.domainApiRegistry = Object.keys(sanitized);
+  }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
   res.json({
@@ -4917,9 +4943,10 @@ const DOMAIN_COLLECTION_POLICIES = {
   },
 };
 
-const DOMAIN_API_REGISTRY = {
+const DEFAULT_DOMAIN_API_REGISTRY = {
   lc: {
     label: "LumiChat",
+    authAdapter: "lc",
     collections: {
       projects: "projects",
       sessions: "sessions",
@@ -4929,6 +4956,26 @@ const DOMAIN_API_REGISTRY = {
     },
   },
 };
+
+function getDomainApiRegistry() {
+  const runtime = { ...DEFAULT_DOMAIN_API_REGISTRY };
+  const settingsDomains = settings?.domainApiRegistry;
+  if (settingsDomains && typeof settingsDomains === "object") {
+    for (const [k, v] of Object.entries(settingsDomains)) {
+      if (!k || !v || typeof v !== "object") continue;
+      const key = String(k).toLowerCase();
+      runtime[key] = {
+        ...(runtime[key] || {}),
+        ...v,
+        collections: {
+          ...((runtime[key] && runtime[key].collections) || {}),
+          ...(v.collections || {}),
+        },
+      };
+    }
+  }
+  return runtime;
+}
 
 function pbQuote(value) {
   return `'${String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
@@ -4989,7 +5036,7 @@ function getDomainCollectionPolicy(domainKey, collectionKey) {
 }
 
 function getDomainApiSchema(domainKey) {
-  const domain = DOMAIN_API_REGISTRY[domainKey];
+  const domain = getDomainApiRegistry()[domainKey];
   if (!domain) return null;
   const collections = Object.entries(domain.collections).map(([apiName, configKey]) => {
     const config = getLcCollectionConfig(configKey);
@@ -5077,12 +5124,37 @@ function buildPbSortFromQuery(configKey, rawSort) {
 }
 
 function resolveDomainCollectionConfig(domainKey, apiCollectionName) {
-  const domain = DOMAIN_API_REGISTRY[domainKey];
+  const domain = getDomainApiRegistry()[domainKey];
   if (!domain) return null;
   const configKey = domain.collections?.[apiCollectionName];
   if (!configKey) return null;
   const config = getLcCollectionConfig(configKey);
-  return { domainKey, apiCollectionName, configKey, config };
+  return { domainKey, apiCollectionName, configKey, config, authAdapter: domain.authAdapter || domainKey };
+}
+
+const DOMAIN_AUTH_ADAPTERS = {
+  lc: {
+    middleware: requireLcAuth,
+    getContext: (req) => ({ ownerId: req.lcUser?.id, token: req.lcToken }),
+  },
+};
+
+function requireDomainAuth(req, res, next) {
+  const domainKey = String(req.params.domain || "").toLowerCase();
+  const domain = getDomainApiRegistry()[domainKey];
+  if (!domain) return res.status(404).json({ error: "Unknown domain" });
+
+  const authAdapterName = String(domain.authAdapter || domainKey);
+  const adapter = DOMAIN_AUTH_ADAPTERS[authAdapterName];
+  if (!adapter || typeof adapter.middleware !== "function") {
+    return res.status(501).json({ error: `No auth adapter configured for domain: ${domainKey}` });
+  }
+
+  adapter.middleware(req, res, () => {
+    req.domainKey = domainKey;
+    req.domainAuth = adapter.getContext ? adapter.getContext(req) : {};
+    next();
+  });
 }
 
 async function pbListOwnedRecords(configKey, { ownerId, token, extraFilters = [], sort = [], perPage } = {}) {
@@ -5291,15 +5363,17 @@ app.get("/api/domains/:domain/schema", (req, res) => {
 });
 
 // GET /api/domains/:domain/:collection → generic domain collection list endpoint
-app.get("/api/domains/:domain/:collection", requireLcAuth, async (req, res) => {
-  const domainKey = String(req.params.domain || "").toLowerCase();
+app.get("/api/domains/:domain/:collection", requireDomainAuth, async (req, res) => {
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
   const apiCollectionName = String(req.params.collection || "");
   const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
   if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
-  if (domainKey !== "lc") return res.status(501).json({ error: "Domain auth adapter not implemented yet" });
 
   try {
     const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
     const includeDeleted = String(req.query.include_deleted || "") === "1";
     const trashOnly = String(req.query.trash_only || "") === "1";
     const extraFilters = buildPbFiltersFromQuery(configKey, req.query);
@@ -5315,8 +5389,8 @@ app.get("/api/domains/:domain/:collection", requireLcAuth, async (req, res) => {
         return res.status(400).json({ error: "messages query requires session filter" });
       }
       const sessionOwnershipResp = await pbListOwnedRecords("sessions", {
-        ownerId: req.lcUser.id,
-        token: req.lcToken,
+        ownerId,
+        token,
         extraFilters: [buildPbFilterClause("id", "=", sessionId)],
         perPage: 1,
       });
@@ -5326,8 +5400,8 @@ app.get("/api/domains/:domain/:collection", requireLcAuth, async (req, res) => {
     }
 
     const r = await pbListOwnedRecords(configKey, {
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId,
+      token,
       extraFilters: withSoftDeleteFilters(configKey, { extraFilters, includeDeleted, trashOnly }),
       sort: buildPbSortFromQuery(configKey, req.query.sort) || [],
       perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
