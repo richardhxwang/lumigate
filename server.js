@@ -234,7 +234,7 @@ function getContinuationPrompt(lang = "en") {
 
 async function touchLcSession(sessionId, lcToken) {
   if (!validPbId(sessionId) || !lcToken) return;
-  const getResp = await pbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
+  const getResp = await lcPbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
     headers: { Authorization: `Bearer ${lcToken}` },
   });
   if (!getResp.ok) return;
@@ -245,7 +245,7 @@ async function touchLcSession(sessionId, lcToken) {
     model: sessionData.model || "gpt-4.1-mini",
   };
   if (sessionData.project) patchBody.project = sessionData.project;
-  await pbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
+  await lcPbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
     body: JSON.stringify(patchBody),
@@ -713,17 +713,17 @@ async function backupCollectorTokensToPB(tokens) {
     if (!pbToken) return; // No PB auth = skip backup silently
     const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${pbToken}` };
     const payload = encryptValue(JSON.stringify(tokens), ADMIN_SECRET);
-    const list = await fetch(`${PB_URL}/api/collections/lc_collector_backup/records?perPage=1`, {
+    const list = await lcPbFetch(`/api/collections/lc_collector_backup/records?perPage=1`, {
       headers: authHeaders,
     }).then(r => r.ok ? r.json() : null).catch(() => null);
 
     if (list && list.items && list.items.length > 0) {
-      await fetch(`${PB_URL}/api/collections/lc_collector_backup/records/${list.items[0].id}`, {
+      await lcPbFetch(`/api/collections/lc_collector_backup/records/${list.items[0].id}`, {
         method: "PATCH", headers: authHeaders,
         body: JSON.stringify({ data: payload, updated_at: new Date().toISOString() }),
       });
     } else {
-      await fetch(`${PB_URL}/api/collections/lc_collector_backup/records`, {
+      await lcPbFetch(`/api/collections/lc_collector_backup/records`, {
         method: "POST", headers: authHeaders,
         body: JSON.stringify({ data: payload }),
       });
@@ -736,7 +736,7 @@ async function backupCollectorTokensToPB(tokens) {
 async function restoreCollectorTokensFromPB() {
   const pbToken = await getPbAdminToken();
   const headers = pbToken ? { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-  const list = await fetch(`${PB_URL}/api/collections/lc_collector_backup/records?perPage=1`, {
+  const list = await lcPbFetch(`/api/collections/lc_collector_backup/records?perPage=1`, {
     headers,
   }).then(r => r.json());
   if (!list?.items?.length) throw new Error("No collector backup found in PocketBase");
@@ -1482,6 +1482,22 @@ function requireLcAuth(req, res, next) {
   req.lcUser = payload; // { id, email, collectionId, ... }
   req.lcToken = token;
   next();
+}
+
+async function verifyLcTokenWithPb(token, expectedUserId) {
+  if (!token || !isValidPbId(expectedUserId)) {
+    return { ok: false, status: 401, error: "Not authenticated" };
+  }
+  try {
+    const r = await lcPbFetch(`/api/collections/users/records/${expectedUserId}?fields=id`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (r.ok) return { ok: true };
+    const data = await r.json().catch(() => ({}));
+    return { ok: false, status: r.status === 403 ? 401 : r.status, error: pbErrorSummary(data, "Session invalid") };
+  } catch {
+    return { ok: false, status: 503, error: "PocketBase unavailable" };
+  }
 }
 
 const lcUpload = multer({
@@ -2551,7 +2567,7 @@ app.post("/admin/lc/projects/:id/remap", requireRole("root"), async (req, res) =
         token: pbToken,
         recordId: sourceId,
       });
-      const delResp = await pbFetch(`/api/collections/lc_projects/records/${sourceId}`, {
+      const delResp = await lcPbFetch(`/api/collections/lc_projects/records/${sourceId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${pbToken}` },
       });
@@ -2696,7 +2712,7 @@ app.get("/admin/lc-users", requireRole("root", "admin"), async (req, res) => {
     let tierMap = {};
     if (userIds.length) {
       const filter = userIds.map(id => `user='${id}'`).join('||');
-      const settingsRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=${encodeURIComponent(filter)}&perPage=100`, {
+      const settingsRes = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=${encodeURIComponent(filter)}&perPage=100`, {
         headers: { Authorization: `Bearer ${pbToken}` },
       });
       const settingsData = await settingsRes.json();
@@ -2732,7 +2748,7 @@ app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
   const userId = req.params.id;
   try {
     // Find or create settings record
-    const findRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+    const findRes = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     });
     const findData = await findRes.json();
@@ -2741,14 +2757,14 @@ app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
       // Update existing
       const updateBody = { tier, tier_updated: new Date().toISOString() };
       if (clear_upgrade) { updateBody.upgrade_request = ''; updateBody.upgrade_requested_at = ''; }
-      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
+      await lcPbFetch(`/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(updateBody),
       });
     } else {
       // Create new settings record
-      await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+      await lcPbFetch(`/api/collections/lc_user_settings/records`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ user: userId, tier, tier_updated: new Date().toISOString() }),
@@ -2770,12 +2786,12 @@ app.patch("/admin/lc-users/:id/decline-upgrade", requireRole("root"), async (req
   if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
   const userId = req.params.id;
   try {
-    const findRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+    const findRes = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     });
     const findData = await findRes.json();
     if (findData.items?.length) {
-      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
+      await lcPbFetch(`/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
@@ -2793,7 +2809,7 @@ app.get("/admin/lc-subscriptions", requireRole("root", "admin"), async (req, res
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
   try {
-    const r = await fetch(`${PB_URL}/api/collections/lc_subscriptions/records?perPage=100&sort=-created&expand=user`, {
+    const r = await lcPbFetch(`/api/collections/lc_subscriptions/records?perPage=100&sort=-created&expand=user`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     });
     res.json(await r.json());
@@ -2806,7 +2822,7 @@ app.post("/admin/lc-subscriptions", requireRole("root"), async (req, res) => {
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
   try {
-    const r = await fetch(`${PB_URL}/api/collections/lc_subscriptions/records`, {
+    const r = await lcPbFetch(`/api/collections/lc_subscriptions/records`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2817,7 +2833,7 @@ app.post("/admin/lc-subscriptions", requireRole("root"), async (req, res) => {
     });
     const data = await r.json();
     // Auto-set tier to premium
-    await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+    await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     }).then(async findRes => {
       const findData = await findRes.json();
@@ -4874,6 +4890,33 @@ async function pbFetch(path, options = {}) {
   return fetch(url, options);
 }
 
+const PB_LC_PROJECT = (process.env.PB_LC_PROJECT || "lumichat").trim() || "lumichat";
+
+function toLcProjectPath(path) {
+  const p = String(path || "");
+  if (p.startsWith(`/api/p/${PB_LC_PROJECT}/`)) return p;
+  if (p.startsWith("/api/collections/")) return `/api/p/${PB_LC_PROJECT}${p.slice("/api".length)}`;
+  if (p.startsWith("/api/files/")) return `/api/p/${PB_LC_PROJECT}${p.slice("/api".length)}`;
+  return p;
+}
+
+async function lcPbFetch(path, options = {}) {
+  const p = String(path || "");
+  const target = toLcProjectPath(p);
+  const noFallback = !!options.lcNoFallback;
+  const fetchOptions = { ...options };
+  delete fetchOptions.lcNoFallback;
+
+  if (target === p) return pbFetch(p, fetchOptions);
+  try {
+    const scoped = await pbFetch(target, fetchOptions);
+    if (scoped.ok || noFallback) return scoped;
+  } catch (err) {
+    if (noFallback) throw err;
+  }
+  return pbFetch(p, fetchOptions);
+}
+
 const PB_DEFAULT_PAGE_SIZE = 100;
 const PB_DEFAULT_PROJECT_COLOR = "#6366f1";
 const PB_DEFAULT_LC_PROJECT_SORT = 0;
@@ -5151,6 +5194,12 @@ const DOMAIN_AUTH_ADAPTERS = {
   },
 };
 
+function domainPbFetch(domainKey, path, options = {}) {
+  return String(domainKey || "").toLowerCase() === "lc"
+    ? lcPbFetch(path, options)
+    : pbFetch(path, options);
+}
+
 function requireDomainAuth(req, res, next) {
   const domainKey = String(req.params.domain || "").toLowerCase();
   const domain = getDomainApiRegistry()[domainKey];
@@ -5173,7 +5222,7 @@ async function pbListOwnedRecords(configKey, { ownerId, token, extraFilters = []
   const config = getLcCollectionConfig(configKey);
   const filters = [...extraFilters];
   if (config.ownerField && ownerId) filters.unshift(buildPbFilterClause(config.ownerField, "=", ownerId));
-  return pbFetch(buildPbQuery({
+  return lcPbFetch(buildPbQuery({
     collection: config.name,
     filters,
     sort,
@@ -5247,7 +5296,7 @@ async function remapLcProjectReferences({ ownerId, token, sourceId, targetId }) 
   const updatedIds = [];
 
   for (const session of sessions) {
-    const patchResp = await pbFetch(`/api/collections/lc_sessions/records/${session.id}`, {
+    const patchResp = await lcPbFetch(`/api/collections/lc_sessions/records/${session.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ project: targetId }),
@@ -5286,7 +5335,7 @@ async function softDeleteRecord(configKey, { id, token, userId, reason = "" }) {
     deleted_by: userId || "",
     delete_reason: reason || "",
   };
-  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+  const r = await lcPbFetch(`/api/collections/${config.name}/records/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
@@ -5305,7 +5354,7 @@ async function softDeleteRecord(configKey, { id, token, userId, reason = "" }) {
 async function restoreSoftDeletedRecord(configKey, { id, token }) {
   const config = getLcCollectionConfig(configKey);
   const payload = { deleted_at: "", deleted_by: "", delete_reason: "" };
-  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+  const r = await lcPbFetch(`/api/collections/${config.name}/records/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
@@ -5338,7 +5387,7 @@ async function createLcProjectRecord({ lcToken, userId, input }) {
     err.status = 400;
     throw err;
   }
-  return pbFetch("/api/collections/lc_projects/records", {
+  return lcPbFetch("/api/collections/lc_projects/records", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
     body: JSON.stringify({
@@ -5380,7 +5429,7 @@ async function assertLcSessionOwned(sessionId, { ownerId, token }) {
 
 async function fetchPbRecordById(configKey, { id, token }) {
   const config = getLcCollectionConfig(configKey);
-  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+  const r = await lcPbFetch(`/api/collections/${config.name}/records/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const d = await r.json().catch(() => ({}));
@@ -5476,7 +5525,7 @@ const DOMAIN_REMAP_HANDLERS = {
 // GET /lc/auth/methods → return available auth methods (password + oauth providers)
 app.get("/lc/auth/methods", async (req, res) => {
   try {
-    const r = await pbFetch("/api/collections/users/auth-methods");
+    const r = await lcPbFetch("/api/collections/users/auth-methods");
     const data = await r.json();
     const providers = {};
     for (const p of (data.oauth2?.providers || [])) {
@@ -5569,7 +5618,7 @@ app.post("/api/domains/:domain/:collection", requireDomainAuth, async (req, res)
     }
 
     const config = getLcCollectionConfig(configKey);
-    const r = await pbFetch(`/api/collections/${config.name}/records`, {
+    const r = await domainPbFetch(domainKey, `/api/collections/${config.name}/records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload),
@@ -5602,7 +5651,7 @@ app.patch("/api/domains/:domain/:collection/:id", requireDomainAuth, async (req,
 
     const config = getLcCollectionConfig(configKey);
     if (config.ownerField) delete payload[config.ownerField];
-    const r = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+    const r = await domainPbFetch(domainKey, `/api/collections/${config.name}/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload),
@@ -5649,7 +5698,7 @@ app.delete("/api/domains/:domain/:collection/:id", requireDomainAuth, async (req
     });
 
     const config = getLcCollectionConfig(configKey);
-    const r = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+    const r = await domainPbFetch(domainKey, `/api/collections/${config.name}/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -5721,7 +5770,7 @@ app.post("/api/domains/:domain/:collection/:id/remap", requireDomainAuth, async 
         recordId: req.params.id,
       });
       const config = getLcCollectionConfig(configKey);
-      const delResp = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+      const delResp = await domainPbFetch(domainKey, `/api/collections/${config.name}/records/${req.params.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -5769,11 +5818,31 @@ setInterval(() => {
   for (const [k, v] of oauthStateStore) if (v.ts < cutoff) oauthStateStore.delete(k);
 }, 120_000);
 
+function sanitizeOAuthRedirect(input) {
+  const fallback = "/lumichat";
+  const raw = String(input || "").trim();
+  if (!raw) return fallback;
+
+  // allow same-origin relative paths only
+  if (raw.startsWith("/")) return raw.startsWith("//") ? fallback : raw;
+
+  // allow explicit custom app schemes only (e.g. lumichat://...)
+  const m = raw.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  if (!m) return fallback;
+  const scheme = String(m[1] || "").toLowerCase();
+  const allowedSchemes = String(process.env.LUMICHAT_ALLOWED_REDIRECT_SCHEMES || "lumichat")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return allowedSchemes.includes(scheme) ? raw : fallback;
+}
+
 // GET /lc/auth/oauth-start?provider=google&redirect=... → redirect to PB OAuth URL
 app.get("/lc/auth/oauth-start", lcAuthLimiter, async (req, res) => {
   const { provider = "google", redirect = "/lumichat" } = req.query;
+  const safeRedirect = sanitizeOAuthRedirect(redirect);
   try {
-    const r = await pbFetch("/api/collections/users/auth-methods");
+    const r = await lcPbFetch("/api/collections/users/auth-methods");
     const data = await r.json();
     const prov = (data.oauth2?.providers || []).find(p => p.name === provider);
     if (!prov) return res.status(404).json({ error: `Provider ${provider} not configured` });
@@ -5788,7 +5857,7 @@ app.get("/lc/auth/oauth-start", lcAuthLimiter, async (req, res) => {
     oauthStateStore.set(prov.state, {
       codeVerifier: prov.codeVerifier,
       provider,
-      redirect,
+      redirect: safeRedirect,
       redirectUrl,
       ts: Date.now(),
     });
@@ -5811,9 +5880,10 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
 
   if (!stored) return res.redirect("/lumichat?oauth_err=session_expired");
   const { provider = "google", codeVerifier = "", redirectUrl = "", redirect = "/lumichat" } = stored;
+  const safeRedirect = sanitizeOAuthRedirect(redirect);
 
   try {
-    const r = await pbFetch("/api/collections/users/auth-with-oauth2", {
+    const r = await lcPbFetch("/api/collections/users/auth-with-oauth2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider, code, codeVerifier, redirectUrl }),
@@ -5825,11 +5895,11 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
     if (data.record?.id && settings.approvalEnabled !== false) {
       const pbToken = await getPbAdminToken();
       if (pbToken) {
-        const existing = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${isValidPbId(data.record.id) ? data.record.id : ''}'&perPage=1`, {
+        const existing = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${isValidPbId(data.record.id) ? data.record.id : ''}'&perPage=1`, {
           headers: { Authorization: `Bearer ${pbToken}` },
         }).then(r => r.json()).catch(() => ({ items: [] }));
         if (!existing.items?.length) {
-          await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+          await lcPbFetch(`/api/collections/lc_user_settings/records`, {
             method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({ user: data.record.id }),
           }).catch(() => {});
@@ -5842,9 +5912,9 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
     const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
     // For app deep-link schemes (e.g. lumichat://), pass token via URL param
     // since httpOnly cookies aren't accessible from native apps
-    if (redirect.includes("://") && !redirect.startsWith("http")) {
-      const sep = redirect.includes("?") ? "&" : "?";
-      return res.redirect(`${redirect}${sep}token=${encodeURIComponent(data.token)}&oauth=1`);
+    if (safeRedirect.includes("://") && !safeRedirect.startsWith("http")) {
+      const sep = safeRedirect.includes("?") ? "&" : "?";
+      return res.redirect(`${safeRedirect}${sep}token=${encodeURIComponent(data.token)}&oauth=1`);
     }
 
     res.cookie("lc_token", data.token, {
@@ -5854,7 +5924,7 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
       sameSite: "Lax",
       path: "/",
     });
-    res.redirect(redirect + "?oauth=1");
+    res.redirect(safeRedirect + "?oauth=1");
   } catch (err) {
     res.redirect(`/lumichat?oauth_err=${encodeURIComponent(err.message)}`);
   }
@@ -5865,7 +5935,10 @@ app.post("/lc/auth/check-email", lcAuthLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email) return res.status(400).json({ error: "Email required" });
-    const r = await pbFetch(`/api/collections/users/records?filter=email%3D'${encodeURIComponent(email)}'&fields=id&perPage=1`);
+    const normalized = String(email).trim().toLowerCase();
+    if (!normalized) return res.status(400).json({ error: "Email required" });
+    const filter = encodeURIComponent(`email=${pbQuote(normalized)}`);
+    const r = await lcPbFetch(`/api/collections/users/records?filter=${filter}&fields=id&perPage=1`);
     if (!r.ok) return res.json({ exists: false });
     const data = await r.json();
     res.json({ exists: (data.totalItems || 0) > 0 });
@@ -5877,7 +5950,7 @@ app.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, res)
   // Global hourly registration cap
   if (_globalRegCount >= 20) return res.status(429).json({ error: "Too many registrations, try again later" });
   try {
-    const r = await pbFetch("/api/collections/users/records", {
+    const r = await lcPbFetch("/api/collections/users/records", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body),
@@ -5887,7 +5960,7 @@ app.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, res)
     if (r.ok && data.id && settings.approvalEnabled !== false) {
       const pbToken = await getPbAdminToken();
       if (pbToken) {
-        await fetch(`${PB_URL}/api/collections/lc_user_settings/records`, {
+        await lcPbFetch(`/api/collections/lc_user_settings/records`, {
           method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({ user: data.id }),
         }).catch(() => {});
@@ -6094,12 +6167,14 @@ app.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res) =>
 
     const pbToken = await getPbAdminToken();
     if (pbToken) {
-      const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
-      const ep = find.items?.length ? `${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}` : `${PB_URL}/api/collections/lc_user_settings/records`;
+      const find = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
+      const ep = find.items?.length
+        ? `/api/collections/lc_user_settings/records/${find.items[0].id}`
+        : `/api/collections/lc_user_settings/records`;
       const body = { ...(find.items?.length ? {} : { user: userId }), tier, tier_updated: new Date().toISOString() };
       if (tierExpires) body.tier_expires = tierExpires;
       else if (tier === 'premium') body.tier_expires = ''; // forever = no expiry
-      await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      await lcPbFetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     }
     lcTierCache.delete(userId);
     audit(null, "lc_user_approved", userId, { email: userEmail, tier, duration: duration || 'forever' });
@@ -6108,11 +6183,11 @@ app.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res) =>
     // Decline: remove lc_user_settings and delete the PB user record
     const pbToken = await getPbAdminToken();
     if (pbToken) {
-      const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
+      const find = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
       if (find.items?.length) {
-        await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+        await lcPbFetch(`/api/collections/lc_user_settings/records/${find.items[0].id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
       }
-      await fetch(`${PB_URL}/api/collections/users/records/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+      await lcPbFetch(`/api/collections/users/records/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
     }
     lcTierCache.delete(userId);
     audit(null, "lc_user_declined", userId, { email: userEmail });
@@ -6125,7 +6200,7 @@ app.post("/lc/auth/login", lcAuthLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Missing email or password" });
-    const r = await pbFetch("/api/collections/users/auth-with-password", {
+    const r = await lcPbFetch("/api/collections/users/auth-with-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identity: email, password }),
@@ -6155,7 +6230,7 @@ app.post("/lc/auth/logout", (req, res) => {
 // POST /lc/auth/refresh → call PB auth-refresh to extend session while user is active
 app.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbFetch("/api/collections/users/auth-refresh", {
+    const r = await lcPbFetch("/api/collections/users/auth-refresh", {
       method: "POST",
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
@@ -6175,7 +6250,7 @@ app.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
 // GET /lc/auth/me → fetch full user record from PB (JWT only has id+email)
 app.get("/lc/auth/me", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
+    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     const data = await r.json();
@@ -6200,7 +6275,7 @@ app.patch("/lc/auth/profile", requireLcAuth, lcUpload.single("avatar"), async (r
       form.append("avatar", blob, req.file.originalname || "avatar.jpg");
       require("fs").unlinkSync(req.file.path);
     }
-    const r = await fetch(`${PB_URL}/api/collections/users/records/${req.lcUser.id}`, {
+    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${req.lcToken}` },
       body: form,
@@ -6223,7 +6298,7 @@ app.post("/lc/auth/change-password", requireLcAuth, async (req, res) => {
   if (!oldPassword || !newPassword) return res.status(400).json({ error: "Missing fields" });
   if (newPassword.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
   try {
-    const r = await fetch(`${PB_URL}/api/collections/users/records/${req.lcUser.id}`, {
+    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify({ oldPassword, password: newPassword, passwordConfirm: newPassword }),
@@ -6457,7 +6532,7 @@ app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
     const record = d.items?.[0] || null;
     if (record) return res.json(record);
     // Auto-create empty settings for this user
-    const cr = await pbFetch("/api/collections/lc_user_settings/records", {
+    const cr = await lcPbFetch("/api/collections/lc_user_settings/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "auto", compact: false, presets: [] }),
@@ -6479,13 +6554,13 @@ app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
 
     let r;
     if (existing) {
-      r = await pbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
+      r = await lcPbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
         body: JSON.stringify(body),
       });
     } else {
-      r = await pbFetch("/api/collections/lc_user_settings/records", {
+      r = await lcPbFetch("/api/collections/lc_user_settings/records", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
         body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "dark", compact: false, presets: [], ...body }),
@@ -6529,7 +6604,7 @@ app.patch("/lc/projects/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   const body = sanitizeLcProjectPayload(req.body || {});
   try {
-    const r = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify(body),
@@ -6581,7 +6656,7 @@ app.post("/lc/projects/:id/remap", requireLcAuth, async (req, res) => {
         token: req.lcToken,
         recordId: req.params.id,
       });
-      const delResp = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
+      const delResp = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${req.lcToken}` },
       });
@@ -6618,7 +6693,7 @@ app.delete("/lc/projects/:id", requireLcAuth, async (req, res) => {
       token: req.lcToken,
       recordId: req.params.id,
     });
-    const r = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
@@ -6659,7 +6734,7 @@ app.post("/lc/sessions", requireLcAuth, async (req, res) => {
       model: req.body?.model || "gpt-4.1-mini",
     };
     if (req.body?.project && validPbId(req.body.project)) body.project = req.body.project;
-    const r = await pbFetch("/api/collections/lc_sessions/records", {
+    const r = await lcPbFetch("/api/collections/lc_sessions/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify(body),
@@ -6677,7 +6752,7 @@ app.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
   try {
     const { title } = req.body || {};
     if (!title || typeof title !== "string") return res.status(400).json({ error: "Missing title" });
-    const r = await pbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify({ title: title.slice(0, 200) }),
@@ -6695,7 +6770,7 @@ app.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
   try {
     const { provider, model } = req.body || {};
     if (!provider || !model) return res.status(400).json({ error: "Missing provider or model" });
-    const r = await pbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify({ provider, model }),
@@ -6720,7 +6795,7 @@ app.delete("/lc/sessions/:id", requireLcAuth, async (req, res) => {
       });
       return res.json({ success: true, mode: "soft", data });
     }
-    const r = await pbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
@@ -6757,8 +6832,9 @@ app.post("/lc/messages", requireLcAuth, async (req, res) => {
   try {
     const { session, role, content, file_ids } = req.body || {};
     if (!session || !role || !content) return res.status(400).json({ error: "Missing required fields" });
+    await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
     const body = { session, role, content: clampPbMessageContent(content), file_ids: file_ids || [] };
-    const r = await pbFetch("/api/collections/lc_messages/records", {
+    const r = await lcPbFetch("/api/collections/lc_messages/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify(body),
@@ -6793,7 +6869,8 @@ app.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
       });
       return res.json({ success: true, mode: "soft", data });
     }
-    const r = await pbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
+    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
+    const r = await lcPbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
@@ -6854,12 +6931,13 @@ app.post("/lc/trash/:collection/:id/restore", requireLcAuth, async (req, res) =>
 app.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid message ID" });
   try {
+    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
     const body = {};
     if (typeof req.body?.content === "string") body.content = clampPbMessageContent(req.body.content);
     if (Array.isArray(req.body?.file_ids)) body.file_ids = req.body.file_ids;
     if (!Object.keys(body).length) return res.status(400).json({ error: "No updatable fields provided" });
 
-    const r = await pbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify(body),
@@ -6883,6 +6961,7 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
   try {
     const { session } = req.body || {};
     if (!session) { fs.unlink(tmpPath, () => {}); return res.status(400).json({ error: "Missing session" }); }
+    await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
 
     // Stream file to PB without loading into heap (avoids OOM on large uploads)
     const fileName = path.basename(req.file.originalname).replace(/"/g, '_');
@@ -6906,7 +6985,7 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
     fileStream.on('end', () => { pt.write(Buffer.from(`\r\n--${boundary}--\r\n`)); pt.end(); });
     fileStream.pipe(pt, { end: false });
 
-    const r = await pbFetch("/api/collections/lc_files/records", {
+    const r = await lcPbFetch("/api/collections/lc_files/records", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${req.lcToken}`,
@@ -6914,6 +6993,7 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
       },
       body: pt,
       duplex: 'half',
+      lcNoFallback: true,
     });
     const data = await r.json();
     fs.unlink(tmpPath, () => {}); // cleanup temp file
@@ -6933,13 +7013,13 @@ app.get("/lc/files/serve/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid file ID" });
   try {
     // First get the record to get the filename
-    const recR = await pbFetch(`/api/collections/lc_files/records/${req.params.id}`, {
+    const recR = await lcPbFetch(`/api/collections/lc_files/records/${req.params.id}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     if (!recR.ok) return res.status(recR.status).json({ error: "File not found" });
     const rec = await recR.json();
     // PB file URL: /api/files/{collectionId}/{recordId}/{filename}
-    const fileR = await pbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
+    const fileR = await lcPbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     if (!fileR.ok) return res.status(fileR.status).json({ error: "File fetch failed" });
@@ -6965,14 +7045,14 @@ app.post("/lc/files/gemini-upload/:pbFileId", requireLcAuth, async (req, res) =>
   if (!validPbId(req.params.pbFileId)) return res.status(400).json({ error: "Invalid file ID" });
   try {
     // Get file record
-    const recR = await pbFetch(`/api/collections/lc_files/records/${req.params.pbFileId}`, {
+    const recR = await lcPbFetch(`/api/collections/lc_files/records/${req.params.pbFileId}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     if (!recR.ok) return res.status(404).json({ error: "File not found" });
     const rec = await recR.json();
 
     // Fetch file bytes from PB
-    const fileR = await pbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
+    const fileR = await lcPbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     if (!fileR.ok) return res.status(502).json({ error: "Failed to fetch file from PB" });
@@ -8030,12 +8110,12 @@ app.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
   const { plan } = req.body;
   if (plan !== 'premium') return res.status(400).json({ error: "Can only upgrade to premium" });
   try {
-    const fr = await pbFetch(`/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`, { headers: { Authorization: `Bearer ${req.lcToken}` } });
+    const fr = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`, { headers: { Authorization: `Bearer ${req.lcToken}` } });
     const fd = await fr.json();
     const existing = fd.items?.[0];
     if (!existing) return res.status(404).json({ error: "Settings not found" });
     if (existing.tier === plan) return res.json({ success: true, message: "Already on this plan" });
-    await pbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
+    await lcPbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ upgrade_request: plan, upgrade_requested_at: new Date().toISOString() }),
@@ -8074,18 +8154,18 @@ app.get("/lc/admin/upgrade-action", async (req, res) => {
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).send('PB auth failed');
   try {
-    const sr = await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, { headers: { Authorization: `Bearer ${pbToken}` } });
+    const sr = await lcPbFetch(`/api/collections/lc_user_settings/records/${id}`, { headers: { Authorization: `Bearer ${pbToken}` } });
     const s = await sr.json();
     if (!s.upgrade_request) return res.send('<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px"><h2>No pending request</h2><p>This request has already been processed.</p></body></html>');
     if (action === 'approve') {
-      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, {
+      await lcPbFetch(`/api/collections/lc_user_settings/records/${id}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier: s.upgrade_request, tier_updated: new Date().toISOString(), upgrade_request: '', upgrade_requested_at: '' }),
       });
       lcTierCache.delete(s.user);
       res.send(`<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px"><h2 style="color:#10a37f">Approved</h2><p>User has been upgraded to <b>${s.upgrade_request}</b>.</p></body></html>`);
     } else {
-      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${id}`, {
+      await lcPbFetch(`/api/collections/lc_user_settings/records/${id}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
       });
@@ -8099,7 +8179,7 @@ app.get("/admin/upgrade-requests", requireRole("root", "admin"), async (req, res
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
-    const r = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=upgrade_request!%3D''&perPage=100&expand=user`, {
+    const r = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=upgrade_request!%3D''&perPage=100&expand=user`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     });
     const d = await r.json();
@@ -8117,12 +8197,12 @@ app.post("/admin/upgrade-requests/:settingsId/approve", requireRole("root"), asy
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
-    const sr = await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+    const sr = await lcPbFetch(`/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
       headers: { Authorization: `Bearer ${pbToken}` },
     });
     const s = await sr.json();
     if (!s.upgrade_request) return res.status(400).json({ error: "No pending request" });
-    await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+    await lcPbFetch(`/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ tier: s.upgrade_request, tier_updated: new Date().toISOString(), upgrade_request: '', upgrade_requested_at: '' }),
@@ -8138,7 +8218,7 @@ app.post("/admin/upgrade-requests/:settingsId/reject", requireRole("root"), asyn
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
-    await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
+    await lcPbFetch(`/api/collections/lc_user_settings/records/${req.params.settingsId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
@@ -8149,8 +8229,8 @@ app.post("/admin/upgrade-requests/:settingsId/reject", requireRole("root"), asyn
 
 app.get("/lc/user/apikeys", requireLcAuth, async (req, res) => {
   try {
-    const r = await fetch(
-      `${PB_URL}/api/collections/lc_user_apikeys/records?filter=user='${req.lcUser.id}'&perPage=50`,
+    const r = await lcPbFetch(
+      `/api/collections/lc_user_apikeys/records?filter=user='${req.lcUser.id}'&perPage=50`,
       { headers: { Authorization: `Bearer ${req.lcToken}` } }
     );
     const data = await r.json();
@@ -8169,7 +8249,7 @@ app.post("/lc/user/apikeys", requireLcAuth, async (req, res) => {
   if (!PROVIDERS[provider]) return res.status(400).json({ error: "Unknown provider" });
   const encrypted = encryptValue(key, ADMIN_SECRET);
   try {
-    const r = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records`, {
+    const r = await lcPbFetch(`/api/collections/lc_user_apikeys/records`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: req.lcUser.id, provider, key_encrypted: encrypted, label: label || provider, enabled: true }),
@@ -8185,14 +8265,14 @@ app.delete("/lc/user/apikeys/:id", requireLcAuth, async (req, res) => {
   if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
   try {
     // Verify ownership before delete
-    const check = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records/${req.params.id}`, {
+    const check = await lcPbFetch(`/api/collections/lc_user_apikeys/records/${req.params.id}`, {
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     if (!check.ok) return res.status(404).json({ error: "Not found" });
     const rec = await check.json();
     if (rec.user !== req.lcUser.id) return res.status(403).json({ error: "Forbidden" });
     // Delete
-    const r = await fetch(`${PB_URL}/api/collections/lc_user_apikeys/records/${req.params.id}`, {
+    const r = await lcPbFetch(`/api/collections/lc_user_apikeys/records/${req.params.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
