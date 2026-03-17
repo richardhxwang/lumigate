@@ -5108,9 +5108,9 @@ app.get("/lc/search", requireLcAuth, async (req, res) => {
 // ── GET /lc/suggest → server-side: search SearXNG + call AI → return 4 suggestion questions
 // Avoids client-side chained fetches which are brittle (cookie timing, provider selection)
 app.get("/lc/suggest", requireLcAuth, async (req, res) => {
-  console.log("[lc/suggest] called, user:", req.lcUser?.email);
   const memory = (req.query.memory || "").slice(0, 500);
   const lang = req.query.lang === "en" ? "en" : "zh";
+  log("info", "lc/suggest called", { user: req.lcUser?.email, lang });
   const today = new Date().toLocaleDateString(lang === "en" ? "en-US" : "zh-CN", { year: "numeric", month: "long", day: "numeric" });
 
   // 1. Fetch news headlines from SearXNG

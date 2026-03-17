@@ -2276,28 +2276,28 @@ async function sendMessage(){
         if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
         const data=line.slice(6).trim(); if(data==='[DONE]') continue;
 
-        // 1. tool_status — grey status text with animated dots
+        // 1. tool_status — fixed position status line with animated dots
         if(sseEventType==='tool_status'){
           try{
             const st=JSON.parse(data);
+            // Always reuse the same status container at the top of streamEl
             if(!statusEl){
               statusEl=document.createElement('div');
-              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s ease';
-              if(streamEl) streamEl.appendChild(statusEl);
+              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .3s ease';
+              if(streamEl) streamEl.insertBefore(statusEl, streamEl.firstChild);
               if(streamRow) streamRow.style.display='';
               $('typ-row')?.remove();
             }
             if(st.done){
-              statusEl.style.display='none'; statusEl=null;
-              // Show typing dots while waiting for AI resume after tool execution
+              // Switch to waiting dots (same element, same position)
               if(!streamText){
-                const tw=document.createElement('div');tw.className='tool-wait';tw.style.cssText='padding:6px 0;display:flex;align-items:center;gap:5px';
-                tw.innerHTML='<div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>';
-                if(streamEl) streamEl.appendChild(tw);
+                statusEl.innerHTML='<div class="typing-dots" style="display:flex;gap:5px"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+              } else {
+                statusEl.style.display='none'; statusEl=null;
               }
             } else {
-              // Status text + animated dots, fade in
-              statusEl.innerHTML=esc(st.text)+'<span class="typing-dots" style="display:inline-flex;gap:3px;margin-left:2px"><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span></span>';
+              // Status text + animated dots
+              statusEl.innerHTML=esc(st.text)+' <span class="typing-dots" style="display:inline-flex;gap:3px"><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span></span>';
               requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
             }
           }catch{}
@@ -2339,8 +2339,8 @@ async function sendMessage(){
           if(delta){
             streamText+=delta;
             $('typ-row')?.remove();
-            if(streamEl) streamEl.querySelectorAll('.tool-wait').forEach(w=>w.remove());
-            if(statusEl){ statusEl.style.display='none'; statusEl=null; }
+            // Remove status/waiting indicator when text arrives
+            if(statusEl){ statusEl.remove(); statusEl=null; }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
             // Throttled markdown render — every 300ms, not every frame
