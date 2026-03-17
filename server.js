@@ -5160,12 +5160,13 @@ Good examples (specific, practical, things people actually search):
 - "What's the weather like for running today?"
 
 Rules:
+- ALL questions MUST be in English. No Chinese, no other languages.
 - If user background exists, tailor questions to their job/interests
 - Other questions should reference recent news events
 - Each question MUST be under 8 words, fits on one line
 - Casual tone, like typing in a search bar${memSection}${newsSection}
 
-Output ONLY a JSON array of 4 strings. No explanation or markdown. Example: ["Q1","Q2","Q3","Q4"]`
+Output ONLY a JSON array of 4 English strings. No explanation or markdown. Example: ["Latest AI news?","Best Python web framework?","Help me plan a trip","What happened at WWDC?"]`
     : `今天是${today}。为一个 AI 助手对话界面生成 4 个首页推荐问题，供用户点击发起对话。
 
 这些问题是"用户想向 AI 提问的内容"，不是问 AI 自身感受或观点的问题。
