@@ -1325,6 +1325,13 @@ const adminLimiter = rateLimit({
   max: 120, // 120 req/min for admin endpoints
 });
 
+function envPositiveInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
 const loginLimiter = rateLimit({
   ...rateLimitOpts,
   windowMs: 15 * 60 * 1000,
@@ -1333,17 +1340,22 @@ const loginLimiter = rateLimit({
 });
 
 // Stricter limiter for LumiChat auth endpoints (public-facing, no CF Access)
+const LC_AUTH_LIMIT_WINDOW_MS = envPositiveInt("LC_AUTH_LIMIT_WINDOW_MS", 15 * 60 * 1000);
+const LC_AUTH_LIMIT_MAX = envPositiveInt("LC_AUTH_LIMIT_MAX", process.env.NODE_ENV === "production" ? 60 : 600);
 const lcAuthLimiter = rateLimit({
   ...rateLimitOpts,
-  windowMs: 15 * 60 * 1000,
-  max: 15, // 15 attempts per 15 min per IP (covers login + check-email)
+  windowMs: LC_AUTH_LIMIT_WINDOW_MS,
+  max: LC_AUTH_LIMIT_MAX, // configurable via env; higher default in non-production
+  skipSuccessfulRequests: true, // don't punish normal successful logins/health checks
   message: { error: "Too many requests, please try again later" },
 });
 // Strict registration limiter: 3 per hour per IP + global 20 per hour
+const LC_REGISTER_LIMIT_WINDOW_MS = envPositiveInt("LC_REGISTER_LIMIT_WINDOW_MS", 60 * 60 * 1000);
+const LC_REGISTER_LIMIT_MAX = envPositiveInt("LC_REGISTER_LIMIT_MAX", 3);
 const lcRegisterLimiter = rateLimit({
   ...rateLimitOpts,
-  windowMs: 60 * 60 * 1000,
-  max: 3, // 3 registrations per hour per IP
+  windowMs: LC_REGISTER_LIMIT_WINDOW_MS,
+  max: LC_REGISTER_LIMIT_MAX, // keep strict by default, still env configurable
   message: { error: "Registration limit reached, try again later" },
 });
 let _globalRegCount = 0;
