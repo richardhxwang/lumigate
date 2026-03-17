@@ -1198,7 +1198,7 @@ const STRINGS = {
   // Settings
   'settings.chat':            { en:'Chat',                   zh:'聊天' },
   'settings.presets':         { en:'Presets',                zh:'预设' },
-  'settings.appearance':      { en:'Appearance',             zh:'外观' },
+  'settings.appearance':      { en:'General',                zh:'通用' },
   'settings.account':         { en:'Account',                zh:'账户' },
   'settings.subscription':    { en:'Subscription',           zh:'订阅' },
   'settings.global_memory':   { en:'System Prompt',          zh:'系统提示词' },
@@ -2205,7 +2205,7 @@ async function sendMessage(){
     const tip=tips[Math.floor(Math.random()*tips.length)];
     const tipEl=document.createElement('div');
     tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .5s ease';
-    tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-3px;margin-right:3px"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
+    tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
     tr.querySelector('.typing')?.appendChild(tipEl);
     requestAnimationFrame(()=>{ tipEl.style.opacity='1'; });
   },1500);

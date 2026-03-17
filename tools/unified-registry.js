@@ -303,7 +303,7 @@ class UnifiedRegistry {
       "If no matching template, generate from scratch:",
       '  [TOOL:generate_spreadsheet]{"title":"Model","sheets":[{"name":"Sheet1","headers":["","2024","2025"],"rows":[["Revenue",1000,"=B2*1.2"]]}]}[/TOOL]',
       "",
-      "RULES: When asked to CREATE a file, ALWAYS use a tool. Never output file content as text.",
+      "RULES: Only use tools when the user EXPLICITLY asks for file generation (Excel, Word, PPT). Do NOT use tools for normal conversation, greetings, or questions. When a file IS requested, ALWAYS use a tool — never output file content as text.",
       "For Excel: use real numbers (not strings), formulas start with =, percentages as decimals (0.15 not 15%).",
       templateHint,
     ].join("\n");

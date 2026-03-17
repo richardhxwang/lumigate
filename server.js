@@ -2485,7 +2485,7 @@ app.get("/admin/lc-users", requireRole("root", "admin"), async (req, res) => {
       });
       const settingsData = await settingsRes.json();
       for (const s of (settingsData.items || [])) {
-        tierMap[s.user] = { tier: s.tier || 'basic', settingsId: s.id };
+        tierMap[s.user] = { tier: s.tier || 'basic', settingsId: s.id, upgrade_request: s.upgrade_request || '', upgrade_requested_at: s.upgrade_requested_at || '' };
       }
     }
 
@@ -2494,6 +2494,8 @@ app.get("/admin/lc-users", requireRole("root", "admin"), async (req, res) => {
       created: u.created, avatar: u.avatar,
       tier: tierMap[u.id]?.tier || 'basic',
       settingsId: tierMap[u.id]?.settingsId,
+      upgrade_request: tierMap[u.id]?.upgrade_request || '',
+      upgrade_requested_at: tierMap[u.id]?.upgrade_requested_at || '',
     }));
 
     res.json({ items: result, totalItems: usersData.totalItems, totalPages: usersData.totalPages, page: usersData.page });
@@ -2503,7 +2505,7 @@ app.get("/admin/lc-users", requireRole("root", "admin"), async (req, res) => {
 });
 
 app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
-  const { tier } = req.body;
+  const { tier, clear_upgrade } = req.body;
   if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid user id" });
   if (!['basic', 'premium', 'selfservice'].includes(tier)) {
     return res.status(400).json({ error: "tier must be basic, premium, or selfservice" });
@@ -2521,10 +2523,12 @@ app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
 
     if (findData.items?.length) {
       // Update existing
+      const updateBody = { tier, tier_updated: new Date().toISOString() };
+      if (clear_upgrade) { updateBody.upgrade_request = ''; updateBody.upgrade_requested_at = ''; }
       await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, tier_updated: new Date().toISOString() }),
+        body: JSON.stringify(updateBody),
       });
     } else {
       // Create new settings record
@@ -2539,6 +2543,31 @@ app.patch("/admin/lc-users/:id/tier", requireRole("root"), async (req, res) => {
     lcTierCache.delete(userId);
     audit(req.userName, "lc_user_tier_change", userId, { tier });
     res.json({ success: true, tier });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch("/admin/lc-users/:id/decline-upgrade", requireRole("root"), async (req, res) => {
+  if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid user id" });
+  const pbToken = await getPbAdminToken();
+  if (!pbToken) return res.status(500).json({ error: "PB admin auth not configured" });
+  const userId = req.params.id;
+  try {
+    const findRes = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, {
+      headers: { Authorization: `Bearer ${pbToken}` },
+    });
+    const findData = await findRes.json();
+    if (findData.items?.length) {
+      await fetch(`${PB_URL}/api/collections/lc_user_settings/records/${findData.items[0].id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upgrade_request: '', upgrade_requested_at: '' }),
+      });
+    }
+    lcTierCache.delete(userId);
+    audit(req.userName, "lc_upgrade_declined", userId, {});
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -6175,7 +6204,10 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
   if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\nIMPORTANT: Prioritize the most recent search results. When the user asks about current/latest events, ONLY cite results from ${new Date().getFullYear()}. Discard outdated results from previous years unless the user specifically asks about historical information. Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
-  if (req.body.tools !== false) {
+  // Skip tool prompt for small/economy models — they misinterpret it and generate files for simple conversations
+  const SMALL_MODEL_PATTERNS = /nano|mini(?!max)|flash-lite|haiku|8b|7b/i;
+  const skipToolsForSmallModel = SMALL_MODEL_PATTERNS.test(modelId);
+  if (req.body.tools !== false && !skipToolsForSmallModel) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
@@ -7056,7 +7088,10 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
 
   // B. Tool prompt injection — text-based tool calling via [TOOL:name]{params}[/TOOL] tags
   // Works with ANY model. Server-side proxy handler executes tools after stream ends.
-  if (isChat && proj?.toolInjection !== false && settings.toolInjectionEnabled !== false) {
+  // Skip for small/economy models that misinterpret tool prompts
+  const proxyModelId = req.body?.model || "";
+  const SMALL_MODEL_RE = /nano|mini(?!max)|flash-lite|haiku|8b|7b/i;
+  if (isChat && proj?.toolInjection !== false && settings.toolInjectionEnabled !== false && !SMALL_MODEL_RE.test(proxyModelId)) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) {
