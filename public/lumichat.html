@@ -2148,12 +2148,24 @@ async function sendMessage(){
     toast(t('error.pending_approval'),3000);
     return;
   }
-  // Mid-stream: queue as additional context (not interrupt), sends after current response
+  // Mid-stream: show queued bubble with grey style, send on second Enter
   if(isStreaming){
     pendingQueue={text,files:[...pendingFiles]};
     msgIn.value=''; msgIn.style.height='auto';
     pendingFiles=[]; renderChips(); updateSendBtn();
-    toast(t('chat.message_queued'),2500,'#10a37f');
+    // Show queued message as grey bubble
+    const qRow=appendMsg('user',text);
+    qRow.classList.add('queued');
+    qRow.style.opacity='0.5';
+    // Add "Queued" label
+    const qLabel=document.createElement('div');
+    qLabel.className='queued-label';
+    qLabel.style.cssText='font-size:11px;color:var(--t3);text-align:right;margin-top:2px;font-style:italic';
+    qLabel.textContent=_lang==='zh'?'排队中 · 再按回车立即发送':'Queued · press Enter to send now';
+    qRow.appendChild(qLabel);
+    scrollBot(false);
+    // Store ref so second Enter can remove it
+    pendingQueue._qRow=qRow;
     return;
   }
   isStreaming=true; stopBtn.style.display='flex';
@@ -2168,7 +2180,9 @@ async function sendMessage(){
   });
 
   // === IMMEDIATE: show user bubble + typing indicator before any network calls ===
-  const userRow=appendMsg('user',userContent,null,files); scrollBot(false);
+  // If queued message already has a bubble, reuse it
+  const userRow=window._skipUserBubble||(appendMsg('user',userContent,null,files)); window._skipUserBubble=null;
+  scrollBot(false);
   const typRow=document.createElement('div'); typRow.className='msg-row assistant'; typRow.id='typ-row';
   const typBub=document.createElement('div'); typBub.className='typing';
   const dotsWrap=document.createElement('div'); dotsWrap.className='typing-dots';
@@ -2496,8 +2510,16 @@ async function sendMessage(){
     document.querySelectorAll('.trunc-bar').forEach(b=>b.remove());
     // Process queued message (sent during streaming) — after partial save resolved
     if(queued){
+      // Remove queued label + make solid if not already
+      if(queued._qRow){
+        queued._qRow.style.opacity='1';
+        queued._qRow.classList.remove('queued');
+        queued._qRow.querySelector('.queued-label')?.remove();
+      }
       msgIn.value=queued.text; pendingFiles=queued.files; renderChips();
       msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+      // Mark that bubble already exists (sendMessage will check)
+      window._skipUserBubble=queued._qRow||null;
       sendMessage();
     }
   }
@@ -3101,7 +3123,13 @@ msgIn.addEventListener('keydown',e=>{
     if(sendBtn.disabled) return;
     // During streaming: first Enter queues, second Enter sends queue immediately
     if(isStreaming && pendingQueue){
-      // Already queued — second Enter: abort current stream and send queued message now
+      // Already queued — second Enter: make bubble solid + abort stream → finally sends it
+      if(pendingQueue._qRow){
+        pendingQueue._qRow.style.opacity='1';
+        pendingQueue._qRow.classList.remove('queued');
+        const ql=pendingQueue._qRow.querySelector('.queued-label');
+        if(ql) ql.remove();
+      }
       if(abortCtrl) abortCtrl.abort();
       return;
     }
