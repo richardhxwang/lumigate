@@ -2075,18 +2075,9 @@ function appendMsg(role, content, msgId, files=[]){
     editBtn.innerHTML=EDIT_SVG;
     editBtn.addEventListener('click',()=>{
       const txt=b.textContent;
-      // Read msgId from DOM (may have been backfilled after appendMsg)
-      const mid=row.dataset.msgId;
-      const idx=mid?messages.findIndex(m=>m.id===mid):-1;
-      if(idx>=0){
-        // Delete this + all subsequent from PB in background
-        messages.slice(idx).forEach(m=>{ apiJSON(`/lc/messages/${m.id}`,{method:'DELETE'}).catch(()=>{}); });
-        messages=messages.slice(0,idx);
-        // Remove all DOM rows after and including this one
-        let el=row; while(el){ const next=el.nextSibling; el.remove(); el=next; }
-      } else {
-        row.remove();
-      }
+      // Put text back into input box — don't delete messages
+      // If AI is streaming, stop it first
+      if(isStreaming && abortCtrl) abortCtrl.abort();
       msgIn.value=txt; msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
       updateSendBtn(); msgIn.focus();
     });
