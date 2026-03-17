@@ -325,9 +325,7 @@
     .tdot:nth-child(2){animation-delay:.2s}
     .tdot:nth-child(3){animation-delay:.4s}
     @keyframes typ{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-    .streaming-active>p:last-of-type::after,.streaming-active>li:last-of-type::after,.streaming-active>div:last-of-type::after{content:'';display:inline-block;width:2px;height:.9em;background:var(--accent);margin-left:2px;vertical-align:text-bottom;animation:blink-cursor .8s step-end infinite}
-    /* removed: .streaming-active:empty cursor — use typing dots instead */
-    @keyframes blink-cursor{0%,100%{opacity:1}50%{opacity:0}}
+    /* No CSS cursor — typing dots handle all waiting states */
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
     .trunc-bar{text-align:center;font-size:12px;color:var(--t3);padding:8px 24px 0;max-width:768px;margin:0 auto}
