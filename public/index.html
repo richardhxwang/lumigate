@@ -1577,8 +1577,9 @@ async function doLogin() {
   try {
     const r = await fetch(B + '/admin/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      credentials: 'include', body: JSON.stringify(body)
     });
+    if (!r.ok) { const t = await r.text(); console.error('Login failed:', r.status, t); showT('Login failed: ' + r.status, 'error'); return; }
     const d = await r.json();
     if (d.mfaRequired) {
       _pendingMfaToken = d.mfaToken;
