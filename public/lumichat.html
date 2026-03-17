@@ -2282,7 +2282,7 @@ async function sendMessage(){
             const st=JSON.parse(data);
             if(!statusEl){
               statusEl=document.createElement('div');
-              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:8px';
+              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s ease';
               if(streamEl) streamEl.appendChild(statusEl);
               if(streamRow) streamRow.style.display='';
               $('typ-row')?.remove();
@@ -2296,8 +2296,9 @@ async function sendMessage(){
                 if(streamEl) streamEl.appendChild(tw);
               }
             } else {
-              // Status text + animated dots
+              // Status text + animated dots, fade in
               statusEl.innerHTML=esc(st.text)+'<span class="typing-dots" style="display:inline-flex;gap:3px;margin-left:2px"><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span></span>';
+              requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
             }
           }catch{}
           sseEventType=''; continue;
@@ -2748,7 +2749,8 @@ async function loadAISuggestions(){
   suggGrid.innerHTML = '';
   try{
     const memory = encodeURIComponent((_userSettings.memory||'').trim().slice(0,500));
-    const res = await fetch(`/lc/suggest?memory=${memory}`,{credentials:'same-origin'});
+    const lang = _lang === 'en' ? 'en' : 'zh';
+    const res = await fetch(`/lc/suggest?memory=${memory}&lang=${lang}`,{credentials:'same-origin'});
     if(!res.ok){
       console.warn('[suggest] HTTP', res.status);
       renderSuggestions(); // fallback to static

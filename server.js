@@ -5091,7 +5091,8 @@ app.get("/lc/search", requireLcAuth, async (req, res) => {
 app.get("/lc/suggest", requireLcAuth, async (req, res) => {
   console.log("[lc/suggest] called, user:", req.lcUser?.email);
   const memory = (req.query.memory || "").slice(0, 500);
-  const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+  const lang = req.query.lang === "en" ? "en" : "zh";
+  const today = new Date().toLocaleDateString(lang === "en" ? "en-US" : "zh-CN", { year: "numeric", month: "long", day: "numeric" });
 
   // 1. Fetch news headlines from SearXNG
   let newsSection = "";
@@ -5125,8 +5126,27 @@ app.get("/lc/suggest", requireLcAuth, async (req, res) => {
   if (!pick) return res.status(503).json({ error: "No AI provider available" });
 
   // 3. Build prompt
-  const memSection = memory ? `\n用户背景信息（全局记忆）：\n${memory}` : "";
-  const prompt = `今天是${today}。为一个 AI 助手对话界面生成 4 个首页推荐问题，供用户点击发起对话。
+  const memSection = memory ? (lang === "en" ? `\nUser background:\n${memory}` : `\n用户背景信息（全局记忆）：\n${memory}`) : "";
+  const prompt = lang === "en"
+    ? `Today is ${today}. Generate 4 homepage suggestion questions for an AI chat interface.
+
+These are questions the USER would ask the AI, not questions about the AI itself.
+Never: "What's your favorite...", "How do you feel about...", "As an AI..."
+
+Good examples (specific, practical, things people actually search):
+- "How to handle rate limiting in a REST API?"
+- "What was announced at the latest Apple event?"
+- "Create a weekly meal prep plan for me"
+- "What's the weather like for running today?"
+
+Rules:
+- If user background exists, tailor questions to their job/interests
+- Other questions should reference recent news events
+- Each question MUST be under 8 words, fits on one line
+- Casual tone, like typing in a search bar${memSection}${newsSection}
+
+Output ONLY a JSON array of 4 strings. No explanation or markdown. Example: ["Q1","Q2","Q3","Q4"]`
+    : `今天是${today}。为一个 AI 助手对话界面生成 4 个首页推荐问题，供用户点击发起对话。
 
 这些问题是"用户想向 AI 提问的内容"，不是问 AI 自身感受或观点的问题。
 绝对禁止："你最喜欢/感兴趣的是什么"、"你怎么看"、"作为AI你如何"——这类问 AI 自己的废话。
@@ -5685,8 +5705,8 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
 function needsWebSearch(text) {
   if (!text || text.length < 2) return false;
   return [
-    /搜[索一下]|查[找一下询]|最新|今[天日]|新闻|天气|价格|股[价票]|汇率|实时/,
-    /search\s|look\s?up|find\s+me|latest\s|current\s|today.?s?\s|news\b|weather\b|price\b|stock\b/i,
+    /搜[索一下]|查[找一下询]|最新|最近|今[天日]|新闻|天气|价格|股[价票]|汇率|实时|现在|目前|近期|动态|进展|变化/,
+    /search\s|look\s?up|find\s+me|latest\s|current\s|today.?s?\s|news\b|weather\b|price\b|stock\b|recent\b/i,
     /who is|what happened|when did|how much is|how many/i,
   ].some(p => p.test(text));
 }
