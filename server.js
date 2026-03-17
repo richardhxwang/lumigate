@@ -2984,15 +2984,14 @@ app.post("/admin/collector/login/:provider", requireRole("root", "admin"), async
           const allCookies = await ctx.cookies([site.url]).catch(() => []);
           saveCollectorCookies(name, allCookies);
           await page.close().catch(() => {});
-          // Save credentials
+          // Update existing account or create (avoid duplicates on re-login)
           if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
-          collectorTokens[name].push({
-            id: crypto.randomBytes(8).toString('hex'),
-            label: _loginState.label,
-            credentials: encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET),
-            enabled: true,
-          });
+          const cred = encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET);
+          const existingAcct = collectorTokens[name].find(a => a.enabled);
+          if (existingAcct) { existingAcct.credentials = cred; existingAcct.label = _loginState.label; }
+          else { collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: _loginState.label, credentials: cred, enabled: true }); }
           saveCollectorTokens(collectorTokens);
+          setCollectorHealth(name, true);
           audit(null, "collector_login", name, { label: _loginState.label });
           _loginState = { active: false, provider: null, status: 'success' };
           return;
@@ -5164,8 +5163,12 @@ app.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => {
           const allCookies = await ctx.cookies([site.url]).catch(() => []);
           saveCollectorCookies(name, allCookies);
           await page.close().catch(() => {});
+          // Update existing account or create one (avoid duplicates)
           if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
-          collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET), enabled: true });
+          const cred = encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET);
+          const existing = collectorTokens[name].find(a => a.enabled);
+          if (existing) { existing.credentials = cred; }
+          else { collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: cred, enabled: true }); }
           saveCollectorTokens(collectorTokens);
           setCollectorHealth(name, true);
           _loginState = { active: false, provider: null, status: 'success' };
