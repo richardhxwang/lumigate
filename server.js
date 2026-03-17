@@ -4868,11 +4868,13 @@ function go(action){
   .then(function(data){
     fv.style.display='none';rv.style.display='block';
     if(data.ok){
+      var links='<div style="display:flex;gap:12px;justify-content:center;margin-top:24px"><a href="/" style="padding:10px 20px;background:#10a37f;color:#fff;border-radius:10px;font-size:14px;font-weight:600;text-decoration:none">Open Dashboard</a><a href="javascript:void(0)" onclick="window.close()" style="padding:10px 20px;background:#f5f5f7;color:#666;border-radius:10px;font-size:14px;font-weight:500;text-decoration:none;border:1px solid #e5e5ea">Close</a></div>';
       if(action==='approve'){
         var tl=st.charAt(0).toUpperCase()+st.slice(1);
-        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><h2>User Approved</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Tier: <b>'+tl+'</b></p><a href="javascript:window.close()" onclick="window.close()" style="display:inline-block;margin-top:20px;color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Close this page</a>';
+        var durLabel='';if(st==='premium'&&sd!=='forever'){var dm={'30d':'1 month','90d':'3 months','365d':'1 year'};durLabel=' ('+dm[sd]+')';}
+        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><h2>User Approved</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Tier: <b>'+tl+'</b>'+durLabel+'</p>'+links;
       }else{
-        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><h2>User Declined</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Registration has been declined.</p><a href="javascript:window.close()" onclick="window.close()" style="display:inline-block;margin-top:20px;color:#10a37f;font-size:14px;text-decoration:none;font-weight:600">Close this page</a>';
+        rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><h2>User Declined</h2><p><b>${safeEmail}</b></p><p style="color:#999;font-size:13px;margin-top:4px">Registration has been declined.</p>'+links;
       }
     }else{
       rv.innerHTML='<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff9500" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h2>Error</h2><p>'+(data.error||'Something went wrong')+'</p>';
