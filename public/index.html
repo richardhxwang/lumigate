@@ -498,6 +498,14 @@
   .switch .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 2px; bottom: 2px; background: #fff; border-radius: 50%; transition: .2s; }
   .switch input:checked + .slider { background: #34c759; }
   .switch input:checked + .slider:before { transform: translateX(16px); }
+  .lc-grid-wrap { margin-top: 10px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px; overflow: auto; max-height: 320px; background: rgba(255,255,255,0.65); }
+  .lc-grid { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 680px; }
+  .lc-grid th, .lc-grid td { border-bottom: 1px solid rgba(0,0,0,0.05); padding: 7px 8px; text-align: left; color: rgba(0,0,0,0.68); }
+  .lc-grid th { background: rgba(0,0,0,0.03); position: sticky; top: 0; z-index: 1; }
+  .lc-grid .flt-row td { background: rgba(255,255,255,0.7); position: sticky; top: 31px; z-index: 1; }
+  .lc-grid .flt-inp { width: 100%; border: 1px solid rgba(0,0,0,0.08); border-radius: 6px; padding: 4px 6px; font-size: 11px; background: #fff; }
+  .lc-grid .th-btn { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .lc-grid-empty { padding: 10px; font-size: 12px; color: rgba(0,0,0,0.45); }
 </style>
 </head>
 <body>
@@ -842,6 +850,7 @@
             <div class="fg"><label>Remap Target Project ID</label><input id="lcRemapTargetId" placeholder="target_project_id"></div>
             <div class="fg" style="display:flex;align-items:flex-end"><button class="btn sm" onclick="remapLcProjectReferences()">Remap</button></div>
           </div>
+          <div id="lcGridWrap" class="lc-grid-wrap"><div class="lc-grid-empty">No rows</div></div>
           <pre id="lcOpsOutput" style="margin-top:10px;background:rgba(0,0,0,0.04);border-radius:10px;padding:10px;max-height:240px;overflow:auto;font-size:11px;color:rgba(0,0,0,0.65)"></pre>
         </div>
 
@@ -1458,8 +1467,85 @@ async function saveSystemSettings() {
 function setLcOpsOutput(data) {
   const el = document.getElementById('lcOpsOutput');
   if (!el) return;
-  if (typeof data === 'string') el.textContent = data;
-  else el.textContent = JSON.stringify(data, null, 2);
+  if (typeof data === 'string') {
+    el.textContent = data;
+    setLcGridRows([]);
+    return;
+  }
+  el.textContent = JSON.stringify(data, null, 2);
+  const rows = Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data?.references)
+      ? data.references
+      : [];
+  setLcGridRows(rows);
+}
+
+let _lcGrid = { rows: [], columns: [], filters: {}, sortField: '', sortDir: 'asc' };
+
+function setLcGridRows(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const colsSet = new Set();
+  for (const row of list) {
+    if (!row || typeof row !== 'object') continue;
+    Object.keys(row).forEach(k => colsSet.add(k));
+  }
+  const cols = [...colsSet];
+  _lcGrid = { ..._lcGrid, rows: list, columns: cols };
+  if (_lcGrid.sortField && !cols.includes(_lcGrid.sortField)) _lcGrid.sortField = '';
+  const nextFilters = {};
+  for (const c of cols) nextFilters[c] = _lcGrid.filters[c] || '';
+  _lcGrid.filters = nextFilters;
+  renderLcGrid();
+}
+
+function sortLcGridBy(field) {
+  if (_lcGrid.sortField === field) _lcGrid.sortDir = _lcGrid.sortDir === 'asc' ? 'desc' : 'asc';
+  else { _lcGrid.sortField = field; _lcGrid.sortDir = 'asc'; }
+  renderLcGrid();
+}
+
+function setLcGridFilter(field, value) {
+  _lcGrid.filters[field] = value || '';
+  renderLcGrid();
+}
+
+function renderLcGrid() {
+  const wrap = document.getElementById('lcGridWrap');
+  if (!wrap) return;
+  const { rows, columns, filters, sortField, sortDir } = _lcGrid;
+  if (!rows.length || !columns.length) {
+    wrap.innerHTML = '<div class="lc-grid-empty">No rows</div>';
+    return;
+  }
+
+  let out = [...rows];
+  for (const c of columns) {
+    const q = String(filters[c] || '').trim().toLowerCase();
+    if (!q) continue;
+    out = out.filter(r => String(r?.[c] ?? '').toLowerCase().includes(q));
+  }
+  if (sortField) {
+    out.sort((a, b) => {
+      const av = String(a?.[sortField] ?? '');
+      const bv = String(b?.[sortField] ?? '');
+      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  const th = columns.map(c => {
+    const arrow = sortField === c ? (sortDir === 'asc' ? '▲' : '▼') : '';
+    return `<th><button class="th-btn" onclick="sortLcGridBy('${esc(c)}')">${esc(c)}<span>${arrow}</span></button></th>`;
+  }).join('');
+  const flt = columns.map(c =>
+    `<td><input class="flt-inp" value="${esc(filters[c] || '')}" placeholder="filter..." oninput="setLcGridFilter('${esc(c)}', this.value)"></td>`
+  ).join('');
+  const body = out.map(r =>
+    `<tr>${columns.map(c => `<td title="${esc(String(r?.[c] ?? ''))}">${esc(String(r?.[c] ?? ''))}</td>`).join('')}</tr>`
+  ).join('');
+
+  wrap.innerHTML = `<table class="lc-grid"><thead><tr>${th}</tr></thead><tbody><tr class="flt-row">${flt}</tr>${body}</tbody></table>`;
 }
 
 async function loadLcSchema() {
