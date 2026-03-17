@@ -4738,7 +4738,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   saveSettings(settings);
   const host = httpReq?.get?.('host') || 'localhost:9471';
   const proto = httpReq?.headers?.['x-forwarded-proto'] === 'https' || httpReq?.secure ? 'https' : 'http';
-  const url = `${proto}://${host}/admin/lc-approve?token=${token}`;
+  const url = `${proto}://${host}/lc/admin/approve?token=${token}`;
   const nodemailer = require("nodemailer");
   await nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } }).sendMail({
     from: smtpFrom, to: toEmail, subject: `LumiChat — New User: ${userEmail}`,
@@ -4747,7 +4747,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   log("info", "Approval email sent", { to: toEmail, userId, userEmail });
 }
 
-app.get("/admin/lc-approve", lcAuthLimiter, async (req, res) => {
+app.get("/lc/admin/approve", lcAuthLimiter, async (req, res) => {
   const { token } = req.query;
   if (!token || !settings._approvalTokens?.[token]) {
     return res.status(404).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invalid Link</title></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:60px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);text-align:center"><div style="background:#10a37f;padding:24px 32px"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff9500" stroke-width="2" style="margin-bottom:12px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h2 style="margin:0 0 8px;color:#1c1c1e">Invalid or Expired Link</h2><p style="color:#666;font-size:14px">This approval link is no longer valid. You can manage users from the LumiGate Dashboard.</p></div></div></body></html>`);
@@ -4836,7 +4836,7 @@ function go(action){
   var fv=document.getElementById('fv'),rv=document.getElementById('rv');
   var btns=fv.querySelectorAll('.btn');
   btns.forEach(function(b){b.disabled=true;b.style.opacity='0.6'});
-  fetch('/admin/lc-approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',action:action,tier:st})})
+  fetch('/lc/admin/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',action:action,tier:st})})
   .then(function(r){return r.json()})
   .then(function(data){
     fv.style.display='none';rv.style.display='block';
@@ -4860,7 +4860,7 @@ function go(action){
 </body></html>`);
 });
 
-app.post("/admin/lc-approve", express.json(), lcAuthLimiter, async (req, res) => {
+app.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res) => {
   const { token, action, tier } = req.body || {};
   if (!token || !settings._approvalTokens?.[token]) {
     return res.status(400).json({ ok: false, error: "Invalid or expired token. The link may have already been used." });
