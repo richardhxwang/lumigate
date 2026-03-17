@@ -1530,6 +1530,16 @@ app.get("/", (req, res) => {
 });
 
 // Serve dashboard (nonce-CSP injected; 'unsafe-inline' kept as fallback for inline event handlers)
+// Rewrite /v1/sys/admin/* → /admin/* so downstream routes handle it directly
+// (CF Access bypasses /v1/ but blocks /admin/, so Dashboard uses /v1/sys/admin/ prefix)
+app.use((req, res, next) => {
+  if (req.url.startsWith("/v1/sys/admin")) {
+    req.url = req.url.replace("/v1/sys/admin", "/admin");
+    req.originalUrl = req.originalUrl.replace("/v1/sys/admin", "/admin");
+  }
+  next();
+});
+
 app.get("/v1/sys/panel", (req, res) => {
   if (!_dashboardHtml) return res.status(503).send("Dashboard not available");
   const nonce = crypto.randomBytes(16).toString('base64');
@@ -5865,8 +5875,8 @@ function extractSearchQuery(text) {
     .slice(0, 200).trim() || text.slice(0, 200);
 }
 
-async function executeWebSearchForChat(query) {
-  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&language=auto&safesearch=0`;
+async function executeWebSearchForChat(query, timeRange = "month") {
+  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&language=auto&safesearch=0${timeRange ? `&time_range=${timeRange}` : ""}`;
   const r = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error(`SearXNG ${r.status}`);
   const data = await r.json();
@@ -6058,7 +6068,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         const prefP = settings.searchKeywordProvider || "minimax";
         const prefM = settings.searchKeywordModel || "MiniMax-M1";
         const KW_MODELS = [{ p: prefP, m: prefM }, ...ALL_KW.filter(x => x.p !== prefP || x.m !== prefM)];
-        const kwPrompt = `Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}`;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const kwPrompt = `Today is ${todayStr}. Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Include the current year (${new Date().getFullYear()}) or specific date range in at least one query to ensure fresh results. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}`;
         let kwText = "";
         for (const c of KW_MODELS) {
           if (kwText) break;
@@ -6105,9 +6116,19 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
           res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searching(q), icon: "search" })}\n\n`);
         }
         try {
-          const results = await executeWebSearchForChat(q);
+          const results = await executeWebSearchForChat(q, "month");
           allResults.push(...results);
         } catch {}
+      }
+      // Fallback: if time-limited search returned too few results, retry without time range
+      if (allResults.length < 3) {
+        for (const q of queries) {
+          if (!q.trim()) continue;
+          try {
+            const results = await executeWebSearchForChat(q.trim(), "");
+            allResults.push(...results);
+          } catch {}
+        }
       }
       // Deduplicate by URL
       const seen = new Set();
@@ -6153,7 +6174,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
-  if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}.\n${searchContext}\n\nUse the search results above if they are relevant and more up-to-date than your training data. Cite sources when possible. If the search results are not relevant, answer from your own knowledge.\n\n`;
+  if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\nIMPORTANT: Prioritize the most recent search results. When the user asks about current/latest events, ONLY cite results from ${new Date().getFullYear()}. Discard outdated results from previous years unless the user specifically asks about historical information. Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
   if (req.body.tools !== false) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();

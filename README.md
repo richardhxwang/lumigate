@@ -115,7 +115,7 @@ Tool injection prevention is enforced: user-supplied content is scanned for embe
 
 ### Smart Web Search
 
-Contextual web search is integrated into the chat pipeline. When enabled, the server analyzes the user's message and auto-detects whether a search is needed before sending to the AI provider. A configurable keyword model (default: MiniMax for cost efficiency) generates multi-keyword queries. Results are fetched from a self-hosted SearXNG instance, deduplicated, and injected as context into the AI prompt. Auto-search can be toggled on or off per request or globally via the dashboard.
+Contextual web search is integrated into the chat pipeline. When enabled, the server analyzes the user's message and auto-detects whether a search is needed before sending to the AI provider. A configurable keyword model (default: MiniMax for cost efficiency) generates time-aware multi-keyword queries that include the current year for freshness. Results are fetched from a self-hosted SearXNG instance with a default one-month time range (falls back to all-time if too few results), deduplicated, and injected as context into the AI prompt with instructions to prioritize recent results. Auto-search can be toggled on or off per request or globally via the dashboard.
 
 ### LumiChat
 
