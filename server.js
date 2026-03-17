@@ -5116,12 +5116,13 @@ app.get("/lc/suggest", requireLcAuth, async (req, res) => {
   // 1. Fetch news headlines from SearXNG
   let newsSection = "";
   try {
-    const url = `${SEARXNG_URL}/search?q=${encodeURIComponent("今日热点新闻科技AI")}&format=json&language=auto&safesearch=0`;
+    const searchQ = lang === "en" ? "today trending news tech AI" : "今日热点新闻科技AI";
+    const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(searchQ)}&format=json&language=${lang === "en" ? "en" : "auto"}&safesearch=0`;
     const nr = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
     if (nr.ok) {
       const nd = await nr.json();
       const headlines = (nd.results || []).slice(0, 5).map((r, i) => `${i + 1}. ${r.title}`).join("\n");
-      if (headlines) newsSection = `\n最新新闻（来自搜索引擎）：\n${headlines}`;
+      if (headlines) newsSection = lang === "en" ? `\nLatest news:\n${headlines}` : `\n最新新闻（来自搜索引擎）：\n${headlines}`;
     }
   } catch { /* ignore — generate without news */ }
 
