@@ -2263,9 +2263,9 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
-    // Text node for O(1) streaming (append delta, don't re-render full text)
-    const streamNode=document.createTextNode('');
-    aEl.appendChild(streamNode);
+    // Throttled markdown render during streaming (every 300ms, not every frame)
+    let mdTimer=null;
+    let lastMdLen=0; // track what's been rendered to avoid redundant re-renders
 
     while(true){
       const{done,value}=await reader.read(); if(done) break;
@@ -2337,29 +2337,31 @@ async function sendMessage(){
           if(j.usage) streamUsage=j.usage;
           const delta=j.choices?.[0]?.delta?.content||'';
           if(delta){
-            streamText+=delta; pendingDelta+=delta;
-            if(!rafId){
-              rafId=requestAnimationFrame(()=>{
-                rafId=null;
-                if(streamEl&&pendingDelta){
-                  // O(1) Text node append — no re-parse of full text
-                  streamNode.data+=pendingDelta; pendingDelta='';
-                  $('typ-row')?.remove();
-                  // Remove any waiting dots (tool-wait, statusEl)
-                  if(streamEl) streamEl.querySelectorAll('.tool-wait').forEach(w=>w.remove());
-                  if(statusEl){ statusEl.style.display='none'; statusEl=null; }
-                  if(streamRow) streamRow.style.display='';
+            streamText+=delta;
+            $('typ-row')?.remove();
+            if(streamEl) streamEl.querySelectorAll('.tool-wait').forEach(w=>w.remove());
+            if(statusEl){ statusEl.style.display='none'; statusEl=null; }
+            if(streamRow) streamRow.style.display='';
+            streamEl.classList.add('streaming-active');
+            // Throttled markdown render — every 300ms, not every frame
+            if(!mdTimer){
+              mdTimer=setTimeout(()=>{
+                mdTimer=null;
+                if(streamEl&&streamText.length>lastMdLen){
+                  lastMdLen=streamText.length;
+                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{FORCE_BODY:true});
                   streamEl.classList.add('streaming-active');
                   const{scrollHeight,clientHeight,scrollTop}=chatEl;
                   if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
                 }
-              });
+              },300);
             }
           }
         }catch{}
       }
     }
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+    if(mdTimer){clearTimeout(mdTimer);mdTimer=null;}
 
     // Final render
     $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
