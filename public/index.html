@@ -798,6 +798,51 @@
               <span style="font-size:13px;color:rgba(0,0,0,0.6)">Tool Injection</span>
             </div>
           </div>
+          <div class="fg-row" style="margin-top:10px">
+            <div class="fg">
+              <label>Attachment Search Mode</label>
+              <select id="attachmentSearchMode">
+                <option value="assistant_decide">assistant_decide (default)</option>
+                <option value="smart">smart</option>
+                <option value="always">always</option>
+                <option value="off">off</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>LumiChat Soft Delete (PB)</label>
+              <div style="display:flex;align-items:center;gap:8px;height:44px">
+                <label class="switch"><input type="checkbox" id="lcSoftDeleteEnabled"><span class="slider"></span></label>
+                <span style="font-size:13px;color:rgba(0,0,0,0.6)">Enable soft delete + trash restore</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid rgba(0,0,0,0.06);margin:20px 0"></div>
+
+        <!-- LC Data Ops -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.7);margin-bottom:4px">LC Data Ops</div>
+          <div style="font-size:12px;color:rgba(0,0,0,0.4);margin-bottom:12px">Directly inspect LC schema/trash and run project reference/remap actions.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="btn sm" onclick="loadLcSchema()">Load Schema</button>
+            <button class="btn sm" onclick="loadLcTrash()">Load Trash</button>
+          </div>
+          <div class="fg-row">
+            <div class="fg"><label>Trash Collection</label><input id="lcTrashCollection" placeholder="lc_messages"></div>
+            <div class="fg"><label>Restore Record ID</label><input id="lcRestoreId" placeholder="record_id"></div>
+            <div class="fg" style="display:flex;align-items:flex-end"><button class="btn sm" onclick="restoreLcTrashRecord()">Restore</button></div>
+          </div>
+          <div class="fg-row">
+            <div class="fg"><label>Project ID</label><input id="lcProjectId" placeholder="lc_project_id"></div>
+            <div class="fg"><label>User ID</label><input id="lcUserId" placeholder="pb_user_id"></div>
+            <div class="fg" style="display:flex;align-items:flex-end"><button class="btn sm" onclick="loadLcProjectReferences()">References</button></div>
+          </div>
+          <div class="fg-row">
+            <div class="fg"><label>Remap Target Project ID</label><input id="lcRemapTargetId" placeholder="target_project_id"></div>
+            <div class="fg" style="display:flex;align-items:flex-end"><button class="btn sm" onclick="remapLcProjectReferences()">Remap</button></div>
+          </div>
+          <pre id="lcOpsOutput" style="margin-top:10px;background:rgba(0,0,0,0.04);border-radius:10px;padding:10px;max-height:240px;overflow:auto;font-size:11px;color:rgba(0,0,0,0.65)"></pre>
         </div>
 
         <div style="border-top:1px solid rgba(0,0,0,0.06);margin:20px 0"></div>
@@ -1177,6 +1222,8 @@ async function loadSystemSettings() {
     document.getElementById('searchKeywordModel').value = d.searchKeywordModel || 'MiniMax-M1';
     document.getElementById('autoSearchEnabled').checked = d.autoSearchEnabled !== false;
     document.getElementById('toolInjectionEnabled').checked = d.toolInjectionEnabled !== false;
+    document.getElementById('attachmentSearchMode').value = d.attachmentSearchMode || 'assistant_decide';
+    document.getElementById('lcSoftDeleteEnabled').checked = !!d.lcSoftDeleteEnabled;
     // Info
     {
       const infoEl = document.getElementById('settingsInfo');
@@ -1385,6 +1432,8 @@ async function saveSystemSettings() {
     searchKeywordModel: document.getElementById('searchKeywordModel').value,
     autoSearchEnabled: document.getElementById('autoSearchEnabled').checked,
     toolInjectionEnabled: document.getElementById('toolInjectionEnabled').checked,
+    attachmentSearchMode: document.getElementById('attachmentSearchMode').value,
+    lcSoftDeleteEnabled: document.getElementById('lcSoftDeleteEnabled').checked,
   };
   try {
     const d = await fetch(B + '/admin/settings', {
@@ -1404,6 +1453,73 @@ async function saveSystemSettings() {
       }).catch(() => {});
     } else showT(d.error || 'Save failed', 'error');
   } catch (e) { showT(e.message, 'error'); }
+}
+
+function setLcOpsOutput(data) {
+  const el = document.getElementById('lcOpsOutput');
+  if (!el) return;
+  if (typeof data === 'string') el.textContent = data;
+  else el.textContent = JSON.stringify(data, null, 2);
+}
+
+async function loadLcSchema() {
+  try {
+    setLcOpsOutput('Loading schema...');
+    const d = await fetch(B + '/admin/lc/schema').then(r => r.json());
+    setLcOpsOutput(d);
+  } catch (e) { setLcOpsOutput(e.message || 'Load schema failed'); }
+}
+
+async function loadLcTrash() {
+  try {
+    setLcOpsOutput('Loading trash...');
+    const collection = (document.getElementById('lcTrashCollection').value || '').trim();
+    const q = collection ? `?collection=${encodeURIComponent(collection)}` : '';
+    const d = await fetch(B + '/admin/lc/trash' + q).then(r => r.json());
+    setLcOpsOutput(d);
+  } catch (e) { setLcOpsOutput(e.message || 'Load trash failed'); }
+}
+
+async function restoreLcTrashRecord() {
+  try {
+    const collection = (document.getElementById('lcTrashCollection').value || '').trim();
+    const id = (document.getElementById('lcRestoreId').value || '').trim();
+    if (!collection || !id) { showT('collection + record id required', 'error'); return; }
+    setLcOpsOutput('Restoring...');
+    const d = await fetch(B + '/admin/lc/trash/restore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collection, id })
+    }).then(r => r.json());
+    setLcOpsOutput(d);
+    if (d.success) showT('Record restored', 'success');
+  } catch (e) { setLcOpsOutput(e.message || 'Restore failed'); }
+}
+
+async function loadLcProjectReferences() {
+  try {
+    const projectId = (document.getElementById('lcProjectId').value || '').trim();
+    const userId = (document.getElementById('lcUserId').value || '').trim();
+    if (!projectId || !userId) { showT('project id + user id required', 'error'); return; }
+    setLcOpsOutput('Loading references...');
+    const d = await fetch(`${B}/admin/lc/projects/${encodeURIComponent(projectId)}/references?userId=${encodeURIComponent(userId)}`).then(r => r.json());
+    setLcOpsOutput(d);
+  } catch (e) { setLcOpsOutput(e.message || 'Load references failed'); }
+}
+
+async function remapLcProjectReferences() {
+  try {
+    const sourceId = (document.getElementById('lcProjectId').value || '').trim();
+    const targetId = (document.getElementById('lcRemapTargetId').value || '').trim();
+    const userId = (document.getElementById('lcUserId').value || '').trim();
+    if (!sourceId || !targetId || !userId) { showT('source + target + user id required', 'error'); return; }
+    setLcOpsOutput('Remapping...');
+    const d = await fetch(`${B}/admin/lc/projects/${encodeURIComponent(sourceId)}/remap`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetId, userId, deleteSource: false })
+    }).then(r => r.json());
+    setLcOpsOutput(d);
+    if (d.success) showT('Remap completed', 'success');
+  } catch (e) { setLcOpsOutput(e.message || 'Remap failed'); }
 }
 
 // ============================================================
