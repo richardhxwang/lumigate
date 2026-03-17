@@ -5063,6 +5063,25 @@ app.post("/lc/auth/change-password", requireLcAuth, async (req, res) => {
 const LC_ID_RE = /^[a-zA-Z0-9]{15}$/;
 function validPbId(id) { return typeof id === 'string' && LC_ID_RE.test(id); }
 
+// ── LumiChat proxy for /providers and /models (CF Access bypass via /lc/ path) ──
+app.get("/lc/providers", requireLcAuth, (req, res) => {
+  const admin = isAdminRequest(req);
+  res.json(Object.entries(PROVIDERS).map(([name, cfg]) => {
+    const allKeys = providerKeys[name] || [];
+    const enabledKeys = allKeys.filter(k => k.enabled);
+    const mode = getProviderAccessMode(name);
+    const isCollector = mode === "collector" && hasCollectorToken(name);
+    const entry = { name, baseUrl: cfg.baseUrl, available: enabledKeys.length > 0 || isCollector, accessMode: mode };
+    if (mode === "collector" && collectorHealth[name]) entry.collectorStatus = collectorHealth[name].status;
+    if (admin) { entry.keyCount = allKeys.length; entry.enabledCount = enabledKeys.length; }
+    return entry;
+  }));
+});
+app.get("/lc/models/:provider", requireLcAuth, (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  res.json(MODELS[name] || []);
+});
+
 // ── SearXNG web search ────────────────────────────────────────────────────
 // GET /lc/search?q=... → query SearXNG JSON API, return top results
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://lumigate-searxng:8080";
@@ -5704,10 +5723,21 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
 // --- Pre-search helpers ---
 function needsWebSearch(text) {
   if (!text || text.length < 2) return false;
+  // Broad detection — if there's any chance the question needs fresh data, search.
+  // Better to search unnecessarily than to miss a time-sensitive query.
   return [
-    /搜[索一下]|查[找一下询]|最新|最近|今[天日]|新闻|天气|价格|股[价票]|汇率|实时|现在|目前|近期|动态|进展|变化/,
-    /search\s|look\s?up|find\s+me|latest\s|current\s|today.?s?\s|news\b|weather\b|price\b|stock\b|recent\b/i,
-    /who is|what happened|when did|how much is|how many/i,
+    // Explicit search intent
+    /搜[索一下]|查[找一下询]|帮我[找查搜]/,
+    // Time-sensitive signals (CN)
+    /最新|最近|今[天日年]|昨[天日]|本[周月年]|上[周月]|这[几两]天|近[期来日]|目前|现在|当前|实时|刚[刚才]|新出/,
+    // Topic signals — likely needs current data (CN)
+    /新闻|天气|价格|股[价票]|汇率|发布|上线|更新|升级|版本|政策|法规|赛[事程]|比分|排[名行]|榜|票房|疫情|选举/,
+    // Change/trend signals (CN)
+    /变化|变动|趋势|走势|动态|进展|消息|情况|怎[么样]样了|有什么/,
+    // English equivalents
+    /search|look\s?up|latest|current|today|yesterday|this\s(?:week|month|year)|recent|now|just\s|new\s/i,
+    /news|weather|price|stock|release|update|version|score|ranking|election/i,
+    /what.?(?:happen|change|going\son)|how\smuch|who\s(?:is|won|died)|when\sdid/i,
   ].some(p => p.test(text));
 }
 
@@ -5931,7 +5961,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
-  if (searchContext) injectedSystemPrompt += searchContext + "\n\nUse the search results above to answer the user's question. Cite sources when possible.\n\n";
+  if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}.\n${searchContext}\n\nUse the search results above if they are relevant and more up-to-date than your training data. Cite sources when possible. If the search results are not relevant, answer from your own knowledge.\n\n`;
   if (req.body.tools !== false) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();

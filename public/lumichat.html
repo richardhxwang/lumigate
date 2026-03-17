@@ -2619,7 +2619,7 @@ function getProviderAccess(name){
   return p?.access || 'locked';
 }
 async function loadProviders(){
-  try{ const r=await fetch('/providers',{credentials:'same-origin'}); if(r.ok) providersData=await r.json(); }catch{}
+  try{ const r=await fetch('/lc/providers',{credentials:'same-origin'}); if(r.ok) providersData=await r.json(); }catch{}
   await loadTierData();
   // Pending approval — show message
   if(_tierData?.pending){
@@ -2649,7 +2649,7 @@ async function loadProviders(){
 }
 async function loadModels(prov){
   if(modelsData[prov]) return;
-  try{ const r=await fetch(`/models/${prov}`,{credentials:'same-origin'}); if(r.ok) modelsData[prov]=await r.json(); }catch{}
+  try{ const r=await fetch(`/lc/models/${prov}`,{credentials:'same-origin'}); if(r.ok) modelsData[prov]=await r.json(); }catch{}
 }
 function isProviderUsable(p){ const cs=p.collectorStatus; return !(cs==='auth_expired'||cs==='error'); }
 async function buildModelDropdown(){
