@@ -5887,10 +5887,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     return res.status(429).json({ error: "Project budget exceeded" });
   }
 
-  // Resolve API key
+  // Resolve API key — fallback to Collector if no key available
   const selectedKey = selectApiKey(providerName.toLowerCase(), projectName);
   const apiKey = selectedKey?.apiKey || provider.apiKey;
-  if (!apiKey) return res.status(403).json({ error: "No API key configured for this provider" });
+  const useCollector = !apiKey && COLLECTOR_SUPPORTED.includes(providerName.toLowerCase()) && hasCollectorToken(providerName.toLowerCase());
+  if (!apiKey && !useCollector) return res.status(403).json({ error: "No API key configured for this provider" });
 
   // ── Pre-search ──
   // Models with built-in web search don't need SearXNG
@@ -5982,6 +5983,40 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   const body = buildChatBody(providerName.toLowerCase(), modelId, messages, injectedSystemPrompt.trim(), wantStream);
 
   try {
+    // ── Collector path: use Chrome CDP when no API key ──
+    if (useCollector) {
+      let collector;
+      try { collector = require("./collector"); } catch { return res.status(503).json({ error: "Collector module not available" }); }
+      const credentials = getCollectorCredentials(providerName.toLowerCase());
+      // Inject system prompt into messages for collector
+      const collectorMsgs = [...messages];
+      if (injectedSystemPrompt.trim()) {
+        const sysMsg = collectorMsgs.find(m => m.role === "system");
+        if (sysMsg) sysMsg.content = injectedSystemPrompt.trim() + "\n\n" + (sysMsg.content || "");
+        else collectorMsgs.unshift({ role: "system", content: injectedSystemPrompt.trim() });
+      }
+      if (!res.headersSent && wantStream) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
+      }
+      try {
+        for await (const chunk of collector.sendMessage(providerName.toLowerCase(), modelId, collectorMsgs, credentials)) {
+          if (res.writableEnded) break;
+          if (wantStream) res.write(chunk);
+        }
+        if (!res.writableEnded) { if (wantStream) res.write("data: [DONE]\n\n"); res.end(); }
+      } catch (e) {
+        log("error", "Collector error in /v1/chat", { provider: providerName, error: e.message });
+        if (!res.headersSent) return res.status(502).json({ error: "Collector error" });
+        if (!res.writableEnded) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] })}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+      }
+      return;
+    }
+
+    // ── API path: direct fetch to provider ──
     const upstreamRes = await fetch(chatUrl, {
       method: "POST", headers, body: JSON.stringify(body),
       signal: AbortSignal.timeout(120000),
@@ -5989,12 +6024,10 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
     if (!upstreamRes.ok) {
       const status = upstreamRes.status;
-      // Generic error messages — don't leak upstream details (request_id, key hints, etc.)
       const errMap = { 400: "Bad request to AI provider", 401: "AI provider authentication failed", 403: "AI provider access denied", 404: "Model not found", 429: "AI provider rate limit exceeded", 500: "AI provider internal error", 502: "AI provider unavailable", 503: "AI provider temporarily unavailable" };
       const errMsg = errMap[status] || `AI provider error (${status})`;
       try { upstreamRes.body?.cancel(); } catch {}
       if (!res.headersSent) return res.status(status >= 500 ? 502 : status).json({ error: errMsg });
-      // Headers already sent (e.g. search started) — send error as SSE event so frontend sees it
       log("warn", "Upstream error after headers sent", { provider: providerName, status });
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${errMsg}]` } }] })}\n\n`);
