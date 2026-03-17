@@ -6204,10 +6204,13 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
   if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\nIMPORTANT: Prioritize the most recent search results. When the user asks about current/latest events, ONLY cite results from ${new Date().getFullYear()}. Discard outdated results from previous years unless the user specifically asks about historical information. Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
-  // Skip tool prompt for small/economy models — they misinterpret it and generate files for simple conversations
+  // Small models: no full tool prompt, just a polite redirect hint
   const SMALL_MODEL_PATTERNS = /nano|(?<![a-z])mini(?!max)|flash-lite|(?<![a-z])haiku|(?<![a-z])8b(?![a-z])|(?<![a-z])7b(?![a-z])/i;
-  const skipToolsForSmallModel = SMALL_MODEL_PATTERNS.test(modelId);
-  if (req.body.tools !== false && !skipToolsForSmallModel) {
+  const isSmallModel = SMALL_MODEL_PATTERNS.test(modelId);
+  if (isSmallModel) {
+    injectedSystemPrompt += "\nYou are a lightweight model. If the user asks to generate files (Excel, Word, PPT), politely tell them to switch to a more capable model such as DeepSeek, GPT-4.1, or Claude Sonnet. Do NOT attempt to generate files yourself.\n";
+  }
+  if (req.body.tools !== false && !isSmallModel) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
