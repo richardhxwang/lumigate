@@ -6077,9 +6077,15 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         }
         if (!res.writableEnded) { if (wantStream) res.write("data: [DONE]\n\n"); res.end(); }
       } catch (e) {
+        setCollectorHealth(pnLower, false, e.message);
         log("error", "Collector error in /v1/chat", { provider: providerName, error: e.message });
-        if (!res.headersSent) return res.status(502).json({ error: "Collector error" });
-        if (!res.writableEnded) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${e.message}]` } }] })}\n\n`); res.write("data: [DONE]\n\n"); res.end(); }
+        const isAuthErr = /401|403|expired|login|auth|session|cookie|rate.?limit/i.test(e.message);
+        if (!res.headersSent) return res.status(isAuthErr ? 401 : 502).json({ error: isAuthErr ? `${providerName} session expired — please re-login via Dashboard` : "Collector error" });
+        if (!res.writableEnded) {
+          if (isAuthErr) res.write(`event: collector_auth\ndata: ${JSON.stringify({ provider: pnLower, message: L.searching ? `${providerName} session expired` : `${providerName} 登录已过期` })}\n\n`);
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: isAuthErr ? `\n\n[${providerName} session expired — re-login needed]` : `\n\n[Error: ${e.message}]` } }] })}\n\n`);
+          res.write("data: [DONE]\n\n"); res.end();
+        }
       }
       return;
     }

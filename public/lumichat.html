@@ -2300,6 +2300,15 @@ async function sendMessage(){
         if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
         const data=line.slice(6).trim(); if(data==='[DONE]') continue;
 
+        // 0. collector_auth — provider session expired, prompt re-login
+        if(sseEventType==='collector_auth'){
+          try{
+            const ca=JSON.parse(data);
+            toast(_lang==='zh'?`${ca.provider} 登录已过期，请重新登录`:`${ca.provider} session expired — please re-login`,5000,'#ff9500');
+          }catch{}
+          sseEventType=''; continue;
+        }
+
         // 1. tool_status — reuse typ-row dots, add status text below
         if(sseEventType==='tool_status'){
           try{
