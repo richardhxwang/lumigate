@@ -5940,10 +5940,16 @@ function getChatHeaders(providerName, apiKey) {
 // Default max output tokens per provider — models that support higher limits get more room
 // This prevents long-form generation (file creation, DCF analysis, etc.) from cutting off mid-output
 // No max_tokens limit — let each provider use its own maximum
-// Only Anthropic requires max_tokens (API requirement), others omit it
+// Only Anthropic requires max_tokens (API mandate)
 function getMaxTokens(providerName, model) {
-  if (providerName === "anthropic") return 8192; // Anthropic API requires this field
-  return undefined; // omit → provider default (no limit)
+  // Anthropic API requires max_tokens field; use model maximum
+  if (providerName === "anthropic") {
+    if (/opus/.test(model)) return 32768;
+    if (/sonnet-4-6/.test(model)) return 16384;
+    if (/sonnet/.test(model)) return 8192;
+    return 8192; // haiku etc
+  }
+  return undefined; // omit → provider uses its own max
 }
 
 function buildChatBody(providerName, model, messages, systemPrompt, stream) {
