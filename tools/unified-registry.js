@@ -142,12 +142,11 @@ class UnifiedRegistry {
    * Falls back to generate_spreadsheet if no template matches.
    */
   async _executeTemplate(toolInput, startTime) {
-    const { category, template, data } = toolInput;
+    const { category, template, data, inspect } = toolInput;
     const catalogPath = path.join(__dirname, "..", "templates", "catalog.json");
 
     try {
       if (!fs.existsSync(catalogPath)) {
-        // No catalog — fall back to generate_spreadsheet with the data
         return this._templateFallback(toolInput, startTime);
       }
 
@@ -164,9 +163,30 @@ class UnifiedRegistry {
       if (!match) match = catalog.find(e => e.name.toLowerCase().includes(searchName) && searchName.length > 3);
       // Category match — pick first in category
       if (!match && searchCat) match = catalog.find(e => e.category.toLowerCase().includes(searchCat));
+      // Broadest: category substring
+      if (!match && searchCat) match = catalog.find(e => e.category.toLowerCase().includes(searchCat.split("/").pop()));
 
       if (!match || !match.file || !fs.existsSync(match.file)) {
-        return this._templateFallback(toolInput, startTime);
+        // Return list of available templates in this category for AI to choose
+        const available = catalog.filter(e => searchCat ? e.category.toLowerCase().includes(searchCat) : true).slice(0, 10);
+        return {
+          ok: true, data: {
+            message: `No exact match for "${template}". Available templates:`,
+            templates: available.map(e => ({ name: e.name, category: e.category, sheets: e.sheets })),
+          }, duration: Date.now() - startTime,
+        };
+      }
+
+      // INSPECT mode: return template structure without generating file
+      if (inspect) {
+        return {
+          ok: true, data: {
+            message: `Template "${match.name}" found. Use this structure to fill data.`,
+            template_name: match.name, category: match.category,
+            sheets: match.sheets || [],
+            instructions: "Call use_template again WITHOUT inspect, with complete data.sheets array matching these sheet names. Each sheet needs headers + rows with real data and formulas.",
+          }, duration: Date.now() - startTime,
+        };
       }
 
       // Read the template file
@@ -298,13 +318,39 @@ class UnifiedRegistry {
       "You can generate files. Output: [TOOL:name]{json}[/TOOL]",
       "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template",
       "",
-      "IMPORTANT: When creating financial models, reports, or presentations, FIRST check if a template exists:",
-      '  [TOOL:use_template]{"category":"finance/dcf","template":"DCF Model","data":{"company":"华润啤酒","revenue":[36428,38932,38635]}}[/TOOL]',
-      "If no matching template, generate from scratch:",
-      '  [TOOL:generate_spreadsheet]{"title":"Model","sheets":[{"name":"Sheet1","headers":["","2024","2025"],"rows":[["Revenue",1000,"=B2*1.2"]]}]}[/TOOL]',
+      "=== FILE GENERATION WORKFLOW ===",
+      "ONLY use tools when user EXPLICITLY asks for file generation. Do NOT generate files for greetings or questions.",
       "",
-      "RULES: Only use tools when the user EXPLICITLY asks for file generation (Excel, Word, PPT). Do NOT use tools for normal conversation, greetings, or questions. When a file IS requested, ALWAYS use a tool — never output file content as text.",
-      "For Excel: use real numbers (not strings), formulas start with =, percentages as decimals (0.15 not 15%).",
+      "When creating Excel/financial files, follow this 5-step process:",
+      "",
+      "STEP 1 — Find the right template:",
+      "  You have 224 professional templates (DCF, LBO, WACC, Black-Scholes, etc).",
+      "  ALWAYS use a template. NEVER generate from scratch if a template exists.",
+      "  Call: [TOOL:use_template]{\"category\":\"finance/dcf\",\"template\":\"DCF Model\",\"inspect\":true}[/TOOL]",
+      "  This returns the template's sheet structure (sheet names, headers, row labels).",
+      "",
+      "STEP 2 — Read the template structure:",
+      "  The response tells you what sheets exist, what headers/rows are expected.",
+      "  Plan which data goes where.",
+      "",
+      "STEP 3 — Gather data:",
+      "  Use your knowledge to fill financial data. If you need real-time data,",
+      "  the system will auto-search the web for you. Provide COMPLETE data for ALL sheets.",
+      "",
+      "STEP 4 — Generate with FULL content:",
+      "  Call use_template with complete sheets data. Each sheet MUST have:",
+      "  - Multiple rows (minimum 10+ for financial models)",
+      "  - Real formulas (=SUM, =NPV, =B2*1.05, cross-sheet refs)",
+      "  - All sheets the template defines, not just one",
+      '  Example: {"category":"finance/dcf","template":"DCF Model","data":{"company":"华润啤酒","sheets":[{"name":"Historical Data","headers":["","2021","2022","2023","2024"],"rows":[["Revenue",30000,32000,36428,38932],["COGS",18000,19200,21857,23359],...more rows...]},{"name":"DCF Valuation","headers":["Parameter","Value"],"rows":[["WACC",0.08],["Terminal Growth",0.03],...]}]}}',
+      "",
+      "STEP 5 — Quality check:",
+      "  Before outputting, verify: file should be 15KB+ for financial models.",
+      "  A DCF with only Revenue is UNACCEPTABLE. Include: Revenue, COGS, Gross Profit,",
+      "  EBITDA, D&A, EBIT, Tax, NOPAT, CapEx, Working Capital, FCF, Discount Factors,",
+      "  Terminal Value, Enterprise Value, Equity Value, Per Share Value.",
+      "",
+      "For Excel: real numbers (not strings), formulas with =, percentages as decimals (0.15 not 15%).",
       templateHint,
     ].join("\n");
   }
