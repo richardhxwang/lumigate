@@ -2204,7 +2204,7 @@ async function sendMessage(){
     const tip=tips[Math.floor(Math.random()*tips.length)];
     const tipEl=document.createElement('div');
     tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .5s ease';
-    tipEl.innerHTML='<span style="font-style:normal">\u2514</span> <i>'+esc(tip)+'</i>';
+    tipEl.innerHTML='<i><svg width="10" height="12" viewBox="0 0 10 12" style="vertical-align:-2px;margin-right:3px"><path d="M2 0v8h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+esc(tip)+'</i>';
     tr.querySelector('.typing')?.appendChild(tipEl);
     requestAnimationFrame(()=>{ tipEl.style.opacity='1'; });
   },1500);
