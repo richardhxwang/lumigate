@@ -2213,15 +2213,28 @@ async function sendMessage(){
       '提示：在设置里写系统提示词可以定制回复风格',
     ]
   };
-  const tipTimer=setTimeout(()=>{
+  // Tips: show after 1.5s, rotate every 4s
+  let tipIdx=-1;
+  const tipTimer=setTimeout(function showTip(){
     const tr=$('typ-row'); if(!tr) return;
     const tips=TIPS_I18N[_lang]||TIPS_I18N.en;
-    const tip=tips[Math.floor(Math.random()*tips.length)];
-    const tipEl=document.createElement('div');
-    tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .5s ease';
-    tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
-    tr.querySelector('.typing')?.appendChild(tipEl);
-    requestAnimationFrame(()=>{ tipEl.style.opacity='1'; });
+    tipIdx=(tipIdx+1)%tips.length;
+    const tip=tips[tipIdx];
+    let tipEl=tr.querySelector('.tip-line');
+    if(!tipEl){
+      tipEl=document.createElement('div'); tipEl.className='tip-line';
+      tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .4s ease';
+      tr.querySelector('.typing')?.appendChild(tipEl);
+    }
+    // Fade out → swap → fade in
+    tipEl.style.opacity='0';
+    setTimeout(()=>{
+      tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
+      tipEl.style.opacity='1';
+      const{scrollHeight,clientHeight,scrollTop}=chatEl;
+      if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+    },300);
+    setTimeout(showTip,4000);
   },1500);
 
   // Create session (if needed)
@@ -2342,7 +2355,13 @@ async function sendMessage(){
               // Hide status text, keep dots bouncing
               if(statusEl){ statusEl.style.opacity='0'; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; },300); }
             } else {
-              if(statusEl){ statusEl.textContent=st.text; requestAnimationFrame(()=>{ statusEl.style.opacity='1'; }); }
+              if(statusEl){
+                statusEl.textContent=st.text;
+                requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
+                // Auto-scroll when status text appears
+                const{scrollHeight,clientHeight,scrollTop}=chatEl;
+                if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+              }
             }
           }catch{}
           sseEventType=''; continue;
@@ -2396,35 +2415,33 @@ async function sendMessage(){
             }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
-            // Throttled markdown render — 120ms balances smoothness vs DOM thrashing
-            if(!mdTimer){
-              mdTimer=setTimeout(()=>{
-                mdTimer=null;
-                if(streamEl&&streamText.length>lastMdLen){
-                  lastMdLen=streamText.length;
-                  // Trim last incomplete line if it would flash as wrong element during streaming
-                  let renderText=streamText;
-                  const lastNL=renderText.lastIndexOf('\n');
-                  if(lastNL>0){
-                    const lastLine=renderText.slice(lastNL+1).trim();
-                    // Trim last line if it has incomplete markdown
-                    const trimLast=
-                      /^[-*_]{1,3}$/.test(lastLine)||           // partial <hr>
-                      /^#{1,6}\s*$/.test(lastLine)||            // heading with no content
-                      /^```\w*$/.test(lastLine)||               // code fence opening
-                      /^>\s*$/.test(lastLine);                  // empty blockquote
-                    if(trimLast) renderText=renderText.slice(0,lastNL);
-                    // Strip last line if it has unclosed bold/italic markers
-                    const dblStars=(lastLine.match(/\*\*/g)||[]).length;
-                    const sglStars=(lastLine.replace(/\*\*/g,'').match(/\*/g)||[]).length;
-                    if(dblStars%2===1||sglStars%2===1) renderText=renderText.slice(0,lastNL);
-                  }
-                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(renderText),{FORCE_BODY:true});
-                  streamEl.classList.add('streaming-active');
-                  const{scrollHeight,clientHeight,scrollTop}=chatEl;
-                  if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+            // Incremental render: completed paragraphs → markdown, current line → text node
+            if(!rafId){
+              rafId=requestAnimationFrame(()=>{
+                rafId=null;
+                if(!streamEl) return;
+                // Incremental: only render NEW completed paragraphs, append to existing
+                const dblNL=streamText.lastIndexOf('\n\n');
+                if(dblNL>lastMdLen){
+                  // Only parse the NEW chunk (from lastMdLen to dblNL)
+                  const newChunk=streamText.slice(lastMdLen,dblNL);
+                  // Remove tail span before appending new markdown
+                  const oldTail=streamEl.querySelector('.stream-tail');
+                  if(oldTail) oldTail.remove();
+                  // Append new HTML
+                  const frag=document.createElement('div');
+                  frag.innerHTML=DOMPurify.sanitize(marked.parse(newChunk),{FORCE_BODY:true});
+                  while(frag.firstChild) streamEl.appendChild(frag.firstChild);
+                  lastMdLen=dblNL;
                 }
-              },120);
+                // Current tail → inline markdown (just the current paragraph)
+                const tail=streamText.slice(lastMdLen).replace(/^\n\n/,'');
+                let tn=streamEl.querySelector('.stream-tail');
+                if(!tn){ tn=document.createElement('span'); tn.className='stream-tail'; streamEl.appendChild(tn); }
+                tn.innerHTML=DOMPurify.sanitize(marked.parseInline(tail),{FORCE_BODY:true});
+                const{scrollHeight,clientHeight,scrollTop}=chatEl;
+                if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+              });
             }
           }
         }catch{}
