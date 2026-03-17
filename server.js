@@ -5939,26 +5939,11 @@ function getChatHeaders(providerName, apiKey) {
 
 // Default max output tokens per provider — models that support higher limits get more room
 // This prevents long-form generation (file creation, DCF analysis, etc.) from cutting off mid-output
+// No max_tokens limit — let each provider use its own maximum
+// Only Anthropic requires max_tokens (API requirement), others omit it
 function getMaxTokens(providerName, model) {
-  // Anthropic: Claude 3.5+ supports 8192 output
-  if (providerName === "anthropic") return 8192;
-  // MiniMax M1/M2 series: up to 16384 output tokens
-  if (providerName === "minimax") return 16384;
-  // DeepSeek: supports 8192 output
-  if (providerName === "deepseek") return 8192;
-  // OpenAI reasoning models use max_completion_tokens instead (handled by caller)
-  // GPT-4.1 series: 32768 output, GPT-4o: 16384 output
-  if (providerName === "openai") {
-    if (/^gpt-4\.1/.test(model)) return 32768;
-    if (/^gpt-4o/.test(model)) return 16384;
-    return 8192;
-  }
-  // Gemini: large output support
-  if (providerName === "gemini") return 8192;
-  // Qwen: supports 8192 output
-  if (providerName === "qwen") return 8192;
-  // Default for other providers
-  return 8192;
+  if (providerName === "anthropic") return 8192; // Anthropic API requires this field
+  return undefined; // omit → provider default (no limit)
 }
 
 function buildChatBody(providerName, model, messages, systemPrompt, stream) {
