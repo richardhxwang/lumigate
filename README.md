@@ -84,14 +84,14 @@ Optional fields: `web_search` (bool, auto-detected if omitted), `tools` (bool, d
 
 | Provider | Auth | Example Models |
 |----------|------|----------------|
-| OpenAI | API Key | GPT-4.1, o3, o4-mini |
-| Anthropic | API Key | Claude Opus 4, Sonnet 4 |
-| Gemini | API Key | Gemini 2.5 Flash/Pro |
-| DeepSeek | API Key | DeepSeek-Chat, R1 |
-| MiniMax | API Key | MiniMax-M1, M2.5 |
-| Kimi | Collector | Moonshot |
-| Doubao | Collector | ByteDance |
-| Qwen | Collector | Tongyi Qwen |
+| OpenAI | API Key | GPT-5, GPT-5.4, o3, o4-mini |
+| Anthropic | API Key | Claude Opus 4.6, Sonnet 4.6 |
+| Gemini | API Key | Gemini 3.1 Pro/Flash, 2.5 Flash/Pro |
+| DeepSeek | API Key | DeepSeek-Chat V3.2, Reasoner |
+| MiniMax | API Key | MiniMax-M2.5, M2, M1 |
+| Kimi | Collector | Kimi K2.5, K2 |
+| Doubao | Collector | Doubao Seed 2.0 Pro/Lite/Mini |
+| Qwen | Collector | Qwen 3.5 Plus, Qwen 3 Max |
 
 Collector providers use headless Chrome via CDP. Admin logs in once through VNC; Chrome maintains the session.
 
