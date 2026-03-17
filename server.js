@@ -2236,13 +2236,19 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
     smtpTo: settings.smtpTo || "",
     smtpEnabled: !!settings.smtpEnabled,
     smtpHasPassword: !!(settings.smtpPass),
+    // AI & Tools
+    searchKeywordProvider: settings.searchKeywordProvider || "minimax",
+    searchKeywordModel: settings.searchKeywordModel || "MiniMax-M1",
+    autoSearchEnabled: settings.autoSearchEnabled !== false,
+    toolInjectionEnabled: settings.toolInjectionEnabled !== false,
   });
 });
 
 app.put("/admin/settings", requireRole("root"), (req, res) => {
   const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours, confirmSecret,
           smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpTo, smtpEnabled,
-          stealthMode, approvalEmail, approvalEnabled } = req.body;
+          stealthMode, approvalEmail, approvalEnabled,
+          searchKeywordProvider, searchKeywordModel, autoSearchEnabled, toolInjectionEnabled } = req.body;
   // Require re-authentication for settings changes
   if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
     return res.status(403).json({ error: "Admin secret required to change settings" });
@@ -2313,6 +2319,13 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   if (smtpEnabled !== undefined) { settings.smtpEnabled = !!smtpEnabled; changes.smtpEnabled = settings.smtpEnabled; }
   if (typeof approvalEmail === "string") { settings.approvalEmail = approvalEmail.trim(); changes.approvalEmail = settings.approvalEmail; }
   if (approvalEnabled !== undefined) { settings.approvalEnabled = !!approvalEnabled; changes.approvalEnabled = settings.approvalEnabled; }
+  // AI & Tools
+  const validKwProviders = ["minimax", "deepseek", "openai", "gemini", "qwen"];
+  const validKwModels = ["MiniMax-M1", "deepseek-chat", "gpt-4.1-nano", "gemini-2.5-flash", "qwen-turbo"];
+  if (typeof searchKeywordProvider === "string" && validKwProviders.includes(searchKeywordProvider)) { settings.searchKeywordProvider = searchKeywordProvider; changes.searchKeywordProvider = searchKeywordProvider; }
+  if (typeof searchKeywordModel === "string" && validKwModels.includes(searchKeywordModel)) { settings.searchKeywordModel = searchKeywordModel; changes.searchKeywordModel = searchKeywordModel; }
+  if (autoSearchEnabled !== undefined) { settings.autoSearchEnabled = !!autoSearchEnabled; changes.autoSearchEnabled = settings.autoSearchEnabled; }
+  if (toolInjectionEnabled !== undefined) { settings.toolInjectionEnabled = !!toolInjectionEnabled; changes.toolInjectionEnabled = settings.toolInjectionEnabled; }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
   res.json({
@@ -6004,8 +6017,10 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // Only models with CONFIRMED working API-level search
   // Kimi removed: Collector mode doesn't trigger web search on Kimi's web UI
   const MODELS_WITH_SEARCH = new Set([
-    // Gemini — grounding with Google Search (verified via API)
-    "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
+    // Gemini grounding REMOVED: Google Search grounding requires native Gemini API
+    // (generateContent with tools:[{google_search:{}}]). It does NOT work through
+    // the OpenAI-compatible endpoint (/v1beta/openai/chat/completions) that LumiGate uses.
+    // So Gemini models need SearXNG like everyone else.
   ]);
   const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
 
@@ -6019,7 +6034,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   })();
 
   // Skip SearXNG if model has built-in search (unless explicitly forced via web_search:true)
-  const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && needsWebSearch(userText));
+  const autoSearchOn = settings.autoSearchEnabled !== false;
+  const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && autoSearchOn && needsWebSearch(userText));
   if (doSearch) {
     // Start SSE early so frontend sees search status
     if (wantStream && !res.headersSent) {
@@ -6033,12 +6049,15 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       // Generate 2-3 search keywords via cheap AI (fast, <2s)
       let queries = [extractSearchQuery(userText)]; // fallback: original query
       try {
-        // MiniMax first (free coding plan), then others. Supports Collector fallback.
-        const KW_MODELS = [
+        // Preferred provider/model from settings, then fallback chain.
+        const ALL_KW = [
           { p: "minimax", m: "MiniMax-M1" }, { p: "deepseek", m: "deepseek-chat" },
           { p: "openai", m: "gpt-4.1-nano" }, { p: "gemini", m: "gemini-2.5-flash" },
           { p: "qwen", m: "qwen-turbo" },
         ];
+        const prefP = settings.searchKeywordProvider || "minimax";
+        const prefM = settings.searchKeywordModel || "MiniMax-M1";
+        const KW_MODELS = [{ p: prefP, m: prefM }, ...ALL_KW.filter(x => x.p !== prefP || x.m !== prefM)];
         const kwPrompt = `Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}`;
         let kwText = "";
         for (const c of KW_MODELS) {
@@ -7016,7 +7035,7 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
 
   // B. Tool prompt injection — text-based tool calling via [TOOL:name]{params}[/TOOL] tags
   // Works with ANY model. Server-side proxy handler executes tools after stream ends.
-  if (isChat && proj?.toolInjection !== false) {
+  if (isChat && proj?.toolInjection !== false && settings.toolInjectionEnabled !== false) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) {
