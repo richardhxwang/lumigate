@@ -2440,18 +2440,14 @@ async function sendMessage(){
       streamEl.closest('.msg-row')?.appendChild(foot);
     }
 
-    // Re-append download cards after final render (ensures they survive markdown re-render)
-    if(dlCards.length && streamEl){
-      const msgRow=streamEl.closest('.msg-row');
-      if(msgRow){
-        // Remove any existing dl-cards (from inline append) and re-insert before msg-acts
-        msgRow.querySelectorAll('.dl-card').forEach(c=>c.remove());
-        const acts=msgRow.querySelector('.msg-acts');
-        for(const card of dlCards){
-          if(acts) msgRow.insertBefore(card, acts);
-          else msgRow.appendChild(card);
-        }
-        msgRow.style.display='';
+    // Re-append download cards after final render
+    if(dlCards.length){
+      const row=streamRow||streamEl?.closest('.msg-row');
+      if(row){
+        row.style.display='';
+        // Remove stale duplicates, then re-append fresh cards
+        row.querySelectorAll('.dl-card').forEach(c=>c.remove());
+        for(const card of dlCards) row.appendChild(card);
       }
     }
 

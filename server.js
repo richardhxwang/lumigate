@@ -6243,11 +6243,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         res.flushHeaders();
       }
       try {
-        let _cInThink = false; // strip <think> from Collector output too
+        let _cInThink = false;
+        let _cFullText = ""; // accumulate for tool tag detection
         for await (const chunk of collector.sendMessage(providerName.toLowerCase(), modelId, collectorMsgs, credentials)) {
           if (res.writableEnded) break;
           if (wantStream) {
-            // Strip <think>...</think> from SSE chunks
             let out = chunk;
             const m = out.match(/^data: (.+)$/m);
             if (m && m[1] !== "[DONE]") {
@@ -6255,15 +6255,36 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
                 const j = JSON.parse(m[1]);
                 let c = j.choices?.[0]?.delta?.content || "";
                 if (c) {
+                  // Strip <think> tags
                   if (_cInThink) { const end = c.indexOf("</think>"); if (end !== -1) { _cInThink = false; c = c.slice(end + 8); } else c = ""; }
                   if (c.includes("<think>")) { const s = c.indexOf("<think>"); const e = c.indexOf("</think>", s); if (e !== -1) c = c.slice(0, s) + c.slice(e + 8); else { c = c.slice(0, s); _cInThink = true; } }
-                  if (!c) continue; // skip empty after think strip
+                  if (!c) continue;
+                  _cFullText += c;
                   j.choices[0].delta.content = c;
                   out = `data: ${JSON.stringify(j)}\n\n`;
                 }
               } catch {}
             }
             res.write(out);
+          }
+        }
+        // Check for tool tags in accumulated text (Collector doesn't go through clean pipe)
+        const hasCollectorTools = TOOL_TAG_MARKERS.some(m => _cFullText.includes(m));
+        if (hasCollectorTools && !res.writableEnded) {
+          log("info", "Collector: tool tags detected, executing", { provider: providerName });
+          const toolResults = await executeTextToolCalls(_cFullText, lcUserId || projectName || "api").catch(e => {
+            log("error", "Collector tool exec failed", { error: e.message }); return [];
+          });
+          for (const tr of toolResults) {
+            if ((tr.downloadUrl || tr.base64 || tr.filename) && !res.writableEnded) {
+              res.write(`event: file_download\ndata: ${JSON.stringify({
+                filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
+                downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
+              })}\n\n`);
+              const icon = tr.tool?.includes("spread") ? "spreadsheet" : "file";
+              const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
+              res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(tr.filename, sizeStr), icon, done: true })}\n\n`);
+            }
           }
         }
         if (!res.writableEnded) { if (wantStream) res.write("data: [DONE]\n\n"); res.end(); }
