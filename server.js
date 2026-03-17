@@ -5824,6 +5824,12 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   const provider = PROVIDERS[providerName?.toLowerCase()];
   if (!provider) return res.status(400).json({ error: "Unknown or unsupported provider" });
 
+  // i18n for tool_status messages — follows client lang param or Accept-Language
+  const lang = req.body.lang || (req.headers["accept-language"]?.startsWith("zh") ? "zh" : "en");
+  const L = lang === "zh"
+    ? { searching: q => `正在搜索: ${q}`, searchDone: n => `搜索完成，找到 ${n} 条结果`, processing: "正在处理...", genExcel: t => `正在生成 Excel: ${t}`, genDoc: t => `正在生成文档: ${t}`, genPPT: t => `正在生成 PPT: ${t}`, toolDone: (n, s) => `${n} 已生成 (${s})`, toolLabel: n => ({ web_search:"搜索", generate_spreadsheet:"生成 Excel", generate_document:"生成文档", generate_presentation:"生成 PPT", use_template:"使用模板" }[n] || n.replace(/_/g," ")) }
+    : { searching: q => `Searching: ${q}`, searchDone: n => `Found ${n} results`, processing: "Processing...", genExcel: t => `Generating Excel: ${t}`, genDoc: t => `Generating document: ${t}`, genPPT: t => `Generating PPT: ${t}`, toolDone: (n, s) => `${n} generated (${s})`, toolLabel: n => ({ web_search:"Search", generate_spreadsheet:"Generate Excel", generate_document:"Generate document", generate_presentation:"Generate PPT", use_template:"Use template" }[n] || n.replace(/_/g," ")) };
+
   // ── Auth: LumiChat cookie → admin session → project key/HMAC/token ──
   let projectName, lcUserId;
   const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
@@ -5926,12 +5932,12 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         res.setHeader("Connection", "keep-alive");
         res.setHeader("X-Accel-Buffering", "no");
         res.flushHeaders();
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `正在搜索: ${query}`, icon: "search" })}\n\n`);
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searching(query), icon: "search" })}\n\n`);
       }
       const results = await executeWebSearchForChat(query);
       searchContext = formatSearchContext(results);
       if (wantStream && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `搜索完成，找到 ${results.length} 条结果`, icon: "search", done: true })}\n\n`);
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(results.length), icon: "search", done: true })}\n\n`);
       }
     } catch (e) {
       log("warn", "Pre-search failed", { error: e.message });
@@ -6104,7 +6110,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
           // Send any clean content before the tag
           if (idx > sentLength) { sendDelta(fullText.slice(sentLength, idx)); sentLength = idx; }
           // Send initial tool_status — will be updated when tag is fully received
-          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: "正在处理...", icon: "file" })}\n\n`);
+          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.processing, icon: "file" })}\n\n`);
           return;
         }
       }
@@ -6165,13 +6171,12 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       let detectedToolName = "tool";
       const tnMatch = tagContent.match(/\[TOOL:(\w+)\]/) || tagContent.match(/invoke\s+name="(\w+)"/);
       if (tnMatch) detectedToolName = tnMatch[1];
-      const TOOL_LABELS = { web_search: "搜索", generate_spreadsheet: "生成 Excel", generate_document: "生成文档", generate_presentation: "生成 PPT", use_template: "使用模板" };
-      const detectedLabel = TOOL_LABELS[detectedToolName] || detectedToolName.replace(/_/g, " ");
+      const detectedLabel = L.toolLabel(detectedToolName);
       let detectedQuery = "";
       const dqMatch = tagContent.match(/"(?:query|title|filename)"\s*:\s*"([^"]*)"/);
       if (dqMatch) detectedQuery = dqMatch[1];
       const detectedIcon = detectedToolName.includes("search") ? "search" : detectedToolName.includes("spread") ? "spreadsheet" : "file";
-      const statusText = detectedQuery ? `正在${detectedLabel}: ${detectedQuery}` : `正在${detectedLabel}...`;
+      const statusText = detectedQuery ? `${detectedLabel}: ${detectedQuery}` : `${detectedLabel}...`;
       if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: statusText, icon: detectedIcon })}\n\n`);
 
       log("info", "Clean pipe: tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
@@ -6182,7 +6187,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
       // If no file results, mark generic tool as done
       if (toolResults.length === 0 && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel}完成`, icon: detectedIcon, done: true })}\n\n`);
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel} done`, icon: detectedIcon, done: true })}\n\n`);
       }
 
       // Send file_download events
@@ -6197,7 +6202,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
           // Mark tool as done
           const icon = tr.tool?.includes("spread") ? "spreadsheet" : tr.tool?.includes("present") ? "presentation" : "file";
           const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
-          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${tr.filename} 已生成 (${sizeStr})`, icon, done: true })}\n\n`);
+          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(tr.filename, sizeStr), icon, done: true })}\n\n`);
         }
       }
 

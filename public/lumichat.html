@@ -2234,7 +2234,7 @@ async function sendMessage(){
     const endpoint=useNative?'/lc/chat/gemini-native':'/v1/chat';
     const payload=useNative
       ? {model:selectedModel,messages:aiMsgs,stream:true}
-      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true};
+      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang};
 
     const res=await fetch(endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -2343,7 +2343,10 @@ async function sendMessage(){
                 mdTimer=null;
                 if(streamEl&&streamText.length>lastMdLen){
                   lastMdLen=streamText.length;
-                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{FORCE_BODY:true});
+                  // Strip incomplete last line to avoid rendering partial markdown (e.g. --- → <hr>)
+                  const lastNL=streamText.lastIndexOf('\n');
+                  const renderText=lastNL>0?streamText.slice(0,lastNL):streamText;
+                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(renderText),{FORCE_BODY:true});
                   streamEl.classList.add('streaming-active');
                   const{scrollHeight,clientHeight,scrollTop}=chatEl;
                   if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
