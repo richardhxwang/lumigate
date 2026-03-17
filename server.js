@@ -5743,27 +5743,29 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       if (lcPayload.id) lcUserId = lcPayload.id;
     }
   }
-  if (!projectName && projectKey.startsWith("et_")) {
-    const tokenInfo = ephemeralTokens.get(projectKey);
-    if (!tokenInfo || Date.now() > tokenInfo.expiresAt) return res.status(401).json({ error: "Token expired or invalid" });
-    if (!tokenInfo.project.enabled) return res.status(403).json({ error: "Project disabled" });
-    projectName = tokenInfo.project.name;
-  } else if (req.headers["x-signature"]) {
-    const projId = req.headers["x-project-id"];
-    if (projId) {
-      const candidate = projects.find(p => p.enabled && p.name === projId && p.authMode === "hmac");
-      if (candidate) {
-        const hmacResult = verifyHmacSignature(candidate, req);
-        if (!hmacResult.ok) return res.status(401).json({ error: hmacResult.error });
-        projectName = candidate.name;
+  if (!projectName) {
+    if (projectKey.startsWith("et_")) {
+      const tokenInfo = ephemeralTokens.get(projectKey);
+      if (!tokenInfo || Date.now() > tokenInfo.expiresAt) return res.status(401).json({ error: "Token expired or invalid" });
+      if (!tokenInfo.project.enabled) return res.status(403).json({ error: "Project disabled" });
+      projectName = tokenInfo.project.name;
+    } else if (req.headers["x-signature"]) {
+      const projId = req.headers["x-project-id"];
+      if (projId) {
+        const candidate = projects.find(p => p.enabled && p.name === projId && p.authMode === "hmac");
+        if (candidate) {
+          const hmacResult = verifyHmacSignature(candidate, req);
+          if (!hmacResult.ok) return res.status(401).json({ error: hmacResult.error });
+          projectName = candidate.name;
+        }
       }
+      if (!projectName) return res.status(401).json({ error: "HMAC verification failed" });
+    } else {
+      const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
+      if (!proj) return res.status(401).json({ error: "Invalid or missing credentials" });
+      if (proj.authMode === "hmac") return res.status(403).json({ error: "This project requires HMAC signature authentication" });
+      projectName = proj.name;
     }
-    if (!projectName) return res.status(401).json({ error: "HMAC verification failed" });
-  } else {
-    const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
-    if (!proj) return res.status(401).json({ error: "Invalid or missing credentials" });
-    if (proj.authMode === "hmac") return res.status(403).json({ error: "This project requires HMAC signature authentication" });
-    projectName = proj.name;
   }
 
   // Resolve project object for policy checks
