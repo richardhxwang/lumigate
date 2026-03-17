@@ -3064,25 +3064,17 @@ msgIn.addEventListener('input',()=>{ msgIn.style.height='auto'; msgIn.style.heig
 let _imeActive=false;
 msgIn.addEventListener('compositionstart',()=>{ _imeActive=true; });
 msgIn.addEventListener('compositionend',()=>{ _imeActive=false; });
-let _lastEnterTime=0;
 msgIn.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!_imeActive){
     e.preventDefault();
     if(sendBtn.disabled) return;
-    // Double-Enter within 500ms during streaming = send immediately (not queue)
-    if(isStreaming){
-      const now=Date.now();
-      if(now-_lastEnterTime<500){
-        // Double-enter: send as additional context alongside current stream
-        _lastEnterTime=0;
-        sendMessage();
-      } else {
-        _lastEnterTime=now;
-        toast(_lang==='zh'?'再按一次回车立即发送':'Press Enter again to send now',1500,'#10a37f');
-      }
-    } else {
-      sendMessage();
+    // During streaming: first Enter queues, second Enter sends queue immediately
+    if(isStreaming && pendingQueue){
+      // Already queued — second Enter: abort current stream and send queued message now
+      if(abortCtrl) abortCtrl.abort();
+      return;
     }
+    sendMessage();
     return;
   }
   if(e.key==='Escape'&&isStreaming&&abortCtrl){ abortCtrl.abort(); }
