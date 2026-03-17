@@ -2882,6 +2882,41 @@ app.delete("/admin/collector/accounts/:provider/:accountId", requireRole("root",
 });
 
 // Login: open Chrome login window, detect cookie, auto-close, save credentials
+// Persist Collector cookies to survive Chrome restart (session cookies would be lost)
+const COLLECTOR_COOKIES_PATH = path.join(__dirname, "data", "collector-cookies.json");
+function saveCollectorCookies(provider, cookies) {
+  try {
+    let all = {};
+    try { all = JSON.parse(fs.readFileSync(COLLECTOR_COOKIES_PATH, "utf-8")); } catch {}
+    all[provider] = cookies;
+    const tmp = COLLECTOR_COOKIES_PATH + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(all)); fs.renameSync(tmp, COLLECTOR_COOKIES_PATH);
+  } catch (e) { log("warn", "Failed to save collector cookies", { error: e.message }); }
+}
+async function restoreCollectorCookies() {
+  try {
+    if (!fs.existsSync(COLLECTOR_COOKIES_PATH)) return;
+    const all = JSON.parse(fs.readFileSync(COLLECTOR_COOKIES_PATH, "utf-8"));
+    const cdpPort = process.env.CDP_PORT || 9223;
+    const cdpHost = process.env.CDP_HOST || 'localhost';
+    const { chromium } = require('playwright-core');
+    const r = await fetch(`http://${cdpHost}:${cdpPort}/json/version`, { signal: AbortSignal.timeout(3000) });
+    const wsUrl = (await r.json()).webSocketDebuggerUrl;
+    const browser = await chromium.connectOverCDP(wsUrl);
+    const ctx = browser.contexts()[0];
+    for (const [provider, cookies] of Object.entries(all)) {
+      if (Array.isArray(cookies) && cookies.length) {
+        // Convert session cookies to persistent (expire in 30 days)
+        const fixed = cookies.map(c => ({ ...c, expires: c.expires === -1 ? (Date.now()/1000 + 30*86400) : c.expires }));
+        await ctx.addCookies(fixed).catch(() => {});
+        log("info", "Restored collector cookies", { provider, count: fixed.length });
+      }
+    }
+  } catch (e) { log("warn", "Cookie restore failed (Chrome may not be ready)", { error: e.message }); }
+}
+// Restore cookies 10s after startup (Chrome needs time to start)
+setTimeout(() => restoreCollectorCookies(), 10000);
+
 const COLLECTOR_LOGIN_SITES = {
   doubao:  { url: 'https://www.doubao.com/chat/', cookie: 'sessionid', name: '豆包' },
   qwen:   { url: 'https://chat.qwen.ai/',         cookie: 'qwen_session', name: '通义千问' },
@@ -2945,7 +2980,9 @@ app.post("/admin/collector/login/:provider", requireRole("root", "admin"), async
         if (!_loginState.active) return;
         const cookies = await ctx.cookies([site.url]).catch(() => []);
         if (cookies.find(c => c.name === site.cookie && c.value.length > 5)) {
-          // Login detected! Close tab immediately (before chat page loads)
+          // Login detected! Save all cookies then close tab immediately
+          const allCookies = await ctx.cookies([site.url]).catch(() => []);
+          saveCollectorCookies(name, allCookies);
           await page.close().catch(() => {});
           // Save credentials
           if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
@@ -5124,6 +5161,8 @@ app.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => {
         if (!_loginState.active) return;
         const cookies = await ctx.cookies([site.url]).catch(() => []);
         if (cookies.find(c => c.name === site.cookie && c.value.length > 5)) {
+          const allCookies = await ctx.cookies([site.url]).catch(() => []);
+          saveCollectorCookies(name, allCookies);
           await page.close().catch(() => {});
           if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
           collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET), enabled: true });
