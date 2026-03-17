@@ -5724,7 +5724,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     return res.status(400).json({ error: "Missing required fields: provider, model, messages (array)" });
   }
   const provider = PROVIDERS[providerName?.toLowerCase()];
-  if (!provider) return res.status(400).json({ error: `Unknown provider: ${providerName}` });
+  if (!provider) return res.status(400).json({ error: "Unknown or unsupported provider" });
 
   // ── Auth: LumiChat cookie → admin session → project key/HMAC/token ──
   let projectName, lcUserId;
@@ -5825,15 +5825,33 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     }
   }
 
-  // ── Sanitize user messages: strip tool markers to prevent injection ──
-  // Users could inject [TOOL:xxx]{...}[/TOOL] in their messages to trick the AI
-  // into echoing them, causing server-side tool execution. Strip before sending.
+  // ── Sanitize ALL messages: strip tool markers to prevent injection ──
+  // Attack vectors: direct tags, orphan open tags, HTML-encoded tags, system role injection.
+  // Clean all roles except the tool prompt we inject ourselves.
+  function stripToolMarkers(text) {
+    if (typeof text !== "string") return text;
+    // Decode HTML entities first: &#91; → [  &#93; → ]  &#123; → {  &#125; → }
+    let s = text.replace(/&#(\d+);/g, (_, c) => String.fromCharCode(+c))
+               .replace(/&#x([0-9a-fA-F]+);/g, (_, c) => String.fromCharCode(parseInt(c, 16)));
+    // Complete tag pairs: [TOOL:xxx]...[/TOOL]
+    s = s.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "");
+    // Orphan open tags (no closing tag): [TOOL:xxx]... to end
+    s = s.replace(/\[TOOL:\w+\][^[]*$/g, "");
+    // Orphan open tags mid-text: [TOOL:xxx]{...} without [/TOOL]
+    s = s.replace(/\[TOOL:\w+\]\s*\{[^}]*\}/g, "");
+    // Any remaining [TOOL:...] pattern
+    s = s.replace(/\[TOOL:\w+\]/g, "");
+    // DSML pairs and orphans
+    s = s.replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "");
+    s = s.replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)\w+[^>]*>/g, "");
+    // XML tool_call pairs and orphans
+    s = s.replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "");
+    s = s.replace(/<(?:minimax:)?tool_call>/g, "");
+    return s;
+  }
   for (const m of messages) {
-    if (m.role === "user" && typeof m.content === "string") {
-      m.content = m.content
-        .replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
-        .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
-        .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "");
+    if (typeof m.content === "string") {
+      m.content = stripToolMarkers(m.content);
     }
   }
 
@@ -5859,9 +5877,12 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     });
 
     if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text();
       const status = upstreamRes.status;
-      if (!res.headersSent) return res.status(status).json({ error: `Upstream ${status}: ${errText.slice(0, 200)}` });
+      // Generic error messages — don't leak upstream details (request_id, key hints, etc.)
+      const errMap = { 400: "Bad request to AI provider", 401: "AI provider authentication failed", 403: "AI provider access denied", 404: "Model not found", 429: "AI provider rate limit exceeded", 500: "AI provider internal error", 502: "AI provider unavailable", 503: "AI provider temporarily unavailable" };
+      const errMsg = errMap[status] || `AI provider error (${status})`;
+      try { upstreamRes.body?.cancel(); } catch {}
+      if (!res.headersSent) return res.status(status >= 500 ? 502 : status).json({ error: errMsg });
       return res.end();
     }
 
