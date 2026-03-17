@@ -5742,6 +5742,9 @@ function needsWebSearch(text) {
     /search|look\s?up|latest|current|today|yesterday|this\s(?:week|month|year)|recent|now|just\s|new\s/i,
     /news|weather|price|stock|release|update|version|score|ranking|election/i,
     /what.?(?:happen|change|going\son)|how\smuch|who\s(?:is|won|died)|when\sdid/i,
+    // Recommendation/comparison (often need current data)
+    /best\s|top\s\d|recommend|comparison|vs\s|versus|alternative|worth\s/i,
+    /推荐|对比|哪个好|值得|排行|评测|测评/,
   ].some(p => p.test(text));
 }
 
@@ -5789,7 +5792,7 @@ function buildChatBody(providerName, model, messages, systemPrompt, stream) {
     const sysMessages = messages.filter(m => m.role === "system");
     const nonSysMessages = messages.filter(m => m.role !== "system");
     let system = sysMessages.map(m => m.content).join("\n\n");
-    if (systemPrompt) system = system ? system + "\n\n" + systemPrompt : systemPrompt;
+    if (systemPrompt) system = system ? systemPrompt + "\n\n" + system : systemPrompt;
     return {
       model, max_tokens: 4096, stream,
       system: system || undefined,
@@ -5797,10 +5800,11 @@ function buildChatBody(providerName, model, messages, systemPrompt, stream) {
     };
   }
   // OpenAI-compatible providers
+  // User's system prompt has highest priority — put server prompts BEFORE it
   const msgs = [...messages];
   if (systemPrompt) {
     const sysMsg = msgs.find(m => m.role === "system");
-    if (sysMsg) sysMsg.content = (sysMsg.content || "") + "\n\n" + systemPrompt;
+    if (sysMsg) sysMsg.content = systemPrompt + "\n\n" + (sysMsg.content || "");
     else msgs.unshift({ role: "system", content: systemPrompt });
   }
   return { model, max_tokens: 4096, stream, messages: msgs, stream_options: stream ? { include_usage: true } : undefined };
@@ -5909,8 +5913,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     return "";
   })();
 
-  // Skip SearXNG if model has built-in search (unless explicitly forced)
-  const doSearch = !modelHasSearch && (req.body.web_search === true || (req.body.web_search !== false && needsWebSearch(userText)));
+  // Skip SearXNG if model has built-in search (unless explicitly forced via web_search:true)
+  const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && needsWebSearch(userText));
   if (doSearch) {
     try {
       const query = extractSearchQuery(userText);
