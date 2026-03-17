@@ -5894,12 +5894,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
   // ── Pre-search ──
   // Models with built-in web search don't need SearXNG
+  // Only models with ACTUAL API-level search (not ChatGPT web browsing which is UI-only)
   const MODELS_WITH_SEARCH = new Set([
-    // OpenAI — GPT-4.1+ and GPT-5 have web browsing
-    "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-5", "gpt-5-mini", "gpt-5.4",
-    // Gemini — grounding with Google Search
+    // Gemini — grounding with Google Search (API-level)
     "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
-    // Kimi — built-in web search
+    // Kimi — built-in web search in API
     "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k",
   ]);
   const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
