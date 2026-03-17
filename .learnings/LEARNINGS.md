@@ -49,3 +49,64 @@
 - Pattern-Key: blind-success-reporting
 
 ---
+
+## [LRN-20260318-001] best_practice
+
+**Priority**: high
+**Status**: pending
+**Area**: infra
+
+### 内容
+PocketBase 的 `lc_messages.content` 存在 5000 字符限制。只在后端创建接口做截断不够，前端还会在 user message 创建、assistant message 落库、以及附件后台同步后 PATCH message 时重复写入 content；任何一条路径没截断，都会在回复完成后触发 `content must not more than 5000 characters`。
+
+### 建议修复
+对消息内容长度做双端兜底：
+1. 前端在所有 `/lc/messages` POST/PATCH 调用前统一截断
+2. 后端在 `/lc/messages` POST/PATCH 再次截断
+3. 截断后附带明确标记，避免误以为模型输出丢失
+
+### 元数据
+- Source: task_review
+- Pattern-Key: pb-message-length-dual-clamp
+
+---
+
+## [LRN-20260318-002] correction
+
+**Priority**: high
+**Status**: pending
+**Area**: config
+
+### 内容
+用户明确要求：实现时尽量不要写散落的硬编码；能抽成变量、常量或配置入口的值，应统一抽取，并保留默认值，方便未来变更。像时间间隔、重试次数、长度阈值、自动续写轮数这类值，尤其不应直接埋在逻辑里。
+
+### 建议修复
+1. 新增行为参数时优先定义为命名常量
+2. 需要跨模块或未来可调的值优先进入集中配置
+3. 保留默认值，但避免魔法数字直接出现在分支逻辑中
+
+### 元数据
+- Source: correction
+- Pattern-Key: avoid-magic-values
+
+---
+
+## [LRN-20260318-003] correction
+
+**Priority**: high
+**Status**: pending
+**Area**: infra
+
+### 内容
+用户明确要求：LumiChat 相关数据在结构上应视为 `LC` 这一顶级业务域，和 `FN`、`LG` 同级，而不是混入通用 `admin/users` 语义里。关系字段可以继续引用 PocketBase 的 `users` auth collection，但 collection 命名、数据边界、以及后续 schema 设计都应优先体现 `lc_*` 这一独立域模型。
+
+### 建议修复
+1. 后续新增 LC collection 统一使用 `lc_*` 命名空间
+2. 设计说明里明确 `LC` 是顶级业务域，不是 admin 子模块
+3. 梳理现有 LC schema，避免把业务归属、权限归属、认证归属混为一层
+
+### 元数据
+- Source: correction
+- Pattern-Key: lc-top-level-domain
+
+---

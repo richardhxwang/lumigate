@@ -1,0 +1,44 @@
+name: LumiChat
+options:
+  bundleIdPrefix: com.lumichat
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+
+targets:
+  LumiChat:
+    type: application
+    platform: iOS
+    sources:
+      - path: LumiChat
+    info:
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: "OAuth Callback"
+            CFBundleURLSchemes:
+              - lumichat
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "LumiChat uses speech recognition for voice input"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "LumiChat uses the microphone for voice input"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "LumiChat needs access to your photos to attach images"
+        INFOPLIST_KEY_NSCameraUsageDescription: "LumiChat uses the camera to take photos"
+        PRODUCT_BUNDLE_IDENTIFIER: com.lumichat.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        DEVELOPMENT_TEAM: ""

@@ -612,9 +612,12 @@
     :root.light .asst-content code:not(pre code) { background: #eff1f3; color: #24292e; }
 
     /* VOICE INPUT */
-    #mic-btn{width:32px;height:32px;background:transparent;border:none;color:var(--t3);cursor:pointer;border-radius:var(--r1);display:none;align-items:center;justify-content:center;transition:background .1s,color .15s;flex-shrink:0}
-    #mic-btn:hover{background:var(--sb-hover);color:var(--t1)}
-    #mic-btn svg{width:16px;height:16px}
+    #mic-btn,#web-btn{width:32px;height:32px;background:transparent;border:none;color:var(--t3);cursor:pointer;border-radius:var(--r1);align-items:center;justify-content:center;transition:background .1s,color .15s;flex-shrink:0}
+    #web-btn{display:flex}
+    #mic-btn{display:none}
+    #mic-btn:hover,#web-btn:hover{background:var(--sb-hover);color:var(--t1)}
+    #mic-btn svg,#web-btn svg{width:16px;height:16px}
+    #web-btn.tb-active{color:var(--accent);background:rgba(16,163,127,0.12)}
     #mic-btn.rec{color:#ef4444}
     @keyframes mic-ring{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
     #mic-btn.rec svg{animation:mic-ring 1.4s ease-out infinite}
@@ -812,6 +815,14 @@
           <div class="inp-left">
             <button class="tb" id="attach-btn" data-t-title="input.attach" title="Attach file">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <button id="web-btn" data-t-title="input.search" title="Web search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M3 12h18"/>
+                <path d="M12 3a14 14 0 0 1 0 18"/>
+                <path d="M12 3a14 14 0 0 0 0 18"/>
+              </svg>
             </button>
             <button id="mic-btn" data-t-title="input.voice" title="Voice input">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
@@ -1099,7 +1110,7 @@ function getModelCaps(provider, modelId){
     return ['image','pdf'];
   }
   if(p==='deepseek' || p==='minimax' || p==='qwen' || p==='kimi' || p==='doubao'){
-    return [];
+    return ['image'];
   }
   return [];
 }
@@ -1179,7 +1190,6 @@ const STRINGS = {
   'sidebar.search':           { en:'Search chats...',        zh:'搜索对话…' },
   'sidebar.today':            { en:'Today',                  zh:'今天' },
   'sidebar.yesterday':        { en:'Yesterday',              zh:'昨天' },
-  'sidebar.past7days':        { en:'Past 7 Days',            zh:'过去 7 天' },
   'sidebar.older':            { en:'Older',                  zh:'更早' },
   'sidebar.no_chats':         { en:'No chats found',         zh:'没有找到对话' },
 
@@ -1406,6 +1416,7 @@ function applyLang(){
   if(typeof renderModelDropdown === 'function' && mdlDrop.classList.contains('open')) renderModelDropdown();
   // Refresh suggestions if on empty screen
   if(emptyEl && emptyEl.style.display !== 'none' && typeof renderSuggestions === 'function') renderSuggestions();
+  if(typeof renderWebSearchToggle === 'function') renderWebSearchToggle();
   // SLASH_COMMANDS, BUILTIN_PRESETS, CAP_META, SENS_DESCS all use getters — auto-update on lang change
 }
 
@@ -1413,17 +1424,19 @@ function applyLang(){
 let currentUser = null, sessions = [], messages = [], currentSid = null;
 let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 
-let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = null;
+let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = null, pendingFileReads = new Set();
 let providersData = [], modelsData = {};
 let _tierData = null; // { tier, rpm, providers: [{ name, access, keyUrl }] }
 let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null;
 let dropProvider = null;
+let autoFollowStream = true;
+let forceWebSearch = false;
 
 // DOM
 const $ = id => document.getElementById(id);
 const authEl = $('auth'), appEl = $('app'), chatEl = $('chat'), emptyEl = $('empty');
 const sbList = $('sb-list'), mdlLabel = $('mdl-label'), mdlDrop = $('mdl-drop');
-const msgIn = $('msg-in'), sendBtn = $('send-btn'), stopBtn = $('stop-btn');
+const msgIn = $('msg-in'), sendBtn = $('send-btn'), stopBtn = $('stop-btn'), webBtn = $('web-btn');
 const fileIn = $('file-in'), fileChips = $('file-chips'), suggGrid = $('sugg-grid');
 const sidebar = $('sidebar');
 
@@ -1482,7 +1495,16 @@ function toast(msg, dur=3500, color=null){
   const t=$('toast'); t.textContent=msg; t.style.background=color;
   t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),dur);
 }
-function scrollBot(smooth=true){ chatEl.scrollTo({top:chatEl.scrollHeight,behavior:smooth?'smooth':'instant'}) }
+function isNearBottom(px=96){
+  return chatEl.scrollHeight-chatEl.clientHeight-chatEl.scrollTop < px;
+}
+function scrollBot(smooth=true, force=false){
+  if(!force && !autoFollowStream) return;
+  chatEl.scrollTo({top:chatEl.scrollHeight,behavior:smooth?'smooth':'instant'});
+}
+chatEl.addEventListener('scroll',()=>{
+  autoFollowStream = isNearBottom(120);
+});
 
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, opts={}){
@@ -1493,7 +1515,12 @@ async function apiFetch(path, opts={}){
 async function apiJSON(path, opts={}){
   const r = await apiFetch(path, opts);
   const d = await r.json();
-  if(!r.ok) throw new Error(d.error||d.message||`HTTP ${r.status}`);
+  if(!r.ok){
+    const fieldErr = d?.data && typeof d.data==='object'
+      ? Object.entries(d.data).map(([k,v])=>v?.message?`${k}: ${v.message}`:null).find(Boolean)
+      : null;
+    throw new Error(fieldErr||d.error||d.message||`HTTP ${r.status}`);
+  }
   return d;
 }
 
@@ -1886,20 +1913,49 @@ $('r-btn').addEventListener('click',doRegister);
 async function loadSessions(){
   try{
     const d=await apiJSON('/lc/sessions');
-    sessions=d.items||d;
+    const meta=readSessionMeta();
+    sessions=(d.items||d).map(s=>({
+      ...s,
+      last_activity: meta[s.id]?.last_activity || s.last_activity || s.updated || s.created || '',
+    }));
     renderSidebar();
   }catch(e){ toast(e.message); }
 }
 
+function readSessionMeta(){
+  try{
+    return JSON.parse(localStorage.getItem('lc_session_meta')||'{}')||{};
+  }catch{
+    return {};
+  }
+}
+
+function writeSessionMeta(meta){
+  try{
+    localStorage.setItem('lc_session_meta', JSON.stringify(meta));
+  }catch{}
+}
+
+function touchSessionActivity(id, when=new Date().toISOString()){
+  if(!id) return;
+  const meta=readSessionMeta();
+  meta[id]={...(meta[id]||{}), last_activity: when};
+  writeSessionMeta(meta);
+  const sess=sessions.find(s=>s.id===id);
+  if(sess) sess.last_activity=when;
+}
+
 function groupByDate(list){
+  const DAY_MS = 86400000;
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
-  const kToday=t('sidebar.today'), kYesterday=t('sidebar.yesterday'), kPast7=t('sidebar.past7days'), kOlder=t('sidebar.older');
-  const g={[kToday]:[],[kYesterday]:[],[kPast7]:[],[kOlder]:[]};
+  const kToday=t('sidebar.today'), kYesterday=t('sidebar.yesterday'), kOlder=t('sidebar.older');
+  const g={[kToday]:[],[kYesterday]:[],[kOlder]:[]};
   for(const s of list){
-    const ts=new Date(s.updated||s.created).getTime();
+    const rawTs=s.last_activity||s.updated||s.created||'';
+    const ts=new Date(rawTs).getTime();
+    if(!Number.isFinite(ts)){ g[kOlder].push(s); continue; }
     if(ts>=today) g[kToday].push(s);
-    else if(ts>=today-86400000) g[kYesterday].push(s);
-    else if(ts>=today-7*86400000) g[kPast7].push(s);
+    else if(ts>=today-DAY_MS) g[kYesterday].push(s);
     else g[kOlder].push(s);
   }
   return g;
@@ -1908,7 +1964,14 @@ function groupByDate(list){
 function renderSidebar(searchQ){
   const projects = _projects; // already loaded from PB on login
   const activeId = getActiveProjectId();
-  const sorted=[...sessions].sort((a,b)=>new Date(b.updated||b.created)-new Date(a.updated||a.created));
+  const sorted=[...sessions].sort((a,b)=>{
+    const ta=new Date(a.last_activity||a.updated||a.created||'').getTime();
+    const tb=new Date(b.last_activity||b.updated||b.created||'').getTime();
+    if(Number.isFinite(ta)&&Number.isFinite(tb)) return tb-ta;
+    if(Number.isFinite(tb)) return 1;
+    if(Number.isFinite(ta)) return -1;
+    return 0;
+  });
   const filtered = searchQ ? sorted.filter(s=>(s.title||'New Chat').toLowerCase().includes(searchQ.toLowerCase())) : sorted;
   const groups=groupByDate(filtered);
   let html='';
@@ -1962,6 +2025,7 @@ function updateActive(){ document.querySelectorAll('.sess-item').forEach(el=>el.
 async function openSession(id){
   if(isStreaming) return;
   currentSid=id;
+  touchSessionActivity(id);
   const sess=sessions.find(s=>s.id===id);
   if(sess){ selectedProvider=sess.provider||selectedProvider; selectedModel=sess.model||selectedModel; mdlLabel.textContent=fmtModel(selectedModel); updateCapBar(); }
   updateActive();
@@ -2133,10 +2197,20 @@ function renderMessages(){
 // ── SEND ───────────────────────────────────────────────────────────────────
 function updateSendBtn(){
   // During streaming: enable send only if there's content to send (will interrupt + continue)
-  sendBtn.disabled=(msgIn.value.trim()===''&&pendingFiles.length===0);
+  sendBtn.disabled=pendingFileReads.size>0||(msgIn.value.trim()===''&&pendingFiles.length===0);
+}
+
+function renderWebSearchToggle(){
+  if(!webBtn) return;
+  webBtn.classList.toggle('tb-active', forceWebSearch);
+  webBtn.setAttribute('aria-pressed', forceWebSearch ? 'true' : 'false');
+  webBtn.title = forceWebSearch ? `${t('input.search')} (Always)` : `${t('input.search')} (Assistants decide)`;
 }
 
 async function sendMessage(){
+  if(pendingFileReads.size){
+    await Promise.allSettled([...pendingFileReads]);
+  }
   const text=msgIn.value.trim(); if(!text&&!pendingFiles.length) return;
   // Block if provider is locked
   const sendAccess=getProviderAccess(selectedProvider);
@@ -2169,6 +2243,7 @@ async function sendMessage(){
     return;
   }
   isStreaming=true; stopBtn.style.display='flex';
+  autoFollowStream = true;
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
   const files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
@@ -2176,8 +2251,9 @@ async function sendMessage(){
   // Inject text file content inline
   files.filter(f=>f.kind==='text').forEach(f=>{
     const ext=f.name.split('.').pop()||'';
-    userContent+=(userContent?'\n\n':'')+`[File: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'').slice(0,12000)}\n\`\`\``;
+    userContent+=(userContent?'\n\n':'')+`[Converted from ${ext || 'text'} file: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'').slice(0,12000)}\n\`\`\``;
   });
+  const storedUserContent=clampMessageContentForPb(getMessageContentForStorage(userContent, files));
 
   // === IMMEDIATE: show user bubble + typing indicator before any network calls ===
   // If queued message already has a bubble, reuse it
@@ -2213,7 +2289,7 @@ async function sendMessage(){
       '提示：在设置里写系统提示词可以定制回复风格',
     ]
   };
-  // Tips: show after 1.5s, rotate every 4s
+  // Tips: show after 1.5s, rotate every 6s
   let tipIdx=-1;
   const tipTimer=setTimeout(function showTip(){
     const tr=$('typ-row'); if(!tr) return;
@@ -2232,28 +2308,29 @@ async function sendMessage(){
       tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
       tipEl.style.opacity='1';
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        const{scrollHeight,clientHeight,scrollTop}=chatEl;
-        if(scrollHeight-clientHeight-scrollTop<150) chatEl.scrollTop=scrollHeight;
+        if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
       }));
     },300);
-    setTimeout(showTip,4000);
+    setTimeout(showTip,6000);
   },1500);
 
   // Create session (if needed)
   if(!currentSid){
     try{
       const sess=await apiJSON('/lc/sessions',{method:'POST',body:JSON.stringify({title:userContent.slice(0,50)||'New Chat',provider:selectedProvider,model:selectedModel})});
-      currentSid=sess.id; sessions.unshift(sess); renderSidebar(); updateActive();
+      currentSid=sess.id; touchSessionActivity(sess.id);
+      sessions.unshift({...sess,last_activity:readSessionMeta()[sess.id]?.last_activity||''}); renderSidebar(); updateActive();
     }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
   }
 
   // Save user message to PB, then backfill msgId on DOM row for edit support
   let userMsg;
   try{
-    if(!currentSid||!userContent) throw new Error('Session or content missing');
-    userMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'user',content:userContent})});
+    if(!currentSid||!storedUserContent) throw new Error('Session or content missing');
+    userMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'user',content:storedUserContent})});
     messages.push(userMsg);
     userRow.dataset.msgId=userMsg.id;
+    backgroundSyncFiles(files,currentSid,userMsg);
   }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
 
   // Truncation notice
@@ -2268,9 +2345,11 @@ async function sendMessage(){
     const hist=messages.slice(-40);
     const aiMsgs=await buildAiMsgs(hist,files,currentSid);
 
-    // Use Gemini native endpoint if any file_data parts exist (video/PDF)
-    const hasFileParts=aiMsgs.some(m=>Array.isArray(m.content)&&m.content.some(p=>p.type==='file_data'));
-    const useNative=hasFileParts&&selectedProvider==='gemini';
+    // Use Gemini native endpoint for any structured multimodal content.
+    // This avoids splitting Gemini requests across two different code paths
+    // depending on whether the attachment came in as image_url vs file_data.
+    const hasRichParts=aiMsgs.some(m=>Array.isArray(m.content));
+    const useNative=selectedProvider==='gemini'&&hasRichParts;
 
     // Prepend global memory + active preset as system message
     const sysPr = getActiveSystemPrompt();
@@ -2285,11 +2364,11 @@ async function sendMessage(){
 
     abortCtrl=new AbortController();
 
-    // Use Gemini native endpoint for file_data parts, otherwise clean /v1/chat
+    // Use Gemini native endpoint for multimodal content, otherwise clean /v1/chat
     const endpoint=useNative?'/lc/chat/gemini-native':'/v1/chat';
     const payload=useNative
-      ? {model:selectedModel,messages:aiMsgs,stream:true}
-      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang};
+      ? {model:selectedModel,messages:aiMsgs,stream:true,...(forceWebSearch?{web_search:true}:{})}
+      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,...(forceWebSearch?{web_search:true}:{})};
 
     const res=await fetch(endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -2363,8 +2442,7 @@ async function sendMessage(){
                   statusEl.style.opacity='1';
                   // Scroll after DOM has updated
                   requestAnimationFrame(()=>{
-                    const{scrollHeight,clientHeight,scrollTop}=chatEl;
-                    if(scrollHeight-clientHeight-scrollTop<150) chatEl.scrollTop=scrollHeight;
+                    if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
                   });
                 });
               }
@@ -2421,16 +2499,14 @@ async function sendMessage(){
             }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
-            // Incremental render: completed paragraphs → markdown, current line → text node
+            // Incremental render with auto-follow that pauses when the user scrolls up.
             if(!rafId){
               rafId=requestAnimationFrame(()=>{
                 rafId=null;
                 if(!streamEl) return;
-                // Incremental: only render NEW completed paragraphs, append to existing
-                const dblNL=streamText.lastIndexOf('\n\n');
-                if(dblNL>lastMdLen){
-                  // Only parse the NEW chunk (from lastMdLen to dblNL)
-                  const newChunk=streamText.slice(lastMdLen,dblNL);
+                const splitAt=Math.max(streamText.lastIndexOf('\n\n'), streamText.lastIndexOf('\n'));
+                if(splitAt>lastMdLen){
+                  const newChunk=streamText.slice(lastMdLen,splitAt);
                   // Remove tail span before appending new markdown
                   const oldTail=streamEl.querySelector('.stream-tail');
                   if(oldTail) oldTail.remove();
@@ -2438,15 +2514,13 @@ async function sendMessage(){
                   const frag=document.createElement('div');
                   frag.innerHTML=DOMPurify.sanitize(marked.parse(newChunk),{FORCE_BODY:true});
                   while(frag.firstChild) streamEl.appendChild(frag.firstChild);
-                  lastMdLen=dblNL;
+                  lastMdLen=splitAt;
                 }
-                // Current tail → inline markdown (just the current paragraph)
                 const tail=streamText.slice(lastMdLen).replace(/^\n\n/,'');
                 let tn=streamEl.querySelector('.stream-tail');
                 if(!tn){ tn=document.createElement('span'); tn.className='stream-tail'; streamEl.appendChild(tn); }
                 tn.innerHTML=DOMPurify.sanitize(marked.parseInline(tail),{FORCE_BODY:true});
-                const{scrollHeight,clientHeight,scrollTop}=chatEl;
-                if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+                if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
               });
             }
           }
@@ -2490,13 +2564,18 @@ async function sendMessage(){
 
     // Save assistant message (only if there's content)
     if(streamText || dlCards.length){
-      const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
-      messages.push(aMsg);
+      try{
+        const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:clampMessageContentForPb(streamText || '[Attachment response]')})});
+        messages.push(aMsg);
+      }catch(e){
+        console.warn('assistant message save failed:', e);
+      }
     }
 
     // Update session timestamp
+    touchSessionActivity(currentSid);
     const sess=sessions.find(s=>s.id===currentSid);
-    if(sess){ sess.updated=new Date().toISOString(); renderSidebar(); updateActive(); }
+    if(sess){ renderSidebar(); updateActive(); }
 
     // Auto-title (after first exchange, if still "New Chat")
     if(messages.length===2&&(sess?.title==='New Chat'||sess?.title===userContent.slice(0,50))){
@@ -2511,12 +2590,13 @@ async function sendMessage(){
         streamEl.textContent='';
         renderMarkdown(streamEl,streamText);
         try{
-          const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
+          const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:clampMessageContentForPb(streamText || '[Interrupted response]')})});
           messages.push(aMsg);
           // Update session timestamp
+          touchSessionActivity(currentSid);
           const sess=sessions.find(s=>s.id===currentSid);
-          if(sess){ sess.updated=new Date().toISOString(); renderSidebar(); updateActive(); }
-        }catch{}
+          if(sess){ renderSidebar(); updateActive(); }
+        }catch(e){ console.warn('assistant partial save failed:', e); }
       } else if(streamEl&&!streamText&&!dlCards.length){
         streamEl.closest('.msg-row')?.remove();
       }
@@ -2557,6 +2637,95 @@ async function uploadToPb(f, sessId){
   return r.json(); // {id, url, mime_type, size_bytes}
 }
 
+async function ensurePbUpload(f, sessId){
+  if(!f?.file||!sessId) throw new Error('Missing file or session');
+  if(f.pbMeta?.id) return f.pbMeta;
+  if(!f.pbUploadPromise){
+    f.pbUploadPromise=uploadToPb(f,sessId).then(meta=>{
+      f.pbMeta=meta;
+      return meta;
+    }).catch(err=>{
+      f.pbUploadPromise=null;
+      throw err;
+    });
+  }
+  return f.pbUploadPromise;
+}
+
+function mergeFileIds(existing, extra){
+  return [...new Set([...(Array.isArray(existing)?existing:[]), ...(Array.isArray(extra)?extra:[])].filter(Boolean))];
+}
+
+function supportsNativeImageInput(provider, modelId){
+  const p=(provider||'').toLowerCase();
+  const id=(modelId||'').toLowerCase();
+  if(p==='gemini' || p==='anthropic') return true;
+  if(p==='openai') return id.includes('4o') || id.includes('4.1') || id.includes('gpt-4-') || id.includes('o1') || id.includes('o3') || id.includes('o4') || id.includes('gpt-5');
+  return false;
+}
+
+function supportsNativeAudioInput(provider, modelId){
+  const p=(provider||'').toLowerCase();
+  const id=(modelId||'').toLowerCase();
+  if(p==='gemini') return true;
+  if(p==='openai') return id.includes('gpt-5') || id.includes('audio');
+  return false;
+}
+
+async function analyzeImageForModel(f){
+  const form=new FormData();
+  form.append('image', f.file, f.name);
+  form.append('prompt', 'Describe this image in detail, extract all visible text, and summarize the important visual information for another AI model that cannot see the image directly.');
+  const res=await fetch('/v1/vision/analyze',{method:'POST',credentials:'same-origin',body:form});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||!data.ok) throw new Error(data.error||`Vision analysis failed ${res.status}`);
+  return data.description||'';
+}
+
+async function transcribeAudioForModel(f){
+  const form=new FormData();
+  form.append('file', f.file, f.name);
+  const res=await fetch('/v1/audio/transcribe',{method:'POST',credentials:'same-origin',body:form});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||!data.ok) throw new Error(data.error||`Audio transcription failed ${res.status}`);
+  return data.text||'';
+}
+
+function getMessageContentForStorage(text, files){
+  const trimmed=(text||'').trim();
+  if(trimmed) return trimmed;
+  const labels=(files||[]).filter(f=>f.kind!=='text').map(f=>`[Attached: ${f.name}]`);
+  return labels.join('\n') || '[Attachment]';
+}
+
+function clampMessageContentForPb(text){
+  const s=String(text||'').trim();
+  const MAX=5000;
+  if(s.length<=MAX) return s;
+  const suffix='\n\n[Truncated for PocketBase storage]';
+  return s.slice(0, MAX-suffix.length).trimEnd()+suffix;
+}
+
+function backgroundSyncFiles(files, sessId, userMsg){
+  const syncable=(files||[]).filter(f=>f.kind!=='text'&&f.kind!=='video');
+  if(!syncable.length||!sessId||!userMsg?.id) return;
+  Promise.allSettled(syncable.map(f=>ensurePbUpload(f,sessId)))
+    .then(async results=>{
+      const uploadedIds=results
+        .filter(r=>r.status==='fulfilled'&&r.value?.id)
+        .map(r=>r.value.id);
+      if(!uploadedIds.length) return;
+      const nextFileIds=mergeFileIds(userMsg.file_ids, uploadedIds);
+      const updated=await apiJSON(`/lc/messages/${userMsg.id}`,{
+        method:'PATCH',
+        body:JSON.stringify({file_ids:nextFileIds,content:clampMessageContentForPb(getMessageContentForStorage(userMsg.content||'',files))})
+      });
+      userMsg.file_ids=updated.file_ids||nextFileIds;
+      userMsg.content=updated.content||userMsg.content;
+    })
+    .catch(e=>console.warn('backgroundSyncFiles failed:', e));
+}
+
 function showSecurityNotice(message){
   let notice = document.getElementById('security-notice');
   if(!notice){
@@ -2592,20 +2761,38 @@ async function buildAiMsgs(msgs, files, sessId){
 
   for(const f of mediaFiles){
     if(f.kind==='image'){
-      parts.push({type:'image_url',image_url:{url:f.dataUrl}});
+      if(supportsNativeImageInput(selectedProvider, selectedModel)){
+        parts.push({type:'image_url',image_url:{url:f.dataUrl}});
+      } else {
+        try{
+          const description=await analyzeImageForModel(f);
+          parts[0].text+=`\n\n[Converted from image: ${f.name}]\n${description}`;
+        }catch(e){
+          parts[0].text+=`\n[Attached image: ${f.name} — vision preprocessing failed: ${e.message}]`;
+        }
+      }
     } else if(f.kind==='audio'){
-      // OpenAI input_audio format (also accepted by Gemini OpenAI compat)
-      const b64=f.dataUrl.split(',')[1]||'';
-      const fmt=f.mime.includes('mp3')||f.name.endsWith('.mp3')?'mp3':
-                f.mime.includes('wav')||f.name.endsWith('.wav')?'wav':
-                f.mime.includes('ogg')||f.name.endsWith('.ogg')?'ogg':
-                f.mime.includes('flac')||f.name.endsWith('.flac')?'flac':'wav';
-      parts.push({type:'input_audio',input_audio:{data:b64,format:fmt}});
+      if(supportsNativeAudioInput(selectedProvider, selectedModel)){
+        // OpenAI input_audio format (also accepted by Gemini OpenAI compat)
+        const b64=f.dataUrl.split(',')[1]||'';
+        const fmt=f.mime.includes('mp3')||f.name.endsWith('.mp3')?'mp3':
+                  f.mime.includes('wav')||f.name.endsWith('.wav')?'wav':
+                  f.mime.includes('ogg')||f.name.endsWith('.ogg')?'ogg':
+                  f.mime.includes('flac')||f.name.endsWith('.flac')?'flac':'wav';
+        parts.push({type:'input_audio',input_audio:{data:b64,format:fmt}});
+      } else {
+        try{
+          const transcript=await transcribeAudioForModel(f);
+          parts[0].text+=`\n\n[Converted from audio: ${f.name}]\n${transcript}`;
+        }catch(e){
+          parts[0].text+=`\n[Attached audio: ${f.name} — transcription failed: ${e.message}]`;
+        }
+      }
     } else if(f.kind==='video'||f.kind==='pdf'){
       // Gemini supports video/PDF natively → upload to PB then Gemini File API
       if(selectedProvider==='gemini'){
         try{
-          const pb=await uploadToPb(f, sessId);
+          const pb=await ensurePbUpload(f, sessId);
           const g=await apiJSON(`/lc/files/gemini-upload/${pb.id}`,{method:'POST'});
           parts.push({type:'file_data',file_data:{mime_type:f.mime,file_uri:g.geminiFileUri}});
         }catch(e){
@@ -2615,10 +2802,10 @@ async function buildAiMsgs(msgs, files, sessId){
         // Non-Gemini: parse PDF via /v1/parse and inject as text
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n[附件: ${f.name}]\n${parsed}`;
-          else parts[0].text+=`\n[Attached: ${f.name} — PDF: parse failed]`;
+          if(parsed) parts[0].text+=`\n\n[Converted from PDF: ${f.name}]\n${parsed}`;
+          else parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed]`;
         }catch(e){
-          parts[0].text+=`\n[Attached: ${f.name} — PDF: ${e.message}]`;
+          parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed: ${e.message}]`;
         }
       } else {
         parts[0].text+=`\n[Attached: ${f.name} — Video: requires Gemini for AI analysis]`;
@@ -2627,7 +2814,7 @@ async function buildAiMsgs(msgs, files, sessId){
       // Office documents (xlsx, docx, pptx, etc.) — Gemini or parse
       if(selectedProvider==='gemini'){
         try{
-          const pb=await uploadToPb(f, sessId);
+          const pb=await ensurePbUpload(f, sessId);
           const g=await apiJSON(`/lc/files/gemini-upload/${pb.id}`,{method:'POST'});
           parts.push({type:'file_data',file_data:{mime_type:f.mime,file_uri:g.geminiFileUri}});
         }catch(e){
@@ -2636,10 +2823,10 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n[附件: ${f.name}]\n${parsed}`;
-          else parts[0].text+=`\n[Attached: ${f.name} — parse failed]`;
+          if(parsed) parts[0].text+=`\n\n[Converted from document: ${f.name}]\n${parsed}`;
+          else parts[0].text+=`\n[Attached: ${f.name} — document conversion failed]`;
         }catch(e){
-          parts[0].text+=`\n[Attached: ${f.name} — ${e.message}]`;
+          parts[0].text+=`\n[Attached: ${f.name} — document conversion failed: ${e.message}]`;
         }
       }
     }
@@ -2690,11 +2877,30 @@ function addFile(file){
     toast(t('error.pdf_video_gemini'));
     return;
   }
-  const obj={name:file.name,mime:file.type||'application/octet-stream',kind,file};
+  const obj={name:file.name,mime:file.type||'application/octet-stream',kind,file,dataUrl:'',loading:true};
+  pendingFiles.push(obj);
+  renderChips();
+  updateSendBtn();
   const reader=new FileReader();
+  let settleRead;
+  const readPromise=new Promise(resolve=>{ settleRead=resolve; });
+  pendingFileReads.add(readPromise);
   reader.onload=ev=>{
     obj.dataUrl=ev.target.result; // always store dataUrl
-    pendingFiles.push(obj); renderChips(); updateSendBtn();
+    obj.loading=false;
+    pendingFileReads.delete(readPromise);
+    settleRead();
+    renderChips();
+    updateSendBtn();
+  };
+  reader.onerror=()=>{
+    const idx=pendingFiles.indexOf(obj);
+    if(idx>=0) pendingFiles.splice(idx,1);
+    pendingFileReads.delete(readPromise);
+    settleRead();
+    toast(`Failed to read file: ${file.name}`);
+    renderChips();
+    updateSendBtn();
   };
   if(kind==='text') reader.readAsText(file);
   else if(kind==='document') reader.readAsDataURL(file);
@@ -2716,7 +2922,7 @@ function renderChips(){
     const preview=f.kind==='image'&&f.dataUrl
       ?`<img class="fchip-thumb" src="${f.dataUrl}" alt="">`
       :`<div class="fchip-icon" style="color:var(--t2)">${KIND_SVG[f.kind]||KIND_SVG.text}</div>`;
-    const label=KIND_LABEL[f.kind]||f.kind;
+    const label=f.loading?((_lang==='zh')?'处理中':'Processing'): (KIND_LABEL[f.kind]||f.kind);
     return `<div class="fchip">${preview}<div class="fchip-info"><span class="fchip-name">${esc(f.name)}</span><span class="fchip-type">${label}</span></div><button class="fchip-rm" data-i="${i}">${rmSvg}</button></div>`;
   }).join('');
 }
@@ -3173,6 +3379,13 @@ document.addEventListener('keydown',e=>{
 });
 
 $('attach-btn').addEventListener('click',()=>{ fileIn.value=''; fileIn.click(); });
+if(webBtn){
+  webBtn.addEventListener('click',()=>{
+    forceWebSearch = !forceWebSearch;
+    renderWebSearchToggle();
+  });
+  renderWebSearchToggle();
+}
 fileIn.addEventListener('change',()=>{ Array.from(fileIn.files).forEach(addFile); fileIn.value=''; });
 fileChips.addEventListener('click',e=>{ const b=e.target.closest('.fchip-rm'); if(!b) return; pendingFiles.splice(+b.dataset.i,1); renderChips(); updateSendBtn(); });
 

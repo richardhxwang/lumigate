@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>12</integer>
+	<key>logs</key>
+	<dict>
+		<key>62BA712C-C856-4263-B793-00C9DE911EF9</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>62BA712C-C856-4263-B793-00C9DE911EF9.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>LumiChat project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>LumiChat</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project LumiChat with scheme LumiChat</string>
+			<key>timeStartedRecording</key>
+			<real>795265951.68393302</real>
+			<key>timeStoppedRecording</key>
+			<real>795265955.56868601</real>
+			<key>title</key>
+			<string>Building project LumiChat with scheme LumiChat</string>
+			<key>uniqueIdentifier</key>
+			<string>62BA712C-C856-4263-B793-00C9DE911EF9</string>
+		</dict>
+		<key>80480F2B-338B-4B3C-8273-4FE9450E5AA8</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>80480F2B-338B-4B3C-8273-4FE9450E5AA8.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>LumiChat project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>LumiChat</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project LumiChat with scheme LumiChat</string>
+			<key>timeStartedRecording</key>
+			<real>795266043.46588504</real>
+			<key>timeStoppedRecording</key>
+			<real>795266045.93359303</real>
+			<key>title</key>
+			<string>Building project LumiChat with scheme LumiChat</string>
+			<key>uniqueIdentifier</key>
+			<string>80480F2B-338B-4B3C-8273-4FE9450E5AA8</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

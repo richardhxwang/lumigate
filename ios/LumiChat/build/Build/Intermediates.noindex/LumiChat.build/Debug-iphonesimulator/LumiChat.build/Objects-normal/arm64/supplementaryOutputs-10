@@ -1,0 +1,30 @@
+{
+  "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/LumiChat/Models/User.swift" : {
+    "const-values" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/User.swiftconstvalues",
+    "dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/User.d",
+    "diagnostics" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/User.dia",
+    "object" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/User.o",
+    "swift-dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/User.swiftdeps"
+  },
+  "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/LumiChat/Models/UserSettings.swift" : {
+    "const-values" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/UserSettings.swiftconstvalues",
+    "dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/UserSettings.d",
+    "diagnostics" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/UserSettings.dia",
+    "object" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/UserSettings.o",
+    "swift-dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/UserSettings.swiftdeps"
+  },
+  "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/LumiChat/Services/VoiceService.swift" : {
+    "const-values" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/VoiceService.swiftconstvalues",
+    "dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/VoiceService.d",
+    "diagnostics" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/VoiceService.dia",
+    "object" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/VoiceService.o",
+    "swift-dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/VoiceService.swiftdeps"
+  },
+  "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "object" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/ios/LumiChat/build/Build/Intermediates.noindex/LumiChat.build/Debug-iphonesimulator/LumiChat.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps"
+  }
+}

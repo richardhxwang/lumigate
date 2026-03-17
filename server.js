@@ -200,6 +200,62 @@ function isValidPbId(id) {
   return typeof id === 'string' && /^[a-z0-9]{15}$/i.test(id);
 }
 
+function pbErrorSummary(data, fallback = "PocketBase request failed") {
+  if (!data || typeof data !== "object") return fallback;
+  const fieldErrors = Object.entries(data.data || {})
+    .map(([field, value]) => {
+      if (!value || typeof value !== "object") return null;
+      return value.message ? `${field}: ${value.message}` : null;
+    })
+    .filter(Boolean);
+  return fieldErrors[0] || data.error || data.message || fallback;
+}
+
+function clampPbMessageContent(content) {
+  const s = String(content || "").trim();
+  const MAX = 5000;
+  if (s.length <= MAX) return s;
+  const suffix = "\n\n[Truncated for PocketBase storage]";
+  return s.slice(0, MAX - suffix.length).trimEnd() + suffix;
+}
+
+const AUTO_CONTINUE_MAX_PASSES = 12;
+
+function shouldAutoContinueFinishReason(reason) {
+  const r = String(reason || "").toLowerCase();
+  return ["length", "max_tokens", "max_output_tokens", "token_limit", "max_token"].includes(r);
+}
+
+function getContinuationPrompt(lang = "en") {
+  return lang === "zh"
+    ? "继续上一条回答，从刚才中断的地方直接接着写。不要重复已经输出过的内容，不要重述任务，不要加新的开场白。"
+    : "Continue the previous answer exactly where you stopped. Do not repeat prior content, do not restate the task, and do not add a new introduction.";
+}
+
+async function touchLcSession(sessionId, lcToken) {
+  if (!validPbId(sessionId) || !lcToken) return;
+  const getResp = await pbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
+    headers: { Authorization: `Bearer ${lcToken}` },
+  });
+  if (!getResp.ok) return;
+  const sessionData = await getResp.json();
+  const patchBody = {
+    title: sessionData.title || "New Chat",
+    provider: sessionData.provider || "openai",
+    model: sessionData.model || "gpt-4.1-mini",
+  };
+  if (sessionData.project) patchBody.project = sessionData.project;
+  await pbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
+    body: JSON.stringify(patchBody),
+  });
+}
+
+function pbFilter(expr) {
+  return encodeURIComponent(expr);
+}
+
 function validateSmartRouting(sr) {
   if (!sr || typeof sr !== "object") return { enabled: false };
   const providerNames = Object.keys(PROVIDERS);
@@ -2251,6 +2307,8 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
     searchKeywordModel: settings.searchKeywordModel || "MiniMax-M1",
     autoSearchEnabled: settings.autoSearchEnabled !== false,
     toolInjectionEnabled: settings.toolInjectionEnabled !== false,
+    lcSoftDeleteEnabled: isLcSoftDeleteEnabled(),
+    attachmentSearchMode: getAttachmentSearchMode(),
   });
 });
 
@@ -2258,7 +2316,9 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours, confirmSecret,
           smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpTo, smtpEnabled,
           stealthMode, approvalEmail, approvalEnabled,
-          searchKeywordProvider, searchKeywordModel, autoSearchEnabled, toolInjectionEnabled } = req.body;
+          searchKeywordProvider, searchKeywordModel, autoSearchEnabled, toolInjectionEnabled,
+          attachmentSearchMode,
+          lcSoftDeleteEnabled } = req.body;
   // Require re-authentication for settings changes
   if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
     return res.status(403).json({ error: "Admin secret required to change settings" });
@@ -2336,6 +2396,11 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   if (typeof searchKeywordModel === "string" && validKwModels.includes(searchKeywordModel)) { settings.searchKeywordModel = searchKeywordModel; changes.searchKeywordModel = searchKeywordModel; }
   if (autoSearchEnabled !== undefined) { settings.autoSearchEnabled = !!autoSearchEnabled; changes.autoSearchEnabled = settings.autoSearchEnabled; }
   if (toolInjectionEnabled !== undefined) { settings.toolInjectionEnabled = !!toolInjectionEnabled; changes.toolInjectionEnabled = settings.toolInjectionEnabled; }
+  if (typeof attachmentSearchMode === "string" && ["smart", "always", "off", "assistant_decide"].includes(attachmentSearchMode)) {
+    settings.attachmentSearchMode = attachmentSearchMode;
+    changes.attachmentSearchMode = settings.attachmentSearchMode;
+  }
+  if (lcSoftDeleteEnabled !== undefined) { settings.lcSoftDeleteEnabled = !!lcSoftDeleteEnabled; changes.lcSoftDeleteEnabled = settings.lcSoftDeleteEnabled; }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
   res.json({
@@ -2349,6 +2414,119 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
       authRotateHours: settings.authRotateHours || 24,
     }
   });
+});
+
+// --- Admin LC Data Ops (root only) ---
+app.get("/admin/lc/schema", requireRole("root"), (req, res) => {
+  res.json(getDomainApiSchema("lc"));
+});
+
+app.get("/admin/lc/trash", requireRole("root"), async (req, res) => {
+  if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled" });
+  const userId = String(req.query.userId || "").trim();
+  const collection = String(req.query.collection || "all").trim();
+  if (!isValidPbId(userId)) return res.status(400).json({ error: "Valid userId is required" });
+  const map = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
+  const keys = collection === "all" ? Object.keys(map) : [collection];
+  const invalid = keys.find((k) => !map[k]);
+  if (invalid) return res.status(400).json({ error: `Unsupported collection: ${invalid}` });
+  try {
+    const pbToken = await getPbAdminToken();
+    if (!pbToken) return res.status(503).json({ error: "PocketBase admin auth unavailable" });
+    const items = [];
+    for (const key of keys) {
+      const configKey = map[key];
+      const r = await pbListOwnedRecords(configKey, {
+        ownerId: userId,
+        token: pbToken,
+        extraFilters: withSoftDeleteFilters(configKey, { trashOnly: true }),
+        sort: ["-deleted_at", "-id"],
+        perPage: req.query.perPage ? Number(req.query.perPage) : 100,
+      });
+      const d = await r.json();
+      if (!r.ok) return res.status(r.status).json(d);
+      for (const item of d.items || []) items.push({ collection: key, ...item });
+    }
+    items.sort((a, b) => new Date(b.deleted_at || 0).getTime() - new Date(a.deleted_at || 0).getTime());
+    res.json({ items, totalItems: items.length });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.post("/admin/lc/trash/restore", requireRole("root"), async (req, res) => {
+  if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled" });
+  const map = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
+  const collection = String(req.body?.collection || "").trim();
+  const id = String(req.body?.id || "").trim();
+  const configKey = map[collection];
+  if (!configKey) return res.status(400).json({ error: "Unsupported collection" });
+  if (!validPbId(id)) return res.status(400).json({ error: "Invalid record ID" });
+  try {
+    const pbToken = await getPbAdminToken();
+    if (!pbToken) return res.status(503).json({ error: "PocketBase admin auth unavailable" });
+    const data = await restoreSoftDeletedRecord(configKey, { id, token: pbToken });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+app.get("/admin/lc/projects/:id/references", requireRole("root"), async (req, res) => {
+  const projectId = String(req.params.id || "").trim();
+  const userId = String(req.query.userId || "").trim();
+  if (!validPbId(projectId)) return res.status(400).json({ error: "Invalid project ID" });
+  if (!isValidPbId(userId)) return res.status(400).json({ error: "Valid userId is required" });
+  try {
+    const pbToken = await getPbAdminToken();
+    if (!pbToken) return res.status(503).json({ error: "PocketBase admin auth unavailable" });
+    const references = await listReferencingRecords({
+      domainKey: "lc",
+      sourceCollectionKey: "projects",
+      ownerId: userId,
+      token: pbToken,
+      recordId: projectId,
+    });
+    res.json({ id: projectId, userId, references });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.post("/admin/lc/projects/:id/remap", requireRole("root"), async (req, res) => {
+  const sourceId = String(req.params.id || "").trim();
+  const userId = String(req.body?.userId || "").trim();
+  const targetId = String(req.body?.targetProjectId || "").trim();
+  const deleteSource = !!req.body?.deleteSource;
+  if (!validPbId(sourceId) || !validPbId(targetId)) return res.status(400).json({ error: "Invalid source/target project ID" });
+  if (!isValidPbId(userId)) return res.status(400).json({ error: "Valid userId is required" });
+  try {
+    const pbToken = await getPbAdminToken();
+    if (!pbToken) return res.status(503).json({ error: "PocketBase admin auth unavailable" });
+    const remap = await remapLcProjectReferences({ ownerId: userId, token: pbToken, sourceId, targetId });
+    let deleted = false;
+    if (deleteSource) {
+      await assertNoBlockingReferences({
+        domainKey: "lc",
+        sourceCollectionKey: "projects",
+        ownerId: userId,
+        token: pbToken,
+        recordId: sourceId,
+      });
+      const delResp = await pbFetch(`/api/collections/lc_projects/records/${sourceId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${pbToken}` },
+      });
+      if (!delResp.ok) {
+        const delData = await delResp.json().catch(() => ({}));
+        return res.status(delResp.status).json({ error: pbErrorSummary(delData, "Project delete failed"), remap });
+      }
+      deleted = true;
+    }
+    res.json({ success: true, remap, deleted });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
 });
 
 // --- Auth token rotation (rotating mode) ---
@@ -4658,6 +4836,405 @@ async function pbFetch(path, options = {}) {
   return fetch(url, options);
 }
 
+const PB_DEFAULT_PAGE_SIZE = 100;
+const PB_DEFAULT_PROJECT_COLOR = "#6366f1";
+const PB_DEFAULT_LC_PROJECT_SORT = 0;
+const REFERENCE_SCAN_LIMIT = 25;
+const LC_SOFT_DELETE_ENV_DEFAULT = /^(1|true|yes)$/i.test(String(process.env.LC_SOFT_DELETE_ENABLED || ""));
+const DELETE_POLICY = Object.freeze({
+  SOFT: "soft",
+  RESTRICT: "restrict",
+  CASCADE: "cascade",
+  REMAP: "remap",
+});
+
+const LC_COLLECTION_CONFIG = {
+  userSettings: {
+    name: "lc_user_settings",
+    ownerField: "user",
+    defaultPerPage: 1,
+    filterableFields: ["user", "active_project", "theme", "compact", "default_provider", "default_model", "tier", "upgrade_request"],
+    sortableFields: ["id", "user", "theme", "default_provider", "default_model", "tier"],
+    writableFields: ["memory", "sensitivity", "presets", "theme", "compact", "active_project", "default_provider", "default_model"],
+  },
+  projects: {
+    name: "lc_projects",
+    ownerField: "user",
+    defaultPerPage: 100,
+    filterableFields: ["id", "user", "name", "color", "sort_order", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "name", "color", "sort_order", "deleted_at"],
+    writableFields: ["name", "color", "instructions", "memory", "sort_order", "deleted_at", "deleted_by", "delete_reason"],
+  },
+  sessions: {
+    name: "lc_sessions",
+    ownerField: "user",
+    defaultPerPage: 100,
+    filterableFields: ["id", "user", "title", "provider", "model", "project", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "title", "provider", "model", "project", "deleted_at"],
+    writableFields: ["title", "provider", "model", "project", "deleted_at", "deleted_by", "delete_reason"],
+  },
+  messages: {
+    name: "lc_messages",
+    ownerField: null,
+    defaultPerPage: 200,
+    filterableFields: ["id", "session", "role", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "session", "role", "deleted_at"],
+    writableFields: ["session", "role", "content", "file_ids", "deleted_at", "deleted_by", "delete_reason"],
+  },
+  files: {
+    name: "lc_files",
+    ownerField: "user",
+    defaultPerPage: 100,
+    filterableFields: ["id", "user", "session", "mime_type", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "user", "session", "mime_type", "size_bytes", "deleted_at"],
+    writableFields: ["session", "user", "mime_type", "size_bytes", "extracted_text", "deleted_at", "deleted_by", "delete_reason"],
+  },
+};
+
+const DOMAIN_COLLECTION_POLICIES = {
+  lc: {
+    projects: {
+      deletePolicy: DELETE_POLICY.RESTRICT,
+      references: [
+        { collectionKey: "sessions", field: "project", label: "sessions", policy: DELETE_POLICY.RESTRICT },
+      ],
+    },
+    sessions: {
+      deletePolicy: DELETE_POLICY.CASCADE,
+      references: [
+        { collectionKey: "messages", field: "session", label: "messages", policy: DELETE_POLICY.CASCADE },
+        { collectionKey: "files", field: "session", label: "files", policy: DELETE_POLICY.CASCADE },
+      ],
+    },
+    messages: {
+      deletePolicy: DELETE_POLICY.SOFT,
+      references: [],
+    },
+    files: {
+      deletePolicy: DELETE_POLICY.SOFT,
+      references: [],
+    },
+  },
+};
+
+const DOMAIN_API_REGISTRY = {
+  lc: {
+    label: "LumiChat",
+    collections: {
+      projects: "projects",
+      sessions: "sessions",
+      messages: "messages",
+      files: "files",
+      userSettings: "userSettings",
+    },
+  },
+};
+
+function pbQuote(value) {
+  return `'${String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+function buildPbFilterClause(field, operator, value) {
+  const op = operator || "=";
+  if (value === null) return `${field}${op}null`;
+  if (typeof value === "number" || typeof value === "boolean") return `${field}${op}${value}`;
+  return `${field}${op}${pbQuote(value)}`;
+}
+
+const PB_FILTER_OPERATORS = {
+  eq: "=",
+  ne: "!=",
+  gt: ">",
+  gte: ">=",
+  lt: "<",
+  lte: "<=",
+  contains: "~",
+};
+
+function buildPbQuery({
+  collection,
+  filters = [],
+  sort = [],
+  perPage = PB_DEFAULT_PAGE_SIZE,
+  page,
+  fields,
+  expand,
+}) {
+  const params = new URLSearchParams();
+  params.set("perPage", String(perPage || PB_DEFAULT_PAGE_SIZE));
+  if (page) params.set("page", String(page));
+  if (fields?.length) params.set("fields", fields.join(","));
+  if (expand?.length) params.set("expand", expand.join(","));
+  if (filters.length) params.set("filter", filters.join(" && "));
+  if (sort.length) params.set("sort", sort.join(","));
+  return `/api/collections/${collection}/records?${params.toString()}`;
+}
+
+function pickAllowedFields(input, allowedFields) {
+  const out = {};
+  for (const key of allowedFields || []) {
+    if (input && key in input) out[key] = input[key];
+  }
+  return out;
+}
+
+function getLcCollectionConfig(key) {
+  const config = LC_COLLECTION_CONFIG[key];
+  if (!config) throw new Error(`Unknown LC collection config: ${key}`);
+  return config;
+}
+
+function getDomainCollectionPolicy(domainKey, collectionKey) {
+  return DOMAIN_COLLECTION_POLICIES[domainKey]?.[collectionKey] || { deletePolicy: DELETE_POLICY.SOFT, references: [] };
+}
+
+function getDomainApiSchema(domainKey) {
+  const domain = DOMAIN_API_REGISTRY[domainKey];
+  if (!domain) return null;
+  const collections = Object.entries(domain.collections).map(([apiName, configKey]) => {
+    const config = getLcCollectionConfig(configKey);
+    const policy = getDomainCollectionPolicy(domainKey, apiName);
+    return {
+      apiName,
+      collection: config.name,
+      ownerField: config.ownerField || null,
+      filterableFields: config.filterableFields || [],
+      sortableFields: config.sortableFields || [],
+      writableFields: config.writableFields || [],
+      deletePolicy: policy.deletePolicy,
+      references: (policy.references || []).map((ref) => ({
+        collectionKey: ref.collectionKey,
+        field: ref.field,
+        policy: ref.policy || DELETE_POLICY.RESTRICT,
+      })),
+    };
+  });
+  return { domain: domainKey, label: domain.label, softDeleteEnabled: isLcSoftDeleteEnabled(), collections };
+}
+
+function isLcSoftDeleteEnabled() {
+  if (settings && typeof settings.lcSoftDeleteEnabled === "boolean") return settings.lcSoftDeleteEnabled;
+  return LC_SOFT_DELETE_ENV_DEFAULT;
+}
+
+function getAttachmentSearchMode() {
+  const mode = String(settings?.attachmentSearchMode || "assistant_decide").toLowerCase();
+  return ["smart", "always", "off", "assistant_decide"].includes(mode) ? mode : "assistant_decide";
+}
+
+function buildPbFiltersFromQuery(configKey, query = {}) {
+  const config = getLcCollectionConfig(configKey);
+  const filters = [];
+  for (const [rawKey, rawValue] of Object.entries(query)) {
+    if (rawValue === undefined || rawValue === null || rawValue === "") continue;
+    const [field, opKey = "eq"] = rawKey.split("__");
+    if (!config.filterableFields?.includes(field)) continue;
+    const operator = PB_FILTER_OPERATORS[opKey];
+    if (!operator) continue;
+    filters.push(buildPbFilterClause(field, operator, rawValue));
+  }
+  return filters;
+}
+
+function buildPbSortFromQuery(configKey, rawSort) {
+  const config = getLcCollectionConfig(configKey);
+  if (!rawSort) return [];
+  return String(rawSort)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const desc = part.startsWith("-");
+      const field = desc ? part.slice(1) : part;
+      if (!config.sortableFields?.includes(field)) return null;
+      return desc ? `-${field}` : field;
+    })
+    .filter(Boolean);
+}
+
+async function pbListOwnedRecords(configKey, { ownerId, token, extraFilters = [], sort = [], perPage } = {}) {
+  const config = getLcCollectionConfig(configKey);
+  const filters = [...extraFilters];
+  if (config.ownerField && ownerId) filters.unshift(buildPbFilterClause(config.ownerField, "=", ownerId));
+  return pbFetch(buildPbQuery({
+    collection: config.name,
+    filters,
+    sort,
+    perPage: perPage || config.defaultPerPage || PB_DEFAULT_PAGE_SIZE,
+  }), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+async function listReferencingRecords({ domainKey, sourceCollectionKey, ownerId, token, recordId }) {
+  const policy = getDomainCollectionPolicy(domainKey, sourceCollectionKey);
+  const results = [];
+  for (const ref of policy.references || []) {
+    const response = await pbListOwnedRecords(ref.collectionKey, {
+      ownerId,
+      token,
+      extraFilters: [buildPbFilterClause(ref.field, "=", recordId)],
+      perPage: REFERENCE_SCAN_LIMIT,
+      sort: ["id"],
+    });
+    const data = await response.json();
+    const items = data.items || [];
+    if (items.length) {
+      results.push({
+        collectionKey: ref.collectionKey,
+        label: ref.label || ref.collectionKey,
+        field: ref.field,
+        policy: ref.policy || DELETE_POLICY.RESTRICT,
+        count: items.length,
+        sampleIds: items.slice(0, 5).map((item) => item.id),
+      });
+    }
+  }
+  return results;
+}
+
+async function assertNoBlockingReferences({ domainKey, sourceCollectionKey, ownerId, token, recordId }) {
+  const references = await listReferencingRecords({ domainKey, sourceCollectionKey, ownerId, token, recordId });
+  const blocking = references.filter((ref) => ref.policy === DELETE_POLICY.RESTRICT || ref.policy === DELETE_POLICY.REMAP);
+  if (!blocking.length) return { ok: true, references };
+  const summary = blocking
+    .map((ref) => `${ref.label}(${ref.count})`)
+    .join(", ");
+  const err = new Error(`Cannot delete: still referenced by ${summary}`);
+  err.status = 409;
+  err.references = references;
+  throw err;
+}
+
+async function remapLcProjectReferences({ ownerId, token, sourceId, targetId }) {
+  if (!validPbId(sourceId) || !validPbId(targetId)) {
+    const err = new Error("Invalid source or target project ID");
+    err.status = 400;
+    throw err;
+  }
+  if (sourceId === targetId) {
+    const err = new Error("Source and target project must be different");
+    err.status = 400;
+    throw err;
+  }
+
+  const sessionsResp = await pbListOwnedRecords("sessions", {
+    ownerId,
+    token,
+    extraFilters: [buildPbFilterClause("project", "=", sourceId)],
+    perPage: 200,
+    sort: ["id"],
+  });
+  const sessionsData = await sessionsResp.json();
+  const sessions = sessionsData.items || [];
+  const updatedIds = [];
+
+  for (const session of sessions) {
+    const patchResp = await pbFetch(`/api/collections/lc_sessions/records/${session.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ project: targetId }),
+    });
+    if (!patchResp.ok) {
+      const patchData = await patchResp.json().catch(() => ({}));
+      const err = new Error(pbErrorSummary(patchData, `Failed to remap session ${session.id}`));
+      err.status = patchResp.status;
+      throw err;
+    }
+    updatedIds.push(session.id);
+  }
+
+  return { updatedCount: updatedIds.length, updatedIds };
+}
+
+function isHardDeleteRequested(req) {
+  return String(req.query?.hard || "").toLowerCase() === "1" || String(req.query?.hard || "").toLowerCase() === "true";
+}
+
+function withSoftDeleteFilters(configKey, { extraFilters = [], includeDeleted = false, trashOnly = false } = {}) {
+  const filters = [...extraFilters];
+  if (!isLcSoftDeleteEnabled()) return filters;
+  const config = getLcCollectionConfig(configKey);
+  if (!config.filterableFields?.includes("deleted_at")) return filters;
+  if (trashOnly) filters.push(buildPbFilterClause("deleted_at", "!=", ""));
+  else if (!includeDeleted) filters.push(buildPbFilterClause("deleted_at", "=", ""));
+  return filters;
+}
+
+async function softDeleteRecord(configKey, { id, token, userId, reason = "" }) {
+  const config = getLcCollectionConfig(configKey);
+  const now = new Date().toISOString();
+  const payload = {
+    deleted_at: now,
+    deleted_by: userId || "",
+    delete_reason: reason || "",
+  };
+  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = pbErrorSummary(data, "Soft delete failed");
+    const missingField = /deleted_at|deleted_by|delete_reason/i.test(msg);
+    const err = new Error(missingField ? "Soft delete fields not found in PocketBase schema. Apply LC soft-delete migration first." : msg);
+    err.status = missingField ? 409 : r.status;
+    throw err;
+  }
+  return data;
+}
+
+async function restoreSoftDeletedRecord(configKey, { id, token }) {
+  const config = getLcCollectionConfig(configKey);
+  const payload = { deleted_at: "", deleted_by: "", delete_reason: "" };
+  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = pbErrorSummary(data, "Restore failed");
+    const missingField = /deleted_at|deleted_by|delete_reason/i.test(msg);
+    const err = new Error(missingField ? "Soft delete fields not found in PocketBase schema. Apply LC soft-delete migration first." : msg);
+    err.status = missingField ? 409 : r.status;
+    throw err;
+  }
+  return data;
+}
+
+function sanitizeLcProjectPayload(input = {}) {
+  const body = pickAllowedFields(input, getLcCollectionConfig("projects").writableFields);
+  if ("name" in body) body.name = String(body.name || "").trim().slice(0, 100);
+  if ("color" in body) body.color = String(body.color || PB_DEFAULT_PROJECT_COLOR).trim() || PB_DEFAULT_PROJECT_COLOR;
+  if ("instructions" in body) body.instructions = String(body.instructions || "");
+  if ("memory" in body) body.memory = String(body.memory || "");
+  if ("sort_order" in body) body.sort_order = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : PB_DEFAULT_LC_PROJECT_SORT;
+  return body;
+}
+
+async function createLcProjectRecord({ lcToken, userId, input }) {
+  const body = sanitizeLcProjectPayload(input);
+  if (!body.name) {
+    const err = new Error("name required");
+    err.status = 400;
+    throw err;
+  }
+  return pbFetch("/api/collections/lc_projects/records", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
+    body: JSON.stringify({
+      user: userId,
+      name: body.name,
+      color: body.color || PB_DEFAULT_PROJECT_COLOR,
+      instructions: body.instructions || "",
+      memory: body.memory || "",
+      sort_order: body.sort_order ?? PB_DEFAULT_LC_PROJECT_SORT,
+    }),
+  });
+}
+
 // GET /lc/auth/methods → return available auth methods (password + oauth providers)
 app.get("/lc/auth/methods", async (req, res) => {
   try {
@@ -4671,6 +5248,13 @@ app.get("/lc/auth/methods", async (req, res) => {
   } catch {
     res.json({ password: true });
   }
+});
+
+// GET /api/domains/:domain/schema → expose app-facing collection capabilities through LumiGate
+app.get("/api/domains/:domain/schema", (req, res) => {
+  const schema = getDomainApiSchema(req.params.domain);
+  if (!schema) return res.status(404).json({ error: "Unknown domain" });
+  res.json(schema);
 });
 
 // Server-side PKCE state store: state → { codeVerifier, provider, redirect, redirectUrl, ts }
@@ -5364,10 +5948,7 @@ Output ONLY a JSON array of 4 English strings. No explanation or markdown. Examp
 // GET /lc/user/settings → get or create settings record for current user
 app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbFetch(
-      `/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`,
-      { headers: { Authorization: `Bearer ${req.lcToken}` } }
-    );
+    const r = await pbListOwnedRecords("userSettings", { ownerId: req.lcUser.id, token: req.lcToken });
     const d = await r.json();
     const record = d.items?.[0] || null;
     if (record) return res.json(record);
@@ -5385,15 +5966,10 @@ app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
 // PATCH /lc/user/settings → update settings (upsert)
 app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
   try {
-    const allowed = ["memory", "sensitivity", "presets", "theme", "compact", "active_project", "default_provider", "default_model"];
-    const body = {};
-    for (const k of allowed) if (req.body && k in req.body) body[k] = req.body[k];
+    const body = pickAllowedFields(req.body, getLcCollectionConfig("userSettings").writableFields);
 
     // Find existing record
-    const fr = await pbFetch(
-      `/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`,
-      { headers: { Authorization: `Bearer ${req.lcToken}` } }
-    );
+    const fr = await pbListOwnedRecords("userSettings", { ownerId: req.lcUser.id, token: req.lcToken });
     const fd = await fr.json();
     const existing = fd.items?.[0];
 
@@ -5420,44 +5996,34 @@ app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
 // GET /lc/projects → list user's projects
 app.get("/lc/projects", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbFetch(
-      `/api/collections/lc_projects/records?filter=user%3D'${req.lcUser.id}'&perPage=100&sort=sort_order,created`,
-      { headers: { Authorization: `Bearer ${req.lcToken}` } }
-    );
+    const r = await pbListOwnedRecords("projects", {
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      extraFilters: withSoftDeleteFilters("projects", {
+        extraFilters: buildPbFiltersFromQuery("projects", req.query),
+        includeDeleted: String(req.query.include_deleted || "") === "1",
+      }),
+      sort: buildPbSortFromQuery("projects", req.query.sort) || ["sort_order", "id"],
+      perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
+    });
     const d = await r.json();
     res.status(r.status).json(d);
-  } catch (e) { res.status(502).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 502).json({ error: e.message }); }
 });
 
 // POST /lc/projects → create project
 app.post("/lc/projects", requireLcAuth, async (req, res) => {
-  const { name, color, instructions, memory, sort_order } = req.body || {};
-  if (!name || typeof name !== "string" || !name.trim()) return res.status(400).json({ error: "name required" });
   try {
-    const r = await pbFetch("/api/collections/lc_projects/records", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-      body: JSON.stringify({
-        user: req.lcUser.id,
-        name: name.trim().slice(0, 100),
-        color: color || "#6366f1",
-        instructions: instructions || "",
-        memory: memory || "",
-        sort_order: sort_order ?? 0,
-      }),
-    });
+    const r = await createLcProjectRecord({ lcToken: req.lcToken, userId: req.lcUser.id, input: req.body || {} });
     const d = await r.json();
     res.status(r.status).json(d);
-  } catch (e) { res.status(502).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 502).json({ error: e.message }); }
 });
 
 // PATCH /lc/projects/:id → update project
 app.patch("/lc/projects/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
-  const allowed = ["name", "color", "instructions", "memory", "sort_order"];
-  const body = {};
-  for (const k of allowed) if (req.body && k in req.body) body[k] = req.body[k];
-  if (body.name) body.name = String(body.name).trim().slice(0, 100);
+  const body = sanitizeLcProjectPayload(req.body || {});
   try {
     const r = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "PATCH",
@@ -5469,23 +6035,108 @@ app.patch("/lc/projects/:id", requireLcAuth, async (req, res) => {
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
+// GET /lc/projects/:id/references → inspect dependent records before delete/remap
+app.get("/lc/projects/:id/references", requireLcAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  try {
+    const references = await listReferencingRecords({
+      domainKey: "lc",
+      sourceCollectionKey: "projects",
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      recordId: req.params.id,
+    });
+    res.json({
+      id: req.params.id,
+      deletePolicy: getDomainCollectionPolicy("lc", "projects").deletePolicy,
+      references,
+    });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// POST /lc/projects/:id/remap → move dependent sessions to another project before delete
+app.post("/lc/projects/:id/remap", requireLcAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  try {
+    const { target_project_id: targetProjectId, delete_source: deleteSource = false } = req.body || {};
+    const remap = await remapLcProjectReferences({
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      sourceId: req.params.id,
+      targetId: targetProjectId,
+    });
+
+    let deleted = false;
+    if (deleteSource) {
+      await assertNoBlockingReferences({
+        domainKey: "lc",
+        sourceCollectionKey: "projects",
+        ownerId: req.lcUser.id,
+        token: req.lcToken,
+        recordId: req.params.id,
+      });
+      const delResp = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${req.lcToken}` },
+      });
+      if (!delResp.ok) {
+        const delData = await delResp.json().catch(() => ({}));
+        return res.status(delResp.status).json({ error: pbErrorSummary(delData, "Project delete failed after remap"), remap });
+      }
+      deleted = true;
+    }
+
+    res.json({ ok: true, remap, deleted });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
 // DELETE /lc/projects/:id → delete project
 app.delete("/lc/projects/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   try {
+    if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
+      const data = await softDeleteRecord("projects", {
+        id: req.params.id,
+        token: req.lcToken,
+        userId: req.lcUser.id,
+        reason: req.body?.reason || "user_deleted",
+      });
+      return res.json({ success: true, mode: "soft", data });
+    }
+    await assertNoBlockingReferences({
+      domainKey: "lc",
+      sourceCollectionKey: "projects",
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      recordId: req.params.id,
+    });
     const r = await pbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
     });
     res.status(r.status).json({ success: r.ok });
-  } catch (e) { res.status(502).json({ error: e.message }); }
+  } catch (e) {
+    const body = e.references ? { error: e.message, references: e.references } : { error: e.message };
+    res.status(e.status || 502).json(body);
+  }
 });
 
 // GET /lc/sessions → list user's sessions
 app.get("/lc/sessions", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbFetch("/api/collections/lc_sessions/records?perPage=100", {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+    const r = await pbListOwnedRecords("sessions", {
+      ownerId: req.lcUser.id,
+      token: req.lcToken,
+      extraFilters: withSoftDeleteFilters("sessions", {
+        extraFilters: buildPbFiltersFromQuery("sessions", req.query),
+        includeDeleted: String(req.query.include_deleted || "") === "1",
+      }),
+      sort: buildPbSortFromQuery("sessions", req.query.sort) || ["id"],
+      perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
     });
     const data = await r.json();
     res.status(r.status).json(data);
@@ -5556,6 +6207,15 @@ app.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
 app.delete("/lc/sessions/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
+    if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
+      const data = await softDeleteRecord("sessions", {
+        id: req.params.id,
+        token: req.lcToken,
+        userId: req.lcUser.id,
+        reason: req.body?.reason || "user_deleted",
+      });
+      return res.json({ success: true, mode: "soft", data });
+    }
     const r = await pbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
@@ -5572,10 +6232,15 @@ app.delete("/lc/sessions/:id", requireLcAuth, async (req, res) => {
 app.get("/lc/sessions/:id/messages", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
-    const r = await pbFetch(
-      `/api/collections/lc_messages/records?filter=(session="${req.params.id}")&perPage=200`,
-      { headers: { Authorization: `Bearer ${req.lcToken}` } }
-    );
+    const r = await pbListOwnedRecords("messages", {
+      token: req.lcToken,
+      extraFilters: withSoftDeleteFilters("messages", {
+        extraFilters: [buildPbFilterClause("session", "=", req.params.id), ...buildPbFiltersFromQuery("messages", req.query)],
+        includeDeleted: String(req.query.include_deleted || "") === "1",
+      }),
+      sort: buildPbSortFromQuery("messages", req.query.sort) || ["id"],
+      perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
+    });
     const data = await r.json();
     res.status(r.status).json(data);
   } catch {
@@ -5588,15 +6253,25 @@ app.post("/lc/messages", requireLcAuth, async (req, res) => {
   try {
     const { session, role, content, file_ids } = req.body || {};
     if (!session || !role || !content) return res.status(400).json({ error: "Missing required fields" });
-    const body = { session, role, content, file_ids: file_ids || [] };
+    const body = { session, role, content: clampPbMessageContent(content), file_ids: file_ids || [] };
     const r = await pbFetch("/api/collections/lc_messages/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
+    if (!r.ok) {
+      log("warn", "lc message create failed", { status: r.status, role, session, error: pbErrorSummary(data) });
+      return res.status(r.status).json({ ...data, error: pbErrorSummary(data, "Message save failed") });
+    }
+    try {
+      await touchLcSession(session, req.lcToken);
+    } catch (err) {
+      log("warn", "lc session touch failed", { session, error: err.message });
+    }
     res.status(r.status).json(data);
-  } catch {
+  } catch (err) {
+    log("error", "lc message create exception", { error: err.message });
     res.status(502).json({ error: "PocketBase unavailable" });
   }
 });
@@ -5605,6 +6280,15 @@ app.post("/lc/messages", requireLcAuth, async (req, res) => {
 app.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid message ID" });
   try {
+    if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
+      const data = await softDeleteRecord("messages", {
+        id: req.params.id,
+        token: req.lcToken,
+        userId: req.lcUser.id,
+        reason: req.body?.reason || "user_deleted",
+      });
+      return res.json({ success: true, mode: "soft", data });
+    }
     const r = await pbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${req.lcToken}` },
@@ -5613,6 +6297,77 @@ app.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
     const data = await r.json();
     res.status(r.status).json(data);
   } catch {
+    res.status(502).json({ error: "PocketBase unavailable" });
+  }
+});
+
+// GET /lc/trash → list soft-deleted records
+app.get("/lc/trash", requireLcAuth, async (req, res) => {
+  if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled. Enable lcSoftDeleteEnabled in settings or set LC_SOFT_DELETE_ENABLED=1" });
+  const collectionMap = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
+  const requested = String(req.query.collection || "all");
+  const keys = requested === "all" ? Object.keys(collectionMap) : [requested];
+  const invalid = keys.find((k) => !collectionMap[k]);
+  if (invalid) return res.status(400).json({ error: `Unsupported trash collection: ${invalid}` });
+  try {
+    const all = [];
+    for (const key of keys) {
+      const configKey = collectionMap[key];
+      const r = await pbListOwnedRecords(configKey, {
+        ownerId: req.lcUser.id,
+        token: req.lcToken,
+        extraFilters: withSoftDeleteFilters(configKey, { trashOnly: true }),
+        sort: ["-deleted_at", "-id"],
+        perPage: req.query.perPage ? Number(req.query.perPage) : 100,
+      });
+      const d = await r.json();
+      if (!r.ok) return res.status(r.status).json(d);
+      for (const item of d.items || []) all.push({ collection: key, ...item });
+    }
+    all.sort((a, b) => new Date(b.deleted_at || 0).getTime() - new Date(a.deleted_at || 0).getTime());
+    res.json({ items: all, totalItems: all.length });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// POST /lc/trash/:collection/:id/restore → restore soft-deleted record
+app.post("/lc/trash/:collection/:id/restore", requireLcAuth, async (req, res) => {
+  if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled. Enable lcSoftDeleteEnabled in settings or set LC_SOFT_DELETE_ENABLED=1" });
+  const collectionMap = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  const configKey = collectionMap[req.params.collection];
+  if (!configKey) return res.status(400).json({ error: "Unsupported trash collection" });
+  try {
+    const data = await restoreSoftDeletedRecord(configKey, { id: req.params.id, token: req.lcToken });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// PATCH /lc/messages/:id → update message content/file_ids in PB
+app.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid message ID" });
+  try {
+    const body = {};
+    if (typeof req.body?.content === "string") body.content = clampPbMessageContent(req.body.content);
+    if (Array.isArray(req.body?.file_ids)) body.file_ids = req.body.file_ids;
+    if (!Object.keys(body).length) return res.status(400).json({ error: "No updatable fields provided" });
+
+    const r = await pbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      log("warn", "lc message patch failed", { status: r.status, messageId: req.params.id, error: pbErrorSummary(data) });
+      return res.status(r.status).json({ ...data, error: pbErrorSummary(data, "Message update failed") });
+    }
+    res.status(r.status).json(data);
+  } catch (err) {
+    log("error", "lc message patch exception", { error: err.message, messageId: req.params.id });
     res.status(502).json({ error: "PocketBase unavailable" });
   }
 });
@@ -5802,12 +6557,37 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
     return { text: JSON.stringify(p) };
   }
 
-  const contents = messages.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: Array.isArray(m.content)
-      ? m.content.map(convertPart)
-      : [{ text: m.content || "" }],
+  const systemTexts = [];
+  const contents = messages
+    .filter(m => {
+      if (m.role === "system") {
+        const text = Array.isArray(m.content)
+          ? m.content.map(p => (typeof p === "string" ? p : p?.text || "")).join("\n\n")
+          : (m.content || "");
+        if (text.trim()) systemTexts.push(text.trim());
+        return false;
+      }
+      return true;
+    })
+    .map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: Array.isArray(m.content)
+        ? m.content.map(convertPart)
+        : [{ text: m.content || "" }],
+    }));
+
+  const contentSummary = contents.map((m, idx) => ({
+    idx,
+    role: m.role,
+    parts: (m.parts || []).map(p => p.text ? "text" : p.inlineData ? `inline:${p.inlineData.mimeType}` : p.fileData ? `file:${p.fileData.mimeType}` : "unknown"),
   }));
+  log("info", "lcGeminiNative request", {
+    model,
+    stream: !!stream,
+    systemCount: systemTexts.length,
+    messageCount: contents.length,
+    contentSummary,
+  });
 
   const endpoint = stream
     ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`
@@ -5817,7 +6597,10 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
     const upstream = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 4096 } }),
+      body: JSON.stringify({
+        ...(systemTexts.length ? { systemInstruction: { parts: [{ text: systemTexts.join("\n\n") }] } } : {}),
+        contents,
+      }),
     });
 
     if (!upstream.ok) {
@@ -5828,6 +6611,7 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
     if (!stream) {
       const data = await upstream.json();
       const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      log("info", "lcGeminiNative response", { model, textPreview: text.slice(0, 160) });
       return res.json({ choices: [{ message: { role: "assistant", content: text }, finish_reason: "stop" }] });
     }
 
@@ -5839,6 +6623,7 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
     const reader = upstream.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
+    let finalFinishReason = "stop";
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -5852,12 +6637,16 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
         try {
           const j = JSON.parse(raw);
           const text = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+          const finishReason = j.candidates?.[0]?.finishReason || j.candidates?.[0]?.finish_reason || "";
+          if (finishReason) finalFinishReason = String(finishReason).toLowerCase();
           if (text) {
             res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
           }
         } catch { /* skip malformed */ }
       }
     }
+    log("info", "lcGeminiNative stream completed", { model, finishReason: finalFinishReason });
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: finalFinishReason === "max_tokens" ? "length" : finalFinishReason }] })}\n\n`);
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err) {
@@ -6080,6 +6869,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
 
   let searchContext = "";
+  const hasRichUserInput = (() => {
+    const last = messages.filter(m => m.role === "user").pop();
+    if (!last || !Array.isArray(last.content)) return false;
+    return last.content.some((p) => p && typeof p === "object" && p.type && p.type !== "text");
+  })();
   const userText = (() => {
     const last = messages.filter(m => m.role === "user").pop();
     if (!last) return "";
@@ -6087,10 +6881,97 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     if (Array.isArray(last.content)) return last.content.filter(p => p.type === "text").map(p => p.text).join(" ");
     return "";
   })();
+  const obviousWebNeed = needsWebSearch(userText);
+  const explicitNoExternalIntent = /仅根据|只根据|仅基于|只基于|仅用|只用|不要联网|不联网|不需要联网|不要搜索|不用搜索|无需搜索|不要外部数据|不要市场数据|仅看附件|只看附件|仅看图片|只看图片|only\s+based\s+on|based\s+only\s+on|no\s+web\s+search|without\s+search|do\s+not\s+search|offline\s+only|attachment\s+only/i.test(userText);
+  const attachmentOnlyInterpretation = hasRichUserInput && explicitNoExternalIntent;
+  const attachmentDecisionContext = (() => {
+    const last = messages.filter(m => m.role === "user").pop();
+    if (!last || !Array.isArray(last.content)) return { partSummary: "none", textSnippet: "" };
+    const typeCounts = {};
+    const textChunks = [];
+    for (const part of last.content) {
+      if (!part || typeof part !== "object") continue;
+      const t = String(part.type || "").trim();
+      if (!t) continue;
+      typeCounts[t] = (typeCounts[t] || 0) + 1;
+      if (t === "text" && typeof part.text === "string" && part.text.trim()) textChunks.push(part.text.trim());
+    }
+    const partSummary = Object.entries(typeCounts).map(([k, v]) => `${k}:${v}`).join(", ") || "none";
+    const textSnippet = textChunks.join("\n").slice(0, 1800);
+    return { partSummary, textSnippet };
+  })();
 
   // Skip SearXNG if model has built-in search (unless explicitly forced via web_search:true)
   const autoSearchOn = settings.autoSearchEnabled !== false;
-  const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && autoSearchOn && needsWebSearch(userText));
+  const attachmentMode = getAttachmentSearchMode();
+  let decisionQueries = null;
+  let shouldAutoSearch;
+
+  if (hasRichUserInput) {
+    if (attachmentMode === "off") shouldAutoSearch = false;
+    else if (attachmentOnlyInterpretation) shouldAutoSearch = false;
+    else if (obviousWebNeed) shouldAutoSearch = true;
+    else if (attachmentMode === "always") shouldAutoSearch = !attachmentOnlyInterpretation;
+    else if (attachmentMode === "assistant_decide") shouldAutoSearch = false;
+    else shouldAutoSearch = !attachmentOnlyInterpretation; // smart default
+  } else {
+    shouldAutoSearch = obviousWebNeed;
+  }
+
+  if (hasRichUserInput && attachmentMode === "assistant_decide" && req.body.web_search === undefined && !attachmentOnlyInterpretation && !shouldAutoSearch) {
+    try {
+      const ALL_KW = [
+        { p: "minimax", m: "MiniMax-M1" }, { p: "deepseek", m: "deepseek-chat" },
+        { p: "openai", m: "gpt-4.1-nano" }, { p: "gemini", m: "gemini-2.5-flash" },
+        { p: "qwen", m: "qwen-turbo" },
+      ];
+      const prefP = settings.searchKeywordProvider || "minimax";
+      const prefM = settings.searchKeywordModel || "MiniMax-M1";
+      const KW_MODELS = [{ p: prefP, m: prefM }, ...ALL_KW.filter(x => x.p !== prefP || x.m !== prefM)];
+      const decisionPrompt = `Decide whether this task needs fresh external web data to answer accurately.\n\nReturn ONLY JSON:\n{"need_search":true|false,"reason":"short","queries":["q1","q2"]}\n\nRules:\n- need_search=true when current market/recent/company/news/pricing/rates/trend/facts likely matter.\n- need_search=false for purely extracting/summarizing/calculating from provided attachment content only.\n- queries should be empty when need_search=false.\n\nAttachment parts:\n${attachmentDecisionContext.partSummary}\n\nAttachment/user text excerpt:\n${attachmentDecisionContext.textSnippet || "(empty)"}\n\nUser task:\n${userText.slice(0, 600)}`;
+
+      let decisionText = "";
+      for (const c of KW_MODELS) {
+        if (decisionText) break;
+        const prov = PROVIDERS[c.p];
+        if (!prov) continue;
+        const k = (selectApiKey(c.p, "_lumichat") || {}).apiKey || prov.apiKey;
+        if (!k) continue;
+        try {
+          const decRes = await fetch(getChatUrl(c.p, prov), {
+            method: "POST",
+            headers: getChatHeaders(c.p, k),
+            signal: AbortSignal.timeout(5000),
+            body: JSON.stringify({ model: c.m, max_tokens: 140, temperature: 0.1, stream: false, messages: [{ role: "user", content: decisionPrompt }] }),
+          });
+          if (!decRes.ok) continue;
+          const dj = await decRes.json();
+          decisionText = dj.choices?.[0]?.message?.content || "";
+        } catch {}
+      }
+      if (decisionText) {
+        const m = decisionText.match(/\{[\s\S]*\}/);
+        if (m) {
+          const parsed = JSON.parse(m[0]);
+          shouldAutoSearch = !!parsed.need_search;
+          if (Array.isArray(parsed.queries)) {
+            decisionQueries = parsed.queries.filter(q => typeof q === "string" && q.trim()).slice(0, 3);
+          }
+          log("info", "Attachment search decision", { needSearch: shouldAutoSearch, reason: String(parsed.reason || "").slice(0, 160) });
+        }
+      }
+    } catch (e) {
+      log("warn", "Attachment decision mode failed, fallback to smart", { error: e.message });
+      shouldAutoSearch = obviousWebNeed && !attachmentOnlyInterpretation;
+    }
+  }
+
+  const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && autoSearchOn && shouldAutoSearch);
+  if (hasRichUserInput && attachmentOnlyInterpretation) {
+    log("info", "Auto-search skipped for attachment-only interpretation", { provider: providerName, model: modelId });
+  } else if (hasRichUserInput && doSearch) {
+    log("info", "Auto-search enabled for attachment task", { provider: providerName, model: modelId });
+  }
   if (doSearch) {
     // Start SSE early so frontend sees search status
     if (wantStream && !res.headersSent) {
@@ -6102,7 +6983,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     }
     try {
       // Generate 2-3 search keywords via cheap AI (fast, <2s)
-      let queries = [extractSearchQuery(userText)]; // fallback: original query
+      let queries = decisionQueries?.length ? decisionQueries : [extractSearchQuery(userText)]; // fallback: original query
       try {
         // Preferred provider/model from settings, then fallback chain.
         const ALL_KW = [
@@ -6374,13 +7255,9 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       res.flushHeaders();
     }
 
-    const reader = upstreamRes.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
     let fullText = "";       // all accumulated content
     let sentLength = 0;      // how much of fullText has been sent to client
     let toolTagStart = -1;   // index where tool tag begins (-1 = not found)
-    let sseEventType = "";
     let streamUsage = null;
 
     const isAnthropic = providerName.toLowerCase() === "anthropic";
@@ -6388,19 +7265,16 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     // Strip <think>...</think> blocks from streaming content (MiniMax, DeepSeek-R1)
     let inThink = false;
 
-    // Send a clean text delta to the client
     function sendDelta(text) {
       if (!text || res.writableEnded) return;
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
     }
 
-    // Process a content delta through the clean pipe
     function pipeContent(delta) {
-      // Handle <think> blocks — strip reasoning content
       if (inThink) {
         const end = delta.indexOf("</think>");
         if (end !== -1) { inThink = false; delta = delta.slice(end + 8); }
-        else return; // still inside think block, skip entirely
+        else return;
       }
       if (delta.includes("<think>")) {
         const start = delta.indexOf("<think>");
@@ -6410,23 +7284,19 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         if (!delta) return;
       }
       fullText += delta;
-      if (toolTagStart >= 0) return; // already in tool tag, just accumulate
+      if (toolTagStart >= 0) return;
 
-      // Check if fullText now contains a tool tag marker
       const scanFrom = Math.max(0, sentLength - 30);
       for (const marker of TOOL_TAG_MARKERS) {
         const idx = fullText.indexOf(marker, scanFrom);
         if (idx !== -1) {
           toolTagStart = idx;
-          // Send any clean content before the tag
           if (idx > sentLength) { sendDelta(fullText.slice(sentLength, idx)); sentLength = idx; }
-          // Send initial tool_status — will be updated when tag is fully received
           if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.processing, icon: "file" })}\n\n`);
           return;
         }
       }
 
-      // No tool tag found — forward safe content (hold back last 30 chars for partial match safety)
       const safeEnd = fullText.length - 30;
       if (safeEnd > sentLength) {
         sendDelta(fullText.slice(sentLength, safeEnd));
@@ -6434,45 +7304,74 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       }
     }
 
-    // ── Read upstream SSE stream ──
-    try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() || "";
+    async function consumeStreamResponse(streamRes) {
+      const reader = streamRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let sseEventType = "";
+      let finishReason = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) { sseEventType = line.slice(7).trim(); continue; }
-        if (!line.startsWith("data: ")) { if (line === "") sseEventType = ""; continue; }
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") continue;
+          for (const line of lines) {
+            if (line.startsWith("event: ")) { sseEventType = line.slice(7).trim(); continue; }
+            if (!line.startsWith("data: ")) { if (line === "") sseEventType = ""; continue; }
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") continue;
 
-        try {
-          const j = JSON.parse(data);
-          if (isAnthropic) {
-            // Anthropic SSE: content_block_delta → text_delta
-            if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
-              pipeContent(j.delta.text || "");
-            } else if (j.type === "message_delta" && j.usage) {
-              streamUsage = { prompt_tokens: j.usage.input_tokens || 0, completion_tokens: j.usage.output_tokens || 0 };
-            }
-          } else {
-            // OpenAI-compatible SSE
-            if (j.usage) streamUsage = j.usage;
-            const choice = j.choices?.[0];
-            if (!choice) continue;
-            const delta = choice.delta?.content || "";
-            if (delta) pipeContent(delta);
+            try {
+              const j = JSON.parse(data);
+              if (isAnthropic) {
+                if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
+                  pipeContent(j.delta.text || "");
+                } else if (j.type === "message_delta") {
+                  if (j.usage) streamUsage = { prompt_tokens: j.usage.input_tokens || 0, completion_tokens: j.usage.output_tokens || 0 };
+                  if (j.delta?.stop_reason) finishReason = ({ end_turn: "stop", max_tokens: "length" }[j.delta.stop_reason] || j.delta.stop_reason || finishReason);
+                }
+              } else {
+                if (j.usage) streamUsage = j.usage;
+                const choice = j.choices?.[0];
+                if (!choice) continue;
+                const delta = choice.delta?.content || "";
+                if (delta) pipeContent(delta);
+                if (choice.finish_reason) finishReason = choice.finish_reason;
+              }
+            } catch {}
+            sseEventType = "";
           }
-        } catch {}
-        sseEventType = "";
+        }
+      } catch (readErr) {
+        log("warn", "Stream read interrupted", { provider: providerName, error: readErr.message, textLen: fullText.length });
       }
+      return finishReason;
     }
-    } catch (readErr) {
-      // Stream read error (upstream closed connection, abort, etc.) — continue with what we have
-      log("warn", "Stream read interrupted", { provider: providerName, error: readErr.message, textLen: fullText.length });
+
+    let finalFinishReason = await consumeStreamResponse(upstreamRes);
+
+    for (let pass = 0; pass < AUTO_CONTINUE_MAX_PASSES && shouldAutoContinueFinishReason(finalFinishReason) && toolTagStart < 0 && !res.writableEnded; pass++) {
+      log("info", "Auto-continuing length-limited response", { provider: providerName, model: modelId, pass: pass + 1, finishReason: finalFinishReason });
+      const continuationMessages = [
+        ...messages,
+        { role: "assistant", content: fullText },
+        { role: "user", content: getContinuationPrompt(lang) },
+      ];
+      const continuationBody = buildChatBody(providerName.toLowerCase(), modelId, continuationMessages, injectedSystemPrompt.trim(), true);
+      const continuationRes = await fetch(chatUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(continuationBody),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!continuationRes.ok || !continuationRes.body) {
+        log("warn", "Auto-continue request failed", { provider: providerName, model: modelId, status: continuationRes.status });
+        break;
+      }
+      finalFinishReason = await consumeStreamResponse(continuationRes);
     }
 
     // ── Stream ended — flush remaining content and handle tools ──
@@ -6496,9 +7395,17 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         return [];
       });
 
+      const cleanAssistantText = fullText.slice(0, toolTagStart).trim();
+
       // If no file results, mark generic tool as done
       if (toolResults.length === 0 && !res.writableEnded) {
         res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel} done`, icon: detectedIcon, done: true })}\n\n`);
+        if (!cleanAssistantText) {
+          const fallback = lang === "zh"
+            ? "工具调用未返回可展示结果。请改用更明确的问题再试一次。"
+            : "The tool call returned no displayable result. Please try again with a more specific prompt.";
+          sendDelta(fallback);
+        }
       }
 
       // Send file_download events
@@ -6520,7 +7427,6 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       // Second-round AI call: summarize tool results
       if (toolResults.length > 0 && !res.writableEnded) {
         try {
-          const cleanAssistantText = fullText.slice(0, toolTagStart).trim();
           const toolSummaries = toolResults.map(tr => {
             if (tr.filename) return `[File generated: ${tr.filename} (${tr.size} bytes)]`;
             if (tr.html) return tr.html.replace(/<[^>]*>/g, "").slice(0, 500);
