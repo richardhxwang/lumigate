@@ -148,7 +148,8 @@ class BrowserAdapter extends BaseAdapter {
       return;
     }
 
-    // 在浏览器中静默执行 fetch
+    // Fetch in browser — accumulate full response then split for streaming feel
+    // (true streaming from page.evaluate is not possible in Playwright)
     const result = await page.evaluate(
       async ({ url, body, headers, timeoutMs }) => {
         try {
@@ -158,8 +159,7 @@ class BrowserAdapter extends BaseAdapter {
             method: 'POST',
             headers: headers || { 'Content-Type': 'application/json' },
             body: typeof body === 'string' ? body : JSON.stringify(body),
-            signal: ctl.signal,
-            credentials: 'include',
+            signal: ctl.signal, credentials: 'include',
           });
           clearTimeout(t);
           if (!res.ok) return { ok: false, status: res.status, error: (await res.text()).slice(0, 500) };
@@ -173,51 +173,35 @@ class BrowserAdapter extends BaseAdapter {
             text += dec.decode(value, { stream: true });
           }
           return { ok: true, data: text };
-        } catch (e) {
-          return { ok: false, status: 0, error: String(e).slice(0, 500) };
-        }
+        } catch (e) { return { ok: false, status: 0, error: String(e).slice(0, 500) }; }
       },
       { url: req.url, body: req.body, headers: req.headers, timeoutMs: req.timeoutMs }
     );
 
     if (!result.ok) {
-      // ChatGPT 403: 走 DOM 模拟 fallback（在输入框打字发送）
-      if (result.status === 403 && this.config.useDomFallback) {
-        yield* this._domFallback(page, messages, model);
-        return;
-      }
-      if (result.status === 401 || result.status === 403) {
-        throw new Error(`${this.name}: 认证过期，请运行 node login.js ${this.name}`);
-      }
+      if (result.status === 403 && this.config.useDomFallback) { yield* this._domFallback(page, messages, model); return; }
+      if (result.status === 401 || result.status === 403) throw new Error(`${this.name}: 认证过期`);
       throw new Error(`${this.name} API error: ${result.status} ${result.error}`);
     }
 
-    // Provider 解析响应
+    // Parse + split for streaming feel
     const chunks = this.config.parseResponse(result.data, model);
     let emitted = false;
     for (const chunk of chunks) {
       if (chunk.content) {
         emitted = true;
-        // Split large chunks for streaming feel (page.evaluate returns all at once)
         const text = chunk.content;
         if (text.length > 30) {
           const pieces = text.split(/(?<=[。！？\n.!?])/);
           for (const piece of pieces) {
-            if (piece) {
-              yield this.formatSSE(this.toOpenAIChunk(piece, model));
-              await new Promise(r => setTimeout(r, 30));
-            }
+            if (piece) { yield this.formatSSE(this.toOpenAIChunk(piece, model)); await new Promise(r => setTimeout(r, 25)); }
           }
         } else {
           yield this.formatSSE(this.toOpenAIChunk(text, model));
         }
       }
     }
-
-    if (!emitted) {
-      throw new Error(`${this.name}: 未解析出内容，请运行 node login.js ${this.name} 重新登录`);
-    }
-
+    if (!emitted) throw new Error(`${this.name}: 未解析出内容，请重新登录`);
     yield this.formatSSE(this.toOpenAIChunk(null, model, 'stop'));
     yield this.formatDone();
     } finally { if (unlock) unlock(); }
