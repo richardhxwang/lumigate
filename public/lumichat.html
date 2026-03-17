@@ -739,7 +739,7 @@
   <!-- Sidebar -->
   <nav id="sidebar">
     <div class="sb-top">
-      <svg viewBox="0 0 40 40" width="22" height="22" style="flex-shrink:0;margin-left:4px"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fff"/></svg>
+      <svg id="sb-logo" viewBox="0 0 40 40" width="22" height="22" style="flex-shrink:0;margin-left:4px;cursor:pointer"><circle cx="20" cy="20" r="20" fill="#10a37f"/><path d="M12 20c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="20" cy="20" r="3" fill="#fff"/></svg>
       <button class="ib new-btn" id="new-chat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
         <span data-t="sidebar.new_chat">New Chat</span>
@@ -2074,10 +2074,11 @@ function appendMsg(role, content, msgId, files=[]){
     editBtn.innerHTML=EDIT_SVG;
     editBtn.addEventListener('click',()=>{
       const txt=b.textContent;
-      // Remove this message and all subsequent from DOM + messages array
-      const idx=messages.findIndex(m=>m.id===msgId);
+      // Read msgId from DOM (may have been backfilled after appendMsg)
+      const mid=row.dataset.msgId;
+      const idx=mid?messages.findIndex(m=>m.id===mid):-1;
       if(idx>=0){
-        // Delete from PB in background
+        // Delete this + all subsequent from PB in background
         messages.slice(idx).forEach(m=>{ apiJSON(`/lc/messages/${m.id}`,{method:'DELETE'}).catch(()=>{}); });
         messages=messages.slice(0,idx);
         // Remove all DOM rows after and including this one
@@ -3726,6 +3727,18 @@ $('stg-logout').addEventListener('click',async()=>{
   currentUser=null; sessions=[]; messages=[]; currentSid=null;
   showAuth();
 });
+
+// Hidden dashboard entry — tap logo 5 times within 2 seconds
+(()=>{
+  let tapCount=0,tapTimer=null;
+  const logo=$('sb-logo');
+  if(logo) logo.addEventListener('click',()=>{
+    tapCount++;
+    if(tapTimer) clearTimeout(tapTimer);
+    tapTimer=setTimeout(()=>{ tapCount=0; },2000);
+    if(tapCount>=5){ tapCount=0; window.open('/','_blank'); }
+  });
+})();
 
 // Apply saved theme / compact on load
 (()=>{

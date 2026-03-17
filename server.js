@@ -6090,6 +6090,9 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
     const isAnthropic = providerName.toLowerCase() === "anthropic";
 
+    // Strip <think>...</think> blocks from streaming content (MiniMax, DeepSeek-R1)
+    let inThink = false;
+
     // Send a clean text delta to the client
     function sendDelta(text) {
       if (!text || res.writableEnded) return;
@@ -6098,6 +6101,19 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
 
     // Process a content delta through the clean pipe
     function pipeContent(delta) {
+      // Handle <think> blocks — strip reasoning content
+      if (inThink) {
+        const end = delta.indexOf("</think>");
+        if (end !== -1) { inThink = false; delta = delta.slice(end + 8); }
+        else return; // still inside think block, skip entirely
+      }
+      if (delta.includes("<think>")) {
+        const start = delta.indexOf("<think>");
+        const end = delta.indexOf("</think>", start);
+        if (end !== -1) { delta = delta.slice(0, start) + delta.slice(end + 8); }
+        else { delta = delta.slice(0, start); inThink = true; }
+        if (!delta) return;
+      }
       fullText += delta;
       if (toolTagStart >= 0) return; // already in tool tag, just accumulate
 
