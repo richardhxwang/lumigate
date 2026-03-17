@@ -159,7 +159,9 @@ async function executeToolCall(toolName, toolInput) {
         return { ok: true, file: buffer, filename: "converted.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", duration: Date.now() - startTime };
       }
       case "web_search": {
-        const params = new URLSearchParams({ q: toolInput.q, format: "json" });
+        const q = toolInput.q || toolInput.query || toolInput.search || "";
+        if (!q) return { ok: false, error: "Missing search query", duration: Date.now() - startTime };
+        const params = new URLSearchParams({ q, format: "json" });
         if (toolInput.categories) params.set("categories", toolInput.categories);
         if (toolInput.time_range) params.set("time_range", toolInput.time_range);
         if (toolInput.language) params.set("language", toolInput.language);
@@ -169,7 +171,7 @@ async function executeToolCall(toolName, toolInput) {
         const results = (data.results || []).slice(0, 8).map(r => ({
           title: r.title, url: r.url, content: r.content,
         }));
-        return { ok: true, data: { results, query: toolInput.q }, duration: Date.now() - startTime };
+        return { ok: true, data: { results, query: q }, duration: Date.now() - startTime };
       }
       case "parse_file": {
         const fileUrlCheck = await validateExternalUrl(toolInput.file_url);
