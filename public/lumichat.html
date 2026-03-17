@@ -2276,19 +2276,29 @@ async function sendMessage(){
         if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
         const data=line.slice(6).trim(); if(data==='[DONE]') continue;
 
-        // 1. tool_status — grey status text from server
+        // 1. tool_status — grey status text with animated dots
         if(sseEventType==='tool_status'){
           try{
             const st=JSON.parse(data);
             if(!statusEl){
               statusEl=document.createElement('div');
-              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:4px 0;display:flex;align-items:center;gap:6px';
+              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:8px';
               if(streamEl) streamEl.appendChild(statusEl);
               if(streamRow) streamRow.style.display='';
               $('typ-row')?.remove();
             }
-            if(st.done){ statusEl.style.display='none'; statusEl=null; }
-            else { statusEl.textContent=st.text; }
+            if(st.done){
+              statusEl.style.display='none'; statusEl=null;
+              // Show typing dots while waiting for AI resume after tool execution
+              if(!streamText){
+                const tw=document.createElement('div');tw.className='tool-wait';tw.style.cssText='padding:6px 0;display:flex;align-items:center;gap:5px';
+                tw.innerHTML='<div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>';
+                if(streamEl) streamEl.appendChild(tw);
+              }
+            } else {
+              // Status text + animated dots
+              statusEl.innerHTML=esc(st.text)+'<span class="typing-dots" style="display:inline-flex;gap:3px;margin-left:2px"><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span></span>';
+            }
           }catch{}
           sseEventType=''; continue;
         }
@@ -2334,6 +2344,9 @@ async function sendMessage(){
                   // O(1) Text node append — no re-parse of full text
                   streamNode.data+=pendingDelta; pendingDelta='';
                   $('typ-row')?.remove();
+                  // Remove any waiting dots (tool-wait, statusEl)
+                  if(streamEl) streamEl.querySelectorAll('.tool-wait').forEach(w=>w.remove());
+                  if(statusEl){ statusEl.style.display='none'; statusEl=null; }
                   if(streamRow) streamRow.style.display='';
                   streamEl.classList.add('streaming-active');
                   const{scrollHeight,clientHeight,scrollTop}=chatEl;
