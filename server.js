@@ -5145,9 +5145,11 @@ app.get("/lc/suggest", requireLcAuth, async (req, res) => {
   }
   if (!pick) return res.status(503).json({ error: "No AI provider available" });
 
-  // 3. Build prompt
+  // 3. Build prompt — language follows UI setting
+  const LANG_NAMES = { en: "English", zh: "Chinese (Simplified)", ja: "Japanese", ko: "Korean", fr: "French", de: "German", es: "Spanish" };
+  const langName = LANG_NAMES[lang] || "English";
   const memSection = memory ? (lang === "en" ? `\nUser background:\n${memory}` : `\n用户背景信息（全局记忆）：\n${memory}`) : "";
-  const prompt = lang === "en"
+  const prompt = lang !== "zh"
     ? `Today is ${today}. Generate 4 homepage suggestion questions for an AI chat interface.
 
 These are questions the USER would ask the AI, not questions about the AI itself.
@@ -5160,7 +5162,7 @@ Good examples (specific, practical, things people actually search):
 - "What's the weather like for running today?"
 
 Rules:
-- ALL questions MUST be in English. No Chinese, no other languages.
+- ALL questions MUST be in ${langName}. This is the user's UI language — do not use any other language.
 - If user background exists, tailor questions to their job/interests
 - Other questions should reference recent news events
 - Each question MUST be under 8 words, fits on one line

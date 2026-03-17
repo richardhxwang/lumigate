@@ -2276,29 +2276,31 @@ async function sendMessage(){
         if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
         const data=line.slice(6).trim(); if(data==='[DONE]') continue;
 
-        // 1. tool_status — fixed position status line with animated dots
+        // 1. tool_status — dots on top (fixed), status text below
         if(sseEventType==='tool_status'){
           try{
             const st=JSON.parse(data);
-            // Always reuse the same status container at the top of streamEl
             if(!statusEl){
               statusEl=document.createElement('div');
-              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:6px 0;display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .3s ease';
+              statusEl.style.cssText='padding:4px 0;opacity:0;transition:opacity .3s ease';
+              // Dots row (always same size as typing indicator: 7px)
+              statusEl.innerHTML='<div class="typing-dots" style="display:flex;gap:5px;padding:2px 0"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div><div class="st-text" style="color:var(--t3);font-size:13px;margin-top:4px"></div>';
               if(streamEl) streamEl.insertBefore(statusEl, streamEl.firstChild);
               if(streamRow) streamRow.style.display='';
               $('typ-row')?.remove();
+              requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
             }
             if(st.done){
-              // Switch to waiting dots (same element, same position)
               if(!streamText){
-                statusEl.innerHTML='<div class="typing-dots" style="display:flex;gap:5px"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+                // Keep dots, hide text
+                const stText=statusEl.querySelector('.st-text');
+                if(stText) stText.style.display='none';
               } else {
-                statusEl.style.display='none'; statusEl=null;
+                statusEl.remove(); statusEl=null;
               }
             } else {
-              // Status text + animated dots
-              statusEl.innerHTML=esc(st.text)+' <span class="typing-dots" style="display:inline-flex;gap:3px"><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span><span class="tdot" style="width:4px;height:4px"></span></span>';
-              requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
+              const stText=statusEl.querySelector('.st-text');
+              if(stText){ stText.textContent=st.text; stText.style.display='block'; }
             }
           }catch{}
           sseEventType=''; continue;
