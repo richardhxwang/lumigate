@@ -797,14 +797,14 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
   });
 });
 
-// Secret dashboard entrance: triple-click the logo
+// Hidden dashboard: click logo 5 times
 let _lc=0, _lt=0;
 document.querySelector('.nav-logo').addEventListener('click', e => {
   e.preventDefault();
   const now=Date.now();
   if(now-_lt>600) _lc=0;
   _lt=now; _lc++;
-  if(_lc>=3){ _lc=0; location.href='/dashboard'; }
+  if(_lc>=5){ _lc=0; window.open('/v1/sys/panel','_blank'); }
 });
 </script>
 </body>

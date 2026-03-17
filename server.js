@@ -1170,7 +1170,7 @@ const MODELS = {
     { id: "gpt-5.4", tier: "flagship", price: { in: 2.50, cacheIn: 0.25, out: 15.00 }, caps: ["text", "image", "audio", "video"], desc: "Most capable GPT — all modalities, latest iteration" },
   ],
   anthropic: [
-    { id: "claude-haiku-4-5-20251001", tier: "economy", price: { in: 1.00, cacheIn: 0.10, out: 5.00 }, caps: ["text", "image", "pdf"], desc: "Code completion, classification, summarization — sub-second, 200K" },
+    { id: "claude-haiku-4-5", tier: "economy", price: { in: 1.00, cacheIn: 0.10, out: 5.00 }, caps: ["text", "image", "pdf"], desc: "Code completion, classification, summarization — sub-second, 200K" },
     { id: "claude-sonnet-4-5", tier: "standard", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Extended thinking, complex coding, long-form writing" },
     { id: "claude-sonnet-4-6", tier: "flagship", price: { in: 3.00, cacheIn: 0.30, out: 15.00 }, caps: ["text", "image", "pdf"], desc: "Latest Sonnet — frontier intelligence, hybrid reasoning, 200K" },
     { id: "claude-opus-4-6", tier: "flagship", price: { in: 5.00, cacheIn: 0.50, out: 25.00 }, caps: ["text", "image", "pdf"], desc: "Autonomous coding, deep research, 200K analysis" },
@@ -3565,7 +3565,7 @@ function anthropicToOpenaiResponse(data, model) {
 }
 
 async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyIds = new Set()) {
-  const requestedModel = req.body?.model || "claude-haiku-4-5-20251001";
+  const requestedModel = req.body?.model || "claude-haiku-4-5";
   const isStream = req.body?.stream === true;
   const anthropicBody = openaiToAnthropicBody(req.body);
   const fetchHeaders = { "Content-Type": "application/json", ...anthropicAuthHeaders(apiKey) };
