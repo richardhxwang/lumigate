@@ -2263,6 +2263,9 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
+    // Text node for O(1) streaming (append delta, don't re-render full text)
+    const streamNode=document.createTextNode('');
+    aEl.appendChild(streamNode);
 
     while(true){
       const{done,value}=await reader.read(); if(done) break;
@@ -2328,10 +2331,10 @@ async function sendMessage(){
               rafId=requestAnimationFrame(()=>{
                 rafId=null;
                 if(streamEl&&pendingDelta){
-                  pendingDelta='';
+                  // O(1) Text node append — no re-parse of full text
+                  streamNode.data+=pendingDelta; pendingDelta='';
                   $('typ-row')?.remove();
                   if(streamRow) streamRow.style.display='';
-                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
                   streamEl.classList.add('streaming-active');
                   const{scrollHeight,clientHeight,scrollTop}=chatEl;
                   if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;

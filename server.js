@@ -4736,9 +4736,17 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   settings._approvalTokens[token] = { userId, userEmail, userName, createdAt: Date.now() };
   for (const [k, v] of Object.entries(settings._approvalTokens)) { if (Date.now() - v.createdAt > 86400000) delete settings._approvalTokens[k]; }
   saveSettings(settings);
-  const host = httpReq?.get?.('host') || 'localhost:9471';
-  const proto = httpReq?.headers?.['x-forwarded-proto'] === 'https' || httpReq?.secure ? 'https' : 'http';
-  const url = `${proto}://${host}/lc/admin/approve?token=${token}`;
+  // Use PUBLIC_URL env or x-forwarded-host, never localhost in emails
+  const publicUrl = process.env.PUBLIC_URL || settings.publicUrl;
+  let baseUrl;
+  if (publicUrl) {
+    baseUrl = publicUrl.replace(/\/$/, "");
+  } else {
+    const fwdHost = httpReq?.headers?.['x-forwarded-host'] || httpReq?.get?.('host');
+    const proto = httpReq?.headers?.['x-forwarded-proto'] === 'https' || httpReq?.secure ? 'https' : 'http';
+    baseUrl = fwdHost && !fwdHost.includes('localhost') ? `${proto}://${fwdHost}` : 'https://lumigate.autorums.com';
+  }
+  const url = `${baseUrl}/lc/admin/approve?token=${token}`;
   const nodemailer = require("nodemailer");
   await nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } }).sendMail({
     from: smtpFrom, to: toEmail, subject: `LumiChat — New User: ${userEmail}`,
@@ -5795,6 +5803,17 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   if (!apiKey) return res.status(403).json({ error: "No API key configured for this provider" });
 
   // ── Pre-search ──
+  // Models with built-in web search don't need SearXNG
+  const MODELS_WITH_SEARCH = new Set([
+    // OpenAI — GPT-4.1+ and GPT-5 have web browsing
+    "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-5", "gpt-5-mini", "gpt-5.4",
+    // Gemini — grounding with Google Search
+    "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
+    // Kimi — built-in web search
+    "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k",
+  ]);
+  const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
+
   let searchContext = "";
   const userText = (() => {
     const last = messages.filter(m => m.role === "user").pop();
@@ -5804,7 +5823,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     return "";
   })();
 
-  const doSearch = req.body.web_search === true || (req.body.web_search !== false && needsWebSearch(userText));
+  // Skip SearXNG if model has built-in search (unless explicitly forced)
+  const doSearch = !modelHasSearch && (req.body.web_search === true || (req.body.web_search !== false && needsWebSearch(userText)));
   if (doSearch) {
     try {
       const query = extractSearchQuery(userText);
@@ -6171,9 +6191,9 @@ app.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
     const userName = req.lcUser.name || userEmail.split('@')[0];
     const settingsId = existing.id;
     const token = require('crypto').createHmac('sha256', ADMIN_SECRET).update(settingsId).digest('hex').slice(0, 24);
-    const base = process.env.LUMICHAT_PUBLIC_URL || process.env.PUBLIC_URL || `http://localhost:${PORT}`;
-    const approveUrl = `${base}/admin/upgrade-action?id=${settingsId}&action=approve&token=${token}`;
-    const rejectUrl = `${base}/admin/upgrade-action?id=${settingsId}&action=reject&token=${token}`;
+    const base = process.env.PUBLIC_URL || settings.publicUrl || 'https://lumigate.autorums.com';
+    const approveUrl = `${base}/lc/admin/upgrade-action?id=${settingsId}&action=approve&token=${token}`;
+    const rejectUrl = `${base}/lc/admin/upgrade-action?id=${settingsId}&action=reject&token=${token}`;
     sendAdminNotify(
       `[LumiGate] Upgrade Request: ${userName} → ${plan}`,
       `<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:24px">
@@ -6191,7 +6211,7 @@ app.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
 });
 
 // GET /admin/upgrade-action — one-click approve/reject from email
-app.get("/admin/upgrade-action", async (req, res) => {
+app.get("/lc/admin/upgrade-action", async (req, res) => {
   const { id, action, token } = req.query;
   if (!id || !action || !token) return res.status(400).send('Missing parameters');
   const expected = require('crypto').createHmac('sha256', ADMIN_SECRET).update(id).digest('hex').slice(0, 24);
