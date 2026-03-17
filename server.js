@@ -5936,34 +5936,46 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       // Generate 2-3 search keywords via cheap AI (fast, <2s)
       let queries = [extractSearchQuery(userText)]; // fallback: original query
       try {
-        const CHEAP = [
-          { p: "deepseek", m: "deepseek-chat" }, { p: "openai", m: "gpt-4.1-nano" },
-          { p: "gemini", m: "gemini-2.5-flash" }, { p: "qwen", m: "qwen-turbo" },
+        // MiniMax first (free coding plan), then others. Supports Collector fallback.
+        const KW_MODELS = [
+          { p: "minimax", m: "MiniMax-M1" }, { p: "deepseek", m: "deepseek-chat" },
+          { p: "openai", m: "gpt-4.1-nano" }, { p: "gemini", m: "gemini-2.5-flash" },
+          { p: "qwen", m: "qwen-turbo" },
         ];
-        let kPick = null, kKey = null;
-        for (const c of CHEAP) {
+        const kwPrompt = `Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}`;
+        let kwText = "";
+        for (const c of KW_MODELS) {
+          if (kwText) break;
           const prov = PROVIDERS[c.p]; if (!prov) continue;
           const k = (selectApiKey(c.p, "_lumichat") || {}).apiKey || prov.apiKey;
-          if (k) { kPick = c; kKey = k; break; }
+          if (k) {
+            // API path
+            try {
+              const kRes = await fetch(getChatUrl(c.p, prov), {
+                method: "POST", headers: getChatHeaders(c.p, k), signal: AbortSignal.timeout(5000),
+                body: JSON.stringify({ model: c.m, max_tokens: 100, temperature: 0.3, stream: false, messages: [{ role: "user", content: kwPrompt }] }),
+              });
+              if (kRes.ok) { const d = await kRes.json(); kwText = d.choices?.[0]?.message?.content || ""; }
+            } catch {}
+          } else if (COLLECTOR_SUPPORTED.includes(c.p) && hasCollectorToken(c.p)) {
+            // Collector path (free)
+            try {
+              const collector = require("./collector");
+              const creds = getCollectorCredentials(c.p);
+              let full = "";
+              for await (const chunk of collector.sendMessage(c.p, c.m, [{ role: "user", content: kwPrompt }], creds)) {
+                const m = chunk.match(/^data: (.+)$/m);
+                if (m && m[1] !== "[DONE]") { try { const j = JSON.parse(m[1]); full += j.choices?.[0]?.delta?.content || ""; } catch {} }
+              }
+              if (full) kwText = full;
+            } catch {}
+          }
         }
-        if (kPick) {
-          const kProv = PROVIDERS[kPick.p];
-          const kUrl = getChatUrl(kPick.p, kProv);
-          const kHeaders = getChatHeaders(kPick.p, kKey);
-          const kRes = await fetch(kUrl, {
-            method: "POST", headers: kHeaders, signal: AbortSignal.timeout(5000),
-            body: JSON.stringify({ model: kPick.m, max_tokens: 100, temperature: 0.3, stream: false,
-              messages: [{ role: "user", content: `Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}` }],
-            }),
-          });
-          if (kRes.ok) {
-            const kData = await kRes.json();
-            const kText = kData.choices?.[0]?.message?.content || "";
-            const kMatch = kText.match(/\[[\s\S]*\]/);
-            if (kMatch) {
-              const parsed = JSON.parse(kMatch[0]).filter(q => typeof q === "string" && q.trim()).slice(0, 3);
-              if (parsed.length >= 2) queries = parsed;
-            }
+        if (kwText) {
+          const kMatch = kwText.match(/\[[\s\S]*\]/);
+          if (kMatch) {
+            const parsed = JSON.parse(kMatch[0]).filter(q => typeof q === "string" && q.trim()).slice(0, 3);
+            if (parsed.length >= 2) queries = parsed;
           }
         }
       } catch {} // keyword generation failed — use original query
