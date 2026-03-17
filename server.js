@@ -4657,7 +4657,7 @@ app.get("/lc/auth/oauth-callback", async (req, res) => {
             body: JSON.stringify({ user: data.record.id }),
           }).catch(() => {});
           const approvalTo = settings.approvalEmail || settings.authEmail;
-          if (approvalTo) sendApprovalEmail(req, approvalTo, data.record.id, data.record.email || '', data.record.name || '').catch(() => {});
+          if (approvalTo) sendApprovalEmail(req, approvalTo, data.record.id, data.record.email || '', data.record.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(() => {});
         }
       }
     }
@@ -4717,14 +4717,14 @@ app.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, res)
       }
       const approvalTo = settings.approvalEmail || settings.authEmail;
       if (approvalTo) {
-        sendApprovalEmail(req, approvalTo, data.id, data.email || req.body.email, data.name || '').catch(e => log("warn", "Approval email failed", { error: e.message }));
+        sendApprovalEmail(req, approvalTo, data.id, data.email || req.body.email, data.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(e => log("warn", "Approval email failed", { error: e.message }));
       }
     }
     res.status(r.status).json(data);
   } catch (err) { res.status(502).json({ error: "PocketBase unavailable" }); }
 });
 
-async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) {
+async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName, extra = {}) {
   const smtpHost = process.env.SMTP_HOST || settings.smtpHost;
   const smtpUser = process.env.SMTP_USER || settings.smtpUser;
   const smtpPass = process.env.SMTP_PASS || (settings.smtpPass ? decryptValue(settings.smtpPass, ADMIN_SECRET) : undefined);
@@ -4733,7 +4733,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   if (!smtpHost || !smtpUser || !smtpPass) return;
   const token = crypto.randomBytes(16).toString('hex');
   if (!settings._approvalTokens) settings._approvalTokens = {};
-  settings._approvalTokens[token] = { userId, userEmail, userName, createdAt: Date.now() };
+  settings._approvalTokens[token] = { userId, userEmail, userName, ip: extra.ip || '', country: extra.country || '', createdAt: Date.now() };
   for (const [k, v] of Object.entries(settings._approvalTokens)) { if (Date.now() - v.createdAt > 86400000) delete settings._approvalTokens[k]; }
   saveSettings(settings);
   // Use PUBLIC_URL env or x-forwarded-host, never localhost in emails
@@ -4750,7 +4750,7 @@ async function sendApprovalEmail(httpReq, toEmail, userId, userEmail, userName) 
   const nodemailer = require("nodemailer");
   await nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } }).sendMail({
     from: smtpFrom, to: toEmail, subject: `LumiChat — New User: ${userEmail}`,
-    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><div style="background:#10a37f;padding:24px 32px;text-align:center"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><h2 style="margin:0 0 8px;font-size:18px;color:#1c1c1e">New User Registration</h2><p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.6">A new user has requested access. Review and choose a tier to approve, or decline.</p><div style="background:#f8f8f8;border-radius:10px;padding:16px;margin-bottom:24px"><div style="font-size:13px;color:#999;margin-bottom:4px">Email</div><div style="font-size:15px;font-weight:600;color:#1c1c1e">${userEmail}</div>${userName ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Name</div><div style="font-size:15px;color:#1c1c1e">${userName}</div>` : ''}</div><a href="${url}" style="display:block;text-align:center;background:#10a37f;color:#fff;text-decoration:none;padding:14px;border-radius:10px;font-size:15px;font-weight:600">Review &amp; Approve / Decline</a><p style="margin:16px 0 0;font-size:12px;color:#999;text-align:center">Link expires in 24h. You can select a tier on the approval page.</p></div></div></body></html>`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><div style="background:#10a37f;padding:24px 32px;text-align:center"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><h2 style="margin:0 0 8px;font-size:18px;color:#1c1c1e">New User Registration</h2><p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.6">A new user has requested access. Review and choose a tier to approve, or decline.</p><div style="background:#f8f8f8;border-radius:10px;padding:16px;margin-bottom:24px"><div style="font-size:13px;color:#999;margin-bottom:4px">Email</div><div style="font-size:15px;font-weight:600;color:#1c1c1e">${userEmail}</div>${userName ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Name</div><div style="font-size:15px;color:#1c1c1e">${userName}</div>` : ''}${extra.country ? `<div style="font-size:13px;color:#999;margin-top:12px;margin-bottom:4px">Location</div><div style="font-size:15px;color:#1c1c1e">${extra.country}${extra.ip ? ` <span style="color:#999;font-size:13px">(${extra.ip})</span>` : ''}</div>` : ''}</div><a href="${url}" style="display:block;text-align:center;background:#10a37f;color:#fff;text-decoration:none;padding:14px;border-radius:10px;font-size:15px;font-weight:600">Review &amp; Approve / Decline</a><p style="margin:16px 0 0;font-size:12px;color:#999;text-align:center">Link expires in 24h. You can select a tier on the approval page.</p></div></div></body></html>`,
   });
   log("info", "Approval email sent", { to: toEmail, userId, userEmail });
 }
@@ -4760,10 +4760,13 @@ app.get("/lc/admin/approve", lcAuthLimiter, async (req, res) => {
   if (!token || !settings._approvalTokens?.[token]) {
     return res.status(404).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invalid Link</title></head><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f7"><div style="max-width:480px;margin:60px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);text-align:center"><div style="background:#10a37f;padding:24px 32px"><div style="font-size:20px;font-weight:700;color:#fff">LumiChat</div></div><div style="padding:32px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ff9500" stroke-width="2" style="margin-bottom:12px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h2 style="margin:0 0 8px;color:#1c1c1e">Invalid or Expired Link</h2><p style="color:#666;font-size:14px">This approval link is no longer valid. You can manage users from the LumiGate Dashboard.</p></div></div></body></html>`);
   }
-  const { userId, userEmail, userName } = settings._approvalTokens[token];
+  const { userId, userEmail, userName, ip, country } = settings._approvalTokens[token];
   if (!isValidPbId(userId)) return res.status(400).send('Invalid');
-  const safeEmail = String(userEmail).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const safeName = userName ? String(userName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeEmail = esc(userEmail);
+  const safeName = userName ? esc(userName) : '';
+  const safeCountry = esc(country);
+  const safeIp = esc(ip);
   // Show approval page — token is NOT consumed here (only on POST)
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve User — LumiChat</title>
 <style>
@@ -4798,6 +4801,9 @@ h2{font-size:16px;color:#1c1c1e;margin-bottom:16px;font-weight:600}
 .rv svg{margin-bottom:12px}
 .rv h2{font-size:20px;margin-bottom:6px}
 .rv p{color:#666;font-size:14px}
+.dur{padding:8px 16px;border:2px solid #e5e5ea;border-radius:10px;font-size:14px;font-weight:500;color:#1c1c1e;cursor:pointer;transition:all 0.15s}
+.dur:hover{border-color:#ef6c00;background:#fff8f0}
+.dur.dsel{border-color:#ef6c00;background:#fff8f0;color:#ef6c00;font-weight:600}
 @media(max-width:500px){.tiers{flex-direction:column}.bd{padding:24px 20px}}
 </style></head><body>
 <div class="card">
@@ -4807,6 +4813,7 @@ h2{font-size:16px;color:#1c1c1e;margin-bottom:16px;font-weight:600}
       <div class="uinfo">
         <div class="row"><div class="lbl">Email</div><div class="val">${safeEmail}</div></div>
         ${safeName ? `<div class="row"><div class="lbl">Name</div><div class="val">${safeName}</div></div>` : ''}
+        ${safeCountry ? `<div class="row"><div class="lbl">Location</div><div class="val">${safeCountry}${safeIp ? ` <span style="color:#999;font-size:13px">(${safeIp})</span>` : ''}</div></div>` : ''}
       </div>
       <h2>Select Tier</h2>
       <div class="tiers">
@@ -4814,20 +4821,29 @@ h2{font-size:16px;color:#1c1c1e;margin-bottom:16px;font-weight:600}
           <input type="radio" name="tier" value="basic" checked>
           <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#43a047" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div>
           <div class="tn">Basic</div>
-          <div class="td">Standard access with default rate limits</div>
+          <div class="td">Standard access, default rate limits</div>
         </label>
         <label class="tier t-p" onclick="sl(this,'premium')">
           <input type="radio" name="tier" value="premium">
           <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#ef6c00" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
           <div class="tn">Premium</div>
-          <div class="td">Higher limits, priority access to all models</div>
+          <div class="td">Higher limits, all models</div>
         </label>
         <label class="tier t-s" onclick="sl(this,'selfservice')">
           <input type="radio" name="tier" value="selfservice">
           <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="#1e88e5" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
           <div class="tn">Self-Service</div>
-          <div class="td">User manages own API keys and usage</div>
+          <div class="td">User manages own API keys</div>
         </label>
+      </div>
+      <div id="dur-wrap" style="display:none;margin-bottom:24px">
+        <h2>Premium Duration</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="dur dsel" onclick="sdur(this,'30d')"><input type="radio" name="dur" value="30d" checked style="display:none">1 Month</label>
+          <label class="dur" onclick="sdur(this,'90d')"><input type="radio" name="dur" value="90d" style="display:none">3 Months</label>
+          <label class="dur" onclick="sdur(this,'365d')"><input type="radio" name="dur" value="365d" style="display:none">1 Year</label>
+          <label class="dur" onclick="sdur(this,'forever')"><input type="radio" name="dur" value="forever" style="display:none">No Expiry</label>
+        </div>
       </div>
       <div class="acts">
         <button class="btn btn-d" onclick="go('decline')">Decline</button>
@@ -4838,13 +4854,16 @@ h2{font-size:16px;color:#1c1c1e;margin-bottom:16px;font-weight:600}
   </div>
 </div>
 <script>
-var st='basic';
-function sl(el,t){st=t;document.querySelectorAll('.tier').forEach(function(x){x.classList.remove('sel')});el.classList.add('sel')}
+var st='basic',sd='30d';
+function sl(el,t){st=t;document.querySelectorAll('.tier').forEach(function(x){x.classList.remove('sel')});el.classList.add('sel');document.getElementById('dur-wrap').style.display=t==='premium'?'block':'none'}
+function sdur(el,d){sd=d;document.querySelectorAll('.dur').forEach(function(x){x.classList.remove('dsel')});el.classList.add('dsel')}
 function go(action){
   var fv=document.getElementById('fv'),rv=document.getElementById('rv');
   var btns=fv.querySelectorAll('.btn');
   btns.forEach(function(b){b.disabled=true;b.style.opacity='0.6'});
-  fetch('/lc/admin/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',action:action,tier:st})})
+  var payload={token:'${token}',action:action,tier:st};
+  if(st==='premium') payload.duration=sd;
+  fetch('/lc/admin/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
   .then(function(r){return r.json()})
   .then(function(data){
     fv.style.display='none';rv.style.display='block';
@@ -4869,12 +4888,13 @@ function go(action){
 });
 
 app.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res) => {
-  const { token, action, tier } = req.body || {};
+  const { token, action, tier, duration } = req.body || {};
   if (!token || !settings._approvalTokens?.[token]) {
     return res.status(400).json({ ok: false, error: "Invalid or expired token. The link may have already been used." });
   }
   const validTiers = ['basic', 'premium', 'selfservice'];
   const validActions = ['approve', 'decline'];
+  const validDurations = ['30d', '90d', '365d', 'forever'];
   if (!validActions.includes(action)) return res.status(400).json({ ok: false, error: "Invalid action" });
   if (action === 'approve' && !validTiers.includes(tier)) return res.status(400).json({ ok: false, error: "Invalid tier" });
 
@@ -4886,15 +4906,25 @@ app.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res) =>
   saveSettings(settings);
 
   if (action === 'approve') {
+    // Calculate tier expiry for premium
+    let tierExpires = null;
+    if (tier === 'premium' && duration && duration !== 'forever') {
+      const days = { '30d': 30, '90d': 90, '365d': 365 }[duration] || 30;
+      tierExpires = new Date(Date.now() + days * 86400000).toISOString();
+    }
+
     const pbToken = await getPbAdminToken();
     if (pbToken) {
       const find = await fetch(`${PB_URL}/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
       const ep = find.items?.length ? `${PB_URL}/api/collections/lc_user_settings/records/${find.items[0].id}` : `${PB_URL}/api/collections/lc_user_settings/records`;
-      await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(find.items?.length ? {} : { user: userId }), tier, tier_updated: new Date().toISOString() }) });
+      const body = { ...(find.items?.length ? {} : { user: userId }), tier, tier_updated: new Date().toISOString() };
+      if (tierExpires) body.tier_expires = tierExpires;
+      else if (tier === 'premium') body.tier_expires = ''; // forever = no expiry
+      await fetch(ep, { method: find.items?.length ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${pbToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     }
     lcTierCache.delete(userId);
-    audit(null, "lc_user_approved", userId, { email: userEmail, tier });
-    return res.json({ ok: true, action: 'approve', tier });
+    audit(null, "lc_user_approved", userId, { email: userEmail, tier, duration: duration || 'forever' });
+    return res.json({ ok: true, action: 'approve', tier, duration: duration || 'forever' });
   } else {
     // Decline: remove lc_user_settings and delete the PB user record
     const pbToken = await getPbAdminToken();
