@@ -198,7 +198,19 @@ class BrowserAdapter extends BaseAdapter {
     for (const chunk of chunks) {
       if (chunk.content) {
         emitted = true;
-        yield this.formatSSE(this.toOpenAIChunk(chunk.content, model));
+        // Split large chunks for streaming feel (page.evaluate returns all at once)
+        const text = chunk.content;
+        if (text.length > 30) {
+          const pieces = text.split(/(?<=[。！？\n.!?])/);
+          for (const piece of pieces) {
+            if (piece) {
+              yield this.formatSSE(this.toOpenAIChunk(piece, model));
+              await new Promise(r => setTimeout(r, 30));
+            }
+          }
+        } else {
+          yield this.formatSSE(this.toOpenAIChunk(text, model));
+        }
       }
     }
 
@@ -309,13 +321,28 @@ class BrowserAdapter extends BaseAdapter {
       { scenario: req.scenario, prompt: req.prompt, authToken: kimiAuth }
     );
 
-    const chunks = this.config.parseResponse(JSON.stringify(result), model);
-    let emitted = false;
-    for (const chunk of chunks) {
-      if (chunk.content) {
-        emitted = true;
-        yield this.formatSSE(this.toOpenAIChunk(chunk.content, model));
+    // Kimi returns full text at once — split for streaming feel
+    const fullText = result.text || '';
+    if (!fullText) {
+      // Try parseResponse fallback
+      const chunks = this.config.parseResponse(JSON.stringify(result), model);
+      for (const chunk of chunks) {
+        if (chunk.content) { yield this.formatSSE(this.toOpenAIChunk(chunk.content, model)); }
       }
+    } else {
+      // Split by sentences/newlines for natural streaming
+      const pieces = fullText.split(/(?<=[。！？\n.!?])/);
+      for (const piece of pieces) {
+        if (piece) {
+          yield this.formatSSE(this.toOpenAIChunk(piece, model));
+          await new Promise(r => setTimeout(r, 30));
+        }
+      }
+    }
+    let emitted = !!fullText;
+    if (!emitted) {
+      const chunks = this.config.parseResponse(JSON.stringify(result), model);
+      for (const c of chunks) { if (c.content) { emitted = true; } }
     }
     if (!emitted) throw new Error('Kimi: 未解析出内容，请运行 node login.js kimi');
     yield this.formatSSE(this.toOpenAIChunk(null, model, 'stop'));

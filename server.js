@@ -5139,17 +5139,8 @@ app.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => {
     } catch { return res.status(500).json({ error: "Chrome not running" }); }
     const browser = await chromium.connectOverCDP(wsUrl);
     const ctx = browser.contexts()[0];
-    // Check already logged in
-    const existing = await ctx.cookies([site.url]);
-    if (existing.find(c => c.name === site.cookie && c.value.length > 5)) {
-      if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
-      if (!collectorTokens[name].some(a => a.enabled)) {
-        collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: encryptValue(JSON.stringify({ cdpPort: Number(cdpPort), cdpHost }), ADMIN_SECRET), enabled: true });
-        saveCollectorTokens(collectorTokens);
-      }
-      setCollectorHealth(name, true);
-      return res.json({ status: 'already_logged_in' });
-    }
+    // Clear old cookies for this site so user sees fresh login page
+    await ctx.clearCookies({ domain: new URL(site.url).hostname }).catch(() => {});
     // Open login page
     const page = await ctx.newPage();
     await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
