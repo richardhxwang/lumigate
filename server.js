@@ -6205,7 +6205,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   let injectedSystemPrompt = "";
   if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\nIMPORTANT: Prioritize the most recent search results. When the user asks about current/latest events, ONLY cite results from ${new Date().getFullYear()}. Discard outdated results from previous years unless the user specifically asks about historical information. Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
   // Skip tool prompt for small/economy models — they misinterpret it and generate files for simple conversations
-  const SMALL_MODEL_PATTERNS = /nano|mini(?!max)|flash-lite|haiku|8b|7b/i;
+  const SMALL_MODEL_PATTERNS = /nano|(?<![a-z])mini(?!max)|flash-lite|(?<![a-z])haiku|(?<![a-z])8b(?![a-z])|(?<![a-z])7b(?![a-z])/i;
   const skipToolsForSmallModel = SMALL_MODEL_PATTERNS.test(modelId);
   if (req.body.tools !== false && !skipToolsForSmallModel) {
     try {
@@ -7090,7 +7090,7 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
   // Works with ANY model. Server-side proxy handler executes tools after stream ends.
   // Skip for small/economy models that misinterpret tool prompts
   const proxyModelId = req.body?.model || "";
-  const SMALL_MODEL_RE = /nano|mini(?!max)|flash-lite|haiku|8b|7b/i;
+  const SMALL_MODEL_RE = /nano|(?<![a-z])mini(?!max)|flash-lite|(?<![a-z])haiku|(?<![a-z])8b(?![a-z])|(?<![a-z])7b(?![a-z])/i;
   if (isChat && proj?.toolInjection !== false && settings.toolInjectionEnabled !== false && !SMALL_MODEL_RE.test(proxyModelId)) {
     try {
       const toolPrompt = unifiedRegistry.getSystemPrompt();
