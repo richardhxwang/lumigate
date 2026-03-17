@@ -5904,11 +5904,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // ── Pre-search ──
   // Models with built-in web search don't need SearXNG
   // Only models with ACTUAL API-level search (not ChatGPT web browsing which is UI-only)
+  // Only models with CONFIRMED working API-level search
+  // Kimi removed: Collector mode doesn't trigger web search on Kimi's web UI
   const MODELS_WITH_SEARCH = new Set([
-    // Gemini — grounding with Google Search (API-level)
+    // Gemini — grounding with Google Search (verified via API)
     "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
-    // Kimi — built-in web search in API
-    "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k",
   ]);
   const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
 
