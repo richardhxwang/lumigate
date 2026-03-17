@@ -1543,7 +1543,8 @@ app.get("/v1/sys/panel", (req, res) => {
 });
 
 // Old dashboard path — return 404
-app.get("/dashboard", (req, res) => res.status(404).end());
+// /dashboard — no response, don't reveal it exists
+app.get("/dashboard", (req, res) => res.status(204).end());
 
 // F-02: Serve chat — requires root/admin session (no key exposed to browser)
 app.get("/chat", (req, res) => {
