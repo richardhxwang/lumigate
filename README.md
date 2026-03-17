@@ -209,3 +209,7 @@ Collector providers appear in the Providers table on the dashboard with a distin
 ## License
 
 MIT
+
+## Planning Docs
+
+- PocketBase convergence plan: `docs/pb-converge-into-lumigate-plan.md`
