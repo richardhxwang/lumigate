@@ -5890,7 +5890,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // Resolve API key — fallback to Collector if no key available
   const selectedKey = selectApiKey(providerName.toLowerCase(), projectName);
   const apiKey = selectedKey?.apiKey || provider.apiKey;
-  const useCollector = !apiKey && COLLECTOR_SUPPORTED.includes(providerName.toLowerCase()) && hasCollectorToken(providerName.toLowerCase());
+  const pnLower = providerName.toLowerCase();
+  const useCollector = !apiKey && COLLECTOR_SUPPORTED.includes(pnLower) && hasCollectorToken(pnLower);
   if (!apiKey && !useCollector) return res.status(403).json({ error: "No API key configured for this provider" });
 
   // ── Pre-search ──
