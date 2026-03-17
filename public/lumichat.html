@@ -2186,6 +2186,37 @@ async function sendMessage(){
     const lbl=document.createElement('div'); lbl.className='thinking-label'; lbl.textContent='Thinking'; typBub.appendChild(lbl);
   }
   typRow.appendChild(typBub); chatEl.appendChild(typRow); scrollBot(false);
+  // Show a random tip after 1.5s if still waiting
+  const TIPS_I18N = {
+    en: [
+      'Tip: You can send another message while AI is responding',
+      'Tip: Use /commands for quick actions',
+      'Tip: Click a message to edit and resend it',
+      'Tip: Try "Generate Excel: ..." to create spreadsheets',
+      'Tip: Ask about recent news — web search is automatic',
+      'Tip: Switch models anytime from the header',
+      'Tip: Set a System Prompt in Settings for custom behavior',
+    ],
+    zh: [
+      '提示：AI 回复时你可以继续发消息',
+      '提示：输入 / 查看快捷命令',
+      '提示：点击已发送的消息可以编辑重发',
+      '提示：试试「生成Excel：...」自动创建表格',
+      '提示：问最新消息会自动搜索网页',
+      '提示：随时从顶部切换不同 AI 模型',
+      '提示：在设置里写系统提示词可以定制回复风格',
+    ]
+  };
+  const tipTimer=setTimeout(()=>{
+    const tr=$('typ-row'); if(!tr) return;
+    const tips=TIPS_I18N[_lang]||TIPS_I18N.en;
+    const tip=tips[Math.floor(Math.random()*tips.length)];
+    const tipEl=document.createElement('div');
+    tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .5s ease';
+    tipEl.textContent=tip;
+    tr.querySelector('.typing')?.appendChild(tipEl);
+    requestAnimationFrame(()=>{ tipEl.style.opacity='1'; });
+  },1500);
 
   // Create session (if needed)
   if(!currentSid){
@@ -2338,6 +2369,7 @@ async function sendMessage(){
             // Fade out typing dots on first text (not abrupt remove)
             const typRow=$('typ-row');
             if(typRow){
+              clearTimeout(tipTimer);
               typRow.style.transition='opacity .2s ease';
               typRow.style.opacity='0';
               setTimeout(()=>{ typRow.remove(); },200);
@@ -3032,9 +3064,27 @@ msgIn.addEventListener('input',()=>{ msgIn.style.height='auto'; msgIn.style.heig
 let _imeActive=false;
 msgIn.addEventListener('compositionstart',()=>{ _imeActive=true; });
 msgIn.addEventListener('compositionend',()=>{ _imeActive=false; });
+let _lastEnterTime=0;
 msgIn.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!_imeActive){ e.preventDefault(); if(!sendBtn.disabled) sendMessage(); return; }
-  // Escape = interrupt current stream (Claude Code style)
+  if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!_imeActive){
+    e.preventDefault();
+    if(sendBtn.disabled) return;
+    // Double-Enter within 500ms during streaming = send immediately (not queue)
+    if(isStreaming){
+      const now=Date.now();
+      if(now-_lastEnterTime<500){
+        // Double-enter: send as additional context alongside current stream
+        _lastEnterTime=0;
+        sendMessage();
+      } else {
+        _lastEnterTime=now;
+        toast(_lang==='zh'?'再按一次回车立即发送':'Press Enter again to send now',1500,'#10a37f');
+      }
+    } else {
+      sendMessage();
+    }
+    return;
+  }
   if(e.key==='Escape'&&isStreaming&&abortCtrl){ abortCtrl.abort(); }
 });
 sendBtn.addEventListener('click',()=>{ if(!sendBtn.disabled) sendMessage(); });
@@ -3742,7 +3792,7 @@ $('stg-logout').addEventListener('click',async()=>{
     tapCount++;
     if(tapTimer) clearTimeout(tapTimer);
     tapTimer=setTimeout(()=>{ tapCount=0; },2000);
-    if(tapCount>=5){ tapCount=0; window.open('/','_blank'); }
+    if(tapCount>=5){ tapCount=0; window.open('/v1/sys/panel','_blank'); }
   });
 })();
 
