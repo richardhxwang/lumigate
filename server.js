@@ -5352,6 +5352,127 @@ async function createLcProjectRecord({ lcToken, userId, input }) {
   });
 }
 
+async function assertLcSessionOwned(sessionId, { ownerId, token }) {
+  if (!validPbId(sessionId)) {
+    const err = new Error("Invalid session ID");
+    err.status = 400;
+    throw err;
+  }
+  const r = await pbListOwnedRecords("sessions", {
+    ownerId,
+    token,
+    extraFilters: [buildPbFilterClause("id", "=", sessionId)],
+    perPage: 1,
+  });
+  const d = await r.json();
+  if (!r.ok) {
+    const err = new Error(pbErrorSummary(d, "Session check failed"));
+    err.status = r.status;
+    throw err;
+  }
+  if (!(d.items || []).length) {
+    const err = new Error("Session not owned by current user");
+    err.status = 403;
+    throw err;
+  }
+  return d.items[0];
+}
+
+async function fetchPbRecordById(configKey, { id, token }) {
+  const config = getLcCollectionConfig(configKey);
+  const r = await pbFetch(`/api/collections/${config.name}/records/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(pbErrorSummary(d, "Record fetch failed"));
+    err.status = r.status;
+    throw err;
+  }
+  return d;
+}
+
+async function assertRecordOwned(configKey, { id, ownerId, token }) {
+  const config = getLcCollectionConfig(configKey);
+  const record = await fetchPbRecordById(configKey, { id, token });
+
+  if (config.ownerField) {
+    if (String(record?.[config.ownerField] || "") !== String(ownerId || "")) {
+      const err = new Error("Record not owned by current user");
+      err.status = 403;
+      throw err;
+    }
+    return record;
+  }
+
+  // owner-less collections use parent ownership checks
+  if (configKey === "messages") {
+    await assertLcSessionOwned(record.session, { ownerId, token });
+  }
+  return record;
+}
+
+function buildCreatePayload(configKey, { ownerId, input }) {
+  if (configKey === "projects") {
+    const body = sanitizeLcProjectPayload(input || {});
+    return {
+      user: ownerId,
+      name: body.name || "New Project",
+      color: body.color || PB_DEFAULT_PROJECT_COLOR,
+      instructions: body.instructions || "",
+      memory: body.memory || "",
+      sort_order: body.sort_order ?? PB_DEFAULT_LC_PROJECT_SORT,
+    };
+  }
+  if (configKey === "sessions") {
+    const body = pickAllowedFields(input || {}, getLcCollectionConfig("sessions").writableFields);
+    return {
+      user: ownerId,
+      title: String(body.title || "New Chat").slice(0, 200),
+      provider: body.provider || "openai",
+      model: body.model || "gpt-4.1-mini",
+      ...(body.project && validPbId(body.project) ? { project: body.project } : {}),
+    };
+  }
+  if (configKey === "messages") {
+    const body = pickAllowedFields(input || {}, getLcCollectionConfig("messages").writableFields);
+    return {
+      session: body.session,
+      role: body.role,
+      content: clampPbMessageContent(body.content || ""),
+      file_ids: Array.isArray(body.file_ids) ? body.file_ids : [],
+    };
+  }
+  const config = getLcCollectionConfig(configKey);
+  const body = pickAllowedFields(input || {}, config.writableFields);
+  if (config.ownerField && ownerId) body[config.ownerField] = ownerId;
+  return body;
+}
+
+function buildUpdatePayload(configKey, { input }) {
+  if (configKey === "projects") return sanitizeLcProjectPayload(input || {});
+  if (configKey === "messages") {
+    const body = {};
+    if (typeof input?.content === "string") body.content = clampPbMessageContent(input.content);
+    if (Array.isArray(input?.file_ids)) body.file_ids = input.file_ids;
+    if (typeof input?.role === "string") body.role = input.role;
+    return body;
+  }
+  if (configKey === "sessions") {
+    const body = pickAllowedFields(input || {}, getLcCollectionConfig("sessions").writableFields);
+    if (typeof body.title === "string") body.title = body.title.slice(0, 200);
+    return body;
+  }
+  const config = getLcCollectionConfig(configKey);
+  return pickAllowedFields(input || {}, config.writableFields);
+}
+
+const DOMAIN_REMAP_HANDLERS = {
+  lc: {
+    projects: async ({ ownerId, token, sourceId, targetId }) => remapLcProjectReferences({ ownerId, token, sourceId, targetId }),
+  },
+};
+
 // GET /lc/auth/methods → return available auth methods (password + oauth providers)
 app.get("/lc/auth/methods", async (req, res) => {
   try {
@@ -5420,6 +5541,221 @@ app.get("/api/domains/:domain/:collection", requireDomainAuth, async (req, res) 
     });
     const d = await r.json();
     return res.status(r.status).json(d);
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// POST /api/domains/:domain/:collection → generic create endpoint
+app.post("/api/domains/:domain/:collection", requireDomainAuth, async (req, res) => {
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+
+    const payload = buildCreatePayload(configKey, { ownerId, input: req.body || {} });
+
+    if (configKey === "messages") {
+      if (!payload.session || !payload.role || !payload.content) {
+        return res.status(400).json({ error: "Missing required fields: session, role, content" });
+      }
+      await assertLcSessionOwned(payload.session, { ownerId, token });
+    }
+
+    const config = getLcCollectionConfig(configKey);
+    const r = await pbFetch(`/api/collections/${config.name}/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(r.status).json(d);
+    return res.status(r.status).json(d);
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// PATCH /api/domains/:domain/:collection/:id → generic update endpoint
+app.patch("/api/domains/:domain/:collection/:id", requireDomainAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+
+    await assertRecordOwned(configKey, { id: req.params.id, ownerId, token });
+    const payload = buildUpdatePayload(configKey, { input: req.body || {} });
+    if (!Object.keys(payload).length) return res.status(400).json({ error: "No updatable fields provided" });
+
+    const config = getLcCollectionConfig(configKey);
+    if (config.ownerField) delete payload[config.ownerField];
+    const r = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    return res.status(r.status).json(d);
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// DELETE /api/domains/:domain/:collection/:id → generic delete endpoint
+app.delete("/api/domains/:domain/:collection/:id", requireDomainAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+
+    await assertRecordOwned(configKey, { id: req.params.id, ownerId, token });
+
+    if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
+      const data = await softDeleteRecord(configKey, {
+        id: req.params.id,
+        token,
+        userId: ownerId,
+        reason: req.body?.reason || "user_deleted",
+      });
+      return res.json({ success: true, mode: "soft", data });
+    }
+
+    await assertNoBlockingReferences({
+      domainKey,
+      sourceCollectionKey: apiCollectionName,
+      ownerId,
+      token,
+      recordId: req.params.id,
+    });
+
+    const config = getLcCollectionConfig(configKey);
+    const r = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (r.status === 204 || r.ok) return res.json({ success: true });
+    const d = await r.json().catch(() => ({}));
+    return res.status(r.status).json(d);
+  } catch (e) {
+    const body = e.references ? { error: e.message, references: e.references } : { error: e.message };
+    return res.status(e.status || 502).json(body);
+  }
+});
+
+// GET /api/domains/:domain/:collection/:id/references → generic reference inspection
+app.get("/api/domains/:domain/:collection/:id/references", requireDomainAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+    await assertRecordOwned(configKey, { id: req.params.id, ownerId, token });
+
+    const references = await listReferencingRecords({
+      domainKey,
+      sourceCollectionKey: apiCollectionName,
+      ownerId,
+      token,
+      recordId: req.params.id,
+    });
+    return res.json({ id: req.params.id, deletePolicy: getDomainCollectionPolicy(domainKey, apiCollectionName).deletePolicy, references });
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// POST /api/domains/:domain/:collection/:id/remap → generic remap endpoint
+app.post("/api/domains/:domain/:collection/:id/remap", requireDomainAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+    await assertRecordOwned(configKey, { id: req.params.id, ownerId, token });
+
+    const targetId = req.body?.targetId || req.body?.target_project_id;
+    const deleteSource = !!(req.body?.deleteSource || req.body?.delete_source);
+    const handler = DOMAIN_REMAP_HANDLERS[domainKey]?.[apiCollectionName];
+    if (!handler) return res.status(501).json({ error: "Remap handler not implemented for this collection" });
+    const remap = await handler({ ownerId, token, sourceId: req.params.id, targetId });
+
+    let deleted = false;
+    if (deleteSource) {
+      await assertNoBlockingReferences({
+        domainKey,
+        sourceCollectionKey: apiCollectionName,
+        ownerId,
+        token,
+        recordId: req.params.id,
+      });
+      const config = getLcCollectionConfig(configKey);
+      const delResp = await pbFetch(`/api/collections/${config.name}/records/${req.params.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!delResp.ok && delResp.status !== 204) {
+        const delData = await delResp.json().catch(() => ({}));
+        return res.status(delResp.status).json({ error: pbErrorSummary(delData, "Delete failed after remap"), remap });
+      }
+      deleted = true;
+    }
+
+    return res.json({ success: true, remap, deleted });
+  } catch (e) {
+    return res.status(e.status || 502).json({ error: e.message });
+  }
+});
+
+// POST /api/domains/:domain/trash/:collection/:id/restore → generic restore endpoint
+app.post("/api/domains/:domain/trash/:collection/:id/restore", requireDomainAuth, async (req, res) => {
+  if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
+  if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled" });
+
+  const domainKey = String(req.domainKey || req.params.domain || "").toLowerCase();
+  const apiCollectionName = String(req.params.collection || "");
+  const resolved = resolveDomainCollectionConfig(domainKey, apiCollectionName);
+  if (!resolved) return res.status(404).json({ error: "Unknown domain collection" });
+
+  try {
+    const { configKey } = resolved;
+    const ownerId = req.domainAuth?.ownerId;
+    const token = req.domainAuth?.token;
+    if (!token) return res.status(401).json({ error: "Missing domain auth token" });
+    await assertRecordOwned(configKey, { id: req.params.id, ownerId, token });
+    const data = await restoreSoftDeletedRecord(configKey, { id: req.params.id, token });
+    return res.json({ success: true, data });
   } catch (e) {
     return res.status(e.status || 502).json({ error: e.message });
   }

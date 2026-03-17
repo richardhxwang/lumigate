@@ -192,6 +192,12 @@ Source of truth is `server.js`; list below mirrors current routes.
 |---|---|---|
 | GET | `/api/domains/:domain/schema` | Domain schema/capabilities |
 | GET | `/api/domains/:domain/:collection` | Generic list/filter/sort |
+| POST | `/api/domains/:domain/:collection` | Generic create |
+| PATCH | `/api/domains/:domain/:collection/:id` | Generic update |
+| DELETE | `/api/domains/:domain/:collection/:id` | Generic delete (soft/hard policy) |
+| GET | `/api/domains/:domain/:collection/:id/references` | Inspect FK-like dependencies |
+| POST | `/api/domains/:domain/:collection/:id/remap` | Remap dependencies (collection-specific) |
+| POST | `/api/domains/:domain/trash/:collection/:id/restore` | Restore soft-deleted record |
 
 Query contract for generic list:
 - `filter[field][op]=value` where `op` supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`
