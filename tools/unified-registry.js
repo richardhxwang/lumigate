@@ -296,7 +296,7 @@ class UnifiedRegistry {
 
     return [
       "You can generate files. Output: [TOOL:name]{json}[/TOOL]",
-      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template, web_search",
+      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template",
       "",
       "IMPORTANT: When creating financial models, reports, or presentations, FIRST check if a template exists:",
       '  [TOOL:use_template]{"category":"finance/dcf","template":"DCF Model","data":{"company":"华润啤酒","revenue":[36428,38932,38635]}}[/TOOL]',

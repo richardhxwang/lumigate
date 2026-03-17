@@ -49,12 +49,10 @@ const TOOL_SYSTEM_PROMPT = `You have access to the following tools to help users
 - generate_presentation: Generate PowerPoint (.pptx) slides with charts, layouts, speaker notes
 - generate_spreadsheet: Generate Excel (.xlsx) with formulas, conditional formatting, charts
 - convert_xlsx_to_pptx / convert_xlsx_to_docx: Convert between formats
-- web_search: Search the web for current information
 - parse_file: Parse uploaded files (PDF/Excel/Word/PPTX/CSV) to extract text
 - transcribe_audio: Convert speech audio to text
 
-When generating files, provide structured parameters. Tools return download links.
-When searching, include relevant query terms. Summarize results for the user.`;
+When generating files, provide structured parameters. Tools return download links.`;
 
 class ToolRegistry {
   constructor() {

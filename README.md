@@ -1,8 +1,8 @@
 # LumiGate
 
-**Self-hosted AI Agent Platform — 8 providers, tool execution, file generation, 224 templates, enterprise security, one command to deploy.**
+**Self-hosted AI Agent Platform — 8 providers, clean chat proxy, tool execution, file generation, 224 templates, enterprise security, one command to deploy.**
 
-LumiGate started as an AI API gateway and evolved into a full **Agent Platform**. It proxies 8 AI providers through a single endpoint, executes tools server-side (Excel/Word/PPT generation, web search, file parsing, vision, code sandbox), manages 224 professional financial templates, and ships with LumiChat — a production chat UI with SSE streaming, PocketBase auth, and multimodal input.
+LumiGate 从 AI API 网关发展为完整的 **Agent Platform**。通过统一的 `POST /v1/chat` 端点代理 8 家 AI 提供商，服务端自动执行工具（Excel/Word/PPT 生成、网页搜索、文件解析、图像识别、代码沙箱），内置 224 套专业金融模板。前端只收到干净文字 + 文件下载事件，不接触任何工具逻辑。附带 LumiChat — 生产级聊天 UI，支持 SSE 流式、PocketBase 认证、多模态输入。
 
 Runs on a NAS, mini PC, or any machine with Docker. ~37 MiB total memory.
 
@@ -25,7 +25,8 @@ docker run -d --name lumigate -p 9471:9471 -e ADMIN_SECRET=change-me -v "${PWD}/
 
 | Capability | Description |
 |------------|-------------|
-| **Tool Execution** | AI models output `[TOOL:name]{params}[/TOOL]` tags, server executes tools automatically. Works with ANY model — no native function calling required |
+| **Clean Chat Proxy** | `POST /v1/chat` — 统一端点，前端只收干净文字 + `event: file_download` + `event: tool_status`。所有工具处理在服务端完成 |
+| **Tool Execution** | AI 输出 `[TOOL:name]{params}[/TOOL]` 标记 → 服务端拦截执行 → 标记不会到达前端。兼容所有模型，不依赖 function calling |
 | **File Generation** | Generate real Excel (.xlsx with formulas), Word (.docx), PowerPoint (.pptx) files. Download directly from chat |
 | **224 Templates** | Professional finance templates (DCF, LBO, WACC, Black-Scholes, Goldman models) + business documents + presentations across 12 categories |
 | **Security Pipeline** | PII detection (20+ patterns + Ollama semantic), secret masking `[SEC_xxx]`, command guard (17 rules), SSRF protection |
@@ -37,17 +38,18 @@ docker run -d --name lumigate -p 9471:9471 -e ADMIN_SECRET=change-me -v "${PWD}/
 ## Architecture
 
 ```
-                         ┌──────────────────────────────────────────────┐
-                         │              LumiGate Server                 │
-┌──────────┐            ├──────────────────────────────────────────────┤
-│ LumiChat │──cookie──▶ │                                              │
-│  (Web)   │            │  Request ─▶ [Auth] ─▶ [PII Detect] ─▶       │
-├──────────┤            │           ─▶ [Rate Limit] ─▶ [AI Proxy]      │
-│ iOS App  │──HMAC────▶ │           ─▶ [Tool Execute] ─▶ Response      │
-├──────────┤            │                                              │
-│ Any App  │──Token───▶ │  Tools: Excel/Word/PPT │ Search │ Parse     │
-└──────────┘            │         Vision │ Code Sandbox │ MCP          │
-                         └───────┬──────────┬──────────┬───────────────┘
+                         ┌───────────────────────────────────────────────┐
+                         │              LumiGate Server                  │
+┌──────────┐            ├───────────────────────────────────────────────┤
+│ LumiChat │──cookie──▶ │                                               │
+│  (Web)   │            │  POST /v1/chat                                │
+├──────────┤            │    ↓ Auth ─▶ Pre-search ─▶ AI Proxy           │
+│ iOS App  │──HMAC────▶ │    ↓ Clean SSE Pipe (strip tool tags)         │
+├──────────┤            │    ↓ Tool Execute ─▶ file_download events      │
+│ Any App  │──Token───▶ │    ↓ Resume AI ─▶ clean text only             │
+└──────────┘            │                                               │
+                         │  前端只收: 干净文字 + tool_status + file_download │
+                         └───────┬──────────┬──────────┬────────────────┘
                                  │          │          │
                     ┌────────────┴──┐ ┌─────┴────┐ ┌──┴──────────┐
                     │ 8 AI Providers│ │ Doc-Gen  │ │ PocketBase  │
@@ -96,7 +98,7 @@ Server: detects tag → executes tool → generates .xlsx → sends download lin
 | `generate_document` | Word docs with sections, tables, TOC, headers/footers |
 | `generate_presentation` | PowerPoint with charts, tables, layouts, speaker notes |
 | `use_template` | Pick from 224 professional templates, fill with data |
-| `web_search` | SearXNG web search |
+| `web_search` | SearXNG 网页搜索（`/v1/chat` 自动检测搜索意图，也可 `web_search: true` 显式触发） |
 | `parse_file` | Extract text from PDF, XLSX, DOCX, PPTX, HTML, CSV |
 | `transcribe_audio` | Speech-to-text (Whisper) |
 | `vision_analyze` | Image analysis (Ollama vision models) |
@@ -121,18 +123,19 @@ Server: detects tag → executes tool → generates .xlsx → sends download lin
 
 ## LumiChat
 
-Full-featured chat UI built into LumiGate:
+内置的生产级聊天 UI，通过 `POST /v1/chat` 与后端通信。前端零工具逻辑 — 只处理干净文字、状态提示、文件下载三种事件。
 
-- **SSE streaming** with live markdown rendering and blinking cursor
-- **8-provider model switching** with search and tier-based access
-- **File attachments** — images, PDFs, documents (auto-parsed)
-- **Voice input** — microphone recording with Whisper transcription
-- **Tool downloads** — Excel/Word/PPT generated server-side, download cards in chat
-- **PocketBase auth** — email/password + Google OAuth, user tiers, admin approval
-- **Mobile responsive** — bottom-sheet model picker, safe area support, touch gestures
-- **Dark/Light mode** — macOS 26 / Apple HIG design language
-- **Presets** — 10 built-in system prompt templates, custom presets
-- **Sessions** — conversation history, search, auto-title
+- **Clean Proxy 架构** — 前端 ~60 行 SSE 读取器替代了原来 250+ 行的 agentic loop
+- **SSE 流式** — Text node 渲染 + 结束后 markdown，长回复不卡
+- **8 家 provider** — 模型搜索、tier 控制、BYOK
+- **文件附件** — 图片、PDF、文档（自动解析）
+- **语音输入** — 麦克风录制 + Whisper 转文字
+- **工具下载** — Excel/Word/PPT 服务端生成，聊天内下载卡片
+- **PocketBase 认证** — 邮箱密码 + Google OAuth，用户分级
+- **移动端适配** — bottom-sheet 选模型、安全区域、手势
+- **深色/浅色** — macOS 26 / Apple HIG 风格
+- **预设** — 10 个内置 system prompt 模板，自定义预设
+- **会话管理** — 历史、搜索、自动标题
 
 ## Security
 
@@ -208,9 +211,49 @@ lg restart         Rebuild & restart
 
 ## API Reference
 
-### Proxy
+### Clean Chat Proxy（推荐）
+
+所有 App 统一用这个端点。前端只处理 3 种 SSE 事件，不需要知道工具/搜索的存在。
+
 ```bash
-# All providers via single endpoint pattern
+curl -N -X POST http://localhost:9471/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-Project-Key: $KEY" \
+  -d '{
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "messages": [{"role": "user", "content": "生成Excel：季度销售表"}],
+    "stream": true
+  }'
+```
+
+**请求参数：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `provider` | string | 必填。openai / anthropic / gemini / deepseek / minimax / qwen / kimi / doubao |
+| `model` | string | 必填。模型 ID |
+| `messages` | array | 必填。OpenAI 格式 |
+| `stream` | bool | 推荐 true |
+| `web_search` | bool | 可选。true = 强制搜索，false = 禁止，不传 = 自动检测 |
+| `tools` | bool | 可选。默认 true，false = 不注入工具提示 |
+
+**SSE 响应（3 种事件）：**
+
+```
+data: {"choices":[{"delta":{"content":"文字"}}]}        # 干净文字，直接渲染
+event: tool_status
+data: {"text":"正在生成 Excel...","icon":"spreadsheet"}  # 状态提示（灰色小字）
+event: file_download
+data: {"filename":"报告.xlsx","size":8019,...}            # 文件下载卡
+data: [DONE]
+```
+
+**认证方式：** Project Key / HMAC / Ephemeral Token / LumiChat Cookie，全部支持。
+
+### Raw Proxy（直通代理）
+```bash
+# 直通上游 API，不做工具处理
 curl -X POST http://localhost:9471/v1/{provider}/v1/chat/completions \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"model":"gpt-4.1-nano","messages":[{"role":"user","content":"Hello"}]}'
@@ -218,15 +261,15 @@ curl -X POST http://localhost:9471/v1/{provider}/v1/chat/completions \
 
 ### Agent Platform
 ```bash
-# Execute any tool
+# 直接执行工具
 curl -X POST http://localhost:9471/v1/tools/execute \
   -H "X-Project-Key: $KEY" \
   -d '{"tool_name":"generate_spreadsheet","tool_input":{"title":"Model","sheets":[...]}}'
 
-# Parse file
+# 解析文件
 curl -X POST http://localhost:9471/v1/parse -F file=@document.pdf
 
-# Transcribe audio
+# 语音转文字
 curl -X POST http://localhost:9471/v1/audio/transcribe -F file=@recording.wav
 ```
 
@@ -262,12 +305,16 @@ curl -X POST http://localhost:9471/v1/audio/transcribe -F file=@recording.wav
 
 | Suite | Result |
 |-------|--------|
-| Provider connectivity (5 API providers) | 5/5 PASS |
-| File generation (XLSX, DOCX, PPTX, search, template) | 6/6 PASS |
-| Security (auth, SSRF, injection, shell) | 10/10 PASS |
-| Image upload + vision | PASS |
-| Voice input UI | PASS |
-| Playwright E2E (all providers) | 5/5 PASS |
+| `/v1/chat` 多 provider (DeepSeek, OpenAI, Gemini) | 3/3 PASS |
+| `/v1/chat` 搜索自动检测 (中文+英文) | PASS |
+| `/v1/chat` 文件生成 (Excel, Word) | PASS |
+| `/v1/chat` 工具标记剥离（无泄露） | PASS |
+| 安全：认证绕过 (无key/假key/HMAC/expired token) | 4/4 PASS |
+| 安全：注入 (路径遍历/shell/XSS/SSRF) | PASS |
+| 安全：model 白名单 + budget cap | PASS |
+| 安全：工具标记注入防护 | PASS |
+| 安全：速率限制 | PASS |
+| 公网 (lumigate.autorums.com) 端到端 | PASS |
 
 ## Contributing
 

@@ -5634,6 +5634,474 @@ app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" })
   }
 });
 
+// ── Clean Chat Proxy: POST /v1/chat ──────────────────────────────────────────
+// Universal endpoint — all apps (LumiChat, FurNote, etc.) get:
+//   1. Clean SSE text (no tool tags, no DSML, no XML)
+//   2. event: tool_status (grey status text, pre-formatted)
+//   3. event: file_download (download card data)
+// All tool handling happens server-side. Frontend is just a display.
+
+// --- Pre-search helpers ---
+function needsWebSearch(text) {
+  if (!text || text.length < 2) return false;
+  return [
+    /搜[索一下]|查[找一下询]|最新|今[天日]|新闻|天气|价格|股[价票]|汇率|实时/,
+    /search\s|look\s?up|find\s+me|latest\s|current\s|today.?s?\s|news\b|weather\b|price\b|stock\b/i,
+    /who is|what happened|when did|how much is|how many/i,
+  ].some(p => p.test(text));
+}
+
+function extractSearchQuery(text) {
+  return text
+    .replace(/^(搜索?|查[找询一下]*|帮我|请|search|look\s?up|find\s+me|what is|who is|tell me about)\s*/i, "")
+    .slice(0, 200).trim() || text.slice(0, 200);
+}
+
+async function executeWebSearchForChat(query) {
+  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&language=auto&safesearch=0`;
+  const r = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`SearXNG ${r.status}`);
+  const data = await r.json();
+  return (data.results || []).slice(0, 6).map(item => ({
+    title: item.title || "", url: item.url || "", content: (item.content || "").slice(0, 400),
+  }));
+}
+
+function formatSearchContext(results) {
+  if (!results.length) return "";
+  return "[Web Search Results]\n" + results.map((r, i) =>
+    `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content}`
+  ).join("\n\n");
+}
+
+// --- Provider URL/headers/body builders ---
+function getChatUrl(providerName, provider) {
+  const base = provider.baseUrl;
+  if (providerName === "anthropic") return `${base}/v1/messages`;
+  if (providerName === "gemini") return `${base}/v1beta/openai/chat/completions`;
+  if (providerName === "doubao") return `${base}/chat/completions`;
+  return `${base}/v1/chat/completions`;
+}
+
+function getChatHeaders(providerName, apiKey) {
+  if (providerName === "anthropic") {
+    return { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+  }
+  return { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+}
+
+function buildChatBody(providerName, model, messages, systemPrompt, stream) {
+  if (providerName === "anthropic") {
+    const sysMessages = messages.filter(m => m.role === "system");
+    const nonSysMessages = messages.filter(m => m.role !== "system");
+    let system = sysMessages.map(m => m.content).join("\n\n");
+    if (systemPrompt) system = system ? system + "\n\n" + systemPrompt : systemPrompt;
+    return {
+      model, max_tokens: 4096, stream,
+      system: system || undefined,
+      messages: nonSysMessages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
+    };
+  }
+  // OpenAI-compatible providers
+  const msgs = [...messages];
+  if (systemPrompt) {
+    const sysMsg = msgs.find(m => m.role === "system");
+    if (sysMsg) sysMsg.content = (sysMsg.content || "") + "\n\n" + systemPrompt;
+    else msgs.unshift({ role: "system", content: systemPrompt });
+  }
+  return { model, max_tokens: 4096, stream, messages: msgs, stream_options: stream ? { include_usage: true } : undefined };
+}
+
+// Tool tag markers for the clean SSE pipe
+const TOOL_TAG_MARKERS = [
+  "[TOOL:", "<｜DSML｜function_calls>", "<︱DSML︱function_calls>",
+  "<|DSML|function_calls>", "<minimax:tool_call>", "<tool_call>",
+];
+
+app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res) => {
+  const { provider: providerName, model: modelId, messages, stream: wantStream = true } = req.body || {};
+  if (!providerName || !modelId || !Array.isArray(messages) || !messages.length) {
+    return res.status(400).json({ error: "Missing required fields: provider, model, messages (array)" });
+  }
+  const provider = PROVIDERS[providerName?.toLowerCase()];
+  if (!provider) return res.status(400).json({ error: `Unknown provider: ${providerName}` });
+
+  // ── Auth: LumiChat cookie → admin session → project key/HMAC/token ──
+  let projectName, lcUserId;
+  const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
+  const lcCookies = parseCookies(req);
+  const lcToken = lcCookies.lc_token;
+
+  if (safeEqual(projectKey, INTERNAL_CHAT_KEY)) {
+    projectName = "_chat";
+  } else if (["root", "admin"].includes(getSessionRole(req))) {
+    projectName = "_chat";
+  } else if (!projectKey && lcToken) {
+    const lcPayload = validateLcTokenPayload(lcToken);
+    if (lcPayload) {
+      projectName = "_lumichat";
+      if (lcPayload.id) lcUserId = lcPayload.id;
+    }
+  }
+  if (!projectName && projectKey.startsWith("et_")) {
+    const tokenInfo = ephemeralTokens.get(projectKey);
+    if (!tokenInfo || Date.now() > tokenInfo.expiresAt) return res.status(401).json({ error: "Token expired or invalid" });
+    if (!tokenInfo.project.enabled) return res.status(403).json({ error: "Project disabled" });
+    projectName = tokenInfo.project.name;
+  } else if (req.headers["x-signature"]) {
+    const projId = req.headers["x-project-id"];
+    if (projId) {
+      const candidate = projects.find(p => p.enabled && p.name === projId && p.authMode === "hmac");
+      if (candidate) {
+        const hmacResult = verifyHmacSignature(candidate, req);
+        if (!hmacResult.ok) return res.status(401).json({ error: hmacResult.error });
+        projectName = candidate.name;
+      }
+    }
+    if (!projectName) return res.status(401).json({ error: "HMAC verification failed" });
+  } else {
+    const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
+    if (!proj) return res.status(401).json({ error: "Invalid or missing credentials" });
+    if (proj.authMode === "hmac") return res.status(403).json({ error: "This project requires HMAC signature authentication" });
+    projectName = proj.name;
+  }
+
+  // Resolve project object for policy checks
+  const proj = projects.find(p => p.name === projectName) || {};
+
+  // Per-project model allowlist (data may use either field name)
+  const modelAllowlist = proj.allowedModels || proj.modelAllowlist;
+  if (modelAllowlist?.length && !modelAllowlist.includes(modelId)) {
+    return res.status(403).json({ error: "Model not allowed for this project" });
+  }
+
+  // Per-project rate limit
+  if (proj.maxRpm) {
+    const rl = checkProjectRateLimit(proj, req);
+    if (!rl.ok) return res.status(429).json({ error: rl.reason === "ip" ? "Per-IP rate limit exceeded" : "Project rate limit exceeded" });
+  }
+
+  // Per-project budget enforcement
+  if (typeof checkBudgetReset === "function") checkBudgetReset(proj);
+  if (proj.maxBudgetUsd != null && (proj.budgetUsedUsd || 0) >= proj.maxBudgetUsd) {
+    return res.status(429).json({ error: "Project budget exceeded" });
+  }
+
+  // Resolve API key
+  const selectedKey = selectApiKey(providerName.toLowerCase(), projectName);
+  const apiKey = selectedKey?.apiKey || provider.apiKey;
+  if (!apiKey) return res.status(403).json({ error: "No API key configured for this provider" });
+
+  // ── Pre-search ──
+  let searchContext = "";
+  const userText = (() => {
+    const last = messages.filter(m => m.role === "user").pop();
+    if (!last) return "";
+    if (typeof last.content === "string") return last.content;
+    if (Array.isArray(last.content)) return last.content.filter(p => p.type === "text").map(p => p.text).join(" ");
+    return "";
+  })();
+
+  const doSearch = req.body.web_search === true || (req.body.web_search !== false && needsWebSearch(userText));
+  if (doSearch) {
+    try {
+      const query = extractSearchQuery(userText);
+      // Send early tool_status if streaming
+      if (wantStream) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `正在搜索: ${query}`, icon: "search" })}\n\n`);
+      }
+      const results = await executeWebSearchForChat(query);
+      searchContext = formatSearchContext(results);
+      if (wantStream && !res.writableEnded) {
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `搜索完成，找到 ${results.length} 条结果`, icon: "search", done: true })}\n\n`);
+      }
+    } catch (e) {
+      log("warn", "Pre-search failed", { error: e.message });
+    }
+  }
+
+  // ── Sanitize user messages: strip tool markers to prevent injection ──
+  // Users could inject [TOOL:xxx]{...}[/TOOL] in their messages to trick the AI
+  // into echoing them, causing server-side tool execution. Strip before sending.
+  for (const m of messages) {
+    if (m.role === "user" && typeof m.content === "string") {
+      m.content = m.content
+        .replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
+        .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
+        .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "");
+    }
+  }
+
+  // ── Build system prompt: search context + tool prompt ──
+  let injectedSystemPrompt = "";
+  if (searchContext) injectedSystemPrompt += searchContext + "\n\nUse the search results above to answer the user's question. Cite sources when possible.\n\n";
+  if (req.body.tools !== false) {
+    try {
+      const toolPrompt = unifiedRegistry.getSystemPrompt();
+      if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
+    } catch {}
+  }
+
+  // ── Build provider request ──
+  const chatUrl = getChatUrl(providerName.toLowerCase(), provider);
+  const headers = getChatHeaders(providerName.toLowerCase(), apiKey);
+  const body = buildChatBody(providerName.toLowerCase(), modelId, messages, injectedSystemPrompt.trim(), wantStream);
+
+  try {
+    const upstreamRes = await fetch(chatUrl, {
+      method: "POST", headers, body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!upstreamRes.ok) {
+      const errText = await upstreamRes.text();
+      const status = upstreamRes.status;
+      if (!res.headersSent) return res.status(status).json({ error: `Upstream ${status}: ${errText.slice(0, 200)}` });
+      return res.end();
+    }
+
+    // ── Non-streaming response ──
+    if (!wantStream) {
+      const data = await upstreamRes.json();
+      // Extract content, strip tool tags, execute tools
+      let content = "";
+      if (providerName.toLowerCase() === "anthropic") {
+        content = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      } else {
+        content = data.choices?.[0]?.message?.content || "";
+      }
+      const hasToolTags = TOOL_TAG_MARKERS.some(m => content.includes(m));
+      if (hasToolTags) {
+        let toolResults = [];
+        try {
+          toolResults = await executeTextToolCalls(content, lcUserId || projectName || "api");
+        } catch (e) { log("warn", "Non-stream tool execution failed", { error: e.message }); }
+        const cleanContent = content.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
+          .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "").trim();
+        return res.json({
+          choices: [{ message: { role: "assistant", content: cleanContent !== "" ? cleanContent : "已处理完成。" } }],
+          tool_results: toolResults.length ? toolResults : undefined,
+        });
+      }
+      return res.json({ choices: [{ message: { role: "assistant", content } }] });
+    }
+
+    // ── Streaming response — Clean SSE Pipe ──
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+    }
+
+    const reader = upstreamRes.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let fullText = "";       // all accumulated content
+    let sentLength = 0;      // how much of fullText has been sent to client
+    let toolTagStart = -1;   // index where tool tag begins (-1 = not found)
+    let sseEventType = "";
+    let streamUsage = null;
+
+    const isAnthropic = providerName.toLowerCase() === "anthropic";
+
+    // Send a clean text delta to the client
+    function sendDelta(text) {
+      if (!text || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+    }
+
+    // Process a content delta through the clean pipe
+    function pipeContent(delta) {
+      fullText += delta;
+      if (toolTagStart >= 0) return; // already in tool tag, just accumulate
+
+      // Check if fullText now contains a tool tag marker
+      const scanFrom = Math.max(0, sentLength - 30);
+      for (const marker of TOOL_TAG_MARKERS) {
+        const idx = fullText.indexOf(marker, scanFrom);
+        if (idx !== -1) {
+          toolTagStart = idx;
+          // Send any clean content before the tag
+          if (idx > sentLength) { sendDelta(fullText.slice(sentLength, idx)); sentLength = idx; }
+          // Send initial tool_status — will be updated when tag is fully received
+          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: "正在处理...", icon: "file" })}\n\n`);
+          return;
+        }
+      }
+
+      // No tool tag found — forward safe content (hold back last 30 chars for partial match safety)
+      const safeEnd = fullText.length - 30;
+      if (safeEnd > sentLength) {
+        sendDelta(fullText.slice(sentLength, safeEnd));
+        sentLength = safeEnd;
+      }
+    }
+
+    // ── Read upstream SSE stream ──
+    try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("event: ")) { sseEventType = line.slice(7).trim(); continue; }
+        if (!line.startsWith("data: ")) { if (line === "") sseEventType = ""; continue; }
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+
+        try {
+          const j = JSON.parse(data);
+          if (isAnthropic) {
+            // Anthropic SSE: content_block_delta → text_delta
+            if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
+              pipeContent(j.delta.text || "");
+            } else if (j.type === "message_delta" && j.usage) {
+              streamUsage = { prompt_tokens: j.usage.input_tokens || 0, completion_tokens: j.usage.output_tokens || 0 };
+            }
+          } else {
+            // OpenAI-compatible SSE
+            if (j.usage) streamUsage = j.usage;
+            const choice = j.choices?.[0];
+            if (!choice) continue;
+            const delta = choice.delta?.content || "";
+            if (delta) pipeContent(delta);
+          }
+        } catch {}
+        sseEventType = "";
+      }
+    }
+    } catch (readErr) {
+      // Stream read error (upstream closed connection, abort, etc.) — continue with what we have
+      log("warn", "Stream read interrupted", { provider: providerName, error: readErr.message, textLen: fullText.length });
+    }
+
+    // ── Stream ended — flush remaining content and handle tools ──
+    if (toolTagStart >= 0) {
+      // Tool tags detected — send updated status with actual tool name, then execute
+      const tagContent = fullText.slice(toolTagStart);
+      let detectedToolName = "tool";
+      const tnMatch = tagContent.match(/\[TOOL:(\w+)\]/) || tagContent.match(/invoke\s+name="(\w+)"/);
+      if (tnMatch) detectedToolName = tnMatch[1];
+      const TOOL_LABELS = { web_search: "搜索", generate_spreadsheet: "生成 Excel", generate_document: "生成文档", generate_presentation: "生成 PPT", use_template: "使用模板" };
+      const detectedLabel = TOOL_LABELS[detectedToolName] || detectedToolName.replace(/_/g, " ");
+      let detectedQuery = "";
+      const dqMatch = tagContent.match(/"(?:query|title|filename)"\s*:\s*"([^"]*)"/);
+      if (dqMatch) detectedQuery = dqMatch[1];
+      const detectedIcon = detectedToolName.includes("search") ? "search" : detectedToolName.includes("spread") ? "spreadsheet" : "file";
+      const statusText = detectedQuery ? `正在${detectedLabel}: ${detectedQuery}` : `正在${detectedLabel}...`;
+      if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: statusText, icon: detectedIcon })}\n\n`);
+
+      log("info", "Clean pipe: tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
+      const toolResults = await executeTextToolCalls(fullText, lcUserId || projectName || "api").catch(e => {
+        log("error", "Tool execution failed in clean pipe", { error: e.message });
+        return [];
+      });
+
+      // If no file results, mark generic tool as done
+      if (toolResults.length === 0 && !res.writableEnded) {
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel}完成`, icon: detectedIcon, done: true })}\n\n`);
+      }
+
+      // Send file_download events
+      for (const tr of toolResults) {
+        if (tr.downloadUrl || tr.base64 || tr.filename) {
+          if (!res.writableEnded) {
+            res.write(`event: file_download\ndata: ${JSON.stringify({
+              filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
+              downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
+            })}\n\n`);
+          }
+          // Mark tool as done
+          const icon = tr.tool?.includes("spread") ? "spreadsheet" : tr.tool?.includes("present") ? "presentation" : "file";
+          const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
+          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${tr.filename} 已生成 (${sizeStr})`, icon, done: true })}\n\n`);
+        }
+      }
+
+      // Second-round AI call: summarize tool results
+      if (toolResults.length > 0 && !res.writableEnded) {
+        try {
+          const cleanAssistantText = fullText.slice(0, toolTagStart).trim();
+          const toolSummaries = toolResults.map(tr => {
+            if (tr.filename) return `[File generated: ${tr.filename} (${tr.size} bytes)]`;
+            if (tr.html) return tr.html.replace(/<[^>]*>/g, "").slice(0, 500);
+            if (tr.data?.results) return tr.data.results.slice(0, 5).map(r => `${r.title}: ${r.content || ""}`).join("\n");
+            return JSON.stringify(tr.data || {}).slice(0, 300);
+          }).join("\n\n");
+
+          const followUpMessages = [
+            ...messages,
+            { role: "assistant", content: cleanAssistantText || "I executed the requested tools." },
+            { role: "user", content: `Tool execution results:\n${toolSummaries}\n\nPlease summarize the results for the user in a helpful way. If files were generated, briefly describe what's in them. Respond naturally in the same language as the user's original question.` },
+          ];
+          const followUpBody = buildChatBody(providerName.toLowerCase(), modelId, followUpMessages, "", true);
+          const followUpRes = await fetch(chatUrl, {
+            method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000),
+          });
+
+          if (followUpRes.ok && followUpRes.body) {
+            const fReader = followUpRes.body.getReader();
+            const fDec = new TextDecoder();
+            let fBuf = "";
+            while (true) {
+              const { done: fDone, value: fVal } = await fReader.read();
+              if (fDone) break;
+              fBuf += fDec.decode(fVal, { stream: true });
+              const fLines = fBuf.split("\n");
+              fBuf = fLines.pop() || "";
+              for (const fl of fLines) {
+                if (!fl.startsWith("data: ")) continue;
+                const fd = fl.slice(6).trim();
+                if (fd === "[DONE]") continue;
+                try {
+                  const fj = JSON.parse(fd);
+                  if (isAnthropic) {
+                    if (fj.type === "content_block_delta" && fj.delta?.type === "text_delta") sendDelta(fj.delta.text || "");
+                  } else {
+                    const c = fj.choices?.[0]?.delta?.content;
+                    if (c) sendDelta(c);
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch (e) {
+          log("warn", "Follow-up AI call failed in clean pipe", { error: e.message });
+        }
+      }
+    } else {
+      // No tool tags — flush remaining held content
+      if (sentLength < fullText.length) sendDelta(fullText.slice(sentLength));
+    }
+
+    // Usage tracking
+    try {
+      if (streamUsage) {
+        const tokens = { input: streamUsage.prompt_tokens || 0, cacheHit: 0, output: streamUsage.completion_tokens || 0 };
+        recordUsage(projectName, providerName.toLowerCase(), modelId, tokens);
+      }
+    } catch {}
+
+    if (!res.writableEnded) res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err) {
+    log("error", "Clean chat proxy error", { provider: providerName, error: err.message });
+    if (!res.headersSent) res.status(502).json({ error: "Chat proxy error" });
+    else if (!res.writableEnded) res.end();
+  }
+});
+
 // --- LumiChat: User tier & BYOK API key management ---
 app.get("/lc/user/tier", requireLcAuth, async (req, res) => {
   try {

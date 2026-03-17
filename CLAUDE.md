@@ -44,7 +44,18 @@ curl http://localhost:9471/health
 - Use `safeEqual()` for secret comparison; do not replace with plain equality.
 - Keep 10MB body limit unless there is a scoped and tested reason to change it.
 
+## Clean Chat Proxy: POST /v1/chat
+统一端点，所有 App（LumiChat、FurNote、未来 App）都用。前端只收 3 种 SSE 事件：
+- `data:` — 干净文字（无工具标记）
+- `event: tool_status` — 灰色状态提示（后端控制显示内容）
+- `event: file_download` — 文件下载卡数据
+
+流程：Auth → Pre-search(自动检测) → AI Proxy → Clean SSE Pipe(剥离标记) → Tool Execute → file_download → Resume AI → 干净文字
+
+用户消息里的 `[TOOL:]` 标记会被清除（防注入）。
+
 ## Agent Platform API endpoints
+- `POST /v1/chat` — **Clean Chat Proxy**（推荐所有 App 使用）
 - `POST /v1/parse` — Upload file (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) → extracted text
 - `POST /v1/audio/transcribe` — Upload audio → text (whisper.cpp)
 - `POST /v1/audio/transcriptions` — OpenAI-compatible transcription

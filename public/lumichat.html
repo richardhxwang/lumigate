@@ -814,9 +814,6 @@
             <button id="mic-btn" data-t-title="input.voice" title="Voice input">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
             </button>
-            <button class="tb" id="web-search-btn" data-t-title="input.search" title="Web search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-            </button>
           </div>
           <button id="stop-btn" style="display:none" data-t-title="input.interrupt" title="Interrupt (Esc)">
             <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
@@ -1414,28 +1411,7 @@ function applyLang(){
 let currentUser = null, sessions = [], messages = [], currentSid = null;
 let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 
-// ── WEB SEARCH TOOL ───────────────────────────────────────────────────────
-const TOOL_PROVIDERS = new Set(['openai','deepseek','qwen','kimi','doubao','anthropic','minimax','gemini']);
-const SEARCH_TOOL = {
-  type:'function',
-  function:{
-    name:'web_search',
-    description:'Search the web for current news, real-time information, recent events, and factual data. Use this when you need up-to-date information that may be beyond your training cutoff.',
-    parameters:{type:'object',properties:{query:{type:'string',description:'Search query — use the most effective language and keywords for the topic'}},required:['query']}
-  }
-};
-async function execSearchTool(args){
-  try{
-    const q=(args.query||'').trim(); if(!q) return 'Empty query.';
-    const r=await apiFetch(`/lc/search?q=${encodeURIComponent(q)}`);
-    const d=await r.json();
-    if(d.error) return `Search error: ${d.error}`;
-    if(!d.results?.length) return `No results found for: ${q}`;
-    return `Search results for "${q}":\n\n`+d.results.map((r,i)=>`[${i+1}] ${r.title}\nURL: ${r.url}\n${r.content||''}`).join('\n\n');
-  }catch(e){ return `Search failed: ${e.message}`; }
-}
 let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = null;
-let webSearchEnabled = false;
 let providersData = [], modelsData = {};
 let _tierData = null; // { tier, rpm, providers: [{ name, access, keyUrl }] }
 let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null;
@@ -2244,19 +2220,6 @@ async function sendMessage(){
     // Prepend global memory + active preset as system message
     const sysPr = getActiveSystemPrompt();
     if(sysPr) aiMsgs.unshift({role:'system',content:sysPr});
-    const payload={model:selectedModel,messages:aiMsgs,stream:true};
-    if(!useNative){
-      if(O_SERIES.has(selectedModel)) payload.max_completion_tokens=4096;
-      else payload.max_tokens=4096;
-      payload.stream_options={include_usage:true};
-    }
-    // Tools are injected server-side by the proxy middleware (unified registry).
-    // Only add client-side search tool if web search is explicitly enabled AND
-    // server-side tools aren't available (e.g. direct Gemini native path).
-    if(webSearchEnabled && !useNative && TOOL_PROVIDERS.has(selectedProvider)){
-      // Search tool is added client-side as a supplement; server adds doc-gen, parse, etc.
-      payload.tools=[SEARCH_TOOL]; payload.tool_choice='auto';
-    }
 
     // Keep typRow visible until first chunk arrives
     const aRow=appendMsg('assistant','');
@@ -2266,284 +2229,126 @@ async function sendMessage(){
     streamEl=aEl; streamText=''; pendingDelta='';
 
     abortCtrl=new AbortController();
-    const endpoint=useNative?'/lc/chat/gemini-native':`/v1/${selectedProvider}/v1/chat/completions`;
 
-    // ── Agentic loop: stream → handle tool_calls → stream final response ──
-    const loopMsgs=[...aiMsgs]; // grows with tool results
-    let streamUsage=null;
-    for(let toolRound=0;toolRound<4;toolRound++){
-      const loopPayload={...payload,messages:loopMsgs};
-      // On final (non-first) rounds, never add tools to avoid loops
-      if(toolRound>0){ delete loopPayload.tools; delete loopPayload.tool_choice; }
+    // Use Gemini native endpoint for file_data parts, otherwise clean /v1/chat
+    const endpoint=useNative?'/lc/chat/gemini-native':'/v1/chat';
+    const payload=useNative
+      ? {model:selectedModel,messages:aiMsgs,stream:true}
+      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true};
 
-      const res=await fetch(endpoint,{
-        method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
-        body:JSON.stringify(loopPayload),signal:abortCtrl.signal,
-      });
+    const res=await fetch(endpoint,{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      body:JSON.stringify(payload),signal:abortCtrl.signal,
+    });
 
-      if(!res.ok){
-        const err=await res.text(); let msg; try{msg=JSON.parse(err).error?.message||JSON.parse(err).error||err;}catch{msg=err;}
-        $('typ-row')?.remove(); aRow.remove();
-        // Translate common API errors to Chinese
-        if(res.status===429) msg=t('error.rate_limit');
-        else if(res.status===401) msg=t('error.auth_failed');
-        else if(res.status===502||res.status===503) msg=t('error.service_unavailable');
-        else if(res.status===500) msg=t('error.server_error');
-        else if(/rate.?limit|too many/i.test(msg)) msg=t('error.rate_limit');
-        else if(/timeout|timed.?out/i.test(msg)) msg=t('error.timeout');
-        else if(msg.length>100) msg=t('chat.request_failed')+': '+msg.slice(0,80)+'…';
-        toast(msg);
-        messages.pop();
-        try{ await apiJSON(`/lc/messages/${userMsg.id}`,{method:'DELETE'}); }catch{}
-        return;
-      }
-
-      // Stream and accumulate — detect tool_calls in parallel
-      const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
-      const accToolCalls={}; // index → {id,name,args}
-      let finishReason='';
-      let sseEventType=''; // track SSE event: field
-      while(true){
-        const{done,value}=await reader.read(); if(done) break;
-        buf+=dec.decode(value,{stream:true});
-        const lines=buf.split('\n'); buf=lines.pop()||'';
-        for(const line of lines){
-          // Track SSE event type (comes before data line)
-          if(line.startsWith('event: ')){ sseEventType=line.slice(7).trim(); continue; }
-          if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
-          const data=line.slice(6).trim(); if(data==='[DONE]') continue;
-          // Handle security_notice event
-          if(sseEventType==='security_notice'){
-            try{ const sn=JSON.parse(data); showSecurityNotice(sn.message); }catch{}
-            sseEventType=''; continue;
-          }
-          if(sseEventType==='tool_result'){
-            try{
-              const tr=JSON.parse(data);
-              if(streamEl){
-                // Render markdown with tool tags stripped (only once on first tool_result)
-                if(!streamEl._toolResultRendered && streamText){
-                  streamEl._toolResultRendered=true;
-                  streamEl.classList.remove('streaming-active');
-                  const cleanText=streamText.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'').trim();
-                  if(cleanText){ streamEl.textContent=''; renderMarkdown(streamEl,cleanText); }
-                  else { streamEl.textContent=''; }
-                }
-                if(tr.downloadUrl||tr.base64||tr.filename){
-                  // File download card
-                  const fn=tr.filename||'file';
-                  const mime=tr.mimeType||'application/octet-stream';
-                  const size=tr.size?(tr.size>1048576?((tr.size/1048576).toFixed(1)+' MB'):((tr.size/1024).toFixed(1)+' KB')):'';
-                  let dlUrl=tr.downloadUrl||'';
-                  if(!dlUrl&&tr.base64){
-                    const bin=atob(tr.base64);const arr=new Uint8Array(bin.length);
-                    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-                    dlUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
-                  }
-                  const card=document.createElement('div');
-                  card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:12px';
-                  card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
-                    <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
-                  streamEl.appendChild(card);
-                } else {
-                  // Non-file tool result: don't show raw data
-                  // The follow-up AI call will stream a natural language summary
-                }
-                // Show the row if hidden
-                if(streamRow) streamRow.style.display='';
-                const tRow=$('typ-row'); if(tRow) tRow.remove();
-              }
-            }catch{}
-            sseEventType=''; continue;
-          }
-          sseEventType='';
-          try{
-            const j=JSON.parse(data);
-            if(j.usage) streamUsage=j.usage;
-            const choice=j.choices?.[0];
-            if(!choice) continue;
-            if(choice.finish_reason) finishReason=choice.finish_reason;
-            // Accumulate tool_call argument chunks
-            const tcDeltas=choice.delta?.tool_calls;
-            if(tcDeltas){
-              for(const tc of tcDeltas){
-                const idx=tc.index??0;
-                if(!accToolCalls[idx]) accToolCalls[idx]={id:'',name:'',args:''};
-                if(tc.id) accToolCalls[idx].id=tc.id;
-                if(tc.function?.name) accToolCalls[idx].name=tc.function.name;
-                if(tc.function?.arguments) accToolCalls[idx].args+=tc.function.arguments;
-              }
-            }
-            // Stream content to user
-            const delta=choice.delta?.content||'';
-            if(delta){
-              streamText+=delta; pendingDelta+=delta;
-              if(!rafId){
-                rafId=requestAnimationFrame(()=>{
-                  rafId=null;
-                  if(streamEl&&pendingDelta){
-                    pendingDelta='';
-                    const tRow=$('typ-row');
-                    if(tRow) tRow.remove();
-                    if(streamRow) streamRow.style.display='';
-                    // Check if tool tags are being streamed — show indicator immediately
-                    const toolTagMatch=streamText.match(/\[TOOL:(\w+)\]\s*\{[^}]*?"query"\s*:\s*"([^"]*)/);
-                    const dsmlMatch=streamText.match(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/);
-                    const xmlToolMatch=streamText.match(/<(?:minimax:)?tool_call>/);
-                    if(toolTagMatch||dsmlMatch||xmlToolMatch){
-                      // Parse tool name and query for indicator
-                      let tName='web_search',tQuery='';
-                      if(toolTagMatch){ tName=toolTagMatch[1]; tQuery=toolTagMatch[2]||''; }
-                      else {
-                        const nameM=streamText.match(/invoke\s+name="(\w+)"/);
-                        if(nameM) tName=nameM[1];
-                        const qM=streamText.match(/name="query"[^>]*>([^<]*)/);
-                        if(qM) tQuery=qM[1];
-                      }
-                      const TOOL_ICONS_RAF={
-                        web_search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
-                        generate_document:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-                      };
-                      const icon=TOOL_ICONS_RAF[tName]||TOOL_ICONS_RAF.web_search;
-                      const label=tQuery||tName.replace(/_/g,' ');
-                      // Show clean text before the tag + tool indicator
-                      const cleanBefore=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').trim();
-                      let html='';
-                      if(cleanBefore) html+=DOMPurify.sanitize(marked.parse(cleanBefore),{ADD_ATTR:['onclick'],FORCE_BODY:true});
-                      html+=`<span style="color:var(--t3);font-size:13px;display:block;margin-top:${cleanBefore?'8':'0'}px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">${icon}</svg> ${esc(tName.replace(/_/g,' '))}: <em>${esc(label)}</em>…</span>`;
-                      streamEl.innerHTML=html;
-                      streamEl.classList.remove('streaming-active'); // no cursor on tool indicator
-                    } else {
-                      // Normal streaming — render markdown with tool markup stripped
-                      const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
-                      streamEl.innerHTML=DOMPurify.sanitize(marked.parse(displayText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
-                      streamEl.classList.add('streaming-active');
-                    }
-                    const{scrollHeight,clientHeight,scrollTop}=chatEl;
-                    if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
-                  }
-                });
-              }
-            }
-          }catch{}
-        }
-      }
-      if(rafId){cancelAnimationFrame(rafId);rafId=null;}
-      // Flush any pending delta — content first, then swap visibility
-      if(pendingDelta&&streamEl){
-        pendingDelta='';
-        const tRow=$('typ-row');
-        if(tRow) tRow.remove();
-        if(streamRow) streamRow.style.display='';
-        const flushText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
-        streamEl.innerHTML=DOMPurify.sanitize(marked.parse(flushText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
-        streamEl.classList.remove('streaming-active');
-      }
-
-      // ── Tool call detected ──────────────────────────────────────────────
-      if(finishReason==='tool_calls' && Object.keys(accToolCalls).length){
-        // Build assistant tool_calls message
-        const tcList=Object.values(accToolCalls).map(tc=>({
-          id:tc.id||('call_'+Math.random().toString(36).slice(2)),
-          type:'function',
-          function:{name:tc.name,arguments:tc.args}
-        }));
-        loopMsgs.push({role:'assistant',content:null,tool_calls:tcList});
-
-        // Execute each tool call via server-side unified registry
-        $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
-        for(const tc of tcList){
-          let args={}; try{args=JSON.parse(tc.function.arguments||'{}');}catch{}
-          const toolName=tc.function.name;
-          // Show tool execution indicator
-          const TOOL_ICONS={
-            web_search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
-            generate_document:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-            generate_spreadsheet:'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>',
-            generate_presentation:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
-            parse_file:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-            transcribe_audio:'<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/>',
-            vision_analyze:'<circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>',
-            code_run:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
-          };
-          const icon=TOOL_ICONS[toolName]||TOOL_ICONS.web_search;
-          const label=args.query||args.title||args.filename||toolName.replace(/_/g,' ');
-          streamEl.innerHTML=`<span style="color:var(--t3);font-size:13px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">${icon}</svg> ${esc(toolName.replace(/_/g,' '))}: <em>${esc(label)}</em>…</span>`;
-          let result;
-          if(toolName==='web_search'){
-            result=await execSearchTool(args);
-          } else {
-            // Execute via server-side unified tool registry
-            try{
-              const r=await fetch('/v1/tools/execute',{
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                credentials:'same-origin',
-                body:JSON.stringify({tool_name:toolName,tool_input:args}),
-              });
-              const d=await r.json();
-              if(d.ok){
-                // If tool generated a downloadable file, show download card in chat
-                if(d.data?.downloadUrl || d.data?.base64){
-                  const fn=d.data.filename||'file';
-                  const size=d.data.size?(d.data.size>1024*1024?((d.data.size/1024/1024).toFixed(1)+'MB'):((d.data.size/1024).toFixed(1)+'KB')):'';
-                  const mime=d.data.mimeType||'application/octet-stream';
-                  // Create download URL — PocketBase URL or base64 blob
-                  let dlUrl=d.data.downloadUrl||'';
-                  if(!dlUrl && d.data.base64){
-                    const bin=atob(d.data.base64); const arr=new Uint8Array(bin.length);
-                    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-                    dlUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
-                  }
-                  // Append download card to the stream element
-                  const card=document.createElement('div');
-                  card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
-                  card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${size}</div></div>
-                    <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
-                  streamEl.appendChild(card);
-                }
-                result=JSON.stringify(d.data);
-              } else {
-                result=`Tool error: ${d.error||'Unknown error'}`;
-              }
-            }catch(e){ result=`Tool execution failed: ${e.message}`; }
-          }
-          loopMsgs.push({role:'tool',tool_call_id:tc.id,content:typeof result==='string'?result:JSON.stringify(result)});
-        }
-        // Reset for next round — clear streaming state but keep the row
-        streamText=''; pendingDelta=''; streamEl.textContent='';
-        streamEl.classList.remove('streaming-active');
-        streamRow.style.display='none'; // hide until first content of final response
-        // Show typing dots while waiting for next AI response
-        const typRow2=document.createElement('div'); typRow2.className='msg-row assistant'; typRow2.id='typ-row';
-        const typBub2=document.createElement('div'); typBub2.className='typing';
-        const dotsWrap2=document.createElement('div'); dotsWrap2.className='typing-dots';
-        for(let di=0;di<3;di++){const d=document.createElement('div');d.className='tdot';dotsWrap2.appendChild(d);}
-        typBub2.appendChild(dotsWrap2); typRow2.appendChild(typBub2); chatEl.appendChild(typRow2); scrollBot(false);
-        continue; // next loop iteration = final response
-      }
-
-      // ── Normal stop ─────────────────────────────────────────────────────
-      break;
+    if(!res.ok){
+      const err=await res.text(); let msg; try{msg=JSON.parse(err).error?.message||JSON.parse(err).error||err;}catch{msg=err;}
+      $('typ-row')?.remove(); aRow.remove();
+      if(res.status===429) msg=t('error.rate_limit');
+      else if(res.status===401) msg=t('error.auth_failed');
+      else if(res.status===502||res.status===503) msg=t('error.service_unavailable');
+      else if(res.status===500) msg=t('error.server_error');
+      else if(/rate.?limit|too many/i.test(msg)) msg=t('error.rate_limit');
+      else if(/timeout|timed.?out/i.test(msg)) msg=t('error.timeout');
+      else if(msg.length>100) msg=t('chat.request_failed')+': '+msg.slice(0,80)+'…';
+      toast(msg);
+      messages.pop();
+      try{ await apiJSON(`/lc/messages/${userMsg.id}`,{method:'DELETE'}); }catch{}
+      return;
     }
 
+    // ── Clean SSE reader — only 3 event types from /v1/chat ──
+    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
+    let sseEventType='';
+    let streamUsage=null;
+    // Tool status indicator element (reused across events)
+    let statusEl=null;
+
+    while(true){
+      const{done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n'); buf=lines.pop()||'';
+      for(const line of lines){
+        if(line.startsWith('event: ')){ sseEventType=line.slice(7).trim(); continue; }
+        if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
+        const data=line.slice(6).trim(); if(data==='[DONE]') continue;
+
+        // 1. tool_status — grey status text from server
+        if(sseEventType==='tool_status'){
+          try{
+            const st=JSON.parse(data);
+            if(!statusEl){
+              statusEl=document.createElement('div');
+              statusEl.style.cssText='color:var(--t3);font-size:13px;padding:4px 0;display:flex;align-items:center;gap:6px';
+              if(streamEl) streamEl.appendChild(statusEl);
+              if(streamRow) streamRow.style.display='';
+              $('typ-row')?.remove();
+            }
+            if(st.done){ statusEl.style.display='none'; statusEl=null; }
+            else { statusEl.textContent=st.text; }
+          }catch{}
+          sseEventType=''; continue;
+        }
+
+        // 2. file_download — download card from server
+        if(sseEventType==='file_download'){
+          try{
+            const fd=JSON.parse(data);
+            if(streamEl){
+              if(streamRow) streamRow.style.display='';
+              $('typ-row')?.remove();
+              const fn=fd.filename||'file';
+              const size=fd.size?(fd.size>1048576?((fd.size/1048576).toFixed(1)+' MB'):((fd.size/1024).toFixed(1)+' KB')):'';
+              let dlUrl=fd.downloadUrl||'';
+              if(!dlUrl&&fd.base64){
+                const bin=atob(fd.base64);const arr=new Uint8Array(bin.length);
+                for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                dlUrl=URL.createObjectURL(new Blob([arr],{type:fd.mimeType||'application/octet-stream'}));
+              }
+              const card=document.createElement('div');
+              card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
+              card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
+                <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+              streamEl.appendChild(card);
+            }
+          }catch{}
+          sseEventType=''; continue;
+        }
+
+        // 3. Normal data — clean text from server
+        sseEventType='';
+        try{
+          const j=JSON.parse(data);
+          if(j.usage) streamUsage=j.usage;
+          const delta=j.choices?.[0]?.delta?.content||'';
+          if(delta){
+            streamText+=delta; pendingDelta+=delta;
+            if(!rafId){
+              rafId=requestAnimationFrame(()=>{
+                rafId=null;
+                if(streamEl&&pendingDelta){
+                  pendingDelta='';
+                  $('typ-row')?.remove();
+                  if(streamRow) streamRow.style.display='';
+                  streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
+                  streamEl.classList.add('streaming-active');
+                  const{scrollHeight,clientHeight,scrollTop}=chatEl;
+                  if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+                }
+              });
+            }
+          }
+        }catch{}
+      }
+    }
+    if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+
+    // Final render
     $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
-    if(streamEl&&streamText&&!streamEl._toolResultRendered){
-      // Strip [TOOL:...]...[/TOOL] tags from displayed text (server handles execution)
+    if(streamEl&&streamText){
       streamEl.classList.remove('streaming-active');
-      // Strip tool tags AND XML function call markup (MiniMax etc.)
-      let cleanText=streamText
-        .replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g,'')
-        .replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/g,'')
-        .replace(/<tool_call>[\s\S]*?<\/tool_call>/g,'')
-        .replace(/<\/?invoke[^>]*>/g,'')
-        .replace(/<\/?parameter[^>]*>/g,'')
-        .replace(/<function_call>[\s\S]*?<\/function_call>/g,'')
-        .replace(/<\/?[^<]*?DSML[^>]*>/g,'')
-        .trim();
-      streamEl.textContent=''; renderMarkdown(streamEl,cleanText||streamText);
+      streamEl.textContent=''; renderMarkdown(streamEl,streamText);
     }
     // Token/cost footer
     if(streamEl&&streamUsage){
@@ -3903,12 +3708,6 @@ $('stg-logout').addEventListener('click',async()=>{
   try{ await apiJSON('/lc/auth/logout',{method:'POST'}); }catch{}
   currentUser=null; sessions=[]; messages=[]; currentSid=null;
   showAuth();
-});
-
-// ── Web search toggle ─────────────────────────────────────────────────────
-$('web-search-btn').addEventListener('click',()=>{
-  webSearchEnabled=!webSearchEnabled;
-  $('web-search-btn').classList.toggle('tb-active', webSearchEnabled);
 });
 
 // Apply saved theme / compact on load
