@@ -5083,6 +5083,70 @@ app.get("/lc/models/:provider", requireLcAuth, (req, res) => {
   res.json(MODELS[name] || []);
 });
 
+// ── Collector re-login for LumiChat users ─────────────────────────────────
+// Trigger login, poll status, get VNC URL — no admin required
+app.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => {
+  const name = req.params.provider.toLowerCase();
+  if (!COLLECTOR_LOGIN_SITES[name]) return res.status(400).json({ error: "Unsupported provider" });
+  if (_loginState.active) return res.status(409).json({ error: `Login in progress for ${_loginState.provider}` });
+  // Reuse the same logic as admin login
+  const site = COLLECTOR_LOGIN_SITES[name];
+  const cdpPort = process.env.CDP_PORT || 9223;
+  const cdpHost = process.env.CDP_HOST || 'localhost';
+  try {
+    const { chromium } = require('playwright-core');
+    let wsUrl;
+    try {
+      const r = await fetch(`http://${cdpHost}:${cdpPort}/json/version`, { signal: AbortSignal.timeout(2000) });
+      wsUrl = (await r.json()).webSocketDebuggerUrl;
+      if (cdpHost !== 'localhost') wsUrl = wsUrl.replace('localhost', cdpHost).replace('127.0.0.1', cdpHost);
+    } catch { return res.status(500).json({ error: "Chrome not running" }); }
+    const browser = await chromium.connectOverCDP(wsUrl);
+    const ctx = browser.contexts()[0];
+    // Check already logged in
+    const existing = await ctx.cookies([site.url]);
+    if (existing.find(c => c.name === site.cookie && c.value.length > 5)) {
+      if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+      if (!collectorTokens[name].some(a => a.enabled)) {
+        collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: encryptValue(JSON.stringify({ cdpPort: Number(cdpPort), cdpHost }), ADMIN_SECRET), enabled: true });
+        saveCollectorTokens(collectorTokens);
+      }
+      setCollectorHealth(name, true);
+      return res.json({ status: 'already_logged_in' });
+    }
+    // Open login page
+    const page = await ctx.newPage();
+    await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    _loginState = { active: true, provider: name, status: 'waiting', page, ctx, label: 'LumiChat', cdpPort, cdpHost };
+    // Background polling — close page immediately on login detection
+    (async () => {
+      for (let i = 0; i < 180; i++) { // 3 min timeout
+        if (!_loginState.active) return;
+        const cookies = await ctx.cookies([site.url]).catch(() => []);
+        if (cookies.find(c => c.name === site.cookie && c.value.length > 5)) {
+          await page.close().catch(() => {});
+          if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
+          collectorTokens[name].push({ id: crypto.randomBytes(8).toString('hex'), label: 'LumiChat', credentials: encryptValue(JSON.stringify({ cdpPort: Number(_loginState.cdpPort), cdpHost: _loginState.cdpHost }), ADMIN_SECRET), enabled: true });
+          saveCollectorTokens(collectorTokens);
+          setCollectorHealth(name, true);
+          _loginState = { active: false, provider: null, status: 'success' };
+          return;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      await page.close().catch(() => {});
+      _loginState = { active: false, provider: null, status: 'timeout' };
+    })();
+    res.json({ status: 'waiting', provider: name });
+  } catch (e) {
+    _loginState = { active: false, provider: null, status: 'error' };
+    res.status(500).json({ error: e.message });
+  }
+});
+app.get("/lc/collector/login/status", requireLcAuth, (req, res) => {
+  res.json({ active: _loginState.active, provider: _loginState.provider, status: _loginState.status });
+});
+
 // ── SearXNG web search ────────────────────────────────────────────────────
 // GET /lc/search?q=... → query SearXNG JSON API, return top results
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://lumigate-searxng:8080";
