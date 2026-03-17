@@ -5995,6 +5995,12 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       const errMsg = errMap[status] || `AI provider error (${status})`;
       try { upstreamRes.body?.cancel(); } catch {}
       if (!res.headersSent) return res.status(status >= 500 ? 502 : status).json({ error: errMsg });
+      // Headers already sent (e.g. search started) — send error as SSE event so frontend sees it
+      log("warn", "Upstream error after headers sent", { provider: providerName, status });
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `\n\n[Error: ${errMsg}]` } }] })}\n\n`);
+        res.write("data: [DONE]\n\n");
+      }
       return res.end();
     }
 
