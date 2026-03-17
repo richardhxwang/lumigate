@@ -2231,8 +2231,10 @@ async function sendMessage(){
     setTimeout(()=>{
       tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
       tipEl.style.opacity='1';
-      const{scrollHeight,clientHeight,scrollTop}=chatEl;
-      if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        const{scrollHeight,clientHeight,scrollTop}=chatEl;
+        if(scrollHeight-clientHeight-scrollTop<150) chatEl.scrollTop=scrollHeight;
+      }));
     },300);
     setTimeout(showTip,4000);
   },1500);
@@ -2357,10 +2359,14 @@ async function sendMessage(){
             } else {
               if(statusEl){
                 statusEl.textContent=st.text;
-                requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
-                // Auto-scroll when status text appears
-                const{scrollHeight,clientHeight,scrollTop}=chatEl;
-                if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
+                requestAnimationFrame(()=>{
+                  statusEl.style.opacity='1';
+                  // Scroll after DOM has updated
+                  requestAnimationFrame(()=>{
+                    const{scrollHeight,clientHeight,scrollTop}=chatEl;
+                    if(scrollHeight-clientHeight-scrollTop<150) chatEl.scrollTop=scrollHeight;
+                  });
+                });
               }
             }
           }catch{}
