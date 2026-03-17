@@ -250,6 +250,106 @@
   footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
+  /* ── Steps (How it works) ── */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 64px; counter-reset: step; }
+  .step {
+    position: relative; padding: 32px 24px 28px;
+    border-radius: 16px; background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.3s;
+  }
+  .step:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+  .step-num {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--accent); color: #fff;
+    font-size: 16px; font-weight: 700; margin-bottom: 18px;
+  }
+  .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .step p { font-size: 13px; color: var(--t2); line-height: 1.6; font-weight: 300; }
+  .step-connector {
+    display: none; /* visible on desktop via pseudo or gap */
+  }
+
+  /* ── Code block (For developers) ── */
+  .code-section { background: linear-gradient(180deg, #0d0d0d 0%, var(--bg) 100%); }
+  .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; margin-top: 64px; }
+  .code-block {
+    border-radius: 16px; overflow: hidden;
+    background: #141414; border: 1px solid rgba(255,255,255,0.08);
+    font-family: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, monospace;
+    font-size: 13px; line-height: 1.7;
+  }
+  .code-block-header {
+    padding: 12px 16px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 12px; color: var(--t3); font-family: var(--font); font-weight: 500;
+  }
+  .code-block-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .code-block pre {
+    padding: 20px; margin: 0; overflow-x: auto;
+    color: var(--t2);
+  }
+  .code-block .hl-kw { color: #c792ea; }
+  .code-block .hl-str { color: #c3e88d; }
+  .code-block .hl-cmt { color: rgba(255,255,255,0.25); }
+  .code-block .hl-accent { color: var(--accent); }
+  .dev-points { list-style: none; margin-top: 32px; }
+  .dev-points li {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; font-size: 15px; color: var(--t2); line-height: 1.5;
+  }
+  .dev-points li svg { flex-shrink: 0; color: var(--accent); margin-top: 2px; }
+
+  /* ── Intelligence grid ── */
+  .intel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px; }
+  .intel-item {
+    padding: 28px 24px; border-radius: 16px;
+    background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.3s;
+  }
+  .intel-item:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+  .intel-item h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .intel-item h3 svg { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; }
+  .intel-item p { font-size: 13px; color: var(--t2); line-height: 1.6; font-weight: 300; }
+
+  /* ── Security stats grid ── */
+  .sec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px; }
+  .sec-card {
+    padding: 32px 28px; border-radius: 16px; text-align: center;
+    background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.3s;
+  }
+  .sec-card:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+  .sec-val { font-size: 36px; font-weight: 700; letter-spacing: -1px; color: var(--accent); }
+  .sec-label { font-size: 14px; color: var(--t2); margin-top: 6px; font-weight: 400; }
+
+  /* ── Deploy section ── */
+  .deploy-cmd {
+    display: inline-block; margin-top: 32px; padding: 16px 28px;
+    border-radius: 12px; background: #141414; border: 1px solid rgba(255,255,255,0.08);
+    font-family: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, monospace;
+    font-size: 15px; color: var(--accent); letter-spacing: -0.3px;
+  }
+  .deploy-points { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 32px; margin-top: 40px; }
+  .deploy-points .dp {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 14px; color: var(--t2); line-height: 1.5;
+  }
+  .deploy-points .dp svg { flex-shrink: 0; color: var(--accent); margin-top: 2px; }
+
+  /* ── Responsive additions ── */
+  @media (max-width: 768px) {
+    .steps { grid-template-columns: 1fr 1fr; }
+    .code-grid { grid-template-columns: 1fr; }
+    .intel-grid { grid-template-columns: 1fr; }
+    .sec-grid { grid-template-columns: repeat(2, 1fr); }
+    .deploy-points { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .steps { grid-template-columns: 1fr; }
+    .sec-grid { grid-template-columns: 1fr; }
+  }
+
   /* ── Scroll reveal ── */
   .reveal {
     opacity: 0; transform: translateY(24px);
@@ -445,6 +545,196 @@
             <div class="cp-msg user">Now explain it to a physicist</div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">How it works</div>
+    <h2 class="section-title reveal reveal-d1">Four steps, zero complexity</h2>
+    <p class="section-desc reveal reveal-d2">Your app sends one POST. LumiGate handles search, tool execution, file generation, and streams back clean results.</p>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <h3>Send a message</h3>
+        <p>Your app posts to /v1/chat with provider, model, and messages. Standard OpenAI format — nothing new to learn.</p>
+      </div>
+      <div class="step reveal reveal-d1">
+        <div class="step-num">2</div>
+        <h3>Auto-enhance</h3>
+        <p>LumiGate detects search intent, generates multi-language keywords, and queries SearXNG. Fresh context injected automatically.</p>
+      </div>
+      <div class="step reveal reveal-d2">
+        <div class="step-num">3</div>
+        <h3>Execute tools</h3>
+        <p>AI outputs tool tags, server intercepts and runs them. Spreadsheets generated, code executed, results collected — all server-side.</p>
+      </div>
+      <div class="step reveal reveal-d3">
+        <div class="step-num">4</div>
+        <h3>Clean response</h3>
+        <p>Client receives only clean text, file download links, and status events. Zero tool logic needed in your frontend.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- For developers -->
+<section class="code-section">
+  <div class="section-inner">
+    <div class="code-grid">
+      <div>
+        <div class="section-label reveal">For developers</div>
+        <h2 class="section-title reveal reveal-d1">One endpoint.<br>Three event types.</h2>
+        <p class="section-desc reveal reveal-d2">If your app can read SSE, it can use LumiGate. No SDKs, no function-calling boilerplate, no tool orchestration code.</p>
+        <ul class="dev-points reveal reveal-d3">
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            3 SSE event types — that's all your frontend needs
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Works with any HTTP client — curl, fetch, Swift, Kotlin
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            All auth modes: API key, HMAC, ephemeral token, cookie
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Drop-in replacement for OpenAI API format
+          </li>
+        </ul>
+      </div>
+      <div class="code-block reveal reveal-d2">
+        <div class="code-block-header">
+          <span class="dot" style="background:#ff5f57"></span>
+          <span class="dot" style="background:#febc2e"></span>
+          <span class="dot" style="background:#28c840"></span>
+          /v1/chat
+        </div>
+        <pre><span class="hl-kw">POST</span> /v1/chat
+{
+  <span class="hl-str">"provider"</span>: <span class="hl-str">"anthropic"</span>,
+  <span class="hl-str">"model"</span>: <span class="hl-str">"claude-sonnet-4-20250514"</span>,
+  <span class="hl-str">"messages"</span>: [{ <span class="hl-str">"role"</span>: <span class="hl-str">"user"</span>, <span class="hl-str">"content"</span>: <span class="hl-str">"..."</span> }],
+  <span class="hl-str">"stream"</span>: <span class="hl-kw">true</span>
+}
+
+<span class="hl-cmt">// Response stream:</span>
+<span class="hl-accent">data:</span> {"choices":[{"delta":{"content":"..."}}]}
+<span class="hl-accent">event:</span> tool_status
+<span class="hl-accent">data:</span> {"text":"Searching the web..."}
+<span class="hl-accent">event:</span> file_download
+<span class="hl-accent">data:</span> {"filename":"report.xlsx","url":"..."}
+<span class="hl-accent">data:</span> [DONE]</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Built-in intelligence -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">Built-in intelligence</div>
+    <h2 class="section-title reveal reveal-d1">Smart features,<br>zero configuration</h2>
+    <p class="section-desc reveal reveal-d2">Every chat session comes with intelligent behaviors built into the platform — no plugins, no extensions.</p>
+
+    <div class="intel-grid">
+      <div class="intel-item reveal">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>Smart search</h3>
+        <p>Auto-detects queries needing fresh data. Generates multi-keyword searches, deduplicates results, injects context — all invisible to the user.</p>
+      </div>
+      <div class="intel-item reveal reveal-d1">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>Slash commands</h3>
+        <p>/system, /clear, /model, /export, /compact, /search and more. Power-user shortcuts built right into the input bar.</p>
+      </div>
+      <div class="intel-item reveal reveal-d2">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Tips &amp; hints</h3>
+        <p>Contextual tips appear while waiting for responses. Rotating suggestions help users discover features they didn't know existed.</p>
+      </div>
+      <div class="intel-item reveal">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M13 8h.01M8 12h8"/></svg>Mid-stream messaging</h3>
+        <p>Send follow-up messages without waiting for the current response to finish. Messages queue and process in order — no lost context.</p>
+      </div>
+      <div class="intel-item reveal reveal-d1">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Session memory</h3>
+        <p>System prompts, presets, and response modes persist across chats. Your preferences are remembered — every session starts right where you left off.</p>
+      </div>
+      <div class="intel-item reveal reveal-d2">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit &amp; resend</h3>
+        <p>Click any message to edit and resend. The conversation rewinds to that point — perfect for refining prompts without starting over.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Security & Scale -->
+<section style="border-top:1px solid var(--card-border);background:linear-gradient(180deg, var(--bg) 0%, #0d0d0d 100%)">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-label reveal" style="text-align:center">Security &amp; Scale</div>
+    <h2 class="section-title reveal reveal-d1" style="margin:0 auto">Enterprise security,<br>single-stack performance</h2>
+    <p class="section-desc reveal reveal-d2" style="margin:16px auto 0">Defense-in-depth security pipeline with zero measurable overhead. Every check is O(1) in-memory.</p>
+
+    <div class="sec-grid">
+      <div class="sec-card reveal">
+        <div class="sec-val">6,400+</div>
+        <div class="sec-label">QPS health endpoint</div>
+      </div>
+      <div class="sec-card reveal reveal-d1">
+        <div class="sec-val">200</div>
+        <div class="sec-label">Concurrent with zero errors</div>
+      </div>
+      <div class="sec-card reveal reveal-d2">
+        <div class="sec-val">5</div>
+        <div class="sec-label">Auth modes</div>
+      </div>
+      <div class="sec-card reveal">
+        <div class="sec-val">17</div>
+        <div class="sec-label">Command guard rules</div>
+      </div>
+      <div class="sec-card reveal reveal-d1">
+        <div class="sec-val">20+</div>
+        <div class="sec-label">PII detection patterns</div>
+      </div>
+      <div class="sec-card reveal reveal-d2">
+        <div class="sec-val">&infin;</div>
+        <div class="sec-label">Cookie persistence across restarts</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Deploy anywhere -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-label reveal" style="text-align:center">Deploy anywhere</div>
+    <h2 class="section-title reveal reveal-d1" style="margin:0 auto">One command.<br>Any machine.</h2>
+    <p class="section-desc reveal reveal-d2" style="margin:16px auto 0">From a Raspberry Pi to a cloud VM — if it runs Docker, it runs LumiGate.</p>
+
+    <div class="reveal reveal-d3">
+      <code class="deploy-cmd">docker compose up -d --build</code>
+    </div>
+
+    <div class="deploy-points" style="max-width:640px;margin:40px auto 0">
+      <div class="dp reveal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        NAS, mini PC, cloud VM, bare metal
+      </div>
+      <div class="dp reveal reveal-d1">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        37 MB memory, single Docker stack
+      </div>
+      <div class="dp reveal reveal-d2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Cloudflare Tunnel for zero-config HTTPS
+      </div>
+      <div class="dp reveal reveal-d3">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Auto-healing: &lt;10s crash recovery
       </div>
     </div>
   </div>
