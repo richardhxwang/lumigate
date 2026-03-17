@@ -2212,8 +2212,8 @@ async function sendMessage(){
     const tips=TIPS_I18N[_lang]||TIPS_I18N.en;
     const tip=tips[Math.floor(Math.random()*tips.length)];
     const tipEl=document.createElement('div');
-    tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .5s ease';
-    tipEl.textContent=tip;
+    tipEl.style.cssText='color:var(--t3);font-size:12px;font-style:italic;margin-top:8px;opacity:0;transition:opacity .5s ease';
+    tipEl.textContent='\u203A '+tip;
     tr.querySelector('.typing')?.appendChild(tipEl);
     requestAnimationFrame(()=>{ tipEl.style.opacity='1'; });
   },1500);
