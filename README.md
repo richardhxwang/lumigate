@@ -80,6 +80,207 @@ SSE response delivers three event types:
 
 Optional fields: `web_search` (bool, auto-detected if omitted), `tools` (bool, default true).
 
+### Auth Headers / Cookies
+
+- Platform API: `X-Project-Key` (or HMAC/token flow).
+- Admin API: `admin_token` cookie (or `X-Admin-Token`).
+- LumiChat API: `lc_token` cookie.
+
+### Complete API Reference
+
+Source of truth is `server.js`; list below mirrors current routes.
+
+#### Public / System
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/health` | Health + module/provider detail for admin |
+| GET | `/providers` | Provider availability |
+| GET | `/models/:provider` | Models for provider |
+| GET | `/collector/health` | Collector runtime status |
+| GET | `/` | Root page |
+| GET | `/v1/sys/panel` | Hidden dashboard entry |
+| GET | `/dashboard` | Disabled (204) |
+| GET | `/chat` | Chat redirect/entry |
+| GET | `/lumichat` | LumiChat entry |
+
+#### Admin Auth / MFA
+
+| Method | Path |
+|---|---|
+| POST | `/admin/login` |
+| POST | `/admin/mfa/verify` |
+| POST | `/admin/logout` |
+| GET | `/admin/auth` |
+| POST | `/admin/mfa/setup` |
+| POST | `/admin/mfa/confirm` |
+| DELETE | `/admin/mfa` |
+| GET | `/admin/mfa/qr` |
+| GET | `/admin/mfa/status` |
+| GET | `/admin/uptime` |
+
+#### Admin Control Plane
+
+| Method | Path |
+|---|---|
+| GET | `/admin/test/:provider` |
+| GET | `/admin/projects` |
+| POST | `/admin/projects` |
+| PUT | `/admin/projects/:name` |
+| POST | `/admin/projects/:name/regenerate` |
+| DELETE | `/admin/projects/:name` |
+| GET | `/admin/rate` |
+| GET | `/admin/usage` |
+| GET | `/admin/usage/summary` |
+| GET | `/admin/settings` |
+| PUT | `/admin/settings` |
+| GET | `/admin/lc/schema` |
+| GET | `/admin/lc/trash` |
+| POST | `/admin/lc/trash/restore` |
+| GET | `/admin/lc/projects/:id/references` |
+| POST | `/admin/lc/projects/:id/remap` |
+| GET | `/admin/lc-users` |
+| PATCH | `/admin/lc-users/:id/tier` |
+| PATCH | `/admin/lc-users/:id/decline-upgrade` |
+| GET | `/admin/lc-subscriptions` |
+| POST | `/admin/lc-subscriptions` |
+| POST | `/admin/key` |
+| GET | `/admin/keys/cooldowns` |
+| DELETE | `/admin/keys/cooldowns/:keyId` |
+| GET | `/admin/keys/:provider` |
+| POST | `/admin/keys/:provider` |
+| PUT | `/admin/keys/:provider/reorder` |
+| PUT | `/admin/keys/:provider/:keyId` |
+| DELETE | `/admin/keys/:provider/:keyId` |
+| GET | `/admin/collector/status` |
+| POST | `/admin/collector/accounts/:provider` |
+| PUT | `/admin/collector/accounts/:provider/:accountId` |
+| DELETE | `/admin/collector/accounts/:provider/:accountId` |
+| POST | `/admin/collector/login/:provider` |
+| GET | `/admin/collector/login/status` |
+| DELETE | `/admin/collector/login` |
+| POST | `/admin/collector/restore` |
+| PUT | `/admin/collector/token/:provider` |
+| DELETE | `/admin/collector/token/:provider` |
+| PUT | `/admin/providers/:name/access-mode` |
+| GET | `/admin/users` |
+| POST | `/admin/users` |
+| PUT | `/admin/users/:username` |
+| DELETE | `/admin/users/:username` |
+| GET | `/admin/metrics` |
+| GET | `/admin/audit` |
+| POST | `/admin/backup` |
+| GET | `/admin/backups` |
+| POST | `/admin/restore/:name` |
+| GET | `/admin/upgrade-requests` |
+| POST | `/admin/upgrade-requests/:settingsId/approve` |
+| POST | `/admin/upgrade-requests/:settingsId/reject` |
+
+#### Gateway / Platform APIs
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/chat` | Unified streaming chat API |
+| POST | `/v1/tools/execute` | Server-side tool execution |
+| POST | `/v1/token` | Ephemeral token issuance |
+| POST | `/v1/otp/send` | OTP send |
+| POST | `/v1/otp/verify` | OTP verify |
+
+#### Domain APIs (Config-driven)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/domains/:domain/schema` | Domain schema/capabilities |
+| GET | `/api/domains/:domain/:collection` | Generic list/filter/sort |
+
+Query contract for generic list:
+- `filter[field][op]=value` where `op` supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`
+- `sort=field:asc,field2:desc` or legacy `sort=-field`
+- `perPage`, `include_deleted=1`, `trash_only=1`
+
+#### LumiChat Auth / Profile
+
+| Method | Path |
+|---|---|
+| GET | `/lc/auth/methods` |
+| GET | `/lc/auth/oauth-start` |
+| GET | `/lc/auth/oauth-callback` |
+| POST | `/lc/auth/check-email` |
+| POST | `/lc/auth/register` |
+| GET | `/lc/admin/approve` |
+| POST | `/lc/admin/approve` |
+| POST | `/lc/auth/login` |
+| POST | `/lc/auth/logout` |
+| POST | `/lc/auth/refresh` |
+| GET | `/lc/auth/me` |
+| PATCH | `/lc/auth/profile` |
+| POST | `/lc/auth/change-password` |
+
+#### LumiChat Providers / Search / Suggest
+
+| Method | Path |
+|---|---|
+| GET | `/lc/providers` |
+| GET | `/lc/models/:provider` |
+| POST | `/lc/collector/login/:provider` |
+| GET | `/lc/collector/login/status` |
+| GET | `/lc/search` |
+| GET | `/lc/suggest` |
+
+#### LumiChat Data (PB-backed)
+
+| Method | Path |
+|---|---|
+| GET | `/lc/user/settings` |
+| PATCH | `/lc/user/settings` |
+| GET | `/lc/projects` |
+| POST | `/lc/projects` |
+| PATCH | `/lc/projects/:id` |
+| GET | `/lc/projects/:id/references` |
+| POST | `/lc/projects/:id/remap` |
+| DELETE | `/lc/projects/:id` |
+| GET | `/lc/sessions` |
+| POST | `/lc/sessions` |
+| PATCH | `/lc/sessions/:id/title` |
+| PATCH | `/lc/sessions/:id/model` |
+| DELETE | `/lc/sessions/:id` |
+| GET | `/lc/sessions/:id/messages` |
+| POST | `/lc/messages` |
+| PATCH | `/lc/messages/:id` |
+| DELETE | `/lc/messages/:id` |
+| GET | `/lc/trash` |
+| POST | `/lc/trash/:collection/:id/restore` |
+| POST | `/lc/files` |
+| GET | `/lc/files/serve/:id` |
+| POST | `/lc/files/gemini-upload/:pbFileId` |
+| POST | `/lc/chat/gemini-native` |
+
+#### LumiChat Tier / Billing / BYOK
+
+| Method | Path |
+|---|---|
+| GET | `/lc/user/tier` |
+| POST | `/lc/upgrade-request` |
+| GET | `/lc/admin/upgrade-action` |
+| GET | `/lc/user/apikeys` |
+| POST | `/lc/user/apikeys` |
+| DELETE | `/lc/user/apikeys/:id` |
+
+### Usage Examples
+
+List LC sessions with Excel-style filters:
+
+```bash
+curl -s "http://localhost:9471/api/domains/lc/sessions?filter[provider][eq]=openai&filter[title][contains]=audit&sort=deleted_at:desc,id:asc&perPage=50" \
+  -H "Cookie: lc_token=YOUR_TOKEN"
+```
+
+Read LC domain schema:
+
+```bash
+curl -s "http://localhost:9471/api/domains/lc/schema"
+```
+
 ## Providers
 
 | Provider | Auth | Example Models |
