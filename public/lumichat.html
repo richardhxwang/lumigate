@@ -1417,7 +1417,7 @@ let currentUser = null, sessions = [], messages = [], currentSid = null;
 let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 
 // ── WEB SEARCH TOOL ───────────────────────────────────────────────────────
-const TOOL_PROVIDERS = new Set(['openai','deepseek','qwen','kimi','doubao','anthropic','minimax']);
+const TOOL_PROVIDERS = new Set(['openai','deepseek','qwen','kimi','doubao','anthropic','minimax','gemini']);
 const SEARCH_TOOL = {
   type:'function',
   function:{
@@ -2276,7 +2276,7 @@ async function sendMessage(){
     for(let toolRound=0;toolRound<4;toolRound++){
       const loopPayload={...payload,messages:loopMsgs};
       // On final (non-first) rounds, never add tools to avoid loops
-      if(toolRound>0) delete loopPayload.tools;
+      if(toolRound>0){ delete loopPayload.tools; delete loopPayload.tool_choice; }
 
       const res=await fetch(endpoint,{
         method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -2398,10 +2398,39 @@ async function sendMessage(){
                     const tRow=$('typ-row');
                     if(tRow) tRow.remove();
                     if(streamRow) streamRow.style.display='';
-                    // Render markdown — strip all tool markup before display
-                    const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
-                    streamEl.innerHTML=DOMPurify.sanitize(marked.parse(displayText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
-                    streamEl.classList.add('streaming-active');
+                    // Check if tool tags are being streamed — show indicator immediately
+                    const toolTagMatch=streamText.match(/\[TOOL:(\w+)\]\s*\{[^}]*?"query"\s*:\s*"([^"]*)/);
+                    const dsmlMatch=streamText.match(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/);
+                    const xmlToolMatch=streamText.match(/<(?:minimax:)?tool_call>/);
+                    if(toolTagMatch||dsmlMatch||xmlToolMatch){
+                      // Parse tool name and query for indicator
+                      let tName='web_search',tQuery='';
+                      if(toolTagMatch){ tName=toolTagMatch[1]; tQuery=toolTagMatch[2]||''; }
+                      else {
+                        const nameM=streamText.match(/invoke\s+name="(\w+)"/);
+                        if(nameM) tName=nameM[1];
+                        const qM=streamText.match(/name="query"[^>]*>([^<]*)/);
+                        if(qM) tQuery=qM[1];
+                      }
+                      const TOOL_ICONS_RAF={
+                        web_search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
+                        generate_document:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+                      };
+                      const icon=TOOL_ICONS_RAF[tName]||TOOL_ICONS_RAF.web_search;
+                      const label=tQuery||tName.replace(/_/g,' ');
+                      // Show clean text before the tag + tool indicator
+                      const cleanBefore=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').trim();
+                      let html='';
+                      if(cleanBefore) html+=DOMPurify.sanitize(marked.parse(cleanBefore),{ADD_ATTR:['onclick'],FORCE_BODY:true});
+                      html+=`<span style="color:var(--t3);font-size:13px;display:block;margin-top:${cleanBefore?'8':'0'}px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">${icon}</svg> ${esc(tName.replace(/_/g,' '))}: <em>${esc(label)}</em>…</span>`;
+                      streamEl.innerHTML=html;
+                      streamEl.classList.remove('streaming-active'); // no cursor on tool indicator
+                    } else {
+                      // Normal streaming — render markdown with tool markup stripped
+                      const displayText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
+                      streamEl.innerHTML=DOMPurify.sanitize(marked.parse(displayText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
+                      streamEl.classList.add('streaming-active');
+                    }
                     const{scrollHeight,clientHeight,scrollTop}=chatEl;
                     if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
                   }
@@ -2418,8 +2447,9 @@ async function sendMessage(){
         const tRow=$('typ-row');
         if(tRow) tRow.remove();
         if(streamRow) streamRow.style.display='';
-        const cursor='<span class="stream-cursor"></span>';
-        streamEl.innerHTML=DOMPurify.sanitize(marked.parse(streamText),{ADD_ATTR:['onclick'],FORCE_BODY:true})+cursor;
+        const flushText=streamText.replace(/\[TOOL:\w+\][\s\S]*/,'').replace(/<(?:minimax:)?tool_call>[\s\S]*/,'').replace(/<invoke[\s\S]*/,'').replace(/<[^<]*?DSML[^>]*>[\s\S]*/,'');
+        streamEl.innerHTML=DOMPurify.sanitize(marked.parse(flushText),{ADD_ATTR:['onclick'],FORCE_BODY:true});
+        streamEl.classList.remove('streaming-active');
       }
 
       // ── Tool call detected ──────────────────────────────────────────────
@@ -2541,9 +2571,11 @@ async function sendMessage(){
       streamEl.closest('.msg-row')?.appendChild(foot);
     }
 
-    // Save assistant message
-    const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
-    messages.push(aMsg);
+    // Save assistant message (only if there's content)
+    if(streamText){
+      const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:streamText})});
+      messages.push(aMsg);
+    }
 
     // Update session timestamp
     const sess=sessions.find(s=>s.id===currentSid);
