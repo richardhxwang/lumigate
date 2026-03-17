@@ -3434,15 +3434,50 @@ function openaiToAnthropicBody(body) {
   const systemParts = msgs
     .filter(m => m.role === "system")
     .map(m => (typeof m.content === "string" ? m.content : (m.content || []).filter(p => p.type === "text").map(p => p.text).join("")));
-  const nonSystem = msgs
-    .filter(m => m.role !== "system")
-    .map(m => ({ role: m.role, content: m.content }));
+  const nonSystem = [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (m.role === "system") continue;
+    if (m.role === "assistant" && m.tool_calls) {
+      // Convert OpenAI tool_calls to Anthropic content blocks
+      const blocks = [];
+      if (m.content) blocks.push({ type: "text", text: m.content });
+      for (const tc of m.tool_calls) {
+        let inputObj = {};
+        try { inputObj = JSON.parse(tc.function?.arguments || "{}"); } catch {}
+        blocks.push({ type: "tool_use", id: tc.id, name: tc.function?.name, input: inputObj });
+      }
+      nonSystem.push({ role: "assistant", content: blocks });
+    } else if (m.role === "tool") {
+      // Convert OpenAI tool result to Anthropic tool_result
+      // Group consecutive tool messages into one user message
+      const toolResults = [{ type: "tool_result", tool_use_id: m.tool_call_id, content: m.content || "" }];
+      while (i + 1 < msgs.length && msgs[i + 1].role === "tool") {
+        i++;
+        toolResults.push({ type: "tool_result", tool_use_id: msgs[i].tool_call_id, content: msgs[i].content || "" });
+      }
+      nonSystem.push({ role: "user", content: toolResults });
+    } else {
+      nonSystem.push({ role: m.role, content: m.content });
+    }
+  }
   const out = { model: body.model, messages: nonSystem, max_tokens: body.max_tokens || 1024 };
   if (systemParts.length) out.system = systemParts.join("\n");
   if (body.temperature != null) out.temperature = body.temperature;
   if (body.top_p != null) out.top_p = body.top_p;
   if (body.stop) out.stop_sequences = Array.isArray(body.stop) ? body.stop : [body.stop];
   if (body.stream) out.stream = true;
+  // Convert OpenAI-format tools to Anthropic format
+  if (body.tools && Array.isArray(body.tools)) {
+    out.tools = body.tools.map(t => {
+      if (t.type === "function" && t.function) {
+        return { name: t.function.name, description: t.function.description || "", input_schema: t.function.parameters || { type: "object", properties: {} } };
+      }
+      return t;
+    });
+    if (body.tool_choice === "auto") out.tool_choice = { type: "auto" };
+    else if (body.tool_choice === "required") out.tool_choice = { type: "any" };
+  }
   return out;
 }
 
@@ -3523,6 +3558,11 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
     const msgId = "chatcmpl-anth-" + Date.now();
     const created = Math.floor(Date.now() / 1000);
     let inputTokens = 0, outputTokens = 0, buf = "";
+    let _anthStreamContent = ""; // accumulate text for tool tag detection
+    // Track native tool_use blocks from Anthropic streaming
+    const _anthToolBlocks = {}; // index → {id, name, args}
+    let _anthCurrentBlockIdx = -1;
+    let _anthStopReason = "";
     try {
       for await (const chunk of anthropicResp.body) {
         buf += Buffer.from(chunk).toString();
@@ -3537,11 +3577,38 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
             if (ev.type === "message_start") {
               inputTokens = ev.message?.usage?.input_tokens || 0;
               res.write(`data: ${JSON.stringify({ id: msgId, object: "chat.completion.chunk", created, model: requestedModel, choices: [{ index: 0, delta: { role: "assistant", content: "" }, logprobs: null, finish_reason: null }] })}\n\n`);
+            } else if (ev.type === "content_block_start") {
+              _anthCurrentBlockIdx = ev.index ?? 0;
+              if (ev.content_block?.type === "tool_use") {
+                _anthToolBlocks[_anthCurrentBlockIdx] = {
+                  id: ev.content_block.id || "",
+                  name: ev.content_block.name || "",
+                  args: "",
+                };
+              }
             } else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
+              _anthStreamContent += ev.delta.text || "";
               res.write(`data: ${JSON.stringify({ id: msgId, object: "chat.completion.chunk", created, model: requestedModel, choices: [{ index: 0, delta: { content: ev.delta.text }, logprobs: null, finish_reason: null }] })}\n\n`);
+            } else if (ev.type === "content_block_delta" && ev.delta?.type === "input_json_delta") {
+              // Accumulate native tool_use arguments
+              const idx = _anthCurrentBlockIdx;
+              if (_anthToolBlocks[idx]) {
+                _anthToolBlocks[idx].args += ev.delta.partial_json || "";
+              }
+            } else if (ev.type === "content_block_stop") {
+              // If this block was a tool_use, emit it as OpenAI-format tool_calls delta
+              const idx = _anthCurrentBlockIdx;
+              if (_anthToolBlocks[idx]) {
+                const tc = _anthToolBlocks[idx];
+                const tcIdx = Object.keys(_anthToolBlocks).indexOf(String(idx));
+                res.write(`data: ${JSON.stringify({ id: msgId, object: "chat.completion.chunk", created, model: requestedModel, choices: [{ index: 0, delta: { tool_calls: [{ index: tcIdx, id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } }] }, logprobs: null, finish_reason: null }] })}\n\n`);
+              }
             } else if (ev.type === "message_delta") {
               outputTokens = ev.usage?.output_tokens || 0;
-              const fr = { end_turn: "stop", max_tokens: "length" }[ev.delta?.stop_reason] || ev.delta?.stop_reason || "stop";
+              _anthStopReason = ev.delta?.stop_reason || "";
+              const hasNativeTools = Object.keys(_anthToolBlocks).length > 0;
+              const fr = hasNativeTools && _anthStopReason === "tool_use" ? "tool_calls"
+                : ({ end_turn: "stop", max_tokens: "length" }[_anthStopReason] || _anthStopReason || "stop");
               res.write(`data: ${JSON.stringify({ id: msgId, object: "chat.completion.chunk", created, model: requestedModel, choices: [{ index: 0, delta: {}, logprobs: null, finish_reason: fr }], usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens, total_tokens: inputTokens + outputTokens } })}\n\n`);
             } else if (ev.type === "message_stop") {
               res.write("data: [DONE]\n\n");
@@ -3550,6 +3617,21 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
         }
       }
     } catch (_) {}
+
+    // Execute text-based tool calls in Anthropic streaming (same as other providers)
+    const anthContentToScan = _anthStreamContent;
+    const anthHasToolTags = /\[TOOL:\w+\]/.test(anthContentToScan) || /<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/.test(anthContentToScan) || /<(?:minimax:)?tool_call>/.test(anthContentToScan);
+    if (anthHasToolTags) {
+      try {
+        const toolResults = await executeTextToolCalls(anthContentToScan, req._lcUserId || req._proxyProjectName || "api");
+        if (toolResults.length > 0 && !res.writableEnded) {
+          for (const tr of toolResults) {
+            res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
+          }
+          log("info", "Anthropic streaming tool results sent", { count: toolResults.length });
+        }
+      } catch (e) { log("error", "Anthropic streaming tool exec failed", { error: e.message }); }
+    }
     res.end();
     const tokens = { input: inputTokens, cacheHit: 0, output: outputTokens };
     if (!req._proxyProject?.privacyMode) recordUsage(req._proxyProjectName, "anthropic", req._isSubscriptionKey ? `${requestedModel}:subscription` : requestedModel, tokens);
@@ -4110,7 +4192,7 @@ const proxyMiddleware = createProxyMiddleware({
       proxyRes.on("end", () => {
         // Execute text-based tool calls [TOOL:name]{params}[/TOOL] server-side
         const contentToScan = isStreaming ? _streamContentBuf : (nonStreamThinkBuf || "");
-        const hasToolTags = /\[TOOL:\w+\]/.test(contentToScan);
+        const hasToolTags = /\[TOOL:\w+\]/.test(contentToScan) || /<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/.test(contentToScan) || /<(?:minimax:)?tool_call>/.test(contentToScan);
         if (hasToolTags) log("info", "Tool tags detected in response", { provider: providerName, contentLen: contentToScan.length });
 
         // Run async tool execution in a self-contained promise
@@ -4119,7 +4201,7 @@ const proxyMiddleware = createProxyMiddleware({
               .catch(e => { log("error", "Tool execution failed", { error: e.message }); return []; })
           : Promise.resolve([]);
 
-        toolExecPromise.then(toolResults => {
+        toolExecPromise.then(async (toolResults) => {
 
         if (nonStreamThinkBuf !== null) {
           try {
@@ -4134,12 +4216,62 @@ const proxyMiddleware = createProxyMiddleware({
             res.end(nonStreamThinkBuf);
           }
         } else if (toolResults.length > 0 && isStreaming && !res.writableEnded) {
-          // Send tool results as additional SSE events before closing
+          // Send tool results as SSE events (file downloads etc.)
           for (const tr of toolResults) {
             try { res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`); } catch {}
           }
           log("info", "Tool results sent to client", { count: toolResults.length });
-          try { res.end(); } catch {}
+
+          // Second-round AI call: let the AI summarize tool results
+          try {
+            const originalMessages = req.body?.messages || [];
+            const toolSummaries = toolResults.map(tr => {
+              if (tr.filename) return `[File generated: ${tr.filename} (${tr.size} bytes)]`;
+              if (tr.html) return tr.html.replace(/<[^>]*>/g, '').slice(0, 500);
+              if (tr.data?.results) return tr.data.results.slice(0, 5).map(r => `${r.title}: ${r.content || ''}`).join('\n');
+              return JSON.stringify(tr.data || {}).slice(0, 300);
+            }).join('\n\n');
+
+            // Build follow-up messages: original + assistant tool call + tool results
+            const cleanAssistantText = contentToScan.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, '').replace(/<[^<]*?DSML[^>]*>[\s\S]*/g, '').replace(/<(?:minimax:)?tool_call>[\s\S]*/g, '').trim();
+            const followUpMessages = [
+              ...originalMessages,
+              { role: "assistant", content: cleanAssistantText || "I executed the tools." },
+              { role: "user", content: `Tool execution results:\n${toolSummaries}\n\nPlease summarize the results for the user in a helpful way. If files were generated, briefly describe what's in them. If search results were returned, summarize the key findings. Respond naturally in the same language as the user's original question.` }
+            ];
+
+            const provider = PROVIDERS[providerName];
+            const apiKey = req._proxyApiKey || (provider?.apiKey);
+            if (apiKey && provider?.baseUrl) {
+              const followUpUrl = providerName === "anthropic"
+                ? `${provider.baseUrl}/v1/messages`
+                : `${provider.baseUrl}/v1/chat/completions`;
+
+              const followUpBody = providerName === "anthropic"
+                ? { model: modelId, max_tokens: 1024, stream: true, system: "Summarize tool results concisely.", messages: followUpMessages.filter(m => m.role !== "system").map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })) }
+                : { model: modelId, max_tokens: 1024, stream: true, messages: followUpMessages };
+
+              const headers = providerName === "anthropic"
+                ? { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+                : { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` };
+
+              const followUpRes = await fetch(followUpUrl, { method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000) });
+
+              if (followUpRes.ok && followUpRes.body) {
+                const reader = followUpRes.body.getReader();
+                const decoder = new TextDecoder();
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  const chunk = decoder.decode(value, { stream: true });
+                  if (!res.writableEnded) res.write(chunk);
+                }
+              }
+            }
+          } catch (e) {
+            log("warn", "Follow-up AI call failed", { error: e.message });
+          }
+          try { if (!res.writableEnded) res.end(); } catch {}
         } else {
           try { if (!res.writableEnded) res.end(); } catch {}
         }
