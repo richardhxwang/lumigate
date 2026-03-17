@@ -782,6 +782,7 @@
         <div id="mdl-drop"></div>
         <div id="proj-banner"><div id="proj-banner-dot"></div><span id="proj-banner-name"></span></div>
         <div id="cap-bar" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
+        <div id="hdr-secret" style="width:20px;height:20px;flex-shrink:0"></div>
       </div>
     </header>
     <div id="ctx-bar-wrap"><div id="ctx-bar"></div></div>
@@ -3838,10 +3839,9 @@ async function collectorRelogin(provider){
     tapTimer=setTimeout(()=>{ tapCount=0; },2000);
     if(tapCount>=5){ tapCount=0; window.open('/v1/sys/panel','_blank'); }
   }
-  const logo=$('sb-logo');
-  if(logo) logo.addEventListener('click',handleTap);
-  const emptyTitle=$('empty-title');
-  if(emptyTitle) emptyTitle.addEventListener('click',handleTap);
+  ['sb-logo','empty-title','hdr-secret'].forEach(id=>{
+    const el=$(id); if(el) el.addEventListener('click',handleTap);
+  });
 })();
 
 // Apply saved theme / compact on load
