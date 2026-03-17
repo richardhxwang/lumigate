@@ -788,7 +788,7 @@
 
     <div id="chat">
       <div id="empty" style="display:none">
-        <h2 data-t="chat.what_help"></h2>
+        <h2 id="empty-title" data-t="chat.what_help"></h2>
         <div class="sugg-grid" id="sugg-grid"></div>
       </div>
     </div>
@@ -3781,16 +3781,19 @@ $('stg-logout').addEventListener('click',async()=>{
   showAuth();
 });
 
-// Hidden dashboard entry — tap logo 5 times within 2 seconds
+// Hidden dashboard entry — tap 5 times within 2s on logo OR empty title
 (()=>{
   let tapCount=0,tapTimer=null;
-  const logo=$('sb-logo');
-  if(logo) logo.addEventListener('click',()=>{
+  function handleTap(){
     tapCount++;
     if(tapTimer) clearTimeout(tapTimer);
     tapTimer=setTimeout(()=>{ tapCount=0; },2000);
     if(tapCount>=5){ tapCount=0; window.open('/v1/sys/panel','_blank'); }
-  });
+  }
+  const logo=$('sb-logo');
+  if(logo) logo.addEventListener('click',handleTap);
+  const emptyTitle=$('empty-title');
+  if(emptyTitle) emptyTitle.addEventListener('click',handleTap);
 })();
 
 // Apply saved theme / compact on load

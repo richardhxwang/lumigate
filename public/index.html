@@ -621,6 +621,10 @@
       <div class="card-head"><h2>USER ACCOUNTS</h2><button class="btn pri sm" onclick="openUserModal()">+ User</button></div>
       <div id="userList"><div class="proj-empty">Loading...</div></div>
     </div>
+    <div class="glass" style="margin-top:16px">
+      <div class="card-head"><h2>LUMICHAT USERS</h2><button class="btn sm" onclick="loadLcUsers()" title="Refresh">Refresh</button></div>
+      <div id="lcUserList"><div class="proj-empty">Loading...</div></div>
+    </div>
   </div>
 
   <!-- Settings Tab (root only) -->
@@ -1364,7 +1368,7 @@ document.querySelectorAll('.main-tab').forEach(btn => {
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'usage' && adminAuthed) loadUsage();
     if (tab === 'projects' && adminAuthed) loadProjects();
-    if (tab === 'users' && adminAuthed && canWrite()) loadUserList();
+    if (tab === 'users' && adminAuthed && canWrite()) { loadUserList(); loadLcUsers(); }
     if (tab === 'settings' && adminAuthed && isRoot()) loadSystemSettings();
   });
 });
@@ -2662,6 +2666,95 @@ async function loadUserList() {
         </div>`;
     }).join('');
   } catch {}
+}
+
+// ── LumiChat Users ────────────────────────────────────────────────────────
+let lcUsersList = [];
+async function loadLcUsers() {
+  try {
+    const data = await fetch(B + '/admin/lc-users').then(r => r.json());
+    lcUsersList = data.items || [];
+    const list = document.getElementById('lcUserList');
+    if (!lcUsersList.length) {
+      list.innerHTML = '<div class="proj-empty">No LumiChat users yet.</div>';
+      return;
+    }
+    const TIER_COLORS = { basic: 'rgba(0,0,0,0.45)', premium: '#34c759', selfservice: '#007aff' };
+    const TIER_BG = { basic: 'rgba(0,0,0,0.05)', premium: 'rgba(52,199,89,0.1)', selfservice: 'rgba(0,122,255,0.1)' };
+    list.innerHTML = lcUsersList.map(u => {
+      const tier = u.tier || 'pending';
+      const isPending = !u.tier;
+      const tierBadge = isPending
+        ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(255,149,0,0.1);color:#ff9500">Pending</span>'
+        : `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${TIER_BG[tier]||TIER_BG.basic};color:${TIER_COLORS[tier]||TIER_COLORS.basic}">${tier.charAt(0).toUpperCase()+tier.slice(1)}</span>`;
+      const expires = u.tier_expires ? ` · Expires ${new Date(u.tier_expires).toLocaleDateString()}` : '';
+      return `
+        <div class="proj-item">
+          <div class="proj-info" style="flex:1;min-width:0">
+            <div class="proj-name">${esc(u.email)} ${tierBadge}</div>
+            <div class="proj-date">${u.name ? esc(u.name) + ' · ' : ''}${new Date(u.created).toLocaleDateString()}${expires}</div>
+          </div>
+          <div class="proj-acts" style="display:flex;gap:6px;align-items:center">
+            ${isPending ? `<button class="btn pri sm" onclick="lcApprove('${esc(u.id)}','${esc(u.email)}')">Approve</button><button class="btn sm" onclick="lcDecline('${esc(u.id)}','${esc(u.email)}')" style="color:#ff3b30">Decline</button>` : `<select onchange="lcChangeTier('${esc(u.id)}',this.value)" style="font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid rgba(0,0,0,0.15);background:transparent">
+              <option value="basic"${tier==='basic'?' selected':''}>Basic</option>
+              <option value="premium"${tier==='premium'?' selected':''}>Premium</option>
+              <option value="selfservice"${tier==='selfservice'?' selected':''}>Self-Service</option>
+            </select>`}
+            <button class="btn sm" onclick="lcDeleteUser('${esc(u.id)}','${esc(u.email)}')" style="color:#ff3b30;font-size:11px">Del</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('lcUserList').innerHTML = '<div class="proj-empty">Failed to load: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function lcChangeTier(userId, tier) {
+  try {
+    await fetch(B + '/admin/lc-users/' + userId + '/tier', {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ tier })
+    });
+    loadLcUsers();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function lcApprove(userId, email) {
+  const tier = prompt('Approve ' + email + ' — select tier:\n\n1. basic\n2. premium\n3. selfservice\n\nType tier name:', 'basic');
+  if (!tier || !['basic','premium','selfservice'].includes(tier)) return;
+  let duration = null;
+  if (tier === 'premium') {
+    duration = prompt('Premium duration:\n\n1. 30d (1 month)\n2. 90d (3 months)\n3. 365d (1 year)\n4. forever\n\nType duration:', 'forever');
+  }
+  try {
+    // Use the same PATCH /tier endpoint
+    const body = { tier };
+    if (duration && duration !== 'forever') {
+      const days = { '30d': 30, '90d': 90, '365d': 365 }[duration] || 30;
+      body.tier_expires = new Date(Date.now() + days * 86400000).toISOString();
+    }
+    await fetch(B + '/admin/lc-users/' + userId + '/tier', {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    loadLcUsers();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function lcDecline(userId, email) {
+  if (!confirm('Decline and delete ' + email + '?')) return;
+  try {
+    await fetch(B + '/admin/lc-users/' + userId, { method: 'DELETE' });
+    loadLcUsers();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function lcDeleteUser(userId, email) {
+  if (!confirm('Delete LumiChat user ' + email + '? This cannot be undone.')) return;
+  try {
+    await fetch(B + '/admin/lc-users/' + userId, { method: 'DELETE' });
+    loadLcUsers();
+  } catch (e) { alert('Failed: ' + e.message); }
 }
 
 function renderUserProjectChips(selected) {
