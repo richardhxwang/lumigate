@@ -2276,31 +2276,24 @@ async function sendMessage(){
         if(!line.startsWith('data: ')){ if(line==='') sseEventType=''; continue; }
         const data=line.slice(6).trim(); if(data==='[DONE]') continue;
 
-        // 1. tool_status — dots on top (fixed), status text below
+        // 1. tool_status — reuse typ-row dots, add status text below
         if(sseEventType==='tool_status'){
           try{
             const st=JSON.parse(data);
-            if(!statusEl){
+            if(streamRow) streamRow.style.display='';
+            // Reuse existing typing indicator — just add a status text line below the dots
+            const typBubble=$('typ-row')?.querySelector('.typing');
+            if(!statusEl && typBubble){
               statusEl=document.createElement('div');
-              statusEl.style.cssText='padding:4px 0;opacity:0;transition:opacity .3s ease';
-              // Dots row (always same size as typing indicator: 7px)
-              statusEl.innerHTML='<div class="typing-dots" style="display:flex;gap:5px;padding:2px 0"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div><div class="st-text" style="color:var(--t3);font-size:13px;margin-top:4px"></div>';
-              if(streamEl) streamEl.insertBefore(statusEl, streamEl.firstChild);
-              if(streamRow) streamRow.style.display='';
-              $('typ-row')?.remove();
-              requestAnimationFrame(()=>{ statusEl.style.opacity='1'; });
+              statusEl.className='st-text';
+              statusEl.style.cssText='color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transition:opacity .3s ease';
+              typBubble.appendChild(statusEl);
             }
             if(st.done){
-              if(!streamText){
-                // Keep dots, hide text
-                const stText=statusEl.querySelector('.st-text');
-                if(stText) stText.style.display='none';
-              } else {
-                statusEl.remove(); statusEl=null;
-              }
+              // Hide status text, keep dots bouncing
+              if(statusEl){ statusEl.style.opacity='0'; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; },300); }
             } else {
-              const stText=statusEl.querySelector('.st-text');
-              if(stText){ stText.textContent=st.text; stText.style.display='block'; }
+              if(statusEl){ statusEl.textContent=st.text; requestAnimationFrame(()=>{ statusEl.style.opacity='1'; }); }
             }
           }catch{}
           sseEventType=''; continue;
@@ -2340,9 +2333,8 @@ async function sendMessage(){
           const delta=j.choices?.[0]?.delta?.content||'';
           if(delta){
             streamText+=delta;
-            $('typ-row')?.remove();
-            // Remove status/waiting indicator when text arrives
-            if(statusEl){ statusEl.remove(); statusEl=null; }
+            // Remove typing indicator + status when first text arrives
+            $('typ-row')?.remove(); statusEl=null;
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
             // Throttled markdown render — every 300ms, not every frame
