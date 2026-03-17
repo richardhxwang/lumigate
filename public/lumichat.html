@@ -2347,12 +2347,15 @@ async function sendMessage(){
                 for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
                 dlUrl=URL.createObjectURL(new Blob([arr],{type:fd.mimeType||'application/octet-stream'}));
               }
+              // Append card to msg-row (NOT streamEl) so markdown re-render won't destroy it
               const card=document.createElement('div');
+              card.className='dl-card';
               card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
               card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
                 <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
-              streamEl.appendChild(card);
+              // Insert after streamEl in the msg-row so innerHTML won't destroy it
+              streamEl.parentNode.insertBefore(card, streamEl.nextSibling);
             }
           }catch{}
           sseEventType=''; continue;
