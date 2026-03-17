@@ -2377,20 +2377,25 @@ async function sendMessage(){
             }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
-            // Fast throttled markdown render — 80ms for smooth streaming
+            // Throttled markdown render — 120ms balances smoothness vs DOM thrashing
             if(!mdTimer){
               mdTimer=setTimeout(()=>{
                 mdTimer=null;
                 if(streamEl&&streamText.length>lastMdLen){
                   lastMdLen=streamText.length;
-                  const lastNL=streamText.lastIndexOf('\n');
-                  const renderText=lastNL>0?streamText.slice(0,lastNL):streamText;
+                  // Render full text — only trim if last line is just dashes/stars (would flash as <hr>)
+                  let renderText=streamText;
+                  const lastNL=renderText.lastIndexOf('\n');
+                  if(lastNL>0){
+                    const lastLine=renderText.slice(lastNL+1).trim();
+                    if(/^[-*_]{1,3}$/.test(lastLine)) renderText=renderText.slice(0,lastNL);
+                  }
                   streamEl.innerHTML=DOMPurify.sanitize(marked.parse(renderText),{FORCE_BODY:true});
                   streamEl.classList.add('streaming-active');
                   const{scrollHeight,clientHeight,scrollTop}=chatEl;
                   if(scrollHeight-clientHeight-scrollTop<120) chatEl.scrollTop=scrollHeight;
                 }
-              },80);
+              },120);
             }
           }
         }catch{}

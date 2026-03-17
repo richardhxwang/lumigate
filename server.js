@@ -5923,21 +5923,69 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
   // Skip SearXNG if model has built-in search (unless explicitly forced via web_search:true)
   const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && needsWebSearch(userText));
   if (doSearch) {
+    // Start SSE early so frontend sees search status
+    if (wantStream && !res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+    }
     try {
-      const query = extractSearchQuery(userText);
-      // Send early tool_status if streaming
-      if (wantStream) {
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-        res.setHeader("X-Accel-Buffering", "no");
-        res.flushHeaders();
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searching(query), icon: "search" })}\n\n`);
+      // Generate 2-3 search keywords via cheap AI (fast, <2s)
+      let queries = [extractSearchQuery(userText)]; // fallback: original query
+      try {
+        const CHEAP = [
+          { p: "deepseek", m: "deepseek-chat" }, { p: "openai", m: "gpt-4.1-nano" },
+          { p: "gemini", m: "gemini-2.5-flash" }, { p: "qwen", m: "qwen-turbo" },
+        ];
+        let kPick = null, kKey = null;
+        for (const c of CHEAP) {
+          const prov = PROVIDERS[c.p]; if (!prov) continue;
+          const k = (selectApiKey(c.p, "_lumichat") || {}).apiKey || prov.apiKey;
+          if (k) { kPick = c; kKey = k; break; }
+        }
+        if (kPick) {
+          const kProv = PROVIDERS[kPick.p];
+          const kUrl = getChatUrl(kPick.p, kProv);
+          const kHeaders = getChatHeaders(kPick.p, kKey);
+          const kRes = await fetch(kUrl, {
+            method: "POST", headers: kHeaders, signal: AbortSignal.timeout(5000),
+            body: JSON.stringify({ model: kPick.m, max_tokens: 100, temperature: 0.3, stream: false,
+              messages: [{ role: "user", content: `Generate 2-3 short search engine queries to find the most relevant and up-to-date information for this question. Output ONLY a JSON array of strings, nothing else.\n\nQuestion: ${userText.slice(0, 300)}` }],
+            }),
+          });
+          if (kRes.ok) {
+            const kData = await kRes.json();
+            const kText = kData.choices?.[0]?.message?.content || "";
+            const kMatch = kText.match(/\[[\s\S]*\]/);
+            if (kMatch) {
+              const parsed = JSON.parse(kMatch[0]).filter(q => typeof q === "string" && q.trim()).slice(0, 3);
+              if (parsed.length >= 2) queries = parsed;
+            }
+          }
+        }
+      } catch {} // keyword generation failed — use original query
+
+      // Search each keyword, send tool_status animation for each
+      let allResults = [];
+      for (let i = 0; i < queries.length; i++) {
+        const q = queries[i].trim();
+        if (!q) continue;
+        if (wantStream && !res.writableEnded) {
+          res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searching(q), icon: "search" })}\n\n`);
+        }
+        try {
+          const results = await executeWebSearchForChat(q);
+          allResults.push(...results);
+        } catch {}
       }
-      const results = await executeWebSearchForChat(query);
-      searchContext = formatSearchContext(results);
+      // Deduplicate by URL
+      const seen = new Set();
+      allResults = allResults.filter(r => { if (seen.has(r.url)) return false; seen.add(r.url); return true; }).slice(0, 8);
+      searchContext = formatSearchContext(allResults);
       if (wantStream && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(results.length), icon: "search", done: true })}\n\n`);
+        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(allResults.length), icon: "search", done: true })}\n\n`);
       }
     } catch (e) {
       log("warn", "Pre-search failed", { error: e.message });
