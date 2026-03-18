@@ -3428,10 +3428,17 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
   }
 
   async function transcribeAudio(audioBlob){
+    const ext = audioBlob.type.includes('ogg') ? 'ogg'
+      : audioBlob.type.includes('mp4') ? 'm4a'
+      : audioBlob.type.includes('mpeg') ? 'mp3'
+      : 'webm';
+    const form = new FormData();
+    form.append('file', audioBlob, `voice-input.${ext}`);
+    form.append('response_format', 'json');
     const res = await fetch('/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
-      body: audioBlob,
+      credentials: 'same-origin',
+      body: form,
     });
     const data = await res.json();
     if(data.ok) return data.text;
