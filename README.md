@@ -56,6 +56,26 @@ graph LR
 
 </details>
 
+### Current Integrated Architecture (LumiChat + LumiGate + PocketBase)
+
+This is the current production data flow and trust boundary:
+
+1. LumiChat (`/lumichat`) is a browser UI. It stores no PB credentials in JS; auth uses `lc_token` httpOnly cookie.
+2. LumiGate (`server.js`) is the single backend gateway. It enforces auth/rate-limit, forwards user-scoped calls to PocketBase, and proxies AI provider traffic.
+3. PocketBase is the system of record for LumiChat domain data: users, projects, sessions, messages, files, usage settings.
+4. Ownership checks are enforced in gateway routes before write/read of sensitive records (`assertLcSessionOwned` / `assertRecordOwned`) and mapped to proper client status codes.
+5. File flow: browser uploads multipart file to `POST /lc/files` -> LumiGate streams file to PocketBase `lc_files` -> browser consumes via guarded `GET /lc/files/serve/:id`.
+6. Voice flow: browser records audio with `MediaRecorder` -> uploads as multipart `file` field to `/v1/audio/transcriptions` -> gateway audio route forwards to Whisper service -> transcript is inserted into chat input.
+7. AI flow: UI sends chat to LumiGate (`/v1/chat`) -> provider routing/tool execution/search happens server-side -> SSE stream returns clean text + optional tool/file events.
+
+Security boundaries in this architecture:
+
+- Client never talks to PocketBase directly for privileged admin operations.
+- PB token verification and row ownership happen on every gateway-mediated data operation.
+- Unauthorized ownership access returns 4xx (forbidden/not found semantics), not masked 5xx.
+- Uploads are constrained by multer limits and MIME/extension validation in domain routes.
+- Admin and platform APIs use separate auth paths from LumiChat user auth.
+
 ## API
 
 ```bash

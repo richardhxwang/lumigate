@@ -6851,8 +6851,10 @@ app.post("/lc/messages", requireLcAuth, async (req, res) => {
     }
     res.status(r.status).json(data);
   } catch (err) {
-    log("error", "lc message create exception", { error: err.message });
-    res.status(502).json({ error: "PocketBase unavailable" });
+    const status = Number(err?.status) || 502;
+    const message = err?.message || "PocketBase unavailable";
+    log("error", "lc message create exception", { error: err.message, status });
+    res.status(status).json({ error: message });
   }
 });
 
@@ -6877,8 +6879,8 @@ app.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
     if (r.status === 204 || r.ok) return res.json({ success: true });
     const data = await r.json();
     res.status(r.status).json(data);
-  } catch {
-    res.status(502).json({ error: "PocketBase unavailable" });
+  } catch (err) {
+    res.status(Number(err?.status) || 502).json({ error: err?.message || "PocketBase unavailable" });
   }
 });
 
@@ -6949,8 +6951,10 @@ app.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
     }
     res.status(r.status).json(data);
   } catch (err) {
-    log("error", "lc message patch exception", { error: err.message, messageId: req.params.id });
-    res.status(502).json({ error: "PocketBase unavailable" });
+    const status = Number(err?.status) || 502;
+    const message = err?.message || "PocketBase unavailable";
+    log("error", "lc message patch exception", { error: err.message, status, messageId: req.params.id });
+    res.status(status).json({ error: message });
   }
 });
 
@@ -7003,8 +7007,10 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
     res.json({ id: data.id, url: fileUrl, mime_type: req.file.mimetype, size_bytes: req.file.size });
   } catch (err) {
     fs.unlink(tmpPath, () => {});
-    log("error", "lcUploadFile error", { error: err.message });
-    res.status(500).json({ error: "File upload failed" });
+    const status = Number(err?.status) || 500;
+    const message = err?.message || "File upload failed";
+    log("error", "lcUploadFile error", { error: err.message, status });
+    res.status(status).json({ error: message });
   }
 });
 
