@@ -40,17 +40,19 @@ const upload = multer({
 async function forwardToWhisper(buffer, filename, contentType) {
   const boundary = "----WhisperBoundary" + crypto.randomBytes(8).toString("hex");
   const safeName = sanitizeFilename(filename);
+  const endpoint = process.env.WHISPER_ENDPOINT || "/asr";
+  // openai-whisper-asr-webservice expects `audio_file`, while some whisper wrappers expect `file`.
+  const fileField = endpoint === "/asr" ? "audio_file" : (process.env.WHISPER_FILE_FIELD || "file");
 
   const header = Buffer.from(
     `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="file"; filename="${safeName}"\r\n` +
+    `Content-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r\n` +
     `Content-Type: ${contentType}\r\n\r\n`
   );
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
   const body = Buffer.concat([header, buffer, footer]);
 
   // Try /asr (openai-whisper-asr-webservice) then /inference (whisper.cpp native)
-  const endpoint = process.env.WHISPER_ENDPOINT || "/asr";
   const res = await fetch(`${WHISPER_URL}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
@@ -63,7 +65,13 @@ async function forwardToWhisper(buffer, filename, contentType) {
     throw new Error(`whisper.cpp returned ${res.status}: ${errText}`);
   }
 
-  return res.json();
+  const raw = await res.text().catch(() => "");
+  if (!raw.trim()) return { text: "" };
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { text: raw.trim() };
+  }
 }
 
 const router = Router();

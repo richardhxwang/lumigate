@@ -12,6 +12,15 @@ docker compose up -d --build
 
 Dashboard at `http://localhost:9471`. Chat UI at `http://localhost:9471/lumichat.html`.
 
+Integrated local services started by default:
+- PocketBase: `http://localhost:8090`
+- Whisper STT: `http://localhost:17863`
+
+First-time PocketBase bootstrap:
+1. Open `http://localhost:8090/_/`.
+2. Create the first superuser.
+3. Put the same credentials into `.env` as `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` (required for admin-tier and subscription actions in LumiGate).
+
 ## What is LumiGate
 
 LumiGate is a unified AI gateway that sits between your apps and 8 AI providers. Send a single `POST /v1/chat` request — the server handles provider routing, web search, file generation, and tool execution. Clients only receive clean text and download events. No tool logic on the frontend.
@@ -23,19 +32,35 @@ Runs on a NAS, mini PC, or any Docker host.
 ## Architecture
 
 ```mermaid
-graph LR
-    A[Client App] -->|POST /v1/chat| B[LumiGate]
-    B --> C{Pre-search?}
-    C -->|Yes| D[SearXNG]
-    D --> B
-    C -->|No| E[AI Provider]
-    B --> E
-    E -->|SSE Stream| B
-    B -->|Clean Pipe| F{Tool Tags?}
-    F -->|Yes| G[Execute Tools]
-    G -->|file_download| A
-    F -->|No| A
-    B -->|Clean text| A
+flowchart TB
+    U[LumiChat Web UI] -->|1. Login/Register| A1[/lc/auth/* on LumiGate/]
+    A1 -->|Set httpOnly lc_token| U
+
+    U -->|2. Load sessions/messages/files| L1[/lc/* data APIs/]
+    L1 -->|Owned records| PB[(PocketBase)]
+    PB --> L1
+    L1 --> U
+
+    U -->|3. Optional file upload| F1[/lc/files/]
+    F1 -->|Store file + metadata| PB
+    PB -->|Serve by id| F2[/lc/files/serve/:id/]
+    F2 --> U
+
+    U -->|4. Optional voice recording| V1[/v1/audio/transcriptions/]
+    V1 -->|audio_file multipart| W[Whisper ASR]
+    W -->|text transcript| V1
+    V1 --> U
+
+    U -->|5. Send chat turn| C1[/v1/chat (SSE)/]
+    C1 -->|Model routing| P[AI Providers]
+    C1 -->|Optional search| S[SearXNG]
+    C1 -->|Optional tools| T[Tool Runtime parse/vision/doc/code]
+    T -->|Optional generated file metadata| PB
+    P -->|stream tokens| C1
+    C1 -->|SSE clean text + tool/file events| U
+
+    C1 -->|6. Persist conversation| M1[/lc/messages PATCH/POST/]
+    M1 --> PB
 ```
 
 <details><summary>Text-based architecture (for renderers without Mermaid support)</summary>
@@ -455,6 +480,8 @@ DEPLOY_MODE=lite                  # lite | enterprise | custom
 MODULES=usage,chat,audit          # only used when DEPLOY_MODE=custom
 ADMIN_SECRET=your-secret          # dashboard admin password
 PB_URL=http://pocketbase:8090     # PocketBase instance URL
+PB_ADMIN_EMAIL=admin@example.com  # PB superuser email (for admin PB write paths)
+PB_ADMIN_PASSWORD=change-me        # PB superuser password
 CF_TUNNEL_TOKEN_LUMIGATE=...      # Cloudflare tunnel token (optional)
 ```
 
