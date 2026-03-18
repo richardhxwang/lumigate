@@ -32,12 +32,14 @@ Runs on a NAS, mini PC, or any Docker host.
 ## Architecture
 
 ```mermaid
-flowchart TB
+flowchart LR
     subgraph Client["Client Layer"]
+      direction TB
       U[LumiChat Web UI]
     end
 
     subgraph Gateway["LumiGate Gateway Layer"]
+      direction TB
       A1["/lc/auth/*"]
       L1["/lc/* data APIs"]
       F1["/lc/files"]
@@ -48,14 +50,16 @@ flowchart TB
     end
 
     subgraph Data["Data Layer"]
+      direction TB
       PB[(PocketBase)]
     end
 
-    subgraph AI["AI/Tool Layer"]
+    subgraph AI["AI / Tool Layer"]
+      direction TB
       W[Whisper ASR]
-      P[AI Providers]
       S[SearXNG]
       T[Tool Runtime parse/vision/doc/code]
+      P[AI Providers]
     end
 
     U -->|1. Login/Register| A1
