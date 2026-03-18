@@ -33,33 +33,58 @@ Runs on a NAS, mini PC, or any Docker host.
 
 ```mermaid
 flowchart TB
-    U[LumiChat Web UI] -->|1. Login/Register| A1["/lc/auth/* on LumiGate"]
+    subgraph Client["Client Layer"]
+      U[LumiChat Web UI]
+    end
+
+    subgraph Gateway["LumiGate Gateway Layer"]
+      A1["/lc/auth/*"]
+      L1["/lc/* data APIs"]
+      F1["/lc/files"]
+      F2["/lc/files/serve/:id"]
+      V1["/v1/audio/transcriptions"]
+      C1["/v1/chat (SSE)"]
+      M1["/lc/messages PATCH/POST"]
+    end
+
+    subgraph Data["Data Layer"]
+      PB[(PocketBase)]
+    end
+
+    subgraph AI["AI/Tool Layer"]
+      W[Whisper ASR]
+      P[AI Providers]
+      S[SearXNG]
+      T[Tool Runtime parse/vision/doc/code]
+    end
+
+    U -->|1. Login/Register| A1
     A1 -->|Set httpOnly lc_token| U
 
-    U -->|2. Load sessions/messages/files| L1["/lc/* data APIs"]
-    L1 -->|Owned records| PB[(PocketBase)]
+    U -->|2. Load sessions/messages/files| L1
+    L1 -->|Owned records| PB
     PB --> L1
     L1 --> U
 
-    U -->|3. Optional file upload| F1["/lc/files"]
+    U -->|3. Optional file upload| F1
     F1 -->|Store file + metadata| PB
-    PB -->|Serve by id| F2["/lc/files/serve/:id"]
+    PB -->|Serve by id| F2
     F2 --> U
 
-    U -->|4. Optional voice recording| V1["/v1/audio/transcriptions"]
-    V1 -->|audio_file multipart| W[Whisper ASR]
+    U -->|4. Optional voice recording| V1
+    V1 -->|audio_file multipart| W
     W -->|text transcript| V1
     V1 --> U
 
-    U -->|5. Send chat turn| C1["/v1/chat (SSE)"]
-    C1 -->|Model routing| P[AI Providers]
-    C1 -->|Optional search| S[SearXNG]
-    C1 -->|Optional tools| T[Tool Runtime parse/vision/doc/code]
+    U -->|5. Send chat turn| C1
+    C1 -->|Model routing| P
+    C1 -->|Optional search| S
+    C1 -->|Optional tools| T
     T -->|Optional generated file metadata| PB
     P -->|stream tokens| C1
     C1 -->|SSE clean text + tool/file events| U
 
-    C1 -->|6. Persist conversation| M1["/lc/messages PATCH/POST"]
+    C1 -->|6. Persist conversation| M1
     M1 --> PB
 ```
 
