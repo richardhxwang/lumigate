@@ -21,6 +21,33 @@ First-time PocketBase bootstrap:
 2. Create the first superuser.
 3. Put the same credentials into `.env` as `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` (required for admin-tier and subscription actions in LumiGate).
 
+## File Parsing Priority (Excel First)
+
+Current parsing priority and behavior is:
+- `Excel (.xls/.xlsx)` first priority.
+- then `PDF`, then `Word (.docx/.doc)`.
+- `PPTX` lower priority.
+
+Excel upload extraction path:
+1. Direct parse via `file-parser`.
+2. For legacy/complex `.xls`, LumiGate forces fallback to `gotenberg` (convert to PDF) and re-parses.
+3. Result is cleaned before writeback to reduce binary/junk segments.
+
+PocketBase file metadata fields written on upload include:
+- `original_name`, `ext`, `kind`
+- `parse_status`, `parse_error`, `parsed_at`
+- `created_at`, `updated_at`
+
+If PB Dashboard was created earlier and missing these fields, run:
+
+```bash
+./scripts/sync_pb_lc_schema.sh
+```
+
+This syncs both:
+- root DB: `pocketbase/pb_data/data.db`
+- lumichat project DB: `pocketbase/pb_data/projects/lumichat/data.db`
+
 ## What is LumiGate
 
 LumiGate is a unified AI gateway that sits between your apps and 8 AI providers. Send a single `POST /v1/chat` request — the server handles provider routing, web search, file generation, and tool execution. Clients only receive clean text and download events. No tool logic on the frontend.

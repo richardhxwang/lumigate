@@ -11,13 +11,48 @@
 const http = require("http");
 const path = require("path");
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 // ── Parsers ──────────────────────────────────────────────────────────────────
 
 async function parsePDF(buffer) {
   const pdfParse = require("pdf-parse");
-  const result = await pdfParse(buffer, { max: 0 }); // max:0 = all pages
+  const customPagerender = async (pageData) => {
+    const textContent = await pageData.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    });
+    const rows = [];
+    for (const item of textContent.items || []) {
+      const str = sanitizeCellText(item.str || "");
+      if (!str) continue;
+      const x = Number(item.transform?.[4] || 0);
+      const y = Number(item.transform?.[5] || 0);
+      const bucketY = Math.round(y * 2) / 2;
+      rows.push({ x, y: bucketY, str });
+    }
+    rows.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+    const lines = [];
+    let curY = null;
+    let cur = [];
+    for (const it of rows) {
+      if (curY == null || Math.abs(it.y - curY) <= 0.5) {
+        curY = it.y;
+        cur.push(it);
+      } else {
+        cur.sort((a, b) => a.x - b.x);
+        lines.push(cur.map((x) => x.str).join(" | "));
+        curY = it.y;
+        cur = [it];
+      }
+    }
+    if (cur.length) {
+      cur.sort((a, b) => a.x - b.x);
+      lines.push(cur.map((x) => x.str).join(" | "));
+    }
+    return lines.join("\n");
+  };
+  const result = await pdfParse(buffer, { max: 0, pagerender: customPagerender }); // max:0 = all pages
   return {
     text: result.text,
     pages: result.numpages,
@@ -25,25 +60,220 @@ async function parsePDF(buffer) {
   };
 }
 
-function parseExcel(buffer, filename) {
-  const XLSX = require("xlsx");
-  const workbook = XLSX.read(buffer, {
-    type: "buffer",
-    cellDates: true,
-    // Security: don't execute macros
-    bookVBA: false,
-    WTF: false,
-  });
+function sanitizeCellText(v) {
+  return String(v == null ? "" : v)
+    .replace(/\r\n/g, " ")
+    .replace(/\n/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
 
-  const sheets = [];
-  for (const name of workbook.SheetNames) {
-    const sheet = workbook.Sheets[name];
-    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-    if (csv.trim()) {
-      sheets.push(`--- Sheet: ${name} ---\n${csv}`);
+function hasValue(v) {
+  return sanitizeCellText(v) !== "";
+}
+
+function collectUsedRange(sheet) {
+  let minR = Number.POSITIVE_INFINITY;
+  let minC = Number.POSITIVE_INFINITY;
+  let maxR = -1;
+  let maxC = -1;
+  for (const key of Object.keys(sheet || {})) {
+    if (!key || key[0] === "!") continue;
+    const cell = sheet[key];
+    const value = cell?.w ?? cell?.v ?? "";
+    if (!hasValue(value)) continue;
+    const pos = require("xlsx").utils.decode_cell(key);
+    if (pos.r < minR) minR = pos.r;
+    if (pos.c < minC) minC = pos.c;
+    if (pos.r > maxR) maxR = pos.r;
+    if (pos.c > maxC) maxC = pos.c;
+  }
+  if (maxR < 0 || maxC < 0) return null;
+  return { minR, minC, maxR, maxC };
+}
+
+function normalizeMerges(merges, range) {
+  if (!Array.isArray(merges) || !range) return [];
+  const out = [];
+  for (const m of merges) {
+    if (!m || !m.s || !m.e) continue;
+    if (m.e.r < range.minR || m.s.r > range.maxR || m.e.c < range.minC || m.s.c > range.maxC) continue;
+    out.push({
+      s: { r: Math.max(m.s.r, range.minR) - range.minR, c: Math.max(m.s.c, range.minC) - range.minC },
+      e: { r: Math.min(m.e.r, range.maxR) - range.minR, c: Math.min(m.e.c, range.maxC) - range.minC },
+    });
+  }
+  return out;
+}
+
+function fillMergedCells(matrix, merges) {
+  if (!Array.isArray(merges)) return;
+  for (const m of merges) {
+    if (!m || !m.s || !m.e) continue;
+    const src = matrix[m.s.r]?.[m.s.c] || "";
+    for (let r = m.s.r; r <= m.e.r; r++) {
+      for (let c = m.s.c; c <= m.e.c; c++) {
+        if (!matrix[r]) matrix[r] = [];
+        if (!matrix[r][c]) matrix[r][c] = src;
+      }
     }
   }
-  return { text: sheets.join("\n\n") };
+}
+
+function trimOuterEmpty(matrix) {
+  const rows = (Array.isArray(matrix) ? matrix : []).map((r) => (Array.isArray(r) ? r.map((v) => sanitizeCellText(v)) : []));
+  if (!rows.length) return [];
+  let top = 0;
+  let bottom = rows.length - 1;
+  while (top <= bottom && !rows[top].some((v) => v)) top++;
+  while (bottom >= top && !rows[bottom].some((v) => v)) bottom--;
+  if (top > bottom) return [];
+  const sliced = rows.slice(top, bottom + 1);
+  const width = sliced.reduce((m, r) => Math.max(m, r.length), 0);
+  let left = 0;
+  let right = Math.max(0, width - 1);
+  while (left <= right && sliced.every((r) => !sanitizeCellText(r[left] || ""))) left++;
+  while (right >= left && sliced.every((r) => !sanitizeCellText(r[right] || ""))) right--;
+  if (left > right) return [];
+  return sliced.map((r) => {
+    const out = [];
+    for (let c = left; c <= right; c++) out.push(sanitizeCellText(r[c] || ""));
+    return out;
+  });
+}
+
+function matrixToPipeTable(rows) {
+  if (!rows.length) return "";
+  const width = rows.reduce((m, r) => Math.max(m, r.length), 0);
+  const fixed = rows.map((r) => {
+    const out = r.slice();
+    while (out.length < width) out.push("");
+    return out;
+  });
+  const header = fixed[0];
+  const sep = new Array(width).fill("---");
+  const body = fixed.slice(1);
+  const lines = [];
+  lines.push(`| ${header.map((v) => sanitizeCellText(v)).join(" | ")} |`);
+  lines.push(`| ${sep.join(" | ")} |`);
+  for (const row of body) {
+    lines.push(`| ${row.map((v) => sanitizeCellText(v)).join(" | ")} |`);
+  }
+  return lines.join("\n");
+}
+
+function parseExcelLegacy(buffer) {
+  const XLSX = require("xlsx");
+  try {
+    const workbook = XLSX.read(buffer, {
+      type: "buffer",
+      cellDates: true,
+      // Security: don't execute macros
+      bookVBA: false,
+      WTF: false,
+    });
+
+    const sheets = [];
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+      if (csv.trim()) sheets.push(`--- Sheet: ${name} ---\n${csv}`);
+    }
+    return { text: sheets.join("\n\n") };
+  } catch {
+    return { text: "" };
+  }
+}
+
+function parseBinaryOfficeStrings(buffer) {
+  const lines = [];
+  // UTF-16LE strings from legacy Office containers
+  const utf16 = buffer.toString("utf16le");
+  const utf16Matches = utf16.match(/[^\u0000-\u001f]{4,}/g) || [];
+  for (const m of utf16Matches) {
+    const s = sanitizeCellText(m)
+      .replace(/[\uD800-\uDFFF]/g, "");
+    if (s.length >= 4) lines.push(s);
+  }
+  // Latin1/ASCII fallback
+  const latin = buffer.toString("latin1");
+  const latinMatches = latin.match(/[ -~]{4,}/g) || [];
+  for (const m of latinMatches) {
+    const s = sanitizeCellText(m)
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+    if (s.length >= 4) lines.push(s);
+  }
+  const seen = new Set();
+  const uniq = [];
+  for (const ln of lines) {
+    if (seen.has(ln)) continue;
+    seen.add(ln);
+    uniq.push(ln);
+    if (uniq.length >= 1200) break;
+  }
+  return { text: uniq.join("\n") };
+}
+
+function tryReadWorkbook(buffer) {
+  const XLSX = require("xlsx");
+  const attempts = [
+    { type: "buffer", cellDates: true, cellFormula: true, cellNF: true, cellText: true, dense: false, bookVBA: false, WTF: false },
+    { type: "buffer", cellDates: true, cellFormula: false, cellNF: true, cellText: true, dense: false, bookVBA: false, WTF: false },
+    { type: "buffer", cellDates: false, cellFormula: false, cellNF: false, cellText: true, dense: false, bookVBA: false, WTF: false },
+  ];
+  let lastErr = null;
+  for (const opts of attempts) {
+    try {
+      const wb = XLSX.read(buffer, opts);
+      if (wb?.SheetNames?.length) return wb;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error("Empty workbook");
+}
+
+function parseExcel(buffer) {
+  const XLSX = require("xlsx");
+  try {
+    const workbook = tryReadWorkbook(buffer);
+
+    const sheets = [];
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const used = collectUsedRange(sheet);
+      if (!used) continue;
+      const matrix = [];
+      for (let r = used.minR; r <= used.maxR; r++) {
+        const row = [];
+        for (let c = used.minC; c <= used.maxC; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          const cell = sheet[ref];
+          const value = cell?.w ?? cell?.v ?? "";
+          row.push(sanitizeCellText(value));
+        }
+        matrix.push(row);
+      }
+      fillMergedCells(matrix, normalizeMerges(sheet["!merges"], used));
+      const trimmed = trimOuterEmpty(matrix);
+      if (trimmed.length) {
+        const table = matrixToPipeTable(trimmed);
+        sheets.push(`--- Sheet: ${name} ---\n${table}`);
+      } else {
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        if (csv.trim()) sheets.push(`--- Sheet: ${name} ---\n${csv}`);
+      }
+    }
+    if (!sheets.length) return parseExcelLegacy(buffer);
+    return { text: sheets.join("\n\n") };
+  } catch {
+    const legacy = parseExcelLegacy(buffer);
+    if (legacy.text && legacy.text.trim()) return legacy;
+    return parseBinaryOfficeStrings(buffer);
+  }
 }
 
 function parseCSV(buffer) {
@@ -54,7 +284,23 @@ function parseCSV(buffer) {
 async function parseWord(buffer) {
   const mammoth = require("mammoth");
   const result = await mammoth.extractRawText({ buffer });
-  return { text: result.value };
+  const primary = String(result.value || "").trim();
+  if (primary) return { text: primary };
+
+  // Fallback: parse document.xml directly when mammoth yields empty output.
+  const { Open } = require("unzipper");
+  const directory = await Open.buffer(buffer);
+  const entry = directory.files.find((f) => f.path === "word/document.xml");
+  if (!entry) return { text: "" };
+  const xml = (await entry.buffer()).toString("utf-8");
+  const texts = [];
+  const regex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    const t = sanitizeCellText(match[1]);
+    if (t) texts.push(t);
+  }
+  return { text: texts.join(" ") };
 }
 
 async function parsePPTX(buffer) {
@@ -223,7 +469,7 @@ const server = http.createServer(async (req, res) => {
       if (size > MAX_FILE_SIZE + 1024) { // extra 1K for multipart headers
         req.destroy();
         res.writeHead(413, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: false, error: "File too large (max 10MB)" }));
+        res.end(JSON.stringify({ ok: false, error: "File too large (max 25MB)" }));
         return;
       }
       chunks.push(chunk);

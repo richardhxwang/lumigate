@@ -244,6 +244,7 @@ async function touchLcSession(sessionId, lcToken) {
     provider: sessionData.provider || "openai",
     model: sessionData.model || "gpt-4.1-mini",
   };
+  if (lcSupportsField("sessions", "updated_at")) patchBody.updated_at = lcNowIso();
   if (sessionData.project) patchBody.project = sessionData.project;
   await lcPbFetch(`/api/collections/lc_sessions/records/${sessionId}`, {
     method: "PATCH",
@@ -4891,6 +4892,8 @@ async function pbFetch(path, options = {}) {
 }
 
 const PB_LC_PROJECT = (process.env.PB_LC_PROJECT || "lumichat").trim() || "lumichat";
+const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
+const GOTENBERG_URL = process.env.GOTENBERG_URL || "http://lumigate-gotenberg:3000";
 
 function toLcProjectPath(path) {
   const p = String(path || "");
@@ -4915,6 +4918,423 @@ async function lcPbFetch(path, options = {}) {
     if (noFallback) throw err;
   }
   return pbFetch(p, fetchOptions);
+}
+
+const LC_UPLOAD_MIME_BY_EXT = {
+  ".pdf": "application/pdf",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".xls": "application/vnd.ms-excel",
+  ".csv": "text/csv",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".doc": "application/msword",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".html": "text/html",
+  ".htm": "text/html",
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+};
+
+function lcUploadSafeName(name) {
+  return String(name || "file").replace(/["\r\n\0]/g, "_").slice(0, 255);
+}
+
+function detectLcUploadMime(filename, fallbackMime) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const known = LC_UPLOAD_MIME_BY_EXT[ext];
+  const fb = String(fallbackMime || "").trim().toLowerCase();
+  if (known) {
+    if (!fb || fb === "application/octet-stream") return known;
+    return fb;
+  }
+  return fb || "application/octet-stream";
+}
+
+function isLcExtractableFile(filename, mimeType) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const mime = String(mimeType || "").toLowerCase();
+  return (
+    mime === "application/pdf" ||
+    mime.includes("spreadsheetml") ||
+    mime.includes("ms-excel") ||
+    mime === "text/csv" ||
+    mime.includes("wordprocessingml") ||
+    mime === "application/msword" ||
+    mime.includes("presentationml") ||
+    ext === ".pptx" ||
+    mime === "text/html" ||
+    mime === "text/plain" ||
+    mime === "text/markdown"
+  );
+}
+
+function isLcSpreadsheetFile(filename, mimeType) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const mime = String(mimeType || "").toLowerCase();
+  return (
+    mime.includes("spreadsheetml") ||
+    mime.includes("ms-excel") ||
+    ext === ".xlsx" ||
+    ext === ".xls"
+  );
+}
+
+async function lcSendBufferToFileParser(buffer, filename) {
+  const boundary = "----LumiLcParse" + crypto.randomBytes(8).toString("hex");
+  const safeName = lcUploadSafeName(filename);
+  const header = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+  );
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const body = Buffer.concat([header, buffer, footer]);
+  const res = await fetch(`${FILE_PARSER_URL}/parse`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body,
+    signal: AbortSignal.timeout(60000),
+  });
+  const parsed = await res.json().catch(() => null);
+  if (!res.ok) {
+    return { ok: false, text: "", error: parsed?.error || `file_parser_http_${res.status}` };
+  }
+  if (!parsed?.ok || typeof parsed.text !== "string") {
+    return { ok: false, text: "", error: parsed?.error || "file_parser_invalid_response" };
+  }
+  return { ok: true, text: parsed.text, error: "" };
+}
+
+async function lcConvertToPdfViaGotenberg(buffer, filename) {
+  const boundary = "----LumiLcGoten" + crypto.randomBytes(8).toString("hex");
+  const safeName = lcUploadSafeName(filename);
+  const header = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+  );
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const body = Buffer.concat([header, buffer, footer]);
+  const res = await fetch(`${GOTENBERG_URL}/forms/libreoffice/convert`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body,
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!res.ok) return null;
+  return Buffer.from(await res.arrayBuffer());
+}
+
+function stripHtmlToText(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<\/(p|div|h[1-6]|li|tr|br|hr)[^>]*>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function clampExtractedTextForPb(text) {
+  const s = String(text || "").trim();
+  const MAX = 5000;
+  if (s.length <= MAX) return s;
+  const suffix = "\n\n[Truncated for lc_files.extracted_text]";
+  return s.slice(0, MAX - suffix.length).trimEnd() + suffix;
+}
+
+function lcNormalizeExtractedText(text) {
+  return String(text || "")
+    .replace(/^⚠️[^\n]*\n+/u, "")
+    .trim();
+}
+
+function lcCleanSpreadsheetExtractedText(text) {
+  const normalized = lcNormalizeExtractedText(text);
+  if (!normalized) return "";
+  const lines = normalized.split(/\r?\n/);
+  const out = [];
+  for (const raw of lines) {
+    const base = String(raw || "")
+      .replace(/[￿�]{3,}/g, " ")
+      .replace(/[^\x20-\x7E\u4e00-\u9fff]/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .trim();
+    const line = base;
+    if (!line) continue;
+    const signal = (line.match(/[A-Za-z0-9\u4e00-\u9fff]/g) || []).length;
+    if (signal === 0) continue;
+    if (signal < 3) continue;
+    out.push(line);
+    if (out.length >= 2000) break;
+  }
+  return out.join("\n").trim();
+}
+
+function lcExtractionQualityScore(text) {
+  const s = lcCleanSpreadsheetExtractedText(text) || lcNormalizeExtractedText(text);
+  if (!s) return -1e9;
+  const len = s.length;
+  const badCount = (s.match(/[�￿]/g) || []).length;
+  const asciiWordCount = (s.match(/[A-Za-z]{2,}/g) || []).length;
+  const digitCount = (s.match(/[0-9]/g) || []).length;
+  const cjkCount = (s.match(/[\u4e00-\u9fff]/g) || []).length;
+  const printableCount = (s.match(/[ -~\n\r\t]/g) || []).length + cjkCount;
+  const printableRatio = len ? (printableCount / len) : 0;
+  return (
+    Math.min(len, 12000) * 0.004 +
+    asciiWordCount * 1.4 +
+    digitCount * 0.2 +
+    cjkCount * 0.12 +
+    printableRatio * 25 -
+    badCount * 2
+  );
+}
+
+function lcLooksLikeLowQualityExtraction(text) {
+  const s = lcCleanSpreadsheetExtractedText(text) || lcNormalizeExtractedText(text);
+  if (!s) return true;
+  const badCount = (s.match(/[�￿]/g) || []).length;
+  if (badCount >= 40) return true;
+  const asciiWordCount = (s.match(/[A-Za-z]{2,}/g) || []).length;
+  const cjkCount = (s.match(/[\u4e00-\u9fff]/g) || []).length;
+  const hasLanguageSignal = asciiWordCount >= 8 || cjkCount >= 20;
+  return !hasLanguageSignal;
+}
+
+async function extractTextForLcUpload(tmpPath, originalName, mimeType) {
+  if (!isLcExtractableFile(originalName, mimeType)) {
+    return { text: "", status: "not_supported", error: "", parsedAt: null };
+  }
+  const ext = path.extname(String(originalName || "")).toLowerCase();
+  const mime = String(mimeType || "").toLowerCase();
+  const parsedAt = lcNowIso();
+  try {
+    if (mime === "text/plain" || mime === "text/markdown") {
+      const text = clampExtractedTextForPb(fs.readFileSync(tmpPath, "utf8"));
+      return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+    }
+    if (mime === "text/html") {
+      const text = clampExtractedTextForPb(stripHtmlToText(fs.readFileSync(tmpPath, "utf8")));
+      return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+    }
+    const buffer = fs.readFileSync(tmpPath);
+    if (mime.includes("presentationml") || ext === ".pptx") {
+      // Prefer direct PPTX parse; fallback to gotenberg->PDF only when needed.
+      const direct = await lcSendBufferToFileParser(buffer, originalName);
+      if (direct.ok) {
+        const text = clampExtractedTextForPb(direct.text || "");
+        return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+      }
+      const pdfBuf = await lcConvertToPdfViaGotenberg(buffer, originalName);
+      if (!pdfBuf) return { text: "", status: "error", error: `pptx_parse_failed:${direct.error || "unknown"}`, parsedAt };
+      const fallback = await lcSendBufferToFileParser(pdfBuf, originalName.replace(/\.pptx$/i, ".pdf"));
+      if (!fallback.ok) return { text: "", status: "error", error: `pptx_fallback_failed:${fallback.error || "unknown"}`, parsedAt };
+      const text = clampExtractedTextForPb(fallback.text || "");
+      return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+    }
+    const parsed = await lcSendBufferToFileParser(buffer, originalName);
+    if (isLcSpreadsheetFile(originalName, mimeType)) {
+      const isLegacyXls = ext === ".xls" || mime.includes("ms-excel");
+      const cleanedDirect = parsed.ok ? lcCleanSpreadsheetExtractedText(parsed.text || "") : "";
+      let best = (parsed.ok && cleanedDirect)
+        ? { ...parsed, text: cleanedDirect }
+        : null;
+      const directLowQuality = !best || lcLooksLikeLowQualityExtraction(best.text || "");
+      const shouldTryFallbackFirst = isLegacyXls;
+      if (shouldTryFallbackFirst || !parsed.ok || directLowQuality) {
+        // Fallback for legacy/complex Excel files: convert to PDF then parse.
+        const pdfBuf = await lcConvertToPdfViaGotenberg(buffer, originalName);
+        if (pdfBuf) {
+          const fallback = await lcSendBufferToFileParser(pdfBuf, originalName.replace(/\.(xlsx|xls)$/i, ".pdf"));
+          if (fallback.ok) {
+            const cleanedFallback = lcCleanSpreadsheetExtractedText(fallback.text || "");
+            const fallbackCandidate = cleanedFallback
+              ? { ...fallback, text: cleanedFallback }
+              : (!lcLooksLikeLowQualityExtraction(fallback.text || "") ? fallback : null);
+            if (fallbackCandidate) {
+              if (!best) {
+                best = fallbackCandidate;
+              } else if (shouldTryFallbackFirst) {
+                best = fallbackCandidate;
+              } else if (lcExtractionQualityScore(fallbackCandidate.text) > lcExtractionQualityScore(best.text) + 1) {
+                best = fallbackCandidate;
+              }
+            }
+          } else if (!best) {
+            return { text: "", status: "error", error: `sheet_fallback_failed:${fallback.error || "unknown"}`, parsedAt };
+          }
+        } else if (!best) {
+          return { text: "", status: "error", error: `sheet_convert_failed:${parsed.error || "unknown"}`, parsedAt };
+        }
+      }
+      if (!best) return { text: "", status: "error", error: parsed.error || "parse_failed", parsedAt };
+      const text = clampExtractedTextForPb(best.text || "");
+      return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+    }
+    if (!parsed.ok) return { text: "", status: "error", error: parsed.error || "parse_failed", parsedAt };
+    const text = clampExtractedTextForPb(parsed.text || "");
+    return { text, status: text ? "ok" : "empty", error: "", parsedAt };
+  } catch (err) {
+    log("warn", "lc upload extract failed", { file: originalName, error: err.message });
+    return { text: "", status: "error", error: String(err.message || "extract_failed").slice(0, 500), parsedAt };
+  }
+}
+
+const LC_SCHEMA_AUTO_PATCH = !/^(0|false|no)$/i.test(String(process.env.LC_SCHEMA_AUTO_PATCH || "1"));
+const lcDynamicFields = {
+  sessions: new Set(),
+  messages: new Set(),
+  files: new Set(),
+};
+
+const LC_REQUIRED_FIELDS = {
+  sessions: [
+    { name: "created_at", type: "text", max: 0 },
+    { name: "updated_at", type: "text", max: 0 },
+  ],
+  messages: [
+    { name: "created_at", type: "text", max: 0 },
+    { name: "updated_at", type: "text", max: 0 },
+  ],
+  files: [
+    { name: "original_name", type: "text", max: 0 },
+    { name: "ext", type: "text", max: 32 },
+    { name: "kind", type: "text", max: 32 },
+    { name: "parse_status", type: "text", max: 32 },
+    { name: "parse_error", type: "text", max: 5000 },
+    { name: "parsed_at", type: "text", max: 0 },
+    { name: "created_at", type: "text", max: 0 },
+    { name: "updated_at", type: "text", max: 0 },
+  ],
+};
+
+const LC_BASE_FIELDS = {
+  sessions: ["id", "user", "title", "provider", "model", "project"],
+  messages: ["id", "session", "role", "content", "file_ids"],
+  files: ["id", "session", "user", "file", "mime_type", "size_bytes", "extracted_text"],
+};
+
+function seedLcDynamicFieldsFallback() {
+  for (const key of Object.keys(lcDynamicFields)) {
+    const base = LC_BASE_FIELDS[key] || [];
+    const required = (LC_REQUIRED_FIELDS[key] || []).map((f) => f.name);
+    lcDynamicFields[key] = new Set([...base, ...required]);
+  }
+}
+
+seedLcDynamicFieldsFallback();
+
+function lcCollectionNameByKey(configKey) {
+  const c = LC_COLLECTION_CONFIG[configKey];
+  return c?.name || null;
+}
+
+function lcSupportsField(configKey, fieldName) {
+  return lcDynamicFields[configKey]?.has(fieldName) || false;
+}
+
+function lcDefaultSort(configKey, fallback = ["id"]) {
+  if (lcSupportsField(configKey, "created_at")) return ["-created_at", "-id"];
+  return fallback;
+}
+
+function lcNowIso() {
+  return new Date().toISOString();
+}
+
+function lcFileKindByMimeOrExt(mimeType, originalName) {
+  const mime = String(mimeType || "").toLowerCase();
+  const ext = path.extname(String(originalName || "")).toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("video/")) return "video";
+  if (mime === "application/pdf" || ext === ".pdf") return "pdf";
+  if (mime.includes("spreadsheetml") || mime.includes("ms-excel") || [".xls", ".xlsx", ".csv"].includes(ext)) return "spreadsheet";
+  if (mime.includes("wordprocessingml") || mime === "application/msword" || [".doc", ".docx"].includes(ext)) return "document";
+  if (mime.includes("presentationml") || ext === ".pptx") return "presentation";
+  if (mime === "text/plain" || mime === "text/markdown" || mime === "text/html" || [".txt", ".md", ".html", ".htm"].includes(ext)) return "text";
+  return "binary";
+}
+
+function buildLcTextField(name, max = 0) {
+  return {
+    autogeneratePattern: "",
+    hidden: false,
+    id: `text_${name}_${crypto.randomBytes(4).toString("hex")}`,
+    max,
+    min: 0,
+    name,
+    pattern: "",
+    presentable: false,
+    primaryKey: false,
+    required: false,
+    system: false,
+    type: "text",
+  };
+}
+
+function buildLcFieldDef(def) {
+  if (def.type === "text") return buildLcTextField(def.name, def.max || 0);
+  return null;
+}
+
+async function ensureLcCollectionFields(configKey, token) {
+  const collection = lcCollectionNameByKey(configKey);
+  if (!collection) return;
+  const q = encodeURIComponent(`name='${collection}'`);
+  const listRes = await pbFetch(`/api/collections/_collections/records?filter=${q}&perPage=1`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!listRes.ok) throw new Error(`_collections lookup failed for ${collection}: ${listRes.status}`);
+  const listData = await listRes.json();
+  const rec = listData.items?.[0];
+  if (!rec?.id) throw new Error(`Collection not found: ${collection}`);
+
+  const existing = Array.isArray(rec.fields) ? rec.fields : [];
+  const existingNames = new Set(existing.map((f) => f?.name).filter(Boolean));
+  const requiredDefs = LC_REQUIRED_FIELDS[configKey] || [];
+  const missing = requiredDefs.filter((f) => !existingNames.has(f.name));
+  if (missing.length) {
+    const newFields = [...existing];
+    for (const m of missing) {
+      const fd = buildLcFieldDef(m);
+      if (fd) newFields.push(fd);
+    }
+    const patchRes = await pbFetch(`/api/collections/_collections/records/${rec.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: newFields }),
+    });
+    if (!patchRes.ok) {
+      const body = await patchRes.text().catch(() => "");
+      throw new Error(`_collections patch failed for ${collection}: ${patchRes.status} ${body.slice(0, 240)}`);
+    }
+    log("info", "LC schema patched", { collection, added: missing.map((f) => f.name) });
+    missing.forEach((f) => existingNames.add(f.name));
+  }
+  lcDynamicFields[configKey] = existingNames;
+}
+
+async function ensureLcSchemaExtensions() {
+  if (!LC_SCHEMA_AUTO_PATCH) return;
+  try {
+    const token = await getPbAdminToken();
+    if (!token) {
+      log("warn", "LC schema auto-patch skipped (no PB admin token)");
+      return;
+    }
+    for (const key of ["sessions", "messages", "files"]) {
+      await ensureLcCollectionFields(key, token);
+    }
+  } catch (err) {
+    // Keep required-field writes available when PB _collections APIs are disabled in custom builds.
+    seedLcDynamicFieldsFallback();
+    log("warn", "LC schema auto-patch failed", { error: err.message });
+  }
 }
 
 const PB_DEFAULT_PAGE_SIZE = 100;
@@ -4950,25 +5370,25 @@ const LC_COLLECTION_CONFIG = {
     name: "lc_sessions",
     ownerField: "user",
     defaultPerPage: 100,
-    filterableFields: ["id", "user", "title", "provider", "model", "project", "deleted_at", "deleted_by", "delete_reason"],
-    sortableFields: ["id", "title", "provider", "model", "project", "deleted_at"],
-    writableFields: ["title", "provider", "model", "project", "deleted_at", "deleted_by", "delete_reason"],
+    filterableFields: ["id", "user", "title", "provider", "model", "project", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "title", "provider", "model", "project", "created_at", "updated_at", "deleted_at"],
+    writableFields: ["title", "provider", "model", "project", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
   messages: {
     name: "lc_messages",
     ownerField: null,
     defaultPerPage: 200,
-    filterableFields: ["id", "session", "role", "deleted_at", "deleted_by", "delete_reason"],
-    sortableFields: ["id", "session", "role", "deleted_at"],
-    writableFields: ["session", "role", "content", "file_ids", "deleted_at", "deleted_by", "delete_reason"],
+    filterableFields: ["id", "session", "role", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "session", "role", "created_at", "updated_at", "deleted_at"],
+    writableFields: ["session", "role", "content", "file_ids", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
   files: {
     name: "lc_files",
     ownerField: "user",
     defaultPerPage: 100,
-    filterableFields: ["id", "user", "session", "mime_type", "deleted_at", "deleted_by", "delete_reason"],
-    sortableFields: ["id", "user", "session", "mime_type", "size_bytes", "deleted_at"],
-    writableFields: ["session", "user", "mime_type", "size_bytes", "extracted_text", "deleted_at", "deleted_by", "delete_reason"],
+    filterableFields: ["id", "user", "session", "mime_type", "kind", "parse_status", "created_at", "updated_at", "parsed_at", "deleted_at", "deleted_by", "delete_reason"],
+    sortableFields: ["id", "user", "session", "mime_type", "size_bytes", "created_at", "updated_at", "parsed_at", "deleted_at"],
+    writableFields: ["session", "user", "mime_type", "size_bytes", "original_name", "ext", "kind", "parse_status", "parse_error", "parsed_at", "extracted_text", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
 };
 
@@ -6714,7 +7134,7 @@ app.get("/lc/sessions", requireLcAuth, async (req, res) => {
         extraFilters: buildPbFiltersFromQuery("sessions", req.query),
         includeDeleted: String(req.query.include_deleted || "") === "1",
       }),
-      sort: buildPbSortFromQuery("sessions", req.query.sort) || ["id"],
+      sort: buildPbSortFromQuery("sessions", req.query.sort) || lcDefaultSort("sessions", ["id"]),
       perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
     });
     const data = await r.json();
@@ -6727,12 +7147,15 @@ app.get("/lc/sessions", requireLcAuth, async (req, res) => {
 // POST /lc/sessions → create session
 app.post("/lc/sessions", requireLcAuth, async (req, res) => {
   try {
+    const now = lcNowIso();
     const body = {
       user: req.lcUser.id,
       title: req.body?.title || "New Chat",
       provider: req.body?.provider || "openai",
       model: req.body?.model || "gpt-4.1-mini",
     };
+    if (lcSupportsField("sessions", "created_at")) body.created_at = now;
+    if (lcSupportsField("sessions", "updated_at")) body.updated_at = now;
     if (req.body?.project && validPbId(req.body.project)) body.project = req.body.project;
     const r = await lcPbFetch("/api/collections/lc_sessions/records", {
       method: "POST",
@@ -6752,10 +7175,12 @@ app.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
   try {
     const { title } = req.body || {};
     if (!title || typeof title !== "string") return res.status(400).json({ error: "Missing title" });
+    const body = { title: title.slice(0, 200) };
+    if (lcSupportsField("sessions", "updated_at")) body.updated_at = lcNowIso();
     const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-      body: JSON.stringify({ title: title.slice(0, 200) }),
+      body: JSON.stringify(body),
     });
     const data = await r.json();
     res.status(r.status).json(data);
@@ -6770,10 +7195,12 @@ app.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
   try {
     const { provider, model } = req.body || {};
     if (!provider || !model) return res.status(400).json({ error: "Missing provider or model" });
+    const body = { provider, model };
+    if (lcSupportsField("sessions", "updated_at")) body.updated_at = lcNowIso();
     const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-      body: JSON.stringify({ provider, model }),
+      body: JSON.stringify(body),
     });
     const data = await r.json();
     res.status(r.status).json(data);
@@ -6817,7 +7244,7 @@ app.get("/lc/sessions/:id/messages", requireLcAuth, async (req, res) => {
         extraFilters: [buildPbFilterClause("session", "=", req.params.id), ...buildPbFiltersFromQuery("messages", req.query)],
         includeDeleted: String(req.query.include_deleted || "") === "1",
       }),
-      sort: buildPbSortFromQuery("messages", req.query.sort) || ["id"],
+      sort: buildPbSortFromQuery("messages", req.query.sort) || lcDefaultSort("messages", ["id"]),
       perPage: req.query.perPage ? Number(req.query.perPage) : undefined,
     });
     const data = await r.json();
@@ -6833,7 +7260,10 @@ app.post("/lc/messages", requireLcAuth, async (req, res) => {
     const { session, role, content, file_ids } = req.body || {};
     if (!session || !role || !content) return res.status(400).json({ error: "Missing required fields" });
     await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
+    const now = lcNowIso();
     const body = { session, role, content: clampPbMessageContent(content), file_ids: file_ids || [] };
+    if (lcSupportsField("messages", "created_at")) body.created_at = now;
+    if (lcSupportsField("messages", "updated_at")) body.updated_at = now;
     const r = await lcPbFetch("/api/collections/lc_messages/records", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
@@ -6938,6 +7368,7 @@ app.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
     if (typeof req.body?.content === "string") body.content = clampPbMessageContent(req.body.content);
     if (Array.isArray(req.body?.file_ids)) body.file_ids = req.body.file_ids;
     if (!Object.keys(body).length) return res.status(400).json({ error: "No updatable fields provided" });
+    if (lcSupportsField("messages", "updated_at")) body.updated_at = lcNowIso();
 
     const r = await lcPbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "PATCH",
@@ -6968,8 +7399,13 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
     await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
 
     // Stream file to PB without loading into heap (avoids OOM on large uploads)
-    const fileName = path.basename(req.file.originalname).replace(/"/g, '_');
-    const mimeType = req.file.mimetype;
+    const now = lcNowIso();
+    const originalName = String(req.file.originalname || "file");
+    const fileName = path.basename(originalName).replace(/"/g, '_');
+    const ext = path.extname(originalName).toLowerCase();
+    const mimeType = detectLcUploadMime(originalName, req.file.mimetype);
+    const kind = lcFileKindByMimeOrExt(mimeType, originalName);
+    const extraction = await extractTextForLcUpload(tmpPath, originalName, mimeType);
     const boundary = `LumiGate${crypto.randomBytes(8).toString('hex')}`;
 
     const parts = [
@@ -6977,19 +7413,28 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
       `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${req.lcUser.id}`,
       `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${mimeType}`,
       `--${boundary}\r\nContent-Disposition: form-data; name="size_bytes"\r\n\r\n${req.file.size}`,
-      `--${boundary}\r\nContent-Disposition: form-data; name="extracted_text"\r\n\r\n`,
-      `--${boundary}\r\nContent-Disposition: form-data; name="synced"\r\n\r\nfalse`,
-      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n`,
-    ].join('\r\n');
+    ];
+    if (lcSupportsField("files", "original_name")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="original_name"\r\n\r\n${lcUploadSafeName(originalName)}`);
+    if (lcSupportsField("files", "ext")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="ext"\r\n\r\n${ext}`);
+    if (lcSupportsField("files", "kind")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="kind"\r\n\r\n${kind}`);
+    if (lcSupportsField("files", "parse_status")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parse_status"\r\n\r\n${extraction.status}`);
+    if (lcSupportsField("files", "parse_error")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parse_error"\r\n\r\n${extraction.error || ""}`);
+    if (lcSupportsField("files", "parsed_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parsed_at"\r\n\r\n${extraction.parsedAt || ""}`);
+    if (lcSupportsField("files", "created_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="created_at"\r\n\r\n${now}`);
+    if (lcSupportsField("files", "updated_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="updated_at"\r\n\r\n${now}`);
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="extracted_text"\r\n\r\n${extraction.text}`);
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n`);
+    const multipartHead = parts.join('\r\n');
 
     const pt = new PassThrough();
-    pt.write(Buffer.from(parts));
+    pt.write(Buffer.from(multipartHead));
     const fileStream = fs.createReadStream(tmpPath);
     fileStream.on('error', e => pt.destroy(e));
     fileStream.on('end', () => { pt.write(Buffer.from(`\r\n--${boundary}--\r\n`)); pt.end(); });
     fileStream.pipe(pt, { end: false });
 
-    const r = await lcPbFetch("/api/collections/lc_files/records", {
+    // Use direct PB path for stream uploads: scoped->fallback retries cannot safely reuse a consumed stream body.
+    const r = await pbFetch("/api/collections/lc_files/records", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${req.lcToken}`,
@@ -6997,14 +7442,13 @@ app.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) =
       },
       body: pt,
       duplex: 'half',
-      lcNoFallback: true,
     });
     const data = await r.json();
     fs.unlink(tmpPath, () => {}); // cleanup temp file
     if (!r.ok) return res.status(r.status).json(data);
     // Return file record with accessible URL
     const fileUrl = `/lc/files/serve/${data.id}`;
-    res.json({ id: data.id, url: fileUrl, mime_type: req.file.mimetype, size_bytes: req.file.size });
+    res.json({ id: data.id, url: fileUrl, mime_type: mimeType, size_bytes: req.file.size });
   } catch (err) {
     fs.unlink(tmpPath, () => {});
     const status = Number(err?.status) || 500;
@@ -7849,6 +8293,10 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
     let sentLength = 0;      // how much of fullText has been sent to client
     let toolTagStart = -1;   // index where tool tag begins (-1 = not found)
     let streamUsage = null;
+    const TOOL_TAG_HOLD_CHARS = 30;
+    const TOOL_TAG_FAST_HOLD_CHARS = 8;
+    const TOOL_TAG_FAST_FLUSH_MS = 260;
+    let pendingSinceTs = 0;
 
     const isAnthropic = providerName.toLowerCase() === "anthropic";
 
@@ -7875,6 +8323,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
       }
       fullText += delta;
       if (toolTagStart >= 0) return;
+      if (fullText.length > sentLength && pendingSinceTs === 0) pendingSinceTs = Date.now();
 
       const scanFrom = Math.max(0, sentLength - 30);
       for (const marker of TOOL_TAG_MARKERS) {
@@ -7887,10 +8336,13 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res
         }
       }
 
-      const safeEnd = fullText.length - 30;
+      const waitedMs = pendingSinceTs ? (Date.now() - pendingSinceTs) : 0;
+      const holdChars = waitedMs >= TOOL_TAG_FAST_FLUSH_MS ? TOOL_TAG_FAST_HOLD_CHARS : TOOL_TAG_HOLD_CHARS;
+      const safeEnd = fullText.length - holdChars;
       if (safeEnd > sentLength) {
         sendDelta(fullText.slice(sentLength, safeEnd));
         sentLength = safeEnd;
+        if (sentLength >= fullText.length) pendingSinceTs = 0;
       }
     }
 
@@ -8759,6 +9211,7 @@ app.use((err, req, res, next) => {
 // Start server + graceful shutdown
 // ============================================================
 const server = app.listen(PORT, "0.0.0.0", () => {
+  ensureLcSchemaExtensions();
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
