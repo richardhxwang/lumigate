@@ -33,25 +33,25 @@ Runs on a NAS, mini PC, or any Docker host.
 
 ```mermaid
 flowchart TB
-    U[LumiChat Web UI] -->|1. Login/Register| A1[/lc/auth/* on LumiGate/]
+    U[LumiChat Web UI] -->|1. Login/Register| A1["/lc/auth/* on LumiGate"]
     A1 -->|Set httpOnly lc_token| U
 
-    U -->|2. Load sessions/messages/files| L1[/lc/* data APIs/]
+    U -->|2. Load sessions/messages/files| L1["/lc/* data APIs"]
     L1 -->|Owned records| PB[(PocketBase)]
     PB --> L1
     L1 --> U
 
-    U -->|3. Optional file upload| F1[/lc/files/]
+    U -->|3. Optional file upload| F1["/lc/files"]
     F1 -->|Store file + metadata| PB
-    PB -->|Serve by id| F2[/lc/files/serve/:id/]
+    PB -->|Serve by id| F2["/lc/files/serve/:id"]
     F2 --> U
 
-    U -->|4. Optional voice recording| V1[/v1/audio/transcriptions/]
+    U -->|4. Optional voice recording| V1["/v1/audio/transcriptions"]
     V1 -->|audio_file multipart| W[Whisper ASR]
     W -->|text transcript| V1
     V1 --> U
 
-    U -->|5. Send chat turn| C1[/v1/chat (SSE)/]
+    U -->|5. Send chat turn| C1["/v1/chat (SSE)"]
     C1 -->|Model routing| P[AI Providers]
     C1 -->|Optional search| S[SearXNG]
     C1 -->|Optional tools| T[Tool Runtime parse/vision/doc/code]
@@ -59,7 +59,7 @@ flowchart TB
     P -->|stream tokens| C1
     C1 -->|SSE clean text + tool/file events| U
 
-    C1 -->|6. Persist conversation| M1[/lc/messages PATCH/POST/]
+    C1 -->|6. Persist conversation| M1["/lc/messages PATCH/POST"]
     M1 --> PB
 ```
 
