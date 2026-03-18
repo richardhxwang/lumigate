@@ -5066,8 +5066,14 @@ function lcCleanSpreadsheetExtractedText(text) {
     const line = base;
     if (!line) continue;
     const signal = (line.match(/[A-Za-z0-9\u4e00-\u9fff]/g) || []).length;
-    if (signal === 0) continue;
-    if (signal < 3) continue;
+    if (signal === 0 || signal < 3) continue;
+    const words = line.match(/[A-Za-z]{2,}|\d{2,}|[\u4e00-\u9fff]{2,}/g) || [];
+    const hasUsefulToken = words.length > 0;
+    const singleTokens = line.match(/\b[A-Za-z]\b/g) || [];
+    if (!hasUsefulToken && signal < 8) continue;
+    if (singleTokens.length >= 8 && words.length <= 1) continue;
+    const punctuationOnly = line.replace(/[A-Za-z0-9\u4e00-\u9fff ]/g, "");
+    if (punctuationOnly.length > line.length * 0.45) continue;
     out.push(line);
     if (out.length >= 2000) break;
   }
