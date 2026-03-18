@@ -42,8 +42,7 @@ flowchart LR
       direction TB
       A1["/lc/auth/*"]
       L1["/lc/* data APIs"]
-      F1["/lc/files"]
-      F2["/lc/files/serve/:id"]
+      F1["/lc/files (upload + serve)"]
       V1["/v1/audio/transcriptions"]
       C1["/v1/chat (SSE)"]
       M1["/lc/messages PATCH/POST"]
@@ -57,8 +56,7 @@ flowchart LR
     subgraph AI["AI / Tool Layer"]
       direction TB
       W[Whisper ASR]
-      S[SearXNG]
-      T[Tool Runtime parse/vision/doc/code]
+      ST[Optional search/tools]
       P[AI Providers]
     end
 
@@ -71,9 +69,8 @@ flowchart LR
     L1 --> U
 
     U -->|3. Optional file upload| F1
-    F1 -->|Store file + metadata| PB
-    PB -->|Serve by id| F2
-    F2 --> U
+    F1 -->|Store/read file metadata| PB
+    F1 -->|Serve by id| U
 
     U -->|4. Optional voice recording| V1
     V1 -->|audio_file multipart| W
@@ -82,9 +79,8 @@ flowchart LR
 
     U -->|5. Send chat turn| C1
     C1 -->|Model routing| P
-    C1 -->|Optional search| S
-    C1 -->|Optional tools| T
-    T -->|Optional generated file metadata| PB
+    C1 -->|Optional search/tools| ST
+    ST -->|Optional generated file metadata| PB
     P -->|stream tokens| C1
     C1 -->|SSE clean text + tool/file events| U
 
