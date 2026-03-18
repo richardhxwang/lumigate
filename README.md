@@ -76,6 +76,42 @@ Security boundaries in this architecture:
 - Uploads are constrained by multer limits and MIME/extension validation in domain routes.
 - Admin and platform APIs use separate auth paths from LumiChat user auth.
 
+```mermaid
+flowchart TB
+  subgraph Client["Client Layer"]
+    U["LumiChat Web UI"]
+  end
+
+  subgraph Gateway["LumiGate Gateway (server.js)"]
+    AUTH["Auth + Rate Limit + Ownership Check"]
+    CHAT["/v1/chat (SSE)"]
+    FILE["/lc/files + /lc/files/serve/:id"]
+    AUDIO["/v1/audio/transcriptions"]
+  end
+
+  subgraph Data["Data Layer"]
+    PB["PocketBase (users/projects/sessions/messages/files)"]
+  end
+
+  subgraph AI["AI/Tool Layer"]
+    P["Providers (OpenAI/Gemini/Anthropic/...)"]
+    W["Whisper Service"]
+    T["Tool Execution (parse/vision/doc/code/search)"]
+  end
+
+  U -->|"lc_token cookie"| AUTH
+  AUTH --> CHAT
+  AUTH --> FILE
+  AUTH --> AUDIO
+
+  FILE -->|"record + blob metadata"| PB
+  PB -->|"guarded read"| FILE
+  AUDIO -->|"multipart file"| W
+  CHAT -->|"route by provider/model"| P
+  CHAT --> T
+  CHAT -->|"SSE text/tool/file events"| U
+```
+
 ## API
 
 ```bash
