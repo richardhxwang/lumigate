@@ -16,6 +16,16 @@ require("dotenv").config();
 const { detectPII, getMapping, checkCommand, detectSecrets } = require("./security");
 const { registry, executeToolCall, TOOL_SYSTEM_PROMPT } = require("./tools/registry");
 const { unifiedRegistry } = require("./tools/unified-registry");
+const { mcpClient } = require("./tools/mcp-client");
+const {
+  LumigentRuntime,
+  LumigentTraceStore,
+  registerBuiltinLumigentTools,
+  createInternalHttpBridge,
+  createMcpBridge,
+  createToolServiceBridge,
+  createGeneratedFilePersister,
+} = require("./lumigent");
 const { createSecurityMiddleware } = require("./middleware/security-middleware");
 const { createAuditMiddleware } = require("./middleware/audit-middleware");
 
@@ -67,8 +77,32 @@ function totpUri(secret, label, issuer = 'LumiGate') {
 }
 
 // --- Structured logging ---
+const LOG_BUFFER_LIMIT = Math.max(200, Number(process.env.LOG_BUFFER_LIMIT || 1200));
+const recentLogs = [];
+function appendRecentLog(entry) {
+  recentLogs.push(entry);
+  if (recentLogs.length > LOG_BUFFER_LIMIT) recentLogs.splice(0, recentLogs.length - LOG_BUFFER_LIMIT);
+}
+function getRecentLogs({ limit = 200, level, component } = {}) {
+  const normLimit = Math.max(1, Math.min(1000, Number(limit) || 200));
+  return recentLogs
+    .filter(item => (!level || item.level === level) && (!component || item.component === component))
+    .slice(-normLimit);
+}
 function log(level, msg, ctx = {}) {
-  process.stdout.write(JSON.stringify({ ts: new Date().toISOString(), level, msg, ...ctx }) + "\n");
+  const entry = { ts: new Date().toISOString(), level, msg, ...ctx };
+  appendRecentLog(entry);
+  process.stdout.write(JSON.stringify(entry) + "\n");
+}
+function logParamChange(scope, actor, changes, extra = {}) {
+  if (!changes || typeof changes !== "object" || !Object.keys(changes).length) return;
+  log("info", "parameter_change", {
+    component: "settings",
+    scope,
+    actor: actor || "system",
+    changes,
+    ...extra,
+  });
 }
 
 // --- Webhook alerts (non-blocking, fire-and-forget) ---
@@ -624,13 +658,28 @@ function loadSettings() {
   } catch {}
   return {};
 }
+let _lastSavedSettingsSnapshot = null;
 function saveSettings(s) {
+  const prev = _lastSavedSettingsSnapshot ? JSON.parse(_lastSavedSettingsSnapshot) : {};
   ensureDataDir();
   const tmp = SETTINGS_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
   fs.renameSync(tmp, SETTINGS_FILE);
+  const nextSnapshot = JSON.stringify(s);
+  _lastSavedSettingsSnapshot = nextSnapshot;
+  try {
+    const next = JSON.parse(nextSnapshot);
+    const changedKeys = [...new Set([...Object.keys(prev || {}), ...Object.keys(next || {})])]
+      .filter(key => JSON.stringify(prev?.[key]) !== JSON.stringify(next?.[key]));
+    if (changedKeys.length) {
+      const changes = {};
+      for (const key of changedKeys) changes[key] = { before: prev?.[key], after: next?.[key] };
+      logParamChange("system", "saveSettings", changes, { component: "settings", route: "settings.json" });
+    }
+  } catch {}
 }
 let settings = loadSettings();
+try { _lastSavedSettingsSnapshot = JSON.stringify(settings || {}); } catch { _lastSavedSettingsSnapshot = "{}"; }
 // Restore hot-switched mode from settings.json (survives restart)
 if (settings.deployMode && settings.deployMode !== DEPLOY_MODE) {
   applyDeployMode(settings.deployMode, settings.customModules);
@@ -1360,13 +1409,13 @@ setInterval(() => { _globalRegCount = 0; }, 60 * 60 * 1000); // reset hourly
 
 // 4. Body parser limit (configurable; default raised for large chat payloads)
 app.use(express.json({
-  limit: process.env.BODY_JSON_LIMIT || "50mb",
+  limit: process.env.BODY_JSON_LIMIT || "256mb",
   verify: (req, res, buf) => { req._rawBody = buf.toString(); }, // preserve raw body for HMAC
 }));
 
 // 5. Request timeout
 app.use((req, res, next) => {
-  req.setTimeout(120000); // 2 min for AI responses
+  req.setTimeout(Number(process.env.REQUEST_TIMEOUT_MS || 300000)); // default 5 min for large file parse + chat
   next();
 });
 
@@ -1590,11 +1639,11 @@ app.get("/collector/health", (req, res) => {
   res.json({ providers: result });
 });
 
-// Cache HTML templates at startup (nonce injected per-request)
-const _dashboardHtml = fs.existsSync(path.join(__dirname, "public", "index.html"))
-  ? fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8") : null;
-const _lumichatHtml = fs.existsSync(path.join(__dirname, "public", "lumichat.html"))
-  ? fs.readFileSync(path.join(__dirname, "public", "lumichat.html"), "utf8") : null;
+function readPublicHtml(filename) {
+  const htmlPath = path.join(__dirname, "public", filename);
+  if (!fs.existsSync(htmlPath)) return null;
+  return fs.readFileSync(htmlPath, "utf8");
+}
 
 // Static files (CSS/JS/images only, HTML served dynamically below)
 app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
@@ -1623,14 +1672,15 @@ app.use((req, res, next) => {
 });
 
 app.get("/v1/sys/panel", (req, res) => {
-  if (!_dashboardHtml) return res.status(503).send("Dashboard not available");
+  const dashboardHtml = readPublicHtml("index.html");
+  if (!dashboardHtml) return res.status(503).send("Dashboard not available");
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader("Content-Security-Policy",
     `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'`
   );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
-  const html = _dashboardHtml.replace(/\{\{NONCE\}\}/g, nonce);
+  const html = dashboardHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
 });
 
@@ -1649,7 +1699,8 @@ app.get("/chat", (req, res) => {
 
 // Serve LumiChat interface (nonce injected into HTML for CSP)
 app.get("/lumichat", (req, res) => {
-  if (!_lumichatHtml) {
+  const lumichatHtml = readPublicHtml("lumichat.html");
+  if (!lumichatHtml) {
     return res.status(503).send("LumiChat not yet deployed");
   }
   const nonce = crypto.randomBytes(16).toString('base64');
@@ -1659,7 +1710,7 @@ app.get("/lumichat", (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   // Inject nonce into all <script nonce="{{NONCE}}"> and <style nonce="{{NONCE}}"> placeholders
-  const html = _lumichatHtml.replace(/\{\{NONCE\}\}/g, nonce);
+  const html = lumichatHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
 });
 
@@ -2342,6 +2393,17 @@ app.get("/admin/settings", requireRole("root"), (req, res) => {
   });
 });
 
+app.get("/admin/logs/recent", requireRole("root"), (req, res) => {
+  res.json({
+    ok: true,
+    items: getRecentLogs({
+      limit: req.query.limit,
+      level: typeof req.query.level === "string" ? req.query.level : undefined,
+      component: typeof req.query.component === "string" ? req.query.component : undefined,
+    }),
+  });
+});
+
 app.put("/admin/settings", requireRole("root"), (req, res) => {
   const { freeTierMode, deployMode, enabledModules, authMode, authEmail, authRotateHours, confirmSecret,
           smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpTo, smtpEnabled,
@@ -2455,6 +2517,11 @@ app.put("/admin/settings", requireRole("root"), (req, res) => {
   }
   saveSettings(settings);
   audit(req.userName, "settings_update", null, changes);
+  logParamChange("admin", req.userName, changes, {
+    component: "settings",
+    route: "/admin/settings",
+    ip: req.ip,
+  });
   res.json({
     success: true,
     settings: {
@@ -3942,7 +4009,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
     const anthHasToolTags = /\[TOOL:\w+\]/.test(anthContentToScan) || /<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/.test(anthContentToScan) || /<(?:minimax:)?tool_call>/.test(anthContentToScan);
     if (anthHasToolTags) {
       try {
-        const toolResults = await executeTextToolCalls(anthContentToScan, req._lcUserId || req._proxyProjectName || "api");
+        const toolResults = await lumigentRuntime.executeTextToolCalls(anthContentToScan, req._lcUserId || req._proxyProjectName || "api");
         if (toolResults.length > 0 && !res.writableEnded) {
           for (const tr of toolResults) {
             res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
@@ -3980,7 +4047,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
       for (const block of toolUseBlocks) {
         const toolName = block.name;
         const toolInput = block.input;
-        const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
+        const result = await lumigentRuntime.executeToolCall(toolName, toolInput);
 
         // F. Tool call logging (async, non-blocking)
         const userId = req._lcUserId || req._tokenUserId;
@@ -4083,169 +4150,31 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
 // API Proxy — /v1/:provider/*
 // ============================================================
 
-// Repair common AI-generated malformed JSON before parsing
-function repairJSON(str) {
-  let s = str.trim();
-  // Remove trailing commas before } or ]
-  s = s.replace(/,\s*([}\]])/g, '$1');
-  // Try parsing as-is first
-  try { JSON.parse(s); return s; } catch {}
-  // Count brackets and add missing closing ones
-  let opens = 0, openb = 0;
-  for (const c of s) { if (c === '{') opens++; if (c === '}') opens--; if (c === '[') openb++; if (c === ']') openb--; }
-  while (opens > 0) { s += '}'; opens--; }
-  while (openb > 0) { s += ']'; openb--; }
-  // Try again
-  try { JSON.parse(s); return s; } catch {}
-  // Replace single quotes with double (but not inside strings)
-  s = s.replace(/'/g, '"');
-  try { JSON.parse(s); return s; } catch {}
-  return str; // give up, return original
-}
+const persistGeneratedToolFile = createGeneratedFilePersister({
+  getPbAdminToken,
+  pbUrl: PB_URL,
+});
 
-// Format tool results server-side — frontend only renders the HTML
-function formatToolResult(toolName, data) {
-  // Search results → HTML card
-  if (toolName === "web_search" && data.results) {
-    const items = (data.results || []).slice(0, 6);
-    if (items.length === 0) return { html: '<div style="padding:12px;color:#888">No results found</div>' };
-    const esc = s => String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-    let html = '<div style="border:1px solid var(--border,#333);border-radius:12px;overflow:hidden">';
-    html += '<div style="padding:10px 14px;background:var(--inp,#2f2f2f);font-size:12px;font-weight:600;color:var(--t3,#888);display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>Search Results</div>';
-    for (const r of items) {
-      html += `<div style="padding:10px 14px;border-top:1px solid var(--border,#333)"><a href="${esc(r.url)}" target="_blank" style="color:var(--accent,#10a37f);font-size:14px;font-weight:500;text-decoration:none">${esc(r.title)}</a><div style="font-size:12px;color:var(--t3,#888);margin-top:4px;line-height:1.5">${esc((r.content || "").slice(0, 150))}</div></div>`;
-    }
-    html += '</div>';
-    return { html, query: data.query };
-  }
+const lumigentTraceStore = new LumigentTraceStore({ limit: 300 });
+const lumigentInternalHttpBridge = createInternalHttpBridge({
+  port: PORT,
+  authKey: INTERNAL_CHAT_KEY,
+});
+const lumigentMcpBridge = createMcpBridge({ client: mcpClient });
+const lumigentToolServiceBridge = createToolServiceBridge({ executeBuiltinTool: executeToolCall });
 
-  // Template result → info
-  if (data.based_on_template) {
-    return { html: `<div style="padding:8px 12px;background:var(--inp,#2f2f2f);border-radius:8px;font-size:13px;color:var(--t2,#ccc)">Based on template: <b>${String(data.based_on_template)}</b></div>`, data };
-  }
+registerBuiltinLumigentTools(unifiedRegistry, {
+  toolService: lumigentToolServiceBridge,
+  internalHttp: lumigentInternalHttpBridge,
+  mcp: lumigentMcpBridge,
+});
 
-  // Default — pass through
-  return { data };
-}
-
-// Shared helper: execute text-based tool calls and upload files to PocketBase
-// Supports: [TOOL:name]{json}[/TOOL] and <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
-async function executeTextToolCalls(contentText, userId) {
-  const results = [];
-
-  // 1. Parse [TOOL:name]{json}[/TOOL] format
-  const toolTagRe = /\[TOOL:(\w+)\]([\s\S]*?)\[\/TOOL\]/g;
-  let toolMatch;
-  while ((toolMatch = toolTagRe.exec(contentText)) !== null) {
-    const toolName = toolMatch[1];
-    let toolInput = {};
-    try { toolInput = JSON.parse(repairJSON(toolMatch[2].trim())); } catch (e) { log("warn", "Tool JSON parse failed", { tool: toolName, error: e.message, raw: toolMatch[2].slice(0,200) }); continue; }
-    try {
-      const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
-      if (result.ok && result.file) {
-        let downloadUrl = "";
-        try {
-          const pbToken = await getPbAdminToken();
-          if (pbToken) {
-            const fn = (result.filename || "file").replace(/"/g, "_");
-            const boundary = "----FB" + crypto.randomBytes(8).toString("hex");
-            const headerBuf = Buffer.from(
-              `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${fn}\r\n` +
-              `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${result.mimeType}\r\n` +
-              `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId || "api"}\r\n` +
-              `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fn}"\r\nContent-Type: ${result.mimeType}\r\n\r\n`
-            );
-            const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
-            const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, {
-              method: "POST",
-              headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
-              body: Buffer.concat([headerBuf, result.file, footerBuf]),
-            });
-            if (pbRes.ok) { const rec = await pbRes.json(); downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`; }
-          }
-        } catch {}
-        results.push({
-          tool: toolName, filename: result.filename, mimeType: result.mimeType,
-          size: result.file.length, downloadUrl,
-          base64: !downloadUrl ? result.file.toString("base64") : undefined,
-          duration: result.duration,
-        });
-      } else if (result.ok && result.data) {
-        // Format data server-side — frontend only renders
-        const formatted = formatToolResult(toolName, result.data);
-        results.push({ tool: toolName, ...formatted, duration: result.duration });
-      }
-    } catch (e) { log("warn", "Tool tag execution failed", { tool: toolName, error: e.message }); }
-  }
-  // 2. Parse DeepSeek DSML tool calls: <｜DSML｜function_calls><｜DSML｜invoke name="x"><｜DSML｜parameter name="y" string="true">val<｜DSML｜parameter>...
-  const dsmlRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>([\s\S]*?)<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g;
-  let dsmlMatch;
-  while ((dsmlMatch = dsmlRe.exec(contentText)) !== null) {
-    const invokeRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)invoke\s+name="(\w+)"[^>]*>([\s\S]*?)<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)invoke>/g;
-    let dInvoke;
-    while ((dInvoke = invokeRe.exec(dsmlMatch[1])) !== null) {
-      const toolName = dInvoke[1];
-      const toolInput = {};
-      const paramRe = /<(?:｜DSML｜|︱DSML︱|\|DSML\|)parameter\s+name="(\w+)"[^>]*>([\s\S]*?)<(?:｜DSML｜|︱DSML︱|\|DSML\|)parameter>/g;
-      let dParam;
-      while ((dParam = paramRe.exec(dInvoke[2])) !== null) {
-        let val = dParam[2].trim();
-        try { val = JSON.parse(val); } catch {}
-        toolInput[dParam[1]] = val;
-      }
-      if (Object.keys(toolInput).length > 0) {
-        try {
-          const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
-          if (result.ok && result.data) {
-            const formatted = formatToolResult(toolName, result.data);
-            results.push({ tool: toolName, ...formatted, duration: result.duration });
-          }
-        } catch (e) { log("warn", "DSML tool exec failed", { tool: toolName, error: e.message }); }
-      }
-    }
-  }
-
-  // 3. Parse XML tool calls: <minimax:tool_call><invoke name="x"><parameter name="y">val</parameter></invoke></minimax:tool_call>
-  const xmlToolRe = /<(?:minimax:)?tool_call>([\s\S]*?)<\/(?:minimax:)?tool_call>/g;
-  let xmlMatch;
-  while ((xmlMatch = xmlToolRe.exec(contentText)) !== null) {
-    const invokeRe = /<invoke\s+name="(\w+)">([\s\S]*?)<\/invoke>/g;
-    let invokeMatch;
-    while ((invokeMatch = invokeRe.exec(xmlMatch[1])) !== null) {
-      const toolName = invokeMatch[1];
-      const toolInput = {};
-      const paramRe = /<parameter\s+name="(\w+)">([\s\S]*?)<\/parameter>/g;
-      let paramMatch;
-      while ((paramMatch = paramRe.exec(invokeMatch[2])) !== null) {
-        let val = paramMatch[2].trim();
-        try { val = JSON.parse(val); } catch {} // try parsing JSON arrays/objects
-        toolInput[paramMatch[1]] = val;
-      }
-      try {
-        const result = await unifiedRegistry.executeToolCall(toolName, toolInput);
-        if (result.ok && result.file) {
-          let downloadUrl = "";
-          try {
-            const pbToken = await getPbAdminToken();
-            if (pbToken) {
-              const fn = (result.filename || "file").replace(/"/g, "_");
-              const boundary = "----FB" + crypto.randomBytes(8).toString("hex");
-              const headerBuf = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${fn}\r\n--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${result.mimeType}\r\n--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId || "api"}\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fn}"\r\nContent-Type: ${result.mimeType}\r\n\r\n`);
-              const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
-              const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, { method: "POST", headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken }, body: Buffer.concat([headerBuf, result.file, footerBuf]) });
-              if (pbRes.ok) { const rec = await pbRes.json(); downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`; }
-            }
-          } catch {}
-          results.push({ tool: toolName, filename: result.filename, mimeType: result.mimeType, size: result.file.length, downloadUrl, base64: !downloadUrl ? result.file.toString("base64") : undefined, duration: result.duration });
-        } else if (result.ok && result.data) {
-          results.push({ tool: toolName, data: result.data, duration: result.duration });
-        }
-      } catch (e) { log("warn", "XML tool exec failed", { tool: toolName, error: e.message }); }
-    }
-  }
-
-  return results;
-}
+const lumigentRuntime = new LumigentRuntime({
+  registry: unifiedRegistry,
+  logger: log,
+  persistFile: persistGeneratedToolFile,
+  traceStore: lumigentTraceStore,
+});
 
 // Retry a failed proxy request with a different API key using fetch
 async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new Set()) {
@@ -4324,7 +4253,7 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
 
     // Execute text-based tool calls server-side before closing the response
     const contentToScan = isStreaming ? _streamContentBuf : tail;
-    const toolResults = await executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api");
+    const toolResults = await lumigentRuntime.executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api");
     if (toolResults.length > 0 && isStreaming) {
       for (const tr of toolResults) {
         res.write(`event: tool_result\ndata: ${JSON.stringify(tr)}\n\n`);
@@ -4516,7 +4445,7 @@ const proxyMiddleware = createProxyMiddleware({
 
         // Run async tool execution in a self-contained promise
         const toolExecPromise = hasToolTags
-          ? executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api")
+          ? lumigentRuntime.executeTextToolCalls(contentToScan, req._lcUserId || req._proxyProjectName || "api")
               .catch(e => { log("error", "Tool execution failed", { error: e.message }); return []; })
           : Promise.resolve([]);
 
@@ -4891,13 +4820,46 @@ async function pbFetch(path, options = {}) {
 const PB_LC_PROJECT = (process.env.PB_LC_PROJECT || "lumichat").trim() || "lumichat";
 const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
 const GOTENBERG_URL = process.env.GOTENBERG_URL || "http://lumigate-gotenberg:3000";
-const LC_ENCRYPTED_UPLOAD_LIMIT_BYTES = Number(process.env.LC_ENCRYPTED_UPLOAD_LIMIT_BYTES || 20 * 1024 * 1024);
+const LC_ENCRYPTED_UPLOAD_LIMIT_BYTES = Number(process.env.LC_ENCRYPTED_UPLOAD_LIMIT_BYTES || 64 * 1024 * 1024);
 
-const LC_RSA_KEYPAIR = crypto.generateKeyPairSync("rsa", {
-  modulusLength: Number(process.env.LC_ENCRYPTED_RSA_BITS || 2048),
-  publicKeyEncoding: { type: "spki", format: "pem" },
-  privateKeyEncoding: { type: "pkcs8", format: "pem" },
-});
+const LC_RSA_KEYPAIR_FILE = process.env.LC_ENCRYPTED_RSA_KEYPAIR_FILE
+  || path.join(__dirname, "data", "lc_encrypted_upload_keypair.json");
+function loadOrCreateLcRsaKeypair() {
+  const readFromDisk = () => {
+    try {
+      if (!fs.existsSync(LC_RSA_KEYPAIR_FILE)) return null;
+      const raw = fs.readFileSync(LC_RSA_KEYPAIR_FILE, "utf8");
+      const parsed = JSON.parse(raw);
+      if (parsed?.privateKeyPem && parsed?.publicKeyPem) {
+        return { privateKey: parsed.privateKeyPem, publicKey: parsed.publicKeyPem };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+  const persistToDisk = (pair) => {
+    const dir = path.dirname(LC_RSA_KEYPAIR_FILE);
+    fs.mkdirSync(dir, { recursive: true });
+    const payload = {
+      algorithm: "RSA-OAEP-256",
+      createdAt: new Date().toISOString(),
+      publicKeyPem: pair.publicKey,
+      privateKeyPem: pair.privateKey,
+    };
+    fs.writeFileSync(LC_RSA_KEYPAIR_FILE, JSON.stringify(payload, null, 2), { mode: 0o600 });
+  };
+  const existing = readFromDisk();
+  if (existing) return existing;
+  const generated = crypto.generateKeyPairSync("rsa", {
+    modulusLength: Number(process.env.LC_ENCRYPTED_RSA_BITS || 2048),
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  persistToDisk(generated);
+  return generated;
+}
+const LC_RSA_KEYPAIR = loadOrCreateLcRsaKeypair();
 const LC_RSA_PUBLIC_SPKI_DER = crypto.createPublicKey(LC_RSA_KEYPAIR.publicKey).export({ type: "spki", format: "der" });
 const LC_RSA_PUBLIC_SPKI_B64 = LC_RSA_PUBLIC_SPKI_DER.toString("base64");
 const LC_RSA_KEY_ID = crypto.createHash("sha256").update(LC_RSA_PUBLIC_SPKI_DER).digest("hex").slice(0, 16);
@@ -5111,8 +5073,427 @@ function stripHtmlToText(html) {
     .trim();
 }
 
+const LC_PB_EXTRACTED_TEXT_MAX_CHARS = Math.max(100000, Number(process.env.LC_PB_EXTRACTED_TEXT_MAX_CHARS || 1900000));
 function clampExtractedTextForPb(text) {
-  return String(text || "");
+  const normalized = String(text || "");
+  if (!normalized) return "";
+  if (normalized.length <= LC_PB_EXTRACTED_TEXT_MAX_CHARS) return normalized;
+  // Keep both beginning and ending context so follow-up questions about tail sections still work.
+  const marker = "\n\n[pb extracted_text truncated: middle omitted]\n\n";
+  const budget = Math.max(2000, LC_PB_EXTRACTED_TEXT_MAX_CHARS - marker.length);
+  const head = normalized.slice(0, Math.floor(budget * 0.5));
+  const tail = normalized.slice(Math.max(0, normalized.length - Math.ceil(budget * 0.5)));
+  return `${head}${marker}${tail}`;
+}
+
+const LC_MODEL_ATTACHMENT_MAX_CHARS = Math.max(4000, Number(process.env.LC_MODEL_ATTACHMENT_MAX_CHARS || 24000));
+const LC_MODEL_ATTACHMENT_MAX_LINES = Math.max(40, Number(process.env.LC_MODEL_ATTACHMENT_MAX_LINES || 220));
+const LC_MODEL_ATTACHMENT_FULL_CHARS = Math.max(12000, Number(process.env.LC_MODEL_ATTACHMENT_FULL_CHARS || 48000));
+function clampExtractedTextForModel(text, label = "attachment") {
+  const normalized = lcNormalizeExtractedText(text);
+  if (!normalized) return "";
+  const lines = normalized.split(/\r?\n/);
+  let clipped = lines.slice(0, LC_MODEL_ATTACHMENT_MAX_LINES).join("\n");
+  if (clipped.length > LC_MODEL_ATTACHMENT_MAX_CHARS) clipped = clipped.slice(0, LC_MODEL_ATTACHMENT_MAX_CHARS);
+  const omittedLines = Math.max(0, lines.length - LC_MODEL_ATTACHMENT_MAX_LINES);
+  const omittedChars = Math.max(0, normalized.length - clipped.length);
+  if (!omittedLines && !omittedChars) return clipped;
+  const note = `[${label} truncated for model context: omitted ${omittedLines} line(s), ${omittedChars} char(s)]`;
+  return `${clipped.trim()}\n\n${note}`.trim();
+}
+function formatAttachmentContextBlock({ name = "", kind = "", mime = "", text = "", note = "" } = {}) {
+  const body = String(text || "").trim();
+  if (!body) return "";
+  const meta = [
+    name ? `name: ${name}` : "",
+    kind ? `kind: ${kind}` : "",
+    mime ? `mime: ${mime}` : "",
+    note ? `note: ${note}` : "",
+  ].filter(Boolean).join("\n");
+  return `[Attachment Context]\n${meta}\ncontent:\n${body}`.trim();
+}
+function extractMessagePlainText(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => part && typeof part === "object" && part.type === "text")
+      .map((part) => String(part.text || ""))
+      .join("\n");
+  }
+  return "";
+}
+function contentHasAttachmentContext(content) {
+  if (typeof content === "string") return content.includes("[Attachment Context]");
+  if (Array.isArray(content)) {
+    return content.some((part) => part && typeof part === "object" && part.type === "text" && String(part.text || "").includes("[Attachment Context]"));
+  }
+  return false;
+}
+const LC_CN_NUM_MAP = { "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+function lcCnNumeralToNumber(text) {
+  const s = String(text || "").trim();
+  if (!s) return NaN;
+  if (/^\d+$/.test(s)) return Number(s);
+  if (s === "十") return 10;
+  const pos = s.indexOf("十");
+  if (pos >= 0) {
+    const left = pos === 0 ? 1 : (LC_CN_NUM_MAP[s.slice(0, pos)] ?? NaN);
+    const rightText = s.slice(pos + 1);
+    const right = rightText ? (LC_CN_NUM_MAP[rightText] ?? NaN) : 0;
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return NaN;
+    return left * 10 + right;
+  }
+  return LC_CN_NUM_MAP[s] ?? NaN;
+}
+function lcNumberToCnNumeral(num) {
+  const n = Number(num);
+  if (!Number.isFinite(n) || n <= 0 || n >= 100) return "";
+  if (n < 10) return Object.keys(LC_CN_NUM_MAP).find((k) => LC_CN_NUM_MAP[k] === n) || "";
+  if (n === 10) return "十";
+  if (n < 20) return `十${lcNumberToCnNumeral(n - 10)}`;
+  const tens = Math.floor(n / 10);
+  const ones = n % 10;
+  return `${lcNumberToCnNumeral(tens)}十${ones ? lcNumberToCnNumeral(ones) : ""}`;
+}
+function extractQueryNoteRefs(text) {
+  const raw = String(text || "");
+  if (!raw) return [];
+  const refs = new Set();
+  const re = /(附注|附註|注|註|note|notes?)\s*[:：.\-]?\s*([0-9]{1,2}|[一二三四五六七八九十]{1,3})/ig;
+  let m;
+  while ((m = re.exec(raw)) !== null) {
+    const n = lcCnNumeralToNumber(m[2]);
+    if (Number.isFinite(n) && n >= 1 && n <= 99) refs.add(n);
+  }
+  return [...refs];
+}
+function attachmentQueryTerms(text) {
+  const raw = String(text || "").toLowerCase();
+  const noteRefs = extractQueryNoteRefs(text);
+  const noteAliasTokens = [];
+  const financeAliasTokens = [];
+  for (const n of noteRefs) {
+    const cn = lcNumberToCnNumeral(n);
+    noteAliasTokens.push(
+      `note ${n}`,
+      `notes ${n}`,
+      `附注${n}`,
+      `附註${n}`,
+      `第${n}`,
+      "附注",
+      "附註"
+    );
+    if (cn) {
+      noteAliasTokens.push(
+        cn,
+        `附注${cn}`,
+        `附註${cn}`,
+        `第${cn}`
+      );
+    }
+  }
+  if (/\bbs\b|balance\s*sheet|statement\s*of\s*financial\s*position|资产负债表|資產負債表/i.test(raw)) {
+    financeAliasTokens.push("balance sheet", "statement of financial position", "current assets", "current liabilities", "资产负债表", "資產負債表", "流动资产", "流動資產", "流动负债", "流動負債");
+  }
+  if (/\bnote(s)?\b|附注|附註|财务报表附注|財務報表附註/i.test(raw)) {
+    financeAliasTokens.push("notes", "note", "附注", "附註", "綜合財務報告附註", "notes to the consolidated financial statements");
+  }
+  if (/\btie\b|勾稽|核对|核對|一致|reconcile|roll[-\s]*forward/i.test(raw)) {
+    financeAliasTokens.push("reconcile", "tied", "tie", "勾稽", "核对", "核對", "一致", "changes in", "變動");
+  }
+  if (/存货|存貨|inventory|inventories|stocks/i.test(raw)) {
+    financeAliasTokens.push("inventory", "inventories", "stocks", "存货", "存貨");
+  }
+  if (/香港财报|香港財報|hkfrs|hksas|annual report|综合财务报表|綜合財務報表|consolidated/i.test(raw)) {
+    financeAliasTokens.push(
+      "annual report", "consolidated financial statements", "notes to the consolidated financial statements",
+      "statement of financial position", "balance sheet", "statement of profit or loss", "statement of comprehensive income",
+      "statement of changes in equity", "statement of cash flows",
+      "綜合財務狀況表", "綜合損益表", "綜合全面收益表", "綜合權益變動表", "綜合現金流量表",
+      "综合财务状况表", "综合损益表", "综合全面收益表", "综合权益变动表", "综合现金流量表",
+      "附註", "附注", "營業額及分部資料", "turnover and segment information",
+      "trade and other receivables", "trade and other payables", "property, plant and equipment",
+      "goodwill", "intangible assets", "borrowings", "taxation", "earnings per share", "dividends",
+      "stocks", "inventories", "deferred tax", "non-controlling interests", "owners of the company"
+    );
+  }
+  const baseTokens = raw
+    .replace(/[^\p{L}\p{N}_\s-]+/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const latinTokens = raw.match(/[a-z0-9_]{2,}/g) || [];
+  const cjkTokens = raw.match(/[\u4e00-\u9fff]{2,}/g) || [];
+  const stop = /^(the|and|for|with|from|this|that|only|using|uploaded|file|attachment|please|list|show|give|tell|about|do|not|use|web|search|仅基于|只基于|上传文件|继续)$/i;
+  const sticky = new Set([...noteAliasTokens, ...financeAliasTokens].map((t) => String(t || "").toLowerCase()).filter(Boolean));
+  return Array.from(new Set(
+    [...baseTokens, ...latinTokens, ...cjkTokens, ...noteAliasTokens, ...financeAliasTokens]
+      .map((t) => String(t || "").trim())
+      .filter((token) => {
+        if (!token) return false;
+        if (sticky.has(token.toLowerCase())) return true;
+        if (token.length >= 2 && !stop.test(token)) return true;
+        return false;
+      })
+  ));
+}
+function buildRelevantAttachmentExcerpt(text, queryText = "", maxChars = LC_MODEL_ATTACHMENT_FULL_CHARS) {
+  const normalized = lcNormalizeExtractedText(text);
+  if (!normalized) return "";
+  if (normalized.length <= maxChars) return normalized;
+  const findNoteScopedBlock = (noteNum) => {
+    const lines = normalized.split(/\r?\n/);
+    if (!lines.length) return "";
+    const cn = lcNumberToCnNumeral(noteNum);
+    const noteHeadingRe = new RegExp(
+      String.raw`^\s*(?:附[注註]\s*)?(?:${noteNum}${cn ? `|${cn}` : ""})\s*[\.、：:]\s*$|^\s*note\s*${noteNum}\b`,
+      "i"
+    );
+    const anyHeadingRe = /^\s*(?:附[注註]\s*)?(?:\d{1,2}|[一二三四五六七八九十]{1,3})\s*[\.、：:]\s*$/;
+    const starts = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (noteHeadingRe.test(String(lines[i] || "").trim())) starts.push(i);
+    }
+    if (!starts.length) return "";
+    // Prefer the candidate that also contains likely table/casting clues nearby.
+    const scoredStarts = starts.map((s) => {
+      const near = lines.slice(s, Math.min(lines.length, s + 400)).join("\n");
+      let score = 0;
+      if (/turnover|segment|營業額|分部|total|合计|合計|elimination|對銷|抵销|抵銷/i.test(near)) score += 5;
+      if (/\d{1,3},\d{3}/.test(near)) score += 3;
+      if (/rmb|人民幣|million|百萬元/i.test(near)) score += 2;
+      return { s, score };
+    }).sort((a, b) => b.score - a.score);
+    const start = scoredStarts[0].s;
+    let end = Math.min(lines.length, start + 2200);
+    for (let i = start + 1; i < Math.min(lines.length, start + 2400); i++) {
+      if (anyHeadingRe.test(String(lines[i] || "").trim()) && !noteHeadingRe.test(String(lines[i] || "").trim())) {
+        end = i;
+        break;
+      }
+    }
+    const block = lines.slice(Math.max(0, start - 6), end).join("\n").trim();
+    if (!block) return "";
+    if (block.length <= maxChars) return block;
+    const clipped = block.slice(0, Math.max(8000, Math.floor(maxChars * 0.9))).trim();
+    const omitted = Math.max(0, block.length - clipped.length);
+    return `${clipped}\n\n[attachment note block truncated: omitted ${omitted} char(s)]`;
+  };
+  const buildHeadTailExcerpt = () => {
+    const separator = "\n\n[attachment excerpt includes the beginning and end of a longer file]\n\n";
+    const budget = Math.max(2000, maxChars - separator.length);
+    const headBudget = Math.floor(budget * 0.45);
+    const tailBudget = Math.floor(budget * 0.45);
+    const head = normalized.slice(0, headBudget).trim();
+    const tail = normalized.slice(Math.max(0, normalized.length - tailBudget)).trim();
+    const merged = `${head}${separator}${tail}`.trim();
+    const omittedChars = Math.max(0, normalized.length - merged.length);
+    return `${merged}\n\n[attachment excerpt selected for model context: omitted ${omittedChars} char(s)]`.trim();
+  };
+  const terms = attachmentQueryTerms(queryText);
+  let segments = normalized
+    .split(/\n{2,}/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment, idx) => ({ idx, segment }));
+  if (!segments.length) return buildHeadTailExcerpt();
+  if (segments.length === 1 || segments.some((entry) => entry.segment.length > Math.max(1200, maxChars * 0.6))) {
+    const lines = normalized.split(/\r?\n/).filter(Boolean);
+    const windowSize = 120;
+    const step = 90;
+    const windows = [];
+    for (let start = 0; start < lines.length; start += step) {
+      const chunk = lines.slice(start, start + windowSize).join("\n").trim();
+      if (!chunk) continue;
+      windows.push({ idx: windows.length, segment: chunk });
+      if (start + windowSize >= lines.length) break;
+    }
+    if (windows.length > 1) segments = windows;
+    else return buildHeadTailExcerpt();
+  }
+  const wantsTail = /(tail|end|ending|final|closing|last|末尾|最后|尾部|结尾|末端|后段|后面)/i.test(queryText);
+  const wantsHead = /(first|beginning|start|opening|开头|开始|前面|前段)/i.test(queryText);
+  const noteRefs = extractQueryNoteRefs(queryText);
+  const wantsCalcCheck = /(核对|核對|计算|計算|勾稽|tie|reconcile|是否正确|是否正確|是否一致|check|verify)/i.test(queryText);
+  if (noteRefs.length && wantsCalcCheck) {
+    for (const noteNum of noteRefs) {
+      const block = findNoteScopedBlock(noteNum);
+      if (block) return block;
+    }
+  }
+  const scored = segments.map(({ idx, segment }) => {
+    const lower = segment.toLowerCase();
+    let score = 0;
+    let noteHeadingMatch = false;
+    for (const term of terms) {
+      if (lower.includes(term)) score += 5;
+    }
+    if (noteRefs.length) {
+      for (const noteNum of noteRefs) {
+        const cn = lcNumberToCnNumeral(noteNum);
+        const hasNoteHeading = (
+          new RegExp(`(?:附[注註]\\s*${noteNum}|note\\s*${noteNum}|(?:^|\\n)\\s*${noteNum}\\s*[\\.、：:](?!\\d))`, "i").test(segment)
+          || (cn && new RegExp(`(?:附[注註]\\s*${cn}|(?:^|\\n)\\s*${cn}\\s*[\\.、：:](?!\\d))`, "i").test(segment))
+        );
+        if (hasNoteHeading) {
+          score += 16;
+          noteHeadingMatch = true;
+        }
+      }
+    }
+    if (idx === 0) score += 1;
+    if (wantsTail && segments.length > 1) score += (idx / (segments.length - 1)) * 4;
+    if (wantsHead && segments.length > 1) score += ((segments.length - 1 - idx) / (segments.length - 1)) * 4;
+    return { idx, segment, score, noteHeadingMatch };
+  });
+  const chosen = [];
+  let used = 0;
+  const chosenIdx = new Set();
+  const pushIfFit = (entry) => {
+    if (!entry || chosenIdx.has(entry.idx)) return false;
+    if ((used + entry.segment.length + 2) > maxChars) return false;
+    chosen.push(entry);
+    chosenIdx.add(entry.idx);
+    used += entry.segment.length + 2;
+    return true;
+  };
+
+  // For note+calculation questions, prioritize continuous context around matched note headings,
+  // so numeric tables are included instead of isolated title lines.
+  if (noteRefs.length && wantsCalcCheck) {
+    const anchors = scored
+      .filter((entry) => entry.noteHeadingMatch)
+      .map((entry) => entry.idx)
+      .slice(0, 4);
+    const radius = 22;
+    for (const anchor of anchors) {
+      for (let i = Math.max(0, anchor - radius); i <= Math.min(scored.length - 1, anchor + radius); i++) {
+        const near = scored.find((entry) => entry.idx === i);
+        if (!near) continue;
+        if (!pushIfFit(near)) break;
+      }
+      if (used >= maxChars * 0.75) break;
+    }
+  }
+
+  const sorted = scored.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
+  for (const entry of sorted) {
+    if (entry.score <= 0 && chosen.length) continue;
+    if (!pushIfFit(entry)) continue;
+    if (used >= maxChars * 0.85) break;
+  }
+  if (!chosen.some((entry) => entry.idx === 0)) {
+    const head = scored.find((entry) => entry.idx === 0);
+    if (head && (used + head.segment.length + 2) <= maxChars) {
+      chosen.push(head);
+      used += head.segment.length + 2;
+    }
+  }
+  if (!chosen.some((entry) => entry.idx === scored.length - 1)) {
+    const tail = scored.find((entry) => entry.idx === scored.length - 1);
+    if (tail && (used + tail.segment.length + 2) <= maxChars) {
+      chosen.push(tail);
+      used += tail.segment.length + 2;
+    }
+  }
+  if (!chosen.length) return buildHeadTailExcerpt();
+  if (noteRefs.length) {
+    const picked = new Set(chosen.map((entry) => entry.idx));
+    const anchors = chosen.filter((entry) => entry.noteHeadingMatch).map((entry) => entry.idx);
+    for (const anchorIdx of anchors) {
+      const nearCandidates = wantsCalcCheck
+        ? Array.from({ length: 25 }, (_, off) => anchorIdx - 12 + off)
+        : [anchorIdx - 1, anchorIdx + 1, anchorIdx + 2];
+      for (const nearIdx of nearCandidates) {
+        if (nearIdx < 0 || nearIdx >= scored.length) continue;
+        if (picked.has(nearIdx)) continue;
+        const near = scored.find((entry) => entry.idx === nearIdx);
+        if (!near) continue;
+        if (!pushIfFit(near)) continue;
+        picked.add(nearIdx);
+      }
+    }
+  }
+  chosen.sort((a, b) => a.idx - b.idx);
+  const excerpt = chosen.map((entry) => entry.segment).join("\n\n").trim();
+  const omittedChars = Math.max(0, normalized.length - excerpt.length);
+  if (!omittedChars) return excerpt;
+  return `${excerpt}\n\n[attachment excerpt selected for model context: omitted ${omittedChars} char(s)]`.trim();
+}
+function buildAttachmentModelContext({ name = "", kind = "", mime = "", text = "", queryText = "" } = {}) {
+  const excerpt = buildRelevantAttachmentExcerpt(text, queryText, LC_MODEL_ATTACHMENT_FULL_CHARS);
+  if (!excerpt) return "";
+  return formatAttachmentContextBlock({
+    name,
+    kind,
+    mime,
+    text: excerpt,
+    note: "parsed attachment text",
+  });
+}
+async function fetchLcAttachmentContextsByIds(ids, { token, ownerId, queryText = "" } = {}) {
+  const uniqueIds = [...new Set((ids || []).filter((id) => validPbId(id)))].slice(0, 24);
+  const terms = attachmentQueryTerms(queryText);
+  const rows = [];
+  for (const id of uniqueIds) {
+    try {
+      await assertRecordOwned("files", { id, ownerId, token });
+      const r = await lcPbFetch(`/api/collections/lc_files/records/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) continue;
+      const rec = await r.json();
+      const context = buildAttachmentModelContext({
+        name: rec.original_name || rec.file || id,
+        kind: rec.kind || lcFileKindByMimeOrExt(rec.mime_type, rec.original_name || rec.file),
+        mime: rec.mime_type || "application/octet-stream",
+        text: rec.extracted_text || "",
+        queryText,
+      });
+      if (!context) continue;
+      const name = rec.original_name || rec.file || id;
+      const kind = rec.kind || lcFileKindByMimeOrExt(rec.mime_type, name);
+      const mime = rec.mime_type || "application/octet-stream";
+      const lowerName = String(name).toLowerCase();
+      const lowerKind = String(kind).toLowerCase();
+      const lowerMime = String(mime).toLowerCase();
+      const lowerExtract = String(rec.extracted_text || "").toLowerCase();
+      let relevance = 0;
+      for (const t of terms) {
+        if (!t) continue;
+        if (lowerName.includes(t)) relevance += 4;
+        if (lowerKind.includes(t) || lowerMime.includes(t)) relevance += 3;
+        if (lowerExtract.includes(t)) relevance += 2;
+      }
+      // Keep deterministic ordering and avoid starvation when relevance ties.
+      if (kind === "spreadsheet") relevance += 0.05;
+      if (kind === "document") relevance += 0.03;
+      if (kind === "pdf") relevance += 0.02;
+      rows.push({
+        id,
+        name,
+        kind,
+        mime,
+        relevance,
+        context,
+      });
+    } catch (err) {
+      log("warn", "lc attachment context skipped", { fileId: id, error: err.message });
+    }
+  }
+  if (!rows.length) return [];
+  // Multi-file chats can overflow weaker models; prioritize relevant files by query.
+  const maxItems = Math.min(4, rows.length);
+  if (terms.length) {
+    const sorted = rows
+      .slice()
+      .sort((a, b) => (b.relevance - a.relevance) || a.name.localeCompare(b.name))
+      .slice(0, maxItems);
+    const relevantOnly = sorted.filter((item) => item.relevance > 0);
+    if (relevantOnly.length) return relevantOnly;
+    // If query terms failed to match any file, fall back to stable first-N list.
+    if (sorted[0]?.relevance > 0) return sorted;
+  }
+  return rows.slice(0, maxItems);
 }
 
 function mergeArraysUnique(a, b) {
@@ -5125,11 +5506,14 @@ function lcNormalizeExtractedText(text) {
     .trim();
 }
 
+const LC_SPREADSHEET_CLEAN_MAX_LINES = Math.max(2000, Number(process.env.LC_SPREADSHEET_CLEAN_MAX_LINES || 30000));
+const LC_SPREADSHEET_CLEAN_MAX_CHARS = Math.max(200000, Number(process.env.LC_SPREADSHEET_CLEAN_MAX_CHARS || 6000000));
 function lcCleanSpreadsheetExtractedText(text) {
   const normalized = lcNormalizeExtractedText(text);
   if (!normalized) return "";
   const lines = normalized.split(/\r?\n/);
   const out = [];
+  let charCount = 0;
   for (const raw of lines) {
     const base = String(raw || "")
       .replace(/[￿�]{3,}/g, " ")
@@ -5148,7 +5532,8 @@ function lcCleanSpreadsheetExtractedText(text) {
     const punctuationOnly = line.replace(/[A-Za-z0-9\u4e00-\u9fff ]/g, "");
     if (punctuationOnly.length > line.length * 0.45) continue;
     out.push(line);
-    if (out.length >= 2000) break;
+    charCount += line.length + 1;
+    if (out.length >= LC_SPREADSHEET_CLEAN_MAX_LINES || charCount >= LC_SPREADSHEET_CLEAN_MAX_CHARS) break;
   }
   return out.join("\n").trim();
 }
@@ -5534,6 +5919,103 @@ const LC_COLLECTION_CONFIG = {
     writableFields: ["session", "user", "mime_type", "size_bytes", "original_name", "ext", "kind", "parse_status", "parse_error", "parsed_at", "extracted_text", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
 };
+
+const LC_USER_SETTINGS_DEFAULTS = Object.freeze({
+  memory: "",
+  sensitivity: "default",
+  presets: [],
+  theme: "auto",
+  compact: false,
+  active_project: "",
+  default_provider: "",
+  default_model: "",
+});
+
+const SEARCH_KEYWORD_PROVIDER_OPTIONS = Object.freeze([
+  { value: "minimax", label: "MiniMax" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Gemini" },
+  { value: "qwen", label: "Qwen" },
+]);
+
+const SEARCH_KEYWORD_MODEL_OPTIONS = Object.freeze([
+  { value: "MiniMax-M1", label: "MiniMax-M1" },
+  { value: "deepseek-chat", label: "deepseek-chat" },
+  { value: "gpt-4.1-nano", label: "gpt-4.1-nano" },
+  { value: "gemini-2.5-flash", label: "gemini-2.5-flash" },
+  { value: "qwen-turbo", label: "qwen-turbo" },
+]);
+
+const ATTACHMENT_SEARCH_MODE_OPTIONS = Object.freeze([
+  { value: "smart", label: "Smart" },
+  { value: "always", label: "Always" },
+  { value: "assistant_decide", label: "Assistant Decide" },
+  { value: "off", label: "Off" },
+]);
+
+function normalizeLcUserSettingsRecord(record) {
+  return { ...LC_USER_SETTINGS_DEFAULTS, ...(record || {}) };
+}
+
+async function getOrCreateLcUserSettingsRecord(userId, token) {
+  const r = await pbListOwnedRecords("userSettings", { ownerId: userId, token });
+  const d = await r.json();
+  const record = d.items?.[0] || null;
+  if (record) return normalizeLcUserSettingsRecord(record);
+
+  const cr = await lcPbFetch("/api/collections/lc_user_settings/records", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ user: userId, ...LC_USER_SETTINGS_DEFAULTS }),
+  });
+  const created = await cr.json();
+  return normalizeLcUserSettingsRecord(created);
+}
+
+function buildLcSettingsUiSchema() {
+  return {
+    user: {
+      writable: true,
+      fields: {
+        memory: { type: "textarea", label: "System Prompt" },
+        sensitivity: {
+          type: "enum",
+          label: "Response Mode",
+          options: [
+            { value: "strict", label: "Strict" },
+            { value: "default", label: "Default" },
+            { value: "creative", label: "Creative" },
+            { value: "unrestricted", label: "Unrestricted" },
+          ],
+        },
+        default_provider: { type: "provider", label: "Default Provider" },
+        default_model: { type: "model", label: "Default Model" },
+        theme: {
+          type: "enum",
+          label: "Theme",
+          options: [
+            { value: "auto", label: "Auto" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ],
+        },
+        compact: { type: "boolean", label: "Compact Messages" },
+      },
+    },
+    runtime: {
+      writable: false,
+      description: "Managed by server",
+      fields: {
+        autoSearchEnabled: { type: "boolean", label: "Auto Search", value: settings.autoSearchEnabled !== false },
+        attachmentSearchMode: { type: "enum", label: "Attachment Search Mode", value: getAttachmentSearchMode(), options: ATTACHMENT_SEARCH_MODE_OPTIONS },
+        toolInjectionEnabled: { type: "boolean", label: "Tool Injection", value: settings.toolInjectionEnabled !== false },
+        searchKeywordProvider: { type: "enum", label: "Search Keyword Provider", value: settings.searchKeywordProvider || "minimax", options: SEARCH_KEYWORD_PROVIDER_OPTIONS },
+        searchKeywordModel: { type: "enum", label: "Search Keyword Model", value: settings.searchKeywordModel || "MiniMax-M1", options: SEARCH_KEYWORD_MODEL_OPTIONS },
+      },
+    },
+  };
+}
 
 const DOMAIN_COLLECTION_POLICIES = {
   lc: {
@@ -7099,25 +7581,52 @@ Output ONLY a JSON array of 4 English strings. No explanation or markdown. Examp
 // GET /lc/user/settings → get or create settings record for current user
 app.get("/lc/user/settings", requireLcAuth, async (req, res) => {
   try {
-    const r = await pbListOwnedRecords("userSettings", { ownerId: req.lcUser.id, token: req.lcToken });
-    const d = await r.json();
-    const record = d.items?.[0] || null;
-    if (record) return res.json(record);
-    // Auto-create empty settings for this user
-    const cr = await lcPbFetch("/api/collections/lc_user_settings/records", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-      body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "auto", compact: false, presets: [] }),
-    });
-    const created = await cr.json();
-    res.status(cr.status).json(created);
+    const record = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
+    res.json(record);
   } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// GET /lc/settings/ui → frontend settings schema + current values
+app.get("/lc/settings/ui", requireLcAuth, async (req, res) => {
+  try {
+    const userSettings = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
+    res.json({
+      userSettings,
+      schema: buildLcSettingsUiSchema(),
+    });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+app.post("/lc/client-log", express.json({ limit: "128kb" }), (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const level = ["debug", "info", "warn", "error"].includes(body.level) ? body.level : "info";
+  const event = String(body.event || "client_event").slice(0, 120);
+  const payload = body.data && typeof body.data === "object" ? body.data : {};
+  const safePayload = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value == null) continue;
+    if (typeof value === "string") safePayload[key] = value.slice(0, 500);
+    else if (typeof value === "number" || typeof value === "boolean") safePayload[key] = value;
+    else if (Array.isArray(value)) safePayload[key] = value.slice(0, 20);
+    else if (typeof value === "object") safePayload[key] = JSON.parse(JSON.stringify(value));
+  }
+  log(level, event, {
+    component: "lumichat-client",
+    href: String(body.href || "").slice(0, 300),
+    sessionId: String(body.sessionId || "").slice(0, 80),
+    userId: String(body.userId || "").slice(0, 80),
+    ua: String(req.headers["user-agent"] || "").slice(0, 220),
+    ip: req.ip,
+    data: safePayload,
+  });
+  res.json({ ok: true });
 });
 
 // PATCH /lc/user/settings → update settings (upsert)
 app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
   try {
     const body = pickAllowedFields(req.body, getLcCollectionConfig("userSettings").writableFields);
+    const beforeSettings = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
 
     // Find existing record
     const fr = await pbListOwnedRecords("userSettings", { ownerId: req.lcUser.id, token: req.lcToken });
@@ -7135,10 +7644,24 @@ app.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
       r = await lcPbFetch("/api/collections/lc_user_settings/records", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-        body: JSON.stringify({ user: req.lcUser.id, sensitivity: "default", theme: "dark", compact: false, presets: [], ...body }),
+        body: JSON.stringify({ user: req.lcUser.id, ...LC_USER_SETTINGS_DEFAULTS, ...body }),
       });
     }
     const d = await r.json();
+    if (r.ok) {
+      const changes = {};
+      for (const [key, value] of Object.entries(body)) {
+        const before = beforeSettings ? beforeSettings[key] : undefined;
+        if (JSON.stringify(before) !== JSON.stringify(d[key])) {
+          changes[key] = { before, after: d[key] };
+        }
+      }
+      logParamChange("user", req.lcUser.email || req.lcUser.id, changes, {
+        component: "settings",
+        route: "/lc/user/settings",
+        userId: req.lcUser.id,
+      });
+    }
     res.status(r.status).json(d);
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
@@ -7404,6 +7927,22 @@ app.get("/lc/sessions/:id/messages", requireLcAuth, async (req, res) => {
   } catch {
     res.status(502).json({ error: "PocketBase unavailable" });
   }
+});
+
+// GET /lc/files/context?ids=id1,id2&q=query → fetch model-ready attachment contexts from PB
+app.get("/lc/files/context", requireLcAuth, async (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => validPbId(id));
+  if (!ids.length) return res.json({ ok: true, items: [] });
+  const queryText = String(req.query.q || "").slice(0, 1000);
+  const items = await fetchLcAttachmentContextsByIds(ids, {
+    token: req.lcToken,
+    ownerId: req.lcUser.id,
+    queryText,
+  });
+  res.json({ ok: true, items });
 });
 
 // POST /lc/messages → create message record
@@ -7715,7 +8254,7 @@ app.post("/lc/files/gemini-upload/:pbFileId", requireLcAuth, async (req, res) =>
 // POST /lc/chat/gemini-native → Gemini native API for video/PDF/audio via File API
 // Body: { model, messages (OpenAI fmt), stream }
 // Converts file_data parts to Gemini inlineData/fileData format, calls native API
-app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "50mb" }), async (req, res) => {
+app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "256mb" }), async (req, res) => {
   const { model = "gemini-2.5-flash", messages = [], stream = false } = req.body || {};
 
   const geminiKey = (selectApiKey("gemini", "_lumichat") || {}).apiKey || PROVIDERS.gemini?.apiKey;
@@ -7951,13 +8490,23 @@ function buildChatBody(providerName, model, messages, systemPrompt, stream) {
   return { model, max_tokens: maxTok, stream, messages: msgs, stream_options: stream ? { include_usage: true } : undefined };
 }
 
+function stripInternalChatFields(body) {
+  if (!body || typeof body !== "object") return body;
+  const next = { ...body };
+  delete next.encrypted_payload_text;
+  delete next.session_id;
+  delete next.user_message_id;
+  delete next.lang;
+  return next;
+}
+
 // Tool tag markers for the clean SSE pipe
 const TOOL_TAG_MARKERS = [
   "[TOOL:", "<｜DSML｜function_calls>", "<︱DSML︱function_calls>",
   "<|DSML|function_calls>", "<minimax:tool_call>", "<tool_call>",
 ];
 
-app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "50mb" }), async (req, res) => {
+app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "256mb" }), async (req, res) => {
   const { provider: providerName, model: modelId, messages, stream: wantStream = true } = req.body || {};
   if (!providerName || !modelId || !Array.isArray(messages) || !messages.length) {
     return res.status(400).json({ error: "Missing required fields: provider, model, messages (array)" });
@@ -7985,6 +8534,11 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
       const parsed = lcDecryptEncryptedPayload(req.body.encrypted_payload_text.trim());
       const files = Array.isArray(parsed?.files) ? parsed.files : [];
       const chunks = [];
+      const currentQueryText = (() => {
+        const lastUser = [...messages].reverse().find((m) => m?.role === "user");
+        return extractMessagePlainText(lastUser?.content);
+      })();
+      const fileLabels = [];
       const uploadedFileIds = [];
       let totalBytes = 0;
       const lcSessionId = validPbId(req.body?.session_id) ? req.body.session_id : null;
@@ -7993,6 +8547,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
         const name = lcUploadSafeName(item?.name || "file");
         const mime = detectLcUploadMime(name, item?.mime || "application/octet-stream");
         const data = lcB64urlToBuffer(item?.data_b64 || "");
+        fileLabels.push(name);
         totalBytes += data.length;
         if (!data.length) continue;
         if (totalBytes > LC_ENCRYPTED_UPLOAD_LIMIT_BYTES) {
@@ -8017,7 +8572,14 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
           }
         }
         if (!text) continue;
-        chunks.push(`[Decrypted file: ${name}]\n${text}`);
+        const context = buildAttachmentModelContext({
+          name,
+          kind: lcFileKindByMimeOrExt(mime, name),
+          mime,
+          text,
+          queryText: currentQueryText,
+        });
+        if (context) chunks.push(context);
       }
       if (uploadedFileIds.length && lcToken && lcUserMessageId) {
         try {
@@ -8051,6 +8613,8 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
           messages[lastUserIndex].content = injected;
         }
       }
+      req._hasEncryptedAttachment = files.length > 0;
+      req._encryptedAttachmentFileNames = fileLabels;
       log("info", "Encrypted payload processed", { files: files.length, extractedChunks: chunks.length, storedFiles: uploadedFileIds.length, traceId: req.traceId });
     } catch (err) {
       const status = Number(err?.status) || 400;
@@ -8121,6 +8685,41 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   const useCollector = !apiKey && COLLECTOR_SUPPORTED.includes(pnLower) && hasCollectorToken(pnLower);
   if (!apiKey && !useCollector) return res.status(403).json({ error: "No API key configured for this provider" });
 
+  if (lcToken && lcUserId) {
+    try {
+      const queryTextForAttachments = (() => {
+        const lastUser = [...messages].reverse().find((m) => m?.role === "user");
+        return extractMessagePlainText(lastUser?.content);
+      })();
+      const historicalFileIds = [...new Set(
+        messages.flatMap((m) => Array.isArray(m?.file_ids) ? m.file_ids : []).filter(Boolean)
+      )];
+      if (historicalFileIds.length) {
+        const items = await fetchLcAttachmentContextsByIds(historicalFileIds, {
+          token: lcToken,
+          ownerId: lcUserId,
+          queryText: queryTextForAttachments,
+        });
+        if (items.length) {
+          const contextMap = new Map(items.map((item) => [item.id, item.context]));
+          messages.forEach((message) => {
+            if (message?.role !== "user" || !Array.isArray(message?.file_ids) || !message.file_ids.length) return;
+            const contexts = message.file_ids.map((id) => contextMap.get(id)).filter(Boolean);
+            if (!contexts.length) return;
+            if (typeof message.content === "string") {
+              message.content = [message.content.trim(), ...contexts].filter(Boolean).join("\n\n").trim();
+            } else if (Array.isArray(message.content)) {
+              contexts.forEach((context) => message.content.push({ type: "text", text: context }));
+            }
+          });
+          req._hasHistoricalAttachmentContext = true;
+        }
+      }
+    } catch (attachmentErr) {
+      log("warn", "Historical attachment context inject failed", { error: attachmentErr.message, traceId: req.traceId });
+    }
+  }
+
   // ── Pre-search ──
   // Models with built-in web search don't need SearXNG
   // Only models with ACTUAL API-level search (not ChatGPT web browsing which is UI-only)
@@ -8135,7 +8734,10 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   const modelHasSearch = MODELS_WITH_SEARCH.has(modelId);
 
   let searchContext = "";
+  const hasStoredAttachmentContext = !!req._hasHistoricalAttachmentContext || messages.some((m) => contentHasAttachmentContext(m?.content));
   const hasRichUserInput = (() => {
+    if (req._hasEncryptedAttachment) return true;
+    if (hasStoredAttachmentContext) return true;
     const last = messages.filter(m => m.role === "user").pop();
     if (!last || !Array.isArray(last.content)) return false;
     return last.content.some((p) => p && typeof p === "object" && p.type && p.type !== "text");
@@ -8147,96 +8749,44 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
     if (Array.isArray(last.content)) return last.content.filter(p => p.type === "text").map(p => p.text).join(" ");
     return "";
   })();
-  const obviousWebNeed = needsWebSearch(userText);
-  const explicitNoExternalIntent = /仅根据|只根据|仅基于|只基于|仅用|只用|不要联网|不联网|不需要联网|不要搜索|不用搜索|无需搜索|不要外部数据|不要市场数据|仅看附件|只看附件|仅看图片|只看图片|only\s+based\s+on|based\s+only\s+on|no\s+web\s+search|without\s+search|do\s+not\s+search|offline\s+only|attachment\s+only/i.test(userText);
-  const attachmentOnlyInterpretation = hasRichUserInput && explicitNoExternalIntent;
-  const attachmentDecisionContext = (() => {
-    const last = messages.filter(m => m.role === "user").pop();
-    if (!last || !Array.isArray(last.content)) return { partSummary: "none", textSnippet: "" };
-    const typeCounts = {};
-    const textChunks = [];
-    for (const part of last.content) {
-      if (!part || typeof part !== "object") continue;
-      const t = String(part.type || "").trim();
-      if (!t) continue;
-      typeCounts[t] = (typeCounts[t] || 0) + 1;
-      if (t === "text" && typeof part.text === "string" && part.text.trim()) textChunks.push(part.text.trim());
-    }
-    const partSummary = Object.entries(typeCounts).map(([k, v]) => `${k}:${v}`).join(", ") || "none";
-    const textSnippet = textChunks.join("\n").slice(0, 1800);
-    return { partSummary, textSnippet };
+  const likelyAttachmentQuestion = (() => {
+    if (hasRichUserInput || hasStoredAttachmentContext) return true;
+    return /(上传|附件|文件|文档|表格|工作簿|sheet|spreadsheet|excel|csv|pdf|word|docx|ppt|pptx|image|图片|截图|录音|音频|transcript|file|document|attachment)/i.test(userText);
   })();
-
+  const explicitSearchIntent = /搜[索一下]|查[找一下询]|帮我[找查搜]|search|look\s?up|find\s+me|web\s+search|browse/i.test(userText);
+  const obviousWebNeed = needsWebSearch(userText);
+  const explicitNoExternalIntent = /仅根据|只根据|仅基于|只基于|仅用|只用|不要联网|不联网|不需要联网|不要搜索|不用搜索|无需搜索|不要外部数据|不要市场数据|仅看附件|只看附件|仅看图片|只看图片|only\s+based\s+on|based\s+only\s+on|no\s+web\s+search|without\s+search|do\s+not\s+search|do\s+not\s+use\s+web\s+search|offline\s+only|attachment\s+only|unless\s+the\s+file\s+is\s+insufficient|unless\s+the\s+attachment\s+is\s+insufficient/i.test(userText);
+  const encryptedAttachmentImplicitOnly = (req._hasEncryptedAttachment || hasStoredAttachmentContext) && !obviousWebNeed && req.body.web_search !== true;
+  const attachmentOnlyInterpretation = hasRichUserInput && (explicitNoExternalIntent || encryptedAttachmentImplicitOnly);
   // Skip SearXNG if model has built-in search (unless explicitly forced via web_search:true)
   const autoSearchOn = settings.autoSearchEnabled !== false;
   const attachmentMode = getAttachmentSearchMode();
-  let decisionQueries = null;
   let shouldAutoSearch;
 
   if (hasRichUserInput) {
     if (attachmentMode === "off") shouldAutoSearch = false;
     else if (attachmentOnlyInterpretation) shouldAutoSearch = false;
-    else if (obviousWebNeed) shouldAutoSearch = true;
-    else if (attachmentMode === "always") shouldAutoSearch = !attachmentOnlyInterpretation;
-    else if (attachmentMode === "assistant_decide") shouldAutoSearch = false;
-    else shouldAutoSearch = !attachmentOnlyInterpretation; // smart default
+    else if (hasStoredAttachmentContext && req.body.web_search === undefined && !explicitSearchIntent) shouldAutoSearch = false;
+    else shouldAutoSearch = obviousWebNeed; // attachment-first default: only search when the user clearly asks for current/latest info
   } else {
     shouldAutoSearch = obviousWebNeed;
   }
 
   if (hasRichUserInput && attachmentMode === "assistant_decide" && req.body.web_search === undefined && !attachmentOnlyInterpretation && !shouldAutoSearch) {
-    try {
-      const ALL_KW = [
-        { p: "minimax", m: "MiniMax-M1" }, { p: "deepseek", m: "deepseek-chat" },
-        { p: "openai", m: "gpt-4.1-nano" }, { p: "gemini", m: "gemini-2.5-flash" },
-        { p: "qwen", m: "qwen-turbo" },
-      ];
-      const prefP = settings.searchKeywordProvider || "minimax";
-      const prefM = settings.searchKeywordModel || "MiniMax-M1";
-      const KW_MODELS = [{ p: prefP, m: prefM }, ...ALL_KW.filter(x => x.p !== prefP || x.m !== prefM)];
-      const decisionPrompt = `Decide whether this task needs fresh external web data to answer accurately.\n\nReturn ONLY JSON:\n{"need_search":true|false,"reason":"short","queries":["q1","q2"]}\n\nRules:\n- need_search=true when current market/recent/company/news/pricing/rates/trend/facts likely matter.\n- need_search=false for purely extracting/summarizing/calculating from provided attachment content only.\n- queries should be empty when need_search=false.\n\nAttachment parts:\n${attachmentDecisionContext.partSummary}\n\nAttachment/user text excerpt:\n${attachmentDecisionContext.textSnippet || "(empty)"}\n\nUser task:\n${userText.slice(0, 600)}`;
-
-      let decisionText = "";
-      for (const c of KW_MODELS) {
-        if (decisionText) break;
-        const prov = PROVIDERS[c.p];
-        if (!prov) continue;
-        const k = (selectApiKey(c.p, "_lumichat") || {}).apiKey || prov.apiKey;
-        if (!k) continue;
-        try {
-          const decRes = await fetch(getChatUrl(c.p, prov), {
-            method: "POST",
-            headers: getChatHeaders(c.p, k),
-            signal: AbortSignal.timeout(5000),
-            body: JSON.stringify({ model: c.m, max_tokens: 140, temperature: 0.1, stream: false, messages: [{ role: "user", content: decisionPrompt }] }),
-          });
-          if (!decRes.ok) continue;
-          const dj = await decRes.json();
-          decisionText = dj.choices?.[0]?.message?.content || "";
-        } catch {}
-      }
-      if (decisionText) {
-        const m = decisionText.match(/\{[\s\S]*\}/);
-        if (m) {
-          const parsed = JSON.parse(m[0]);
-          shouldAutoSearch = !!parsed.need_search;
-          if (Array.isArray(parsed.queries)) {
-            decisionQueries = parsed.queries.filter(q => typeof q === "string" && q.trim()).slice(0, 3);
-          }
-          log("info", "Attachment search decision", { needSearch: shouldAutoSearch, reason: String(parsed.reason || "").slice(0, 160) });
-        }
-      }
-    } catch (e) {
-      log("warn", "Attachment decision mode failed, fallback to smart", { error: e.message });
-      shouldAutoSearch = obviousWebNeed && !attachmentOnlyInterpretation;
-    }
+    log("info", "Attachment search deferred to primary model/runtime", {
+      provider: providerName,
+      model: modelId,
+      encryptedAttachment: !!req._hasEncryptedAttachment,
+      obviousWebNeed,
+      traceId: req.traceId,
+    });
   }
 
   const doSearch = req.body.web_search === true || (!modelHasSearch && req.body.web_search !== false && autoSearchOn && shouldAutoSearch);
   if (hasRichUserInput && attachmentOnlyInterpretation) {
-    log("info", "Auto-search skipped for attachment-only interpretation", { provider: providerName, model: modelId });
+    log("info", "Auto-search skipped for attachment-only interpretation", { provider: providerName, model: modelId, traceId: req.traceId });
   } else if (hasRichUserInput && doSearch) {
-    log("info", "Auto-search enabled for attachment task", { provider: providerName, model: modelId });
+    log("info", "Auto-search enabled for attachment task", { provider: providerName, model: modelId, traceId: req.traceId });
   }
   if (doSearch) {
     // Start SSE early so frontend sees search status
@@ -8249,7 +8799,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
     }
     try {
       // Generate 2-3 search keywords via cheap AI (fast, <2s)
-      let queries = decisionQueries?.length ? decisionQueries : [extractSearchQuery(userText)]; // fallback: original query
+      let queries = [extractSearchQuery(userText)];
       try {
         // Preferred provider/model from settings, then fallback chain.
         const ALL_KW = [
@@ -8367,6 +8917,14 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
   if (searchContext) injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\nIMPORTANT: Prioritize the most recent search results. When the user asks about current/latest events, ONLY cite results from ${new Date().getFullYear()}. Discard outdated results from previous years unless the user specifically asks about historical information. Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
+  if (hasRichUserInput || hasStoredAttachmentContext) {
+    injectedSystemPrompt += "Attachment-grounding rule: when attachment context is present, answer from that attachment context first. Do not claim you cannot access the file if attachment context is already provided. If the requested fact is not present in the provided attachment context, say explicitly that it is not found in the file context. Do not invent, infer from training data, or substitute general knowledge for missing file facts.\n\n";
+    injectedSystemPrompt += "Evidence-first rule: before saying data is missing, first enumerate at least one matched section/table heading and the key numbers you used. For note-style questions, treat aliases as equivalent (e.g., Note 6 = 附注6 = 附註6 = 六. = 6.). If heading and numbers are present, perform the calculation check instead of refusing.\n\n";
+    injectedSystemPrompt += "Hong Kong annual report alias rule: treat bilingual and HK-style labels as equivalent (附註/附注/Note; 綜合財務狀況表=Statement of Financial Position=Balance Sheet; 綜合損益表/綜合全面收益表=Profit or Loss/Comprehensive Income; 綜合現金流量表=Cash Flows; 綜合權益變動表=Changes in Equity). For casting checks, prefer explicit formulas using the matched table numbers and state whether they tie.\n\n";
+  }
+  if (likelyAttachmentQuestion) {
+    injectedSystemPrompt += "File-answering rule: when the user is asking about an uploaded file, attachment, document, spreadsheet, PDF, image, or transcript, only answer with facts that are actually present in the available attachment context. If that file context is missing or does not contain the requested fact, say that clearly instead of guessing from pretraining, world knowledge, or similar-looking examples.\n\n";
+  }
   // Small models: no full tool prompt, just a polite redirect hint
   const SMALL_MODEL_PATTERNS = /nano|(?<![a-z])mini(?!max)|flash-lite|(?<![a-z])haiku|(?<![a-z])8b(?![a-z])|(?<![a-z])7b(?![a-z])/i;
   const isSmallModel = SMALL_MODEL_PATTERNS.test(modelId);
@@ -8375,7 +8933,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   }
   if (req.body.tools !== false && !isSmallModel) {
     try {
-      const toolPrompt = unifiedRegistry.getSystemPrompt();
+      const toolPrompt = lumigentRuntime.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
     } catch {}
   }
@@ -8383,7 +8941,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   // ── Build provider request ──
   const chatUrl = getChatUrl(providerName.toLowerCase(), provider);
   const headers = getChatHeaders(providerName.toLowerCase(), apiKey);
-  const body = buildChatBody(providerName.toLowerCase(), modelId, messages, injectedSystemPrompt.trim(), wantStream);
+  const body = stripInternalChatFields(buildChatBody(providerName.toLowerCase(), modelId, messages, injectedSystemPrompt.trim(), wantStream));
 
   try {
     // ── Collector path: use Chrome CDP when no API key ──
@@ -8435,7 +8993,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
         const hasCollectorTools = TOOL_TAG_MARKERS.some(m => _cFullText.includes(m));
         if (hasCollectorTools && !res.writableEnded) {
           log("info", "Collector: tool tags detected, executing", { provider: providerName });
-          const toolResults = await executeTextToolCalls(_cFullText, lcUserId || projectName || "api").catch(e => {
+          const toolResults = await lumigentRuntime.executeTextToolCalls(_cFullText, lcUserId || projectName || "api").catch(e => {
             log("error", "Collector tool exec failed", { error: e.message }); return [];
           });
           for (const tr of toolResults) {
@@ -8475,6 +9033,18 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
       const status = upstreamRes.status;
       const errMap = { 400: "Bad request to AI provider", 401: "AI provider authentication failed", 403: "AI provider access denied", 404: "Model not found", 429: "AI provider rate limit exceeded", 500: "AI provider internal error", 502: "AI provider unavailable", 503: "AI provider temporarily unavailable" };
       const errMsg = errMap[status] || `AI provider error (${status})`;
+      let upstreamBodySnippet = "";
+      try { upstreamBodySnippet = (await upstreamRes.text()).slice(0, 1200); } catch {}
+      log("warn", "AI provider bad response", {
+        provider: providerName,
+        model: modelId,
+        status,
+        url: chatUrl,
+        hasEncryptedPayload: !!req.body?.encrypted_payload_text,
+        stream: !!wantStream,
+        messageCount: Array.isArray(body?.messages) ? body.messages.length : 0,
+        upstreamBodySnippet,
+      });
       try { upstreamRes.body?.cancel(); } catch {}
       if (!res.headersSent) return res.status(status >= 500 ? 502 : status).json({ error: errMsg });
       log("warn", "Upstream error after headers sent", { provider: providerName, status });
@@ -8499,7 +9069,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
       if (hasToolTags) {
         let toolResults = [];
         try {
-          toolResults = await executeTextToolCalls(content, lcUserId || projectName || "api");
+          toolResults = await lumigentRuntime.executeTextToolCalls(content, lcUserId || projectName || "api");
         } catch (e) { log("warn", "Non-stream tool execution failed", { error: e.message }); }
         const cleanContent = content.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
           .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
@@ -8664,7 +9234,7 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
       if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: statusText, icon: detectedIcon })}\n\n`);
 
       log("info", "Clean pipe: tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
-      const toolResults = await executeTextToolCalls(fullText, lcUserId || projectName || "api").catch(e => {
+      const toolResults = await lumigentRuntime.executeTextToolCalls(fullText, lcUserId || projectName || "api").catch(e => {
         log("error", "Tool execution failed in clean pipe", { error: e.message });
         return [];
       });
@@ -8998,39 +9568,58 @@ app.use("/v1/audio", apiLimiter, platformAuth, require("./routes/audio"));
 app.use("/v1/vision", apiLimiter, platformAuth, require("./routes/vision"));
 app.use("/v1/code", apiLimiter, platformAuth, require("./routes/code"));
 
+app.get("/v1/lumigent/tools", apiLimiter, platformAuth, async (_req, res) => {
+  try {
+    const tools = await unifiedRegistry.getSchemas();
+    res.json({
+      ok: true,
+      runtime: "lumigent",
+      tools,
+    });
+  } catch (err) {
+    log("error", "Lumigent tool listing failed", { error: err.message });
+    res.status(500).json({ ok: false, error: "Lumigent tool listing failed" });
+  }
+});
+
+app.get("/v1/lumigent/traces", apiLimiter, platformAuth, async (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      runtime: "lumigent",
+      traces: lumigentTraceStore.list(req.query.limit || 50),
+    });
+  } catch (err) {
+    log("error", "Lumigent trace listing failed", { error: err.message });
+    res.status(500).json({ ok: false, error: "Lumigent trace listing failed" });
+  }
+});
+
+app.post("/v1/lumigent/execute", apiLimiter, platformAuth, async (req, res) => {
+  const { tool_name, tool_input } = req.body || {};
+  if (!tool_name) return res.status(400).json({ ok: false, error: "Missing tool_name" });
+  try {
+    const result = await lumigentRuntime.executeToolCall(tool_name, tool_input || {});
+    return res.json({ ok: !!result.ok, result });
+  } catch (err) {
+    log("error", "Lumigent direct execute failed", { tool: tool_name, error: err.message });
+    return res.status(500).json({ ok: false, error: "Lumigent execute failed" });
+  }
+});
+
 // Tool execution endpoint — called by LumiChat frontend when AI returns tool_use
 app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
   const { tool_name, tool_input } = req.body;
   if (!tool_name) return res.status(400).json({ ok: false, error: "Missing tool_name" });
   try {
-    const result = await unifiedRegistry.executeToolCall(tool_name, tool_input || {});
+    const result = await lumigentRuntime.executeToolCall(tool_name, tool_input || {});
     if (result.file) {
       // File result — save to PB generated_files and return download URL
       const filename = result.filename || "file";
       const mimeType = result.mimeType || "application/octet-stream";
       try {
-        const pbToken = await getPbAdminToken();
-        if (pbToken) {
-          const boundary = "----FormBoundary" + crypto.randomBytes(8).toString("hex");
-          const headerBuf = Buffer.from(
-            `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${filename}\r\n` +
-            `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${mimeType}\r\n` +
-            `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${req._lcUserId || "api"}\r\n` +
-            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename.replace(/"/g, '_')}"\r\nContent-Type: ${mimeType}\r\n\r\n`
-          );
-          const footerBuf = Buffer.from(`\r\n--${boundary}--\r\n`);
-          const body = Buffer.concat([headerBuf, result.file, footerBuf]);
-          const pbRes = await fetch(`${PB_URL}/api/collections/generated_files/records`, {
-            method: "POST",
-            headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
-            body,
-          });
-          if (pbRes.ok) {
-            const rec = await pbRes.json();
-            const downloadUrl = `${PB_URL}/api/files/generated_files/${rec.id}/${rec.file}`;
-            return res.json({ ok: true, data: { filename, mimeType, size: result.file.length, downloadUrl, recordId: rec.id }, duration: result.duration });
-          }
-        }
+        const downloadUrl = await persistGeneratedToolFile({ userId: req._lcUserId || "api", filename, mimeType, file: result.file });
+        if (downloadUrl) return res.json({ ok: true, data: { filename, mimeType, size: result.file.length, downloadUrl }, duration: result.duration });
       } catch (e) { log("warn", "PB file upload failed", { error: e.message }); }
       // Fallback: return file as base64 if PB upload fails
       return res.json({ ok: true, data: { filename, mimeType, size: result.file.length, base64: result.file.toString("base64") }, duration: result.duration });
@@ -9313,7 +9902,7 @@ app.use("/v1/:provider", apiLimiter, async (req, res, next) => {
   const SMALL_MODEL_RE = /nano|(?<![a-z])mini(?!max)|flash-lite|(?<![a-z])haiku|(?<![a-z])8b(?![a-z])|(?<![a-z])7b(?![a-z])/i;
   if (isChat && proj?.toolInjection !== false && settings.toolInjectionEnabled !== false && !SMALL_MODEL_RE.test(proxyModelId)) {
     try {
-      const toolPrompt = unifiedRegistry.getSystemPrompt();
+      const toolPrompt = lumigentRuntime.getSystemPrompt();
       if (toolPrompt && !toolPrompt.includes("No tools")) {
         if (providerName === "anthropic") {
           if (typeof req.body.system === "string") {

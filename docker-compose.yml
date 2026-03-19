@@ -110,6 +110,8 @@ services:
     container_name: lumigate-file-parser
     volumes:
       - ./file-parser:/app
+    environment:
+      - FILE_PARSER_MAX_FILE_SIZE=104857600
     working_dir: /app
     command: sh -c "npm install --production && node server.js"
     expose:

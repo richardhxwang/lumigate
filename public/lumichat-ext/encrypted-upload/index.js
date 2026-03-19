@@ -22,6 +22,43 @@ function normalizeName(name) {
   return String(name || "file").replace(/[\r\n\0]/g, "_").slice(0, 255);
 }
 
+function kindFromMimeName(fileObj) {
+  const mime = getMime(fileObj);
+  const name = normalizeName(fileObj?.name || fileObj?.file?.name || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("video/")) return "video";
+  if (mime === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (mime.startsWith("text/") || /\.(txt|md|csv|json|js|ts|jsx|tsx|py|html|css|xml|yaml|yml|sh|log|c|cpp|java|go|rs|rb|php|swift|kt)$/i.test(name)) return "text";
+  return "document";
+}
+
+function localizedKindLabel(kind, lang) {
+  const MAP = {
+    image: { en: "Image", zh: "图片" },
+    audio: { en: "Audio", zh: "音频" },
+    video: { en: "Video", zh: "视频" },
+    pdf: { en: "PDF", zh: "PDF" },
+    text: { en: "Text", zh: "文本" },
+    document: { en: "Document", zh: "文档" },
+  };
+  const entry = MAP[kind] || { en: kind, zh: kind };
+  return entry[lang] || entry.en;
+}
+
+function buildSummaryText(records, lang) {
+  const counts = {};
+  for (const rec of records) {
+    const label = localizedKindLabel(rec.kind, lang);
+    counts[label] = (counts[label] || 0) + 1;
+  }
+  const subtitle = Object.entries(counts)
+    .map(([label, count]) => (count > 1 ? `${label}×${count}` : label))
+    .join(" · ");
+  if (lang === "zh") return `[加密文件: ${subtitle || `${records.length} 个文件`}]`;
+  return `[Encrypted Files: ${subtitle || `${records.length} file(s)`}]`;
+}
+
 async function readFileBytes(fileObj) {
   const src = fileObj?.file;
   if (!(src instanceof File)) throw new Error("Invalid file object");
@@ -84,14 +121,16 @@ async function encryptPayloadJson(payloadObj, keyInfo) {
 export function createEncryptedUploadExtension() {
   let keyPromise = null;
 
-  async function ensureKey() {
-    if (!keyPromise) keyPromise = fetchPublicKey();
+  async function ensureKey(forceRefresh = false) {
+    if (forceRefresh || !keyPromise) keyPromise = fetchPublicKey();
     return keyPromise;
   }
 
   async function packFiles(fileObjs) {
     const files = Array.isArray(fileObjs) ? fileObjs : [];
     if (!files.length) throw new Error("No files selected");
+    const lang = (document?.documentElement?.lang || localStorage.getItem("lc_lang") || "en").startsWith("zh") ? "zh" : "en";
+    try { window.clientLog?.("info", "encrypted_pack_start", { fileCount: files.length, lang }); } catch {}
 
     const records = [];
     for (const f of files) {
@@ -100,6 +139,7 @@ export function createEncryptedUploadExtension() {
       records.push({
         name: normalizeName(f.name || f.file?.name || "file"),
         mime: getMime(f),
+        kind: kindFromMimeName(f),
         size: Number(f.file?.size || bytes.length || 0),
         data_b64: bytesToBase64Url(bytes),
       });
@@ -107,7 +147,8 @@ export function createEncryptedUploadExtension() {
 
     if (!records.length) throw new Error("No valid files to encrypt");
 
-    const keyInfo = await ensureKey();
+    // Always refresh public key before packing to avoid stale-key failures after server restart.
+    const keyInfo = await ensureKey(true);
     const payload = {
       kind: "encrypted_upload_bundle",
       created_at: new Date().toISOString(),
@@ -115,15 +156,24 @@ export function createEncryptedUploadExtension() {
     };
     const encryptedText = await encryptPayloadJson(payload, keyInfo);
 
+    const summaryText = buildSummaryText(records, lang);
+    try {
+      window.clientLog?.("info", "encrypted_pack_ok", {
+        fileCount: records.length,
+        kinds: records.map(r => r.kind),
+        totalBytes: records.reduce((sum, r) => sum + (r.size || 0), 0),
+        summaryText,
+      });
+    } catch {}
     return {
       encryptedPayloadText: encryptedText,
-      summaryText: `[Encrypted bundle: ${records.length} file(s)]`,
+      summaryText,
       fileNames: records.map(r => r.name),
     };
   }
 
   return {
-    async activate() { await ensureKey(); return true; },
+    async activate() { await ensureKey(true); return true; },
     deactivate() { return true; },
     status() { return { ready: !!keyPromise }; },
     packFiles,

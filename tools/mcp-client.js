@@ -162,6 +162,25 @@ class MCPClient {
   }
 
   /**
+   * Execute a tool by its fully-qualified MCPJungle name: serverName__toolName.
+   * Keeps compatibility with callers that do not split the server/tool pair.
+   *
+   * @param {string} qualifiedName
+   * @param {object} args
+   * @returns {Promise<{ok: boolean, data?: any, error?: string, duration: number}>}
+   */
+  async executeTool(qualifiedName, args = {}) {
+    const raw = String(qualifiedName || "");
+    const idx = raw.indexOf("__");
+    if (idx <= 0 || idx >= raw.length - 2) {
+      throw new Error(`Invalid MCP tool name: ${raw}`);
+    }
+    const serverName = raw.slice(0, idx);
+    const toolName = raw.slice(idx + 2);
+    return this.callTool(serverName, toolName, args);
+  }
+
+  /**
    * Get tool schemas in the format compatible with tools/registry.js.
    *
    * Converts MCP tool definitions to the Anthropic/OpenAI tool schema format

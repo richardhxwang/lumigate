@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- build:2026-03-15-v3 -->
+<!-- build:2026-03-19-v4 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>LumiChat</title>
   <!-- Apply saved theme BEFORE CSS renders to prevent flash -->
-  <script>(function(){try{var t=localStorage.getItem('lc_theme');var isLight=t==='light'||(t!=='dark'&&window.matchMedia('(prefers-color-scheme:light)').matches);if(isLight)document.documentElement.classList.add('light');}catch(e){}})()</script>
+  <script nonce="{{NONCE}}">(function(){try{var t=localStorage.getItem('lc_theme');var isLight=t==='light'||(t!=='dark'&&window.matchMedia('(prefers-color-scheme:light)').matches);if(isLight)document.documentElement.classList.add('light');}catch(e){}})()</script>
   <link rel="icon" type="image/svg+xml" href="/lumichat-icon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="/lumichat-apple-touch.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -362,14 +362,22 @@
     :root.light #send-btn:disabled{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.07)}
     :root.light #send-btn svg{color:var(--t1)}
     #file-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
-    .fchip{display:flex;align-items:center;gap:6px;background:var(--sb-active);border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px 4px 4px;font-size:12px;color:var(--t2);max-width:180px;position:relative}
+    .fchip{display:flex;align-items:center;gap:6px;background:var(--sb-active);border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px 4px 4px;font-size:12px;color:var(--t2);max-width:260px;position:relative}
+    .fchip.fchip-busy{border-color:rgba(16,163,127,0.35)}
+    .fchip.fchip-error{border-color:rgba(239,68,68,0.45)}
     .fchip-thumb{width:36px;height:36px;border-radius:var(--r1);object-fit:cover;flex-shrink:0}
     .fchip-icon{width:36px;height:36px;border-radius:var(--r1);background:var(--inp);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
     .fchip-info{display:flex;flex-direction:column;overflow:hidden;flex:1}
     .fchip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1);font-size:12px;font-weight:500}
-    .fchip-type{font-size:10.5px;color:var(--t3);text-transform:uppercase}
+    .fchip-type{font-size:10.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .fchip.fchip-compact{max-width:240px}
     .fchip-rm{background:none;border:none;color:var(--t3);cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0;margin-left:2px}
     .fchip-rm:hover{color:var(--t1)}
+    .fchip-spin{width:14px;height:14px;border-radius:50%;border:1.8px solid rgba(255,255,255,.18);border-top-color:var(--accent);animation:fchip-spin .8s linear infinite;flex-shrink:0}
+    .fchip-state{display:flex;align-items:center;gap:6px}
+    .fchip-status-ok{color:var(--accent)}
+    .fchip-status-err{color:#ef4444}
+    @keyframes fchip-spin{to{transform:rotate(360deg)}}
     .inp-hint{text-align:center;font-size:11.5px;color:var(--t3);margin-top:6px}
 
     /* TOAST */
@@ -486,6 +494,9 @@
     .stg-toggle.on{background:var(--accent)}
     .stg-toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.3)}
     .stg-toggle.on::after{left:21px}
+    .stg-toggle:disabled{opacity:.55;cursor:not-allowed}
+    .stg-select{width:100%;height:36px;padding:0 10px;font-size:13px}
+    .stg-select:disabled{opacity:.72;cursor:not-allowed}
     .stg-seg{display:flex;gap:2px;background:rgba(255,255,255,0.08);border-radius:8px;padding:2px;flex-shrink:0}
     :root.light .stg-seg{background:rgba(0,0,0,0.06)}
     .stg-seg-btn{border:none;background:transparent;color:var(--t2);font-size:12px;padding:4px 12px;border-radius:6px;cursor:pointer;transition:all .2s;font-family:inherit;font-weight:500}
@@ -920,6 +931,39 @@
           </div>
           <button class="stg-toggle" id="stg-encrypted-upload-toggle"></button>
         </div>
+        <div class="stg-row" style="margin-top:20px">
+          <div class="stg-lbl" data-t="settings.server_runtime">Server Runtime</div>
+          <div class="stg-sublbl" id="stg-runtime-managed-hint" data-t="settings.managed_by_server">Managed by server</div>
+        </div>
+        <div class="stg-opt-row">
+          <div class="stg-opt-info">
+            <div class="stg-opt-name" data-t="settings.auto_search">Auto Search</div>
+            <div class="stg-opt-desc" data-t="settings.auto_search_desc">Automatically use web search when the task needs fresh data</div>
+          </div>
+          <button class="stg-toggle" id="stg-auto-search-toggle" disabled></button>
+        </div>
+        <div class="stg-row">
+          <div class="stg-lbl" data-t="settings.attachment_search_mode">Attachment Search Mode</div>
+          <select class="auth-input stg-select" id="stg-attachment-search-mode" disabled></select>
+          <div class="stg-sublbl" data-t="settings.attachment_search_mode_desc">How attachments decide whether external search is needed</div>
+        </div>
+        <div class="stg-opt-row">
+          <div class="stg-opt-info">
+            <div class="stg-opt-name" data-t="settings.tool_injection">Tool Injection</div>
+            <div class="stg-opt-desc" data-t="settings.tool_injection_desc">Inject tool instructions into model prompts for text-based tool calling</div>
+          </div>
+          <button class="stg-toggle" id="stg-tool-injection-toggle" disabled></button>
+        </div>
+        <div class="stg-row">
+          <div class="stg-lbl" data-t="settings.search_keyword_provider">Search Keyword Provider</div>
+          <select class="auth-input stg-select" id="stg-search-keyword-provider" disabled></select>
+          <div class="stg-sublbl" data-t="settings.search_keyword_provider_desc">Model used to generate fresh search queries</div>
+        </div>
+        <div class="stg-row">
+          <div class="stg-lbl" data-t="settings.search_keyword_model">Search Keyword Model</div>
+          <select class="auth-input stg-select" id="stg-search-keyword-model" disabled></select>
+          <div class="stg-sublbl" data-t="settings.search_keyword_model_desc">Exact model configured on the server for search keyword generation</div>
+        </div>
       </div>
       <div class="stg-pane" id="stg-pane-presets">
         <div class="stg-row">
@@ -1101,6 +1145,32 @@
 
 <script nonce="{{NONCE}}">
 'use strict';
+function __earlyClientLog(level, event, data){
+  try{
+    fetch('/lc/client-log',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        level,
+        event,
+        data: data || {},
+        href: location.href,
+      }),
+    }).catch(()=>{});
+  }catch{}
+}
+window.addEventListener('error', e=>{
+  __earlyClientLog('error', 'early_window_error', { message: e.message || '', source: e.filename || '', line: e.lineno || 0, column: e.colno || 0 });
+});
+window.addEventListener('unhandledrejection', e=>{
+  const reason = e.reason?.message || String(e.reason || '');
+  __earlyClientLog('error', 'early_unhandled_rejection', { reason: reason.slice(0, 500) });
+});
+if(!window.marked || typeof marked.setOptions !== 'function'){
+  __earlyClientLog('error', 'marked_missing', { hasMarked: !!window.marked });
+  throw new Error('marked_missing');
+}
 marked.setOptions({ breaks: true, gfm: true });
 
 const O_SERIES = new Set(['o1','o1-mini','o1-preview','o3','o3-mini','o4-mini']);
@@ -1244,6 +1314,18 @@ const STRINGS = {
   'settings.unrestricted':    { en:'Unrestricted',           zh:'无限制' },
   'settings.unrestricted_desc':{ en:'No filtering',          zh:'无过滤' },
   'settings.default_model':   { en:'Default Model',          zh:'默认模型' },
+  'settings.server_runtime':  { en:'Server Runtime',         zh:'服务端运行参数' },
+  'settings.managed_by_server': { en:'Managed by server',    zh:'由服务端统一管理' },
+  'settings.auto_search':     { en:'Auto Search',            zh:'自动搜索' },
+  'settings.auto_search_desc':{ en:'Automatically use web search when the task needs fresh data', zh:'当任务需要最新数据时自动启用网页搜索' },
+  'settings.attachment_search_mode': { en:'Attachment Search Mode', zh:'附件搜索模式' },
+  'settings.attachment_search_mode_desc': { en:'How attachments decide whether external search is needed', zh:'附件内容如何决定是否需要外部搜索' },
+  'settings.tool_injection':  { en:'Tool Injection',         zh:'工具注入' },
+  'settings.tool_injection_desc': { en:'Inject tool instructions into model prompts for text-based tool calling', zh:'向模型提示词注入工具说明，用于文本式工具调用' },
+  'settings.search_keyword_provider': { en:'Search Keyword Provider', zh:'搜索关键词提供者' },
+  'settings.search_keyword_provider_desc': { en:'Model used to generate fresh search queries', zh:'用于生成搜索关键词的模型提供者' },
+  'settings.search_keyword_model': { en:'Search Keyword Model', zh:'搜索关键词模型' },
+  'settings.search_keyword_model_desc': { en:'Exact model configured on the server for search keyword generation', zh:'服务端用于生成搜索关键词的具体模型' },
   'settings.model_desc':      { en:'Model used for new conversations', zh:'新对话使用的模型' },
   'settings.language':        { en:'Language',               zh:'语言' },
   'settings.language_desc':   { en:'Interface language',     zh:'界面语言' },
@@ -1448,6 +1530,7 @@ let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
 
 let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = null, pendingFileReads = new Set();
 let providersData = [], modelsData = {};
+let _settingsUi = null;
 let _tierData = null; // { tier, rpm, providers: [{ name, access, keyUrl }] }
 let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null;
 let dropProvider = null;
@@ -1455,6 +1538,8 @@ let autoFollowStream = true;
 let forceWebSearch = false;
 let encryptedUploadEnabled = false;
 let encryptedUploadExt = null;
+const sessionSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lumichat-sync') : null;
+let sessionRefreshTimer = null;
 
 // DOM
 const $ = id => document.getElementById(id);
@@ -1470,6 +1555,79 @@ const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6"
 // ── UTILS ──────────────────────────────────────────────────────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7) }
+function nextPaint(){
+  return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+}
+function extractMessagePlainText(content){
+  if(typeof content === 'string') return content;
+  if(Array.isArray(content)) return content.filter(part=>part && typeof part === 'object' && part.type === 'text').map(part=>String(part.text||'')).join('\n');
+  return '';
+}
+function sessionTimeMs(value){
+  const ts=new Date(value||'').getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+function resolveSessionActivity(sessionRecord, metaRecord){
+  const serverTs=sessionTimeMs(sessionRecord?.last_activity || sessionRecord?.updated || sessionRecord?.created || "");
+  const localTs=sessionTimeMs(metaRecord?.last_activity || "");
+  return localTs > serverTs ? (metaRecord?.last_activity || "") : (sessionRecord?.last_activity || sessionRecord?.updated || sessionRecord?.created || "");
+}
+function broadcastSessionSync(type, payload={}){
+  const message={ type, payload, at:new Date().toISOString() };
+  try{ sessionSyncChannel?.postMessage(message); }catch{}
+  try{ localStorage.setItem('lc_session_sync_ping', JSON.stringify(message)); }catch{}
+}
+function scheduleSessionRefresh(delay=180){
+  clearTimeout(sessionRefreshTimer);
+  sessionRefreshTimer=setTimeout(()=>{ loadSessions(); }, delay);
+}
+function scheduleSessionRefreshBurst(delays=[120, 500, 1500]){
+  delays.forEach(delay=>setTimeout(()=>loadSessions(), delay));
+}
+function upsertSessionLocal(sessionLike){
+  if(!sessionLike?.id) return;
+  const idx=sessions.findIndex(s=>s.id===sessionLike.id);
+  if(idx>=0) sessions[idx]={...sessions[idx], ...sessionLike};
+  else sessions.unshift(sessionLike);
+  renderSidebar();
+  updateActive();
+}
+function clampAttachmentTextForModel(text, label='attachment'){
+  const raw=String(text||'').trim();
+  if(!raw) return '';
+  const maxLines=220;
+  const maxChars=24000;
+  const lines=raw.split(/\r?\n/);
+  let clipped=lines.slice(0,maxLines).join('\n');
+  if(clipped.length>maxChars) clipped=clipped.slice(0,maxChars);
+  const omittedLines=Math.max(0, lines.length-maxLines);
+  const omittedChars=Math.max(0, raw.length-clipped.length);
+  if(!omittedLines&&!omittedChars) return clipped;
+  return `${clipped.trim()}\n\n[${label} truncated for model context: omitted ${omittedLines} line(s), ${omittedChars} char(s)]`.trim();
+}
+async function fetchStoredAttachmentContexts(fileIds, queryText=''){
+  const ids=[...new Set((fileIds||[]).filter(Boolean))];
+  if(!ids.length) return new Map();
+  const params = new URLSearchParams();
+  params.set('ids', ids.join(','));
+  if(queryText) params.set('q', String(queryText).slice(0, 1000));
+  const res = await fetch(`/lc/files/context?${params.toString()}`, { credentials:'same-origin' });
+  if(!res.ok) return new Map();
+  const data = await res.json().catch(()=>({}));
+  const items = Array.isArray(data.items) ? data.items : [];
+  return new Map(items.filter(item=>item?.id && item?.context).map(item=>[item.id, item]));
+}
+function formatAttachmentContext({ name='', kind='', mime='', text='', note='' } = {}){
+  const body=String(text||'').trim();
+  if(!body) return '';
+  const meta = [
+    name ? `name: ${name}` : '',
+    kind ? `kind: ${kind}` : '',
+    mime ? `mime: ${mime}` : '',
+    note ? `note: ${note}` : '',
+  ].filter(Boolean).join('\n');
+  return `\n\n[Attachment Context]\n${meta}\ncontent:\n${body}`.trim();
+}
 // Format model ID for display
 // • Strips trailing date/hash suffixes (e.g. "claude-haiku-4-5-20251001" → "claude-haiku-4-5")
 // • GPT models: "gpt-4o" → "GPT-4o", "gpt-4.1-nano" → "GPT-4.1 Nano"
@@ -1550,6 +1708,54 @@ async function apiJSON(path, opts={}){
   }
   return d;
 }
+
+const clientLogQueue = [];
+let clientLogFlushTimer = null;
+function flushClientLogsSoon(delay=300){
+  clearTimeout(clientLogFlushTimer);
+  clientLogFlushTimer = setTimeout(flushClientLogs, delay);
+}
+async function flushClientLogs(){
+  clearTimeout(clientLogFlushTimer);
+  clientLogFlushTimer = null;
+  if(!clientLogQueue.length) return;
+  const batch = clientLogQueue.splice(0, 20);
+  try{
+    await fetch('/lc/client-log',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(batch.length===1 ? batch[0] : { level:'info', event:'client_log_batch', data:{ items: batch }, href: location.href, sessionId: currentSid || '', userId: currentUser?.id || '' }),
+    });
+  }catch{}
+}
+function clientLog(level, event, data={}){
+  const entry = {
+    level,
+    event,
+    data,
+    href: location.href,
+    sessionId: currentSid || '',
+    userId: currentUser?.id || '',
+  };
+  try{
+    if(level === 'error') console.error('[LumiChat]', event, data);
+    else if(level === 'warn') console.warn('[LumiChat]', event, data);
+    else console.log('[LumiChat]', event, data);
+  }catch{}
+  clientLogQueue.push(entry);
+  if(clientLogQueue.length >= 10) flushClientLogsSoon(50);
+  else flushClientLogsSoon(300);
+}
+window.clientLog = clientLog;
+window.addEventListener('error', e=>{
+  clientLog('error', 'window_error', { message: e.message || '', source: e.filename || '', line: e.lineno || 0, column: e.colno || 0 });
+});
+window.addEventListener('unhandledrejection', e=>{
+  const reason = e.reason?.message || String(e.reason || '');
+  clientLog('error', 'unhandled_rejection', { reason: reason.slice(0, 500) });
+});
+window.addEventListener('beforeunload', ()=>{ flushClientLogs(); });
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
 function showAuth(){
@@ -1943,7 +2149,7 @@ async function loadSessions(){
     const meta=readSessionMeta();
     sessions=(d.items||d).map(s=>({
       ...s,
-      last_activity: meta[s.id]?.last_activity || s.last_activity || s.updated || s.created || '',
+      last_activity: resolveSessionActivity(s, meta[s.id]),
     }));
     renderSidebar();
   }catch(e){ toast(e.message); }
@@ -1970,6 +2176,8 @@ function touchSessionActivity(id, when=new Date().toISOString()){
   writeSessionMeta(meta);
   const sess=sessions.find(s=>s.id===id);
   if(sess) sess.last_activity=when;
+  renderSidebar();
+  broadcastSessionSync('session_touch', { id, when });
 }
 
 function groupByDate(list){
@@ -2067,6 +2275,12 @@ async function deleteSession(id){
   try{
     await apiJSON(`/lc/sessions/${id}`,{method:'DELETE'});
     sessions=sessions.filter(s=>s.id!==id);
+    const meta=readSessionMeta();
+    if(meta[id]){
+      delete meta[id];
+      writeSessionMeta(meta);
+    }
+    broadcastSessionSync('session_delete', { id });
     if(currentSid===id) newChat();
     else renderSidebar();
   }catch(e){ toast(e.message); }
@@ -2079,7 +2293,11 @@ function renameSession(id, itemEl){
   titleEl.replaceWith(inp); inp.focus(); inp.select();
   const commit=async()=>{
     const t=inp.value.trim()||sess.title;
-    try{ await apiJSON(`/lc/sessions/${id}/title`,{method:'PATCH',body:JSON.stringify({title:t})}); sess.title=t; }catch{}
+    try{
+      await apiJSON(`/lc/sessions/${id}/title`,{method:'PATCH',body:JSON.stringify({title:t})});
+      sess.title=t;
+      broadcastSessionSync('session_rename', { id, title:t });
+    }catch{}
     renderSidebar(); updateActive();
   };
   inp.addEventListener('blur',commit);
@@ -2155,33 +2373,27 @@ function appendMsg(role, content, msgId, files=[]){
       fwrap=document.createElement('div');
       fwrap.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;justify-content:flex-end';
       files.forEach(f=>{
-        const chip=document.createElement('div'); chip.className='fchip'; chip.style.maxWidth='120px';
-        if(f.kind==='image'&&f.dataUrl){
-          chip.innerHTML=`<img class="fchip-thumb" src="${f.dataUrl}"><div class="fchip-info"><div class="fchip-name">${esc(f.name)}</div></div>`;
-        } else {
-          const icon=f.kind==='pdf'
-            ?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6M9 11h6M9 19h4"/></svg>`
-            :f.kind==='audio'
-            ?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`
-            :f.kind==='video'
-            ?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>`
-            :`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-          chip.innerHTML=`<div class="fchip-icon" style="width:36px;height:36px;background:var(--inp);border-radius:var(--r1);display:flex;align-items:center;justify-content:center;color:var(--t2)">${icon}</div><div class="fchip-info"><div class="fchip-name">${esc(f.name)}</div><div class="fchip-type">${f.kind}</div></div>`;
-        }
+        const chip=createFileChipNode(f, -1, { removable:false, compact:true });
         fwrap.appendChild(chip);
       });
     }
     const wrap=document.createElement('div'); wrap.className='user-msg-wrap';
     if(files && files.length && fwrap) wrap.appendChild(fwrap);
-    const b=document.createElement('div'); b.className='user-bub'; b.textContent=content; wrap.appendChild(b);
+    let b=null;
+    if(String(content||'').trim()){
+      b=document.createElement('div');
+      b.className='user-bub';
+      b.textContent=content;
+      wrap.appendChild(b);
+    }
     const acts=document.createElement('div'); acts.className='msg-acts';
     // Copy
-    acts.appendChild(makeCopyBtn(()=>b.textContent));
+    acts.appendChild(makeCopyBtn(()=>b?.textContent || ''));
     // Edit
     const editBtn=document.createElement('button'); editBtn.className='mab'; editBtn.title='Edit';
     editBtn.innerHTML=EDIT_SVG;
     editBtn.addEventListener('click',()=>{
-      const txt=b.textContent;
+      const txt=b?.textContent || '';
       // Put text back into input box — don't delete messages
       // If AI is streaming, stop it first
       if(isStreaming && abortCtrl) abortCtrl.abort();
@@ -2259,6 +2471,14 @@ function renderWebSearchToggle(){
 }
 
 async function sendMessage(){
+  clientLog('info', 'send_message_start', {
+    provider: selectedProvider,
+    model: selectedModel,
+    textLength: msgIn.value.trim().length,
+    pendingFiles: pendingFiles.length,
+    encryptedUploadEnabled: !!encryptedUploadEnabled,
+    isStreaming: !!isStreaming,
+  });
   if(pendingFileReads.size){
     await Promise.allSettled([...pendingFileReads]);
   }
@@ -2299,16 +2519,24 @@ async function sendMessage(){
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
   let files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
+  const displayFiles=[...files];
   let userContent=text;
+  let displayContent=text;
   let encryptedPayloadText='';
+  displayFiles.forEach(f=>setFileTransferState(f,'uploading'));
   if(encryptedUploadEnabled && files.length){
     try{
       const ext = await ensureEncryptedUploadExt();
       const packed = await ext.packFiles(files);
       encryptedPayloadText = packed.encryptedPayloadText || '';
-      userContent = `${userContent}${userContent?'\n\n':''}${packed.summaryText || '[Encrypted bundle attached]'}`;
+      const bundle = getEncryptedBundleLabel(files);
+      const summaryText = packed.summaryText || `[${bundle.title}: ${bundle.subtitle}]`;
+      userContent = `${userContent}${userContent?'\n\n':''}${summaryText}`;
+      displayContent = text.trim();
       files = []; // prevent normal file upload path and chips rendering
     }catch(e){
+      clientLog('error', 'encrypted_pack_failed', { message: e.message || 'Encrypted upload packaging failed', fileCount: files.length });
+      displayFiles.forEach(f=>setFileTransferState(f,'error', e.message || 'pack failed'));
       toast(e.message || 'Encrypted upload packaging failed', 2800);
       isStreaming=false;
       updateSendBtn();
@@ -2323,13 +2551,19 @@ async function sendMessage(){
   // Inject text file content inline (non-encrypted mode)
   files.filter(f=>f.kind==='text').forEach(f=>{
     const ext=f.name.split('.').pop()||'';
-    userContent+=(userContent?'\n\n':'')+`[Converted from ${ext || 'text'} file: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``;
+    userContent+=(userContent?'\n\n':'')+formatAttachmentContext({
+      name: f.name,
+      kind: f.kind || 'text',
+      mime: f.mime || `text/${ext || 'plain'}`,
+      text: `\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``,
+      note: 'inline text attachment',
+    });
   });
-  const storedUserContent=clampMessageContentForPb(getMessageContentForStorage(userContent, files));
+  const storedUserContent=clampMessageContentForPb(getMessageContentForStorage(userContent, displayFiles));
 
   // === IMMEDIATE: show user bubble + typing indicator before any network calls ===
   // If queued message already has a bubble, reuse it
-  const userRow=window._skipUserBubble||(appendMsg('user',userContent,null,files)); window._skipUserBubble=null;
+  const userRow=window._skipUserBubble||(appendMsg('user',displayContent,null,displayFiles)); window._skipUserBubble=null;
   scrollBot(false);
   const typRow=document.createElement('div'); typRow.className='msg-row assistant'; typRow.id='typ-row';
   const typBub=document.createElement('div'); typBub.className='typing';
@@ -2387,12 +2621,14 @@ async function sendMessage(){
   },1500);
 
   // Create session (if needed)
-  if(!currentSid){
-    try{
-      const sess=await apiJSON('/lc/sessions',{method:'POST',body:JSON.stringify({title:userContent.slice(0,50)||'New Chat',provider:selectedProvider,model:selectedModel})});
+    if(!currentSid){
+      try{
+        const sess=await apiJSON('/lc/sessions',{method:'POST',body:JSON.stringify({title:userContent.slice(0,50)||'New Chat',provider:selectedProvider,model:selectedModel})});
       currentSid=sess.id; touchSessionActivity(sess.id);
-      sessions.unshift({...sess,last_activity:readSessionMeta()[sess.id]?.last_activity||''}); renderSidebar(); updateActive();
-    }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
+      const nextSess={...sess,last_activity:readSessionMeta()[sess.id]?.last_activity||''};
+      sessions.unshift(nextSess); renderSidebar(); updateActive();
+      broadcastSessionSync('session_upsert', nextSess);
+    }catch(e){ clientLog('error', 'session_create_failed', { message: e.message || '', provider: selectedProvider, model: selectedModel }); toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
   }
 
   // Save user message to PB, then backfill msgId on DOM row for edit support
@@ -2403,12 +2639,13 @@ async function sendMessage(){
     messages.push(userMsg);
     userRow.dataset.msgId=userMsg.id;
     backgroundSyncFiles(files,currentSid,userMsg);
-  }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
+  }catch(e){ clientLog('error', 'user_message_store_failed', { message: e.message || '', sessionId: currentSid }); toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
 
   const dlCards=[]; // accumulated download cards — re-appended after final render
   try{
     const hist=messages;
     const aiMsgs=await buildAiMsgs(hist,files,currentSid);
+    const hasAttachmentContext = aiMsgs.some(messageHasAttachmentContext);
 
     // Use Gemini native endpoint for any structured multimodal content.
     // This avoids splitting Gemini requests across two different code paths
@@ -2434,11 +2671,24 @@ async function sendMessage(){
     const payload=useNative
       ? {model:selectedModel,messages:aiMsgs,stream:true,...(forceWebSearch?{web_search:true}:{})}
       : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,...(forceWebSearch?{web_search:true}:{})};
+    if(!forceWebSearch && hasAttachmentContext){
+      payload.web_search = false;
+    }
     if(encryptedPayloadText && !useNative){
       payload.encrypted_payload_text = encryptedPayloadText;
       payload.session_id = currentSid;
       payload.user_message_id = userMsg?.id || '';
     }
+    clientLog('info', 'provider_request_start', {
+      endpoint,
+      provider: selectedProvider,
+      model: selectedModel,
+      sessionId: currentSid,
+      useNative,
+      messageCount: aiMsgs.length,
+      hasEncryptedPayload: !!encryptedPayloadText,
+      fileCount: displayFiles.length,
+    });
 
     const res=await fetch(endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -2447,6 +2697,8 @@ async function sendMessage(){
 
     if(!res.ok){
       const err=await res.text(); let msg; try{msg=JSON.parse(err).error?.message||JSON.parse(err).error||err;}catch{msg=err;}
+      displayFiles.forEach(f=>setFileTransferState(f,'error', String(msg || `HTTP ${res.status}`)));
+      clientLog('error', 'provider_request_failed', { endpoint, provider: selectedProvider, model: selectedModel, status: res.status, response: String(msg || '').slice(0, 500) });
       $('typ-row')?.remove(); aRow.remove();
       if(res.status===429) msg=t('error.rate_limit');
       else if(res.status===401) msg=t('error.auth_failed');
@@ -2460,6 +2712,8 @@ async function sendMessage(){
       try{ await apiJSON(`/lc/messages/${userMsg.id}`,{method:'DELETE'}); }catch{}
       return;
     }
+    displayFiles.forEach(f=>setFileTransferState(f,'uploaded'));
+    clientLog('info', 'provider_request_ok', { endpoint, provider: selectedProvider, model: selectedModel, status: res.status });
 
     // ── Clean SSE reader — only 3 event types from /v1/chat ──
     const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
@@ -2636,6 +2890,7 @@ async function sendMessage(){
     }
 
   }catch(err){
+    displayFiles.forEach(f=>setFileTransferState(f,'error', err?.message || 'request failed'));
     $('typ-row')?.remove();
     if(err.name==='AbortError'){
       // Interrupted (Claude Code style): keep partial, render cleanly, save to PB
@@ -2692,11 +2947,17 @@ async function ensurePbUpload(f, sessId){
   if(!f?.file||!sessId) throw new Error('Missing file or session');
   if(f.pbMeta?.id) return f.pbMeta;
   if(!f.pbUploadPromise){
+    clientLog('info', 'file_upload_start', { name: f.name, kind: f.kind, size: f.file?.size || 0, sessionId: sessId });
+    setFileTransferState(f, 'uploading');
     f.pbUploadPromise=uploadToPb(f,sessId).then(meta=>{
       f.pbMeta=meta;
+      setFileTransferState(f, 'uploaded');
+      clientLog('info', 'file_upload_ok', { name: f.name, kind: f.kind, size: f.file?.size || 0, sessionId: sessId, fileId: meta?.id || '' });
       return meta;
     }).catch(err=>{
       f.pbUploadPromise=null;
+      setFileTransferState(f, 'error', (_lang==='zh'?'上传失败':'Upload failed'));
+      clientLog('error', 'file_upload_failed', { name: f.name, kind: f.kind, size: f.file?.size || 0, sessionId: sessId, message: err?.message || 'Upload failed' });
       throw err;
     });
   }
@@ -2795,15 +3056,29 @@ async function parseFileForNonGemini(file){
   const res = await fetch('/v1/parse', { method: 'POST', body: formData });
   if(!res.ok) return null;
   const data = await res.json();
-  return data.ok ? data.text : null;
+  return data.ok ? clampAttachmentTextForModel(data.text, file?.name || 'attachment') : null;
 }
 
 async function buildAiMsgs(msgs, files, sessId){
-  const out=msgs.map(m=>({role:m.role,content:m.content}));
+  const out=msgs.map(m=>({role:m.role,content:m.content,file_ids:Array.isArray(m.file_ids)?m.file_ids:[]}));
+  const currentQueryText = extractMessagePlainText(out[out.length-1]?.content);
+  const historicalFileIds = [...new Set(out.flatMap(m=>Array.isArray(m.file_ids)?m.file_ids:[]).filter(Boolean))];
+  const storedContextMap = historicalFileIds.length ? await fetchStoredAttachmentContexts(historicalFileIds, currentQueryText) : new Map();
+  out.forEach(m=>{
+    if(m.role !== 'user' || !Array.isArray(m.file_ids) || !m.file_ids.length) return;
+    const contexts = m.file_ids.map(id=>storedContextMap.get(id)?.context).filter(Boolean);
+    if(!contexts.length) return;
+    if(typeof m.content === 'string'){
+      const merged = [m.content.trim(), ...contexts].filter(Boolean).join('\n\n').trim();
+      m.content = merged;
+    }else if(Array.isArray(m.content)){
+      contexts.forEach(context=>m.content.push({ type:'text', text:context }));
+    }
+  });
   const mediaFiles=files.filter(f=>f.kind!=='text'); // text already injected
-  if(!mediaFiles.length||!out.length) return out;
+  if(!mediaFiles.length||!out.length) return out.map(({ role, content })=>({ role, content }));
   const last=out[out.length-1];
-  if(last.role!=='user') return out;
+  if(last.role!=='user') return out.map(({ role, content })=>({ role, content }));
   const parts=[{type:'text',text:last.content||''}];
 
   for(const f of mediaFiles){
@@ -2813,7 +3088,7 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const description=await analyzeImageForModel(f);
-          parts[0].text+=`\n\n[Converted from image: ${f.name}]\n${description}`;
+          parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:description, note:'vision-derived description' })}`;
         }catch(e){
           parts[0].text+=`\n[Attached image: ${f.name} — vision preprocessing failed: ${e.message}]`;
         }
@@ -2830,7 +3105,7 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const transcript=await transcribeAudioForModel(f);
-          parts[0].text+=`\n\n[Converted from audio: ${f.name}]\n${transcript}`;
+          parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:transcript, note:'audio transcription' })}`;
         }catch(e){
           parts[0].text+=`\n[Attached audio: ${f.name} — transcription failed: ${e.message}]`;
         }
@@ -2849,7 +3124,7 @@ async function buildAiMsgs(msgs, files, sessId){
         // Non-Gemini: parse PDF via /v1/parse and inject as text
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n[Converted from PDF: ${f.name}]\n${parsed}`;
+          if(parsed) parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:parsed, note:'parsed attachment text' })}`;
           else parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed]`;
         }catch(e){
           parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed: ${e.message}]`;
@@ -2870,7 +3145,7 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n[Converted from document: ${f.name}]\n${parsed}`;
+          if(parsed) parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:parsed, note:'parsed attachment text' })}`;
           else parts[0].text+=`\n[Attached: ${f.name} — document conversion failed]`;
         }catch(e){
           parts[0].text+=`\n[Attached: ${f.name} — document conversion failed: ${e.message}]`;
@@ -2879,7 +3154,13 @@ async function buildAiMsgs(msgs, files, sessId){
     }
   }
   last.content=parts.length>1?parts:parts[0].text;
-  return out;
+  return out.map(({ role, content })=>({ role, content }));
+}
+function messageHasAttachmentContext(message){
+  if(!message) return false;
+  if(typeof message.content === 'string') return message.content.includes('[Attachment Context]');
+  if(Array.isArray(message.content)) return message.content.some(part=>part && typeof part === 'object' && part.type === 'text' && String(part.text || '').includes('[Attachment Context]'));
+  return false;
 }
 
 async function autoTitle(sessId, firstText){
@@ -2901,6 +3182,7 @@ async function autoTitle(sessId, firstText){
     await apiJSON(`/lc/sessions/${sessId}/title`,{method:'PATCH',body:JSON.stringify({title})});
     const sess=sessions.find(s=>s.id===sessId);
     if(sess){ sess.title=title; renderSidebar(); updateActive(); }
+    broadcastSessionSync('session_rename', { id:sessId, title });
   }catch{}
 }
 
@@ -2915,17 +3197,20 @@ function fileKind(file){
   if(/\.(xlsx?|docx?|pptx?|zip)$/i.test(file.name)) return 'document';
   return null;
 }
-function addFile(file){
+async function addFile(file){
   const kind=fileKind(file);
-  if(!kind){ toast(`Unsupported type: ${file.name}`); return; }
+  if(!kind){ clientLog('warn', 'file_rejected', { name: file.name, mime: file.type || '', reason: 'unsupported' }); toast(`Unsupported type: ${file.name}`); return; }
   if(kind==='video'&&selectedProvider!=='gemini'){
+    clientLog('warn', 'file_rejected', { name: file.name, mime: file.type || '', reason: 'video_provider_mismatch', provider: selectedProvider });
     toast(t('error.pdf_video_gemini'));
     return;
   }
-  const obj={name:file.name,mime:file.type||'application/octet-stream',kind,file,dataUrl:'',loading:true};
+  const obj={name:file.name,mime:file.type||'application/octet-stream',kind,file,dataUrl:'',loading:true,status:'preparing',statusError:''};
+  clientLog('info', 'file_added', { name: file.name, mime: file.type || '', kind, size: file.size || 0, encryptedUploadEnabled: !!encryptedUploadEnabled });
   pendingFiles.push(obj);
-  renderChips();
+  appendPendingChip(obj);
   updateSendBtn();
+  await nextPaint();
   const reader=new FileReader();
   let settleRead;
   const readPromise=new Promise(resolve=>{ settleRead=resolve; });
@@ -2933,6 +3218,8 @@ function addFile(file){
   reader.onload=ev=>{
     obj.dataUrl=ev.target.result; // always store dataUrl
     obj.loading=false;
+    obj.status='ready';
+    clientLog('info', 'file_read_ok', { name: file.name, kind, size: file.size || 0 });
     pendingFileReads.delete(readPromise);
     settleRead();
     renderChips();
@@ -2943,6 +3230,7 @@ function addFile(file){
     if(idx>=0) pendingFiles.splice(idx,1);
     pendingFileReads.delete(readPromise);
     settleRead();
+    clientLog('error', 'file_read_failed', { name: file.name, kind, size: file.size || 0 });
     toast(`Failed to read file: ${file.name}`);
     renderChips();
     updateSendBtn();
@@ -2952,7 +3240,14 @@ function addFile(file){
   else reader.readAsDataURL(file);
 }
 
-const KIND_LABEL={image:'Image',video:'Video',audio:'Audio',pdf:'PDF',text:'Text',document:'Doc'};
+const KIND_LABEL={
+  image:{en:'Image',zh:'图片'},
+  video:{en:'Video',zh:'视频'},
+  audio:{en:'Audio',zh:'音频'},
+  pdf:{en:'PDF',zh:'PDF'},
+  text:{en:'Text',zh:'文本'},
+  document:{en:'Document',zh:'文档'},
+};
 const KIND_SVG={
   image:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
   video:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>`,
@@ -2962,18 +3257,98 @@ const KIND_SVG={
   document:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
 };
 const rmSvg=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-function renderChips(){
-  if(encryptedUploadEnabled && pendingFiles.length){
-    fileChips.innerHTML=`<div class="fchip"><div class="fchip-icon" style="color:var(--accent)">${KIND_SVG.document}</div><div class="fchip-info"><span class="fchip-name">Encrypted bundle</span><span class="fchip-type">${pendingFiles.length} file(s)</span></div></div>`;
-    return;
+function getKindLabel(kind){
+  const entry=KIND_LABEL[kind];
+  if(!entry) return kind||'';
+  return entry[_lang] || entry.en;
+}
+function getFileStatusLabel(f){
+  const status=f.status || (f.loading ? 'preparing' : 'ready');
+  const MAP={
+    preparing:{en:'Preparing',zh:'处理中'},
+    ready:{en:getKindLabel(f.kind),zh:getKindLabel(f.kind)},
+    uploading:{en:'Uploading',zh:'上传中'},
+    uploaded:{en:'Uploaded',zh:'已上传'},
+    error:{en:'Failed',zh:'失败'},
+  };
+  const entry=MAP[status] || MAP.ready;
+  return entry[_lang] || entry.en;
+}
+function getFileStatusAdornment(f){
+  const status=f.status || (f.loading ? 'preparing' : 'ready');
+  if(status==='preparing' || status==='uploading'){
+    return '<span class="fchip-spin"></span>';
   }
-  fileChips.innerHTML=pendingFiles.map((f,i)=>{
-    const preview=f.kind==='image'&&f.dataUrl
-      ?`<img class="fchip-thumb" src="${f.dataUrl}" alt="">`
-      :`<div class="fchip-icon" style="color:var(--t2)">${KIND_SVG[f.kind]||KIND_SVG.text}</div>`;
-    const label=f.loading?((_lang==='zh')?'处理中':'Processing'): (KIND_LABEL[f.kind]||f.kind);
-    return `<div class="fchip">${preview}<div class="fchip-info"><span class="fchip-name">${esc(f.name)}</span><span class="fchip-type">${label}</span></div><button class="fchip-rm" data-i="${i}">${rmSvg}</button></div>`;
-  }).join('');
+  if(status==='uploaded'){
+    return `<span class="fchip-status-ok">✓</span>`;
+  }
+  if(status==='error'){
+    return `<span class="fchip-status-err">!</span>`;
+  }
+  return '';
+}
+function getRenderedFileTypeLabel(file){
+  const baseLabel=getFileStatusLabel(file);
+  if(encryptedUploadEnabled && (file.status === 'ready' || file.status === 'preparing' || file.status === 'uploading')){
+    return _lang === 'zh' ? `加密${baseLabel}` : `Encrypted ${baseLabel}`;
+  }
+  return baseLabel;
+}
+function createFileChipNode(file, index, opts={}){
+  const { removable=true, compact=false } = opts;
+  const chip=document.createElement('div');
+  chip.className='fchip';
+  if(compact) chip.style.maxWidth='120px';
+  const preview=file.kind==='image'&&file.dataUrl
+    ? `<img class="fchip-thumb" src="${esc(file.dataUrl)}" alt="">`
+    : `<div class="fchip-icon" style="color:var(--t2)">${KIND_SVG[file.kind]||KIND_SVG.text}</div>`;
+  chip.innerHTML=`${preview}<div class="fchip-info"><span class="fchip-name">${esc(file.name)}</span><span class="fchip-type">${esc(getRenderedFileTypeLabel(file))}</span></div><span class="fchip-state">${getFileStatusAdornment(file)}</span>${removable?`<button class="fchip-rm" data-i="${index}">${rmSvg}</button>`:''}`;
+  file._chipEl = chip;
+  file._typeEl = chip.querySelector('.fchip-type');
+  file._stateEl = chip.querySelector('.fchip-state');
+  chip.classList.toggle('fchip-busy', (file.status||'') === 'preparing' || (file.status||'') === 'uploading');
+  chip.classList.toggle('fchip-error', (file.status||'') === 'error');
+  return chip;
+}
+function appendPendingChip(file){
+  const index=pendingFiles.indexOf(file);
+  const chip=createFileChipNode(file, index);
+  fileChips.appendChild(chip);
+}
+function getEncryptedBundleLabel(files){
+  const counts = {};
+  (files||[]).forEach(f=>{
+    const label = getKindLabel(f.kind);
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  const summary = Object.entries(counts).map(([label, count]) => count > 1 ? `${label}×${count}` : label).join(' · ');
+  const total = files.length;
+  const title = _lang === 'zh' ? '加密文件' : 'Encrypted Files';
+  const subtitle = summary || (_lang === 'zh' ? `${total} 个文件` : `${total} file(s)`);
+  return { title, subtitle };
+}
+function setFileTransferState(file, status, error=''){
+  if(!file) return;
+  if(file.status !== status || file.statusError !== (error || '')){
+    clientLog(status === 'error' ? 'error' : 'info', 'file_state_changed', {
+      name: file.name,
+      kind: file.kind,
+      status,
+      error: error || '',
+    });
+  }
+  file.loading = status === 'preparing';
+  file.status = status;
+  file.statusError = error || '';
+  if(file._typeEl) file._typeEl.textContent = status === 'error' && error ? `${getFileStatusLabel(file)} · ${error}` : getFileStatusLabel(file);
+  if(file._stateEl) file._stateEl.innerHTML = getFileStatusAdornment(file);
+  if(file._chipEl){
+    file._chipEl.classList.toggle('fchip-busy', status === 'preparing' || status === 'uploading');
+    file._chipEl.classList.toggle('fchip-error', status === 'error');
+  }
+}
+function renderChips(){
+  fileChips.replaceChildren(...pendingFiles.map((f,i)=>createFileChipNode(f, i)));
 }
 
 // ── PROVIDERS / MODELS ────────────────────────────────────────────────────
@@ -3490,6 +3865,62 @@ if(webBtn){
 }
 fileIn.addEventListener('change',()=>{ Array.from(fileIn.files).forEach(addFile); fileIn.value=''; });
 fileChips.addEventListener('click',e=>{ const b=e.target.closest('.fchip-rm'); if(!b) return; pendingFiles.splice(+b.dataset.i,1); renderChips(); updateSendBtn(); });
+sessionSyncChannel?.addEventListener('message',e=>{
+  const msg=e?.data;
+  if(!msg?.type) return;
+  if(msg.type === 'session_touch'){
+    const { id, when } = msg.payload || {};
+    if(id && when){
+      const sess=sessions.find(s=>s.id===id);
+      if(sess){
+        sess.last_activity=when;
+        renderSidebar();
+        updateActive();
+      } else {
+        scheduleSessionRefreshBurst();
+      }
+    }
+    return;
+  }
+  if(msg.type === 'session_upsert'){
+    const sess = msg.payload || {};
+    if(sess.id){
+      upsertSessionLocal(sess);
+      scheduleSessionRefreshBurst([200, 900]);
+    }
+    return;
+  }
+  if(msg.type === 'session_delete'){
+    const { id } = msg.payload || {};
+    if(id){
+      sessions=sessions.filter(s=>s.id!==id);
+      if(currentSid===id) newChat();
+      renderSidebar();
+      updateActive();
+    }
+    return;
+  }
+  if(msg.type === 'session_rename'){
+    const { id, title } = msg.payload || {};
+    const sess=sessions.find(s=>s.id===id);
+    if(sess && title){
+      sess.title=title;
+      renderSidebar();
+      updateActive();
+    } else {
+      scheduleSessionRefreshBurst();
+    }
+    return;
+  }
+  scheduleSessionRefresh(120);
+});
+window.addEventListener('storage',e=>{
+  if(e.key === 'lc_session_meta' || e.key === 'lc_session_sync_ping'){
+    scheduleSessionRefresh(120);
+  }
+});
+window.addEventListener('focus',()=>scheduleSessionRefresh(120));
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) scheduleSessionRefresh(120); });
 
 suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); if(!c) return; msgIn.value=c.dataset.p; msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px'; updateSendBtn(); msgIn.focus(); });
 
@@ -3835,11 +4266,13 @@ async function initGoogleOAuth(){
 // _userSettings is declared in the PROJECTS section above (shared state)
 
 async function loadUserSettings(){
+  clientLog('info', 'settings_ui_load_start');
   try{
-    const d = await apiJSON('/lc/user/settings');
-    _userSettings = d;
+    const d = await apiJSON('/lc/settings/ui');
+    _settingsUi = d.schema || null;
+    _userSettings = d.userSettings || {};
     // One-time migration: if PB record has all defaults, import any localStorage settings
-    const pbIsDefault = !d.memory && d.sensitivity === 'default' && (!d.presets || !d.presets.length);
+    const pbIsDefault = !_userSettings.memory && _userSettings.sensitivity === 'default' && (!_userSettings.presets || !_userSettings.presets.length);
     if(pbIsDefault){
       try{
         const ls = JSON.parse(localStorage.getItem('lc_settings')||'{}');
@@ -3850,7 +4283,13 @@ async function loadUserSettings(){
         if(Object.keys(patch).length){ Object.assign(_userSettings, patch); patchUserSettings(patch); }
       }catch{}
     }
-  }catch{ _userSettings = {}; }
+    clientLog('info', 'settings_ui_load_ok', { hasSchema: !!_settingsUi, userSettingsKeys: Object.keys(_userSettings || {}).length });
+  }catch(e){
+    clientLog('warn', 'settings_ui_load_failed', { message: e?.message || 'load settings ui failed' });
+    _settingsUi = null;
+    try{ _userSettings = await apiJSON('/lc/user/settings'); }
+    catch(err){ clientLog('error', 'user_settings_load_failed', { message: err?.message || 'load user settings failed' }); _userSettings = {}; }
+  }
   // Migrate: old default 'dark' → 'auto' (one-time)
   if(_userSettings.theme === 'dark' && !localStorage.getItem('lc_theme_explicit')){
     _userSettings.theme = 'auto';
@@ -3875,7 +4314,13 @@ async function loadUserSettings(){
 
 async function patchUserSettings(patch){
   Object.assign(_userSettings, patch);
-  try{ await apiJSON('/lc/user/settings',{method:'PATCH',body:JSON.stringify(patch)}); }catch{}
+  clientLog('info', 'user_settings_patch_start', { keys: Object.keys(patch || {}), patch });
+  try{
+    await apiJSON('/lc/user/settings',{method:'PATCH',body:JSON.stringify(patch)});
+    clientLog('info', 'user_settings_patch_ok', { keys: Object.keys(patch || {}) });
+  }catch(e){
+    clientLog('error', 'user_settings_patch_failed', { keys: Object.keys(patch || {}), message: e?.message || 'patch failed' });
+  }
 }
 
 // Sync shims so all existing callers work without modification
@@ -3896,6 +4341,38 @@ function renderEncryptedModeUI(){
   }
   const toggle = $('stg-encrypted-upload-toggle');
   if(toggle) toggle.classList.toggle('on', !!encryptedUploadEnabled);
+}
+
+function setToggleValue(id, value, disabled=true){
+  const el = $(id);
+  if(!el) return;
+  el.classList.toggle('on', !!value);
+  el.disabled = !!disabled;
+}
+
+function renderBackendSelect(id, field){
+  const el = $(id);
+  if(!el) return;
+  const options = Array.isArray(field?.options) ? field.options : [];
+  const value = field?.value ?? '';
+  el.innerHTML = options.map(opt => {
+    const ov = opt?.value ?? '';
+    const label = opt?.label ?? ov;
+    return `<option value="${esc(ov)}"${String(ov)===String(value)?' selected':''}>${esc(label)}</option>`;
+  }).join('');
+  el.disabled = field?.writable !== true;
+}
+
+function renderBackendSettingsUI(){
+  const runtime = _settingsUi?.runtime;
+  const fields = runtime?.fields || {};
+  const hint = $('stg-runtime-managed-hint');
+  if(hint) hint.textContent = runtime?.description || t('settings.managed_by_server');
+  setToggleValue('stg-auto-search-toggle', fields.autoSearchEnabled?.value, true);
+  setToggleValue('stg-tool-injection-toggle', fields.toolInjectionEnabled?.value, true);
+  renderBackendSelect('stg-attachment-search-mode', fields.attachmentSearchMode);
+  renderBackendSelect('stg-search-keyword-provider', fields.searchKeywordProvider);
+  renderBackendSelect('stg-search-keyword-model', fields.searchKeywordModel);
 }
 
 async function setEncryptedUploadEnabled(on, persist=true){
@@ -3980,6 +4457,7 @@ function openSettings(){
   $('stg-memory').value = s.memory||'';
   renderSensGrid(s.sensitivity||'default');
   renderDefaultModelSelects();
+  renderBackendSettingsUI();
   // Presets tab
   renderStgPresets();
   closeStgForm();
@@ -4664,6 +5142,7 @@ $('sb-search-btn').addEventListener('click',()=>{
 $('sb-search-inp').addEventListener('input',()=>{ renderSidebar($('sb-search-inp').value.trim()); });
 $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-search-bar').style.display='none'; $('sb-search-inp').value=''; renderSidebar(); } });
 
+clientLog('info', 'boot_start', { build: '2026-03-19-v4' });
 initGoogleOAuth();
 // Apply i18n on boot
 applyLang();

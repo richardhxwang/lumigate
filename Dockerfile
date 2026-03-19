@@ -32,6 +32,7 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
 COPY server.js ./
 COPY public ./public
+COPY lumigent ./lumigent
 COPY collector ./collector
 COPY security ./security
 COPY tools ./tools
