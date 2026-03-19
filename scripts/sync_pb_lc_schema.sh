@@ -24,6 +24,16 @@ ensure_field_json() {
   sqlite3 "$db" "update _collections set fields=json_insert(fields, '\$[#]', json('$field_json')), updated=strftime('%Y-%m-%d %H:%M:%fZ') where name='$coll';"
 }
 
+set_field_max() {
+  local db="$1" coll="$2" field_name="$3" maxv="$4"
+  local idx
+  idx=$(sqlite3 "$db" "select key from _collections c, json_each(c.fields) je where c.name='$coll' and json_extract(je.value, '$.name')='$field_name' limit 1;")
+  if [[ -z "$idx" ]]; then
+    return 0
+  fi
+  sqlite3 "$db" "update _collections set fields=json_set(fields, '\$[$idx].max', $maxv), updated=strftime('%Y-%m-%d %H:%M:%fZ') where name='$coll';"
+}
+
 sync_one_db() {
   local db="$1"
   ensure_column "$db" "lc_files" "original_name" "TEXT NOT NULL DEFAULT ''"
@@ -53,6 +63,10 @@ sync_one_db() {
   ensure_field_json "$db" "lc_sessions" "updated_at" '{"autogeneratePattern":"","hidden":false,"id":"text_sess_updated_at","max":0,"min":0,"name":"updated_at","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}'
   ensure_field_json "$db" "lc_messages" "created_at" '{"autogeneratePattern":"","hidden":false,"id":"text_msg_created_at","max":0,"min":0,"name":"created_at","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}'
   ensure_field_json "$db" "lc_messages" "updated_at" '{"autogeneratePattern":"","hidden":false,"id":"text_msg_updated_at","max":0,"min":0,"name":"updated_at","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}'
+
+  # Lift practical text limits for large AI output / extracted text.
+  set_field_max "$db" "lc_files" "extracted_text" 2000000
+  set_field_max "$db" "lc_messages" "content" 2000000
 
   # Backfill existing rows so PB dashboard does not show N/A for historical data.
   sqlite3 "$db" "

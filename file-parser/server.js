@@ -11,7 +11,8 @@
 const http = require("http");
 const path = require("path");
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+// 0 means unlimited (subject to container memory / upstream proxy limits).
+const MAX_FILE_SIZE = Number(process.env.FILE_PARSER_MAX_FILE_SIZE || 0);
 
 // ── Parsers ──────────────────────────────────────────────────────────────────
 
@@ -466,10 +467,10 @@ const server = http.createServer(async (req, res) => {
 
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > MAX_FILE_SIZE + 1024) { // extra 1K for multipart headers
+      if (MAX_FILE_SIZE > 0 && size > MAX_FILE_SIZE + 1024) { // extra 1K for multipart headers
         req.destroy();
         res.writeHead(413, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: false, error: "File too large (max 25MB)" }));
+        res.end(JSON.stringify({ ok: false, error: `File too large (max ${Math.floor(MAX_FILE_SIZE / (1024 * 1024))}MB)` }));
         return;
       }
       chunks.push(chunk);

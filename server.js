@@ -212,11 +212,7 @@ function pbErrorSummary(data, fallback = "PocketBase request failed") {
 }
 
 function clampPbMessageContent(content) {
-  const s = String(content || "").trim();
-  const MAX = 5000;
-  if (s.length <= MAX) return s;
-  const suffix = "\n\n[Truncated for PocketBase storage]";
-  return s.slice(0, MAX - suffix.length).trimEnd() + suffix;
+  return String(content || "");
 }
 
 const AUTO_CONTINUE_MAX_PASSES = 12;
@@ -1362,9 +1358,9 @@ const lcRegisterLimiter = rateLimit({
 let _globalRegCount = 0;
 setInterval(() => { _globalRegCount = 0; }, 60 * 60 * 1000); // reset hourly
 
-// 4. Body parser with size limit (F-09: reduced from 100mb)
+// 4. Body parser limit (configurable; default raised for large chat payloads)
 app.use(express.json({
-  limit: "10mb",
+  limit: process.env.BODY_JSON_LIMIT || "50mb",
   verify: (req, res, buf) => { req._rawBody = buf.toString(); }, // preserve raw body for HMAC
 }));
 
@@ -5039,11 +5035,7 @@ function stripHtmlToText(html) {
 }
 
 function clampExtractedTextForPb(text) {
-  const s = String(text || "").trim();
-  const MAX = 5000;
-  if (s.length <= MAX) return s;
-  const suffix = "\n\n[Truncated for lc_files.extracted_text]";
-  return s.slice(0, MAX - suffix.length).trimEnd() + suffix;
+  return String(text || "");
 }
 
 function lcNormalizeExtractedText(text) {
@@ -7569,7 +7561,7 @@ app.post("/lc/files/gemini-upload/:pbFileId", requireLcAuth, async (req, res) =>
 // POST /lc/chat/gemini-native → Gemini native API for video/PDF/audio via File API
 // Body: { model, messages (OpenAI fmt), stream }
 // Converts file_data parts to Gemini inlineData/fileData format, calls native API
-app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: "1mb" }), async (req, res) => {
+app.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "50mb" }), async (req, res) => {
   const { model = "gemini-2.5-flash", messages = [], stream = false } = req.body || {};
 
   const geminiKey = (selectApiKey("gemini", "_lumichat") || {}).apiKey || PROVIDERS.gemini?.apiKey;
@@ -7811,7 +7803,7 @@ const TOOL_TAG_MARKERS = [
   "<|DSML|function_calls>", "<minimax:tool_call>", "<tool_call>",
 ];
 
-app.post("/v1/chat", apiLimiter, express.json({ limit: "1mb" }), async (req, res) => {
+app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "50mb" }), async (req, res) => {
   const { provider: providerName, model: modelId, messages, stream: wantStream = true } = req.body || {};
   if (!providerName || !modelId || !Array.isArray(messages) || !messages.length) {
     return res.status(400).json({ error: "Missing required fields: provider, model, messages (array)" });

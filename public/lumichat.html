@@ -312,6 +312,7 @@
     .asst-content th{background:var(--inp);font-weight:600}
     .asst-content a{color:#6ea8fe;text-decoration:none}
     .asst-content a:hover{text-decoration:underline}
+    .stream-tail{white-space:pre-wrap;word-break:break-word}
     .msg-acts{display:flex;gap:2px;margin-top:6px;opacity:0;transition:opacity .15s}
     .msg-row:hover .msg-acts{opacity:1}
     .user-msg-wrap:hover .msg-acts{opacity:1}
@@ -333,8 +334,12 @@
 
     /* INPUT */
     #input-wrap{padding:6px 16px 2px;flex-shrink:0}
-    .inp-box{max-width:768px;margin:0 auto;background:var(--inp);border:1px solid var(--inp-b);border-radius:var(--r3);transition:border-color .15s}
+    .inp-box{max-width:768px;margin:0 auto;background:var(--inp);border:1px solid var(--inp-b);border-radius:var(--r3);transition:border-color .2s,background .2s,box-shadow .2s}
     .inp-box:focus-within{border-color:var(--inp-bh)}
+    .inp-box.voice-live{background:#10a37f;border-color:#10a37f;box-shadow:0 8px 24px rgba(16,163,127,.25)}
+    .inp-box.voice-live #msg-in,
+    .inp-box.voice-live #file-chips,
+    .inp-box.voice-live .inp-bar{visibility:hidden}
     #msg-in{width:100%;background:transparent;border:none;outline:none;color:var(--t1);font-size:15px;line-height:1.5;padding:14px 16px 0;resize:none;max-height:200px;overflow-y:auto;font-family:inherit;overscroll-behavior:contain}
     #msg-in::placeholder{color:var(--t3)}
     .inp-bar{display:flex;align-items:center;padding:4px 10px 4px 12px;gap:6px}
@@ -614,17 +619,21 @@
     /* VOICE INPUT */
     #mic-btn,#web-btn{width:32px;height:32px;background:transparent;border:none;color:var(--t3);cursor:pointer;border-radius:var(--r1);align-items:center;justify-content:center;transition:background .1s,color .15s;flex-shrink:0}
     #web-btn{display:flex}
-    #mic-btn{display:none}
+    #mic-btn{display:none;touch-action:none}
     #mic-btn:hover,#web-btn:hover{background:var(--sb-hover);color:var(--t1)}
     #mic-btn svg,#web-btn svg{width:16px;height:16px}
     #web-btn.tb-active{color:var(--accent);background:rgba(16,163,127,0.12)}
     #mic-btn.rec{color:#ef4444}
     @keyframes mic-ring{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
     #mic-btn.rec svg{animation:mic-ring 1.4s ease-out infinite}
-    #voice-overlay{display:none;position:absolute;inset:0;background:var(--inp);border-radius:var(--r3);z-index:10;align-items:center;justify-content:center;flex-direction:column;gap:8px;cursor:pointer}
-    #voice-overlay.active{display:flex}
-    .vwave{display:flex;align-items:center;gap:3px;height:36px}
-    .vbar{width:3px;border-radius:3px;background:var(--accent);transform-origin:center;animation:vb 1s ease-in-out infinite}
+    #voice-overlay{display:flex;position:absolute;inset:6px;background:#10a37f;border-radius:calc(var(--r3) - 2px);z-index:10;align-items:center;justify-content:center;flex-direction:column;gap:8px;cursor:pointer;opacity:0;transform:translateY(6px) scale(.985);pointer-events:none;transition:opacity .2s ease,transform .22s ease,background-color .2s ease,box-shadow .2s ease}
+    #voice-overlay.active{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+    #voice-overlay.voice-mode-send{background:#10a37f;box-shadow:0 10px 24px rgba(16,163,127,.32)}
+    #voice-overlay.voice-mode-input{background:#2563eb;box-shadow:0 10px 24px rgba(37,99,235,.30)}
+    #voice-overlay.voice-mode-cancel{background:#dc2626;box-shadow:0 10px 24px rgba(220,38,38,.30)}
+    #voice-overlay.voice-mode-transcribing{background:#059669;box-shadow:0 10px 24px rgba(5,150,105,.30)}
+    .vwave{display:flex;align-items:center;gap:3px;height:36px;transition:transform .18s ease,opacity .18s ease}
+    .vbar{width:3px;border-radius:3px;background:#fff;transform-origin:center;animation:vb 1s ease-in-out infinite}
     .vbar:nth-child(1){height:6px;animation-delay:.00s}
     .vbar:nth-child(2){height:12px;animation-delay:.10s}
     .vbar:nth-child(3){height:20px;animation-delay:.20s}
@@ -635,8 +644,10 @@
     .vbar:nth-child(8){height:12px;animation-delay:.00s}
     .vbar:nth-child(9){height:6px;animation-delay:.15s}
     @keyframes vb{0%,100%{transform:scaleY(.25);opacity:.4}50%{transform:scaleY(1);opacity:1}}
-    #voice-interim{font-size:13px;color:var(--t2);max-width:85%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
-    #voice-hint{font-size:11px;color:var(--t3);margin-top:2px}
+    #voice-interim{font-size:13px;color:#fff;max-width:85%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;transition:opacity .16s ease,transform .16s ease}
+    #voice-hint{font-size:11px;color:rgba(255,255,255,0.92);margin-top:2px;transition:opacity .16s ease,transform .16s ease}
+    #voice-overlay.text-swap #voice-interim,#voice-overlay.text-swap #voice-hint{opacity:.55;transform:translateY(1px)}
+    #voice-overlay.voice-mode-cancel .vwave{transform:scale(.92);opacity:.75}
 
     /* SLASH COMMAND PANEL */
     #slash-panel{position:absolute;bottom:calc(100% + 8px);left:12px;right:12px;background:rgba(30,30,32,0.88);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:6px;z-index:200;display:none;box-shadow:0 -8px 32px rgba(0,0,0,.5)}
@@ -2068,18 +2079,33 @@ function newChat(){
 }
 
 // ── MESSAGES ───────────────────────────────────────────────────────────────
+function withCodeHeaders(raw){
+  return String(raw||"").replace(/<pre><code(?: class="language-([^"]*)")?>/g,(_,lang)=>
+    `<pre><div class="code-hdr"><span>${lang||'code'}</span><button class="copy-code" onclick="cpCode(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> ${t('misc.copy_code')}</button></div><code${lang?` class="language-${lang}"`:''}>`);
+}
+
 // Full render: injects code headers + hljs syntax highlighting
 function renderMarkdown(el, text){
   const raw=marked.parse(text||'');
-  const withHdr=raw.replace(/<pre><code(?: class="language-([^"]*)")?>/g,(_,lang)=>
-    `<pre><div class="code-hdr"><span>${lang||'code'}</span><button class="copy-code" onclick="cpCode(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> ${t('misc.copy_code')}</button></div><code${lang?` class="language-${lang}"`:''}>`);
+  const withHdr=withCodeHeaders(raw);
   el.innerHTML=DOMPurify.sanitize(withHdr,{ADD_ATTR:['onclick'],FORCE_BODY:true});
   el.querySelectorAll('pre code').forEach(b=>{ if(!b.classList.contains('hljs')) hljs.highlightElement(b); });
 }
-// Stream render: fast, no hljs (called every RAF during streaming)
+// Stream render: incremental full markdown parse for stable table/code rendering.
+function getStreamingRenderableMarkdown(text){
+  let s=String(text||'');
+  if(!s) return s;
+  // Close unclosed fenced code blocks in preview so they render immediately.
+  const fenceMatches=s.match(/(^|\n)\s*```/g);
+  if(fenceMatches && fenceMatches.length % 2 === 1) s += "\n```";
+  // If table separator exists and last line is partial, append newline for live table row render.
+  if(/\n\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*(\n|$)/m.test(s) && /\|[^\n]*$/.test(s)) s += "\n";
+  return s;
+}
 function renderMarkdownStream(el, text){
-  const raw=marked.parse(text||'');
-  el.innerHTML=DOMPurify.sanitize(raw,{ADD_ATTR:['onclick'],FORCE_BODY:true});
+  const raw=marked.parse(getStreamingRenderableMarkdown(text));
+  const withHdr=withCodeHeaders(raw);
+  el.innerHTML=DOMPurify.sanitize(withHdr,{ADD_ATTR:['onclick'],FORCE_BODY:true});
 }
 window.cpCode=function(btn){
   const c=btn.closest('pre').querySelector('code'); if(!c) return;
@@ -2251,7 +2277,7 @@ async function sendMessage(){
   // Inject text file content inline
   files.filter(f=>f.kind==='text').forEach(f=>{
     const ext=f.name.split('.').pop()||'';
-    userContent+=(userContent?'\n\n':'')+`[Converted from ${ext || 'text'} file: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'').slice(0,12000)}\n\`\`\``;
+    userContent+=(userContent?'\n\n':'')+`[Converted from ${ext || 'text'} file: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``;
   });
   const storedUserContent=clampMessageContentForPb(getMessageContentForStorage(userContent, files));
 
@@ -2333,16 +2359,9 @@ async function sendMessage(){
     backgroundSyncFiles(files,currentSid,userMsg);
   }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
 
-  // Truncation notice
-  const total=messages.length;
-  if(total>40){
-    const bar=document.createElement('div'); bar.className='trunc-bar';
-    bar.textContent=`Sending last 40 of ${total} messages`; chatEl.appendChild(bar);
-  }
-
   const dlCards=[]; // accumulated download cards — re-appended after final render
   try{
-    const hist=messages.slice(-40);
+    const hist=messages;
     const aiMsgs=await buildAiMsgs(hist,files,currentSid);
 
     // Use Gemini native endpoint for any structured multimodal content.
@@ -2397,9 +2416,8 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
-    // Throttled markdown render during streaming (every 300ms, not every frame)
+    // Throttled markdown render during streaming (full markdown re-render, GPT-like behavior)
     let mdTimer=null;
-    let lastMdLen=0; // track what's been rendered to avoid redundant re-renders
 
     while(true){
       const{done,value}=await reader.read(); if(done) break;
@@ -2499,29 +2517,13 @@ async function sendMessage(){
             }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
-            // Incremental render with auto-follow that pauses when the user scrolls up.
-            if(!rafId){
-              rafId=requestAnimationFrame(()=>{
-                rafId=null;
+            if(!mdTimer){
+              mdTimer=setTimeout(()=>{
+                mdTimer=null;
                 if(!streamEl) return;
-                const splitAt=Math.max(streamText.lastIndexOf('\n\n'), streamText.lastIndexOf('\n'));
-                if(splitAt>lastMdLen){
-                  const newChunk=streamText.slice(lastMdLen,splitAt);
-                  // Remove tail span before appending new markdown
-                  const oldTail=streamEl.querySelector('.stream-tail');
-                  if(oldTail) oldTail.remove();
-                  // Append new HTML
-                  const frag=document.createElement('div');
-                  frag.innerHTML=DOMPurify.sanitize(marked.parse(newChunk),{FORCE_BODY:true});
-                  while(frag.firstChild) streamEl.appendChild(frag.firstChild);
-                  lastMdLen=splitAt;
-                }
-                const tail=streamText.slice(lastMdLen).replace(/^\n\n/,'');
-                let tn=streamEl.querySelector('.stream-tail');
-                if(!tn){ tn=document.createElement('span'); tn.className='stream-tail'; streamEl.appendChild(tn); }
-                tn.innerHTML=DOMPurify.sanitize(marked.parseInline(tail),{FORCE_BODY:true});
+                renderMarkdownStream(streamEl,streamText);
                 if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
-              });
+              },80);
             }
           }
         }catch{}
@@ -2610,7 +2612,6 @@ async function sendMessage(){
     cancelAnimationFrame(rafId);
     stopBtn.style.display='none'; sendBtn.style.display='flex';
     updateSendBtn(); scrollBot(); msgIn.focus();
-    document.querySelectorAll('.trunc-bar').forEach(b=>b.remove());
     // Process queued message (sent during streaming) — after partial save resolved
     if(queued){
       // Remove queued label + make solid if not already
@@ -2699,11 +2700,7 @@ function getMessageContentForStorage(text, files){
 }
 
 function clampMessageContentForPb(text){
-  const s=String(text||'').trim();
-  const MAX=5000;
-  if(s.length<=MAX) return s;
-  const suffix='\n\n[Truncated for PocketBase storage]';
-  return s.slice(0, MAX-suffix.length).trimEnd()+suffix;
+  return String(text||'');
 }
 
 function backgroundSyncFiles(files, sessId, userMsg){
@@ -2871,8 +2868,6 @@ function fileKind(file){
 function addFile(file){
   const kind=fileKind(file);
   if(!kind){ toast(`Unsupported type: ${file.name}`); return; }
-  const maxMB={image:20,video:500,audio:100,pdf:50,text:5,document:50};
-  if(file.size>maxMB[kind]*1024*1024){ toast(`Too large (max ${maxMB[kind]}MB): ${file.name}`); return; }
   if(kind==='video'&&selectedProvider!=='gemini'){
     toast(t('error.pdf_video_gemini'));
     return;
@@ -3395,17 +3390,73 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
 (function(){
   const micBtn   = $('mic-btn');
   const overlay  = $('voice-overlay');
+  const inpBox   = overlay?.closest('.inp-box');
   const interimEl= $('voice-interim');
+  const hintEl   = $('voice-hint');
   const bars     = Array.from(document.querySelectorAll('.vbar'));
+  const hasTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const isMobileViewport = !!(window.matchMedia && window.matchMedia('(max-width: 1024px)').matches);
+  const isMobileVoiceMode = hasTouch && (coarsePointer || isMobileViewport);
+  const VOICE_ACTION_SEND = 'send';
+  const VOICE_ACTION_INPUT = 'input';
+  const VOICE_ACTION_CANCEL = 'cancel';
+  const VOICE_ACTION_TRANSCRIBING = 'transcribing';
+  const SWIPE_UP_CANCEL_PX = 56;
+  const SWIPE_RIGHT_INPUT_PX = 72;
 
   // Always show mic button — Whisper works in any browser with MediaRecorder
   if(!navigator.mediaDevices?.getUserMedia) return;
   micBtn.style.display = 'flex';
 
   let isVoice = false;
+  let holdRecording = false;
+  let holdStartX = 0;
+  let holdStartY = 0;
+  let holdMode = VOICE_ACTION_SEND;
+  let pendingStopAction = VOICE_ACTION_INPUT;
+  let hintSwapTimer = null;
   let mediaRecorder = null, audioChunks = [];
   // AudioContext for real amplitude-driven bar animation
   let audioCtx = null, analyser = null, micStream = null, animRafId = null;
+
+  function getMobileHoldHint(mode){
+    if(_lang === 'zh'){
+      if(mode === VOICE_ACTION_CANCEL) return '松开取消';
+      if(mode === VOICE_ACTION_INPUT) return '松开转文字';
+      if(mode === VOICE_ACTION_TRANSCRIBING) return '正在识别…';
+      return '上滑取消 · 右滑转文字';
+    }
+    if(mode === VOICE_ACTION_CANCEL) return 'Release to cancel';
+    if(mode === VOICE_ACTION_INPUT) return 'Release to fill input';
+    if(mode === VOICE_ACTION_TRANSCRIBING) return 'Transcribing…';
+    return 'Swipe up to cancel · right to fill input';
+  }
+
+  function setVoiceMode(mode){
+    if(!overlay) return;
+    overlay.classList.remove('voice-mode-send', 'voice-mode-input', 'voice-mode-cancel', 'voice-mode-transcribing');
+    overlay.classList.add(`voice-mode-${mode}`);
+  }
+
+  function animateVoiceTexts(interimText, hintText){
+    if(!overlay) return;
+    overlay.classList.add('text-swap');
+    if(hintSwapTimer) clearTimeout(hintSwapTimer);
+    hintSwapTimer = setTimeout(() => {
+      if(typeof interimText === 'string') interimEl.textContent = interimText;
+      if(typeof hintText === 'string' && hintEl) hintEl.textContent = hintText;
+      overlay.classList.remove('text-swap');
+    }, 90);
+  }
+
+  function hideVoiceOverlay(){
+    if(!overlay) return;
+    overlay.classList.remove('active');
+    if(inpBox) inpBox.classList.remove('voice-live');
+    micBtn.classList.remove('rec');
+    setVoiceMode(VOICE_ACTION_SEND);
+  }
 
   function animateBars(){
     if(!analyser){ animRafId = null; return; }
@@ -3440,9 +3491,25 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
       credentials: 'same-origin',
       body: form,
     });
-    const data = await res.json();
-    if(data.ok) return data.text;
-    throw new Error(data.error || 'Transcription failed');
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    let data = null;
+    let rawText = '';
+    if(ct.includes('application/json')){
+      data = await res.json().catch(() => null);
+    }else{
+      rawText = await res.text().catch(() => '');
+      if(rawText){
+        try{ data = JSON.parse(rawText); }catch{}
+      }
+    }
+    if(res.ok){
+      if(data && typeof data.text === 'string') return data.text;
+      if(data && data.ok && typeof data.text === 'string') return data.text;
+      if(typeof rawText === 'string') return rawText;
+      return '';
+    }
+    const msg = data?.error || data?.message || rawText || `Transcription failed (${res.status})`;
+    throw new Error(msg);
   }
 
   async function startVoice(){
@@ -3468,14 +3535,22 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
       if(e.data.size > 0) audioChunks.push(e.data);
     };
     mediaRecorder.onstop = async () => {
+      const action = pendingStopAction;
+      pendingStopAction = VOICE_ACTION_INPUT;
       micStream.getTracks().forEach(tr => tr.stop()); micStream = null;
       stopAnalyser();
-      overlay.classList.remove('active');
-      micBtn.classList.remove('rec');
+      if(action === VOICE_ACTION_CANCEL){
+        setVoiceMode(VOICE_ACTION_CANCEL);
+        animateVoiceTexts(t('voice.listening'), getMobileHoldHint(VOICE_ACTION_CANCEL));
+        setTimeout(hideVoiceOverlay, 120);
+        isVoice = false;
+        return;
+      }
 
       const blob = new Blob(audioChunks, { type: mimeType });
       // Show transcribing state
-      interimEl.textContent = t('voice.transcribing') || 'Transcribing…';
+      setVoiceMode(VOICE_ACTION_TRANSCRIBING);
+      animateVoiceTexts(t('voice.transcribing') || 'Transcribing…', getMobileHoldHint(VOICE_ACTION_TRANSCRIBING));
       micBtn.disabled = true;
       try{
         const text = await transcribeAudio(blob);
@@ -3485,12 +3560,17 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
           msgIn.style.height = Math.min(msgIn.scrollHeight, 200) + 'px';
           updateSendBtn();
           msgIn.focus();
+          if(action === VOICE_ACTION_SEND && !sendBtn.disabled){
+            sendMessage();
+          }
         }
       }catch(err){
         console.error('Transcription failed:', err);
         toast(err.message || 'Transcription failed', 3000);
       }
       micBtn.disabled = false;
+      hideVoiceOverlay();
+      if(hintEl) hintEl.textContent = t('voice.tap_finish');
       isVoice = false;
     };
 
@@ -3506,19 +3586,82 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
     }catch{ /* no AudioContext — bars animate via CSS only */ }
 
     overlay.classList.add('active');
+    if(inpBox) inpBox.classList.add('voice-live');
     micBtn.classList.add('rec');
-    interimEl.textContent = t('voice.listening');
+    setVoiceMode(VOICE_ACTION_SEND);
+    if(hintEl){
+      animateVoiceTexts(t('voice.listening'), isMobileVoiceMode ? getMobileHoldHint(VOICE_ACTION_SEND) : t('voice.tap_finish'));
+    }else{
+      interimEl.textContent = t('voice.listening');
+    }
   }
 
-  function stopVoice(){
+  function stopVoice(action = VOICE_ACTION_INPUT){
+    pendingStopAction = action;
     if(!isVoice || !mediaRecorder || mediaRecorder.state !== 'recording') return;
     mediaRecorder.stop(); // triggers onstop → transcription
   }
 
-  micBtn.addEventListener('click',  () => isVoice ? stopVoice()  : startVoice());
-  overlay.addEventListener('click', () => stopVoice());
+  async function startVoiceHold(e){
+    if(holdRecording) return;
+    holdRecording = true;
+    if(e?.pointerId !== undefined){
+      try{ micBtn.setPointerCapture(e.pointerId); }catch{}
+      holdStartX = e.clientX || 0;
+      holdStartY = e.clientY || 0;
+    }
+    holdMode = VOICE_ACTION_SEND;
+    await startVoice();
+    if(!isVoice) holdRecording = false;
+  }
+
+  function onVoiceHoldMove(e){
+    if(!holdRecording || !isVoice) return;
+    const dx = (e.clientX || 0) - holdStartX;
+    const dy = (e.clientY || 0) - holdStartY;
+    let nextMode = VOICE_ACTION_SEND;
+    if(dy <= -SWIPE_UP_CANCEL_PX) nextMode = VOICE_ACTION_CANCEL;
+    else if(dx >= SWIPE_RIGHT_INPUT_PX) nextMode = VOICE_ACTION_INPUT;
+    if(nextMode !== holdMode){
+      holdMode = nextMode;
+      setVoiceMode(holdMode);
+      if(hintEl) animateVoiceTexts(t('voice.listening'), getMobileHoldHint(holdMode));
+    }
+  }
+
+  function stopVoiceHold(e){
+    if(!holdRecording) return;
+    holdRecording = false;
+    if(e?.pointerId !== undefined){
+      try{ micBtn.releasePointerCapture(e.pointerId); }catch{}
+    }
+    if(holdMode === VOICE_ACTION_CANCEL) stopVoice(VOICE_ACTION_CANCEL);
+    else if(holdMode === VOICE_ACTION_INPUT) stopVoice(VOICE_ACTION_INPUT);
+    else stopVoice(VOICE_ACTION_SEND);
+    holdMode = VOICE_ACTION_SEND;
+  }
+
+  if(isMobileVoiceMode){
+    micBtn.addEventListener('pointerdown', startVoiceHold);
+    micBtn.addEventListener('pointermove', onVoiceHoldMove);
+    micBtn.addEventListener('pointerup', stopVoiceHold);
+    micBtn.addEventListener('pointercancel', stopVoiceHold);
+    micBtn.addEventListener('lostpointercapture', stopVoiceHold);
+  }else{
+    micBtn.addEventListener('click', () => {
+      if(isVoice) stopVoice(VOICE_ACTION_INPUT);
+      else startVoice();
+    });
+    overlay.addEventListener('click', () => stopVoice(VOICE_ACTION_INPUT));
+  }
+
   // Typing cancels voice (stop + transcribe what we have)
-  msgIn.addEventListener('keydown', () => { if(isVoice) stopVoice(); });
+  msgIn.addEventListener('keydown', () => {
+    if(isVoice){
+      holdRecording = false;
+      stopVoice(VOICE_ACTION_CANCEL);
+    }
+  });
 })();
 
 msgIn.addEventListener('paste',e=>{ for(const item of e.clipboardData?.items||[]) if(item.kind==='file'&&item.type.startsWith('image/')) addFile(item.getAsFile()); });
