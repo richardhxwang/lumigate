@@ -5,6 +5,11 @@
 DISPLAY_NUM=99
 export DISPLAY=:${DISPLAY_NUM}
 RESOLUTION=${RESOLUTION:-1280x800x24}
+LOG_DIR=/app/data/logs/runtime
+
+mkdir -p "${LOG_DIR}"
+# Mirror container stdout/stderr to file for persistent troubleshooting.
+exec > >(tee -a "${LOG_DIR}/lumigate-runtime.log") 2>&1
 
 # ── Fix permissions ──
 mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
@@ -20,7 +25,7 @@ Xvfb :${DISPLAY_NUM} -screen 0 ${RESOLUTION} -ac &
 sleep 1
 
 # ── Window manager ──
-su chrome -c "fluxbox &>/dev/null &"
+su chrome -c "fluxbox >>/app/data/logs/runtime/fluxbox.log 2>&1 &"
 sleep 1
 
 # ── VNC (password required for security) ──
@@ -30,10 +35,10 @@ if [ -z "$VNC_PASSWORD" ]; then
     echo "$VNC_PASSWORD" > /tmp/.vnc_password
     echo "VNC_PASSWORD auto-generated (see /tmp/.vnc_password inside container)"
 fi
-x11vnc -display :${DISPLAY_NUM} -rfbport 5900 -passwd "$VNC_PASSWORD" -shared -forever -noxdamage &>/dev/null &
+x11vnc -display :${DISPLAY_NUM} -rfbport 5900 -passwd "$VNC_PASSWORD" -shared -forever -noxdamage >>/app/data/logs/runtime/x11vnc.log 2>&1 &
 
 # ── noVNC (web remote desktop for login) ──
-websockify --web /usr/share/novnc 7900 localhost:5900 &>/dev/null &
+websockify --web /usr/share/novnc 7900 localhost:5900 >>/app/data/logs/runtime/websockify.log 2>&1 &
 
 # ── Chromium (127.0.0.1:9223, same container = no Host header issue) ──
 su chrome -c "chromium \
@@ -48,7 +53,7 @@ su chrome -c "chromium \
     --window-size=1280,800 \
     --disable-gpu \
     --lang=zh-CN \
-    about:blank" &
+    about:blank >>/app/data/logs/runtime/chromium.log 2>&1" &
 CHROME_PID=$!
 
 # Wait for Chrome to be ready
@@ -63,4 +68,4 @@ export CDP_HOST=127.0.0.1
 export CDP_PORT=9223
 
 cd /app
-exec node --max-old-space-size=256 server.js
+exec node --max-old-space-size=256 server.js >>/app/data/logs/runtime/server.log 2>&1

@@ -1,5 +1,11 @@
 name: lumigate
 
+x-logging-default: &logging-default
+  driver: local
+  options:
+    max-size: "20m"
+    max-file: "10"
+
 services:
   pocketbase:
     image: pocketbase/pocketbase:latest
@@ -10,6 +16,7 @@ services:
       - "127.0.0.1:8090:8090"
     volumes:
       - ./data/pocketbase:/pb_data
+    logging: *logging-default
 
   nginx:
     image: nginx:alpine
@@ -25,6 +32,7 @@ services:
     depends_on:
       - lumigate
       - file-parser
+    logging: *logging-default
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 5s
@@ -44,6 +52,7 @@ services:
     environment:
       - SEARXNG_BASE_URL=http://lumigate-searxng:8080
     restart: unless-stopped
+    logging: *logging-default
 
   # LumiGate + Collector Chrome (combined)
   # Chromium runs inside the same container on 127.0.0.1:9223
@@ -80,6 +89,7 @@ services:
       start_period: 15s
     stop_grace_period: 15s
     shm_size: '512m'
+    logging: *logging-default
 
   cloudflare-lumigate:
     image: cloudflare/cloudflared:latest
@@ -93,6 +103,7 @@ services:
       nginx:
         condition: service_healthy
     restart: unless-stopped
+    logging: *logging-default
 
   file-parser:
     image: node:22-alpine
@@ -112,6 +123,7 @@ services:
       timeout: 3s
       retries: 2
       start_period: 15s
+    logging: *logging-default
 
   doc-gen:
     image: node:22-alpine
@@ -131,6 +143,7 @@ services:
       timeout: 3s
       retries: 2
       start_period: 15s
+    logging: *logging-default
 
   gotenberg:
     image: gotenberg/gotenberg:8
@@ -147,6 +160,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    logging: *logging-default
 
   # Whisper.cpp — speech-to-text (port 17863)
   whisper:
@@ -164,6 +178,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    logging: *logging-default
 
 volumes:
   collector-chrome-profile:

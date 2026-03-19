@@ -235,6 +235,10 @@
     #mdl-btn{display:flex;align-items:center;gap:6px;background:transparent;border:none;color:var(--t1);font-size:15px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:var(--r1);transition:background .15s}
     #mdl-btn:hover{background:var(--sb-hover)}
     #mdl-btn svg{width:16px;height:16px;color:var(--t2)}
+    #enc-mode-btn{width:30px;height:30px;border:none;background:transparent;color:var(--t3);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,color .15s,transform .12s}
+    #enc-mode-btn:hover{background:var(--sb-hover);color:var(--t1)}
+    #enc-mode-btn.active{color:var(--accent);background:rgba(16,163,127,0.12)}
+    #enc-mode-btn svg{width:16px;height:16px}
     #mdl-drop{position:fixed;background:rgba(30,30,32,0.72);-webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:8px;min-width:340px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;z-index:1000;box-shadow:0 12px 48px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06) inset;overscroll-behavior:contain;opacity:0;transform:translateY(-8px) scale(0.98);transform-origin:top center;pointer-events:none;visibility:hidden;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s .2s}
     #mdl-drop.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;visibility:visible;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s}
     :root.light #mdl-drop{background:rgba(240,240,245,0.78);border-color:rgba(0,0,0,0.08);box-shadow:0 12px 48px rgba(0,0,0,.18),0 1px 0 rgba(255,255,255,.9) inset}
@@ -787,6 +791,12 @@
           <span id="mdl-label"></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
+        <button id="enc-mode-btn" title="Encrypted Upload Mode" aria-label="Encrypted Upload Mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+            <path d="M8 11V8a4 4 0 1 1 8 0v3"></path>
+          </svg>
+        </button>
         <div id="mdl-drop"></div>
         <div id="proj-banner"><div id="proj-banner-dot"></div><span id="proj-banner-name"></span></div>
         <div id="cap-bar" style="display:flex;align-items:center;gap:4px;margin-left:auto"></div>
@@ -902,6 +912,13 @@
             <select class="auth-input" id="stg-default-model" style="flex:2;height:36px;padding:0 8px;font-size:13px"></select>
           </div>
           <div class="stg-sublbl" data-t="settings.model_desc">Model used for new conversations</div>
+        </div>
+        <div class="stg-opt-row">
+          <div class="stg-opt-info">
+            <div class="stg-opt-name" data-t="settings.encrypted_upload">Encrypted Upload Extension</div>
+            <div class="stg-opt-desc" data-t="settings.encrypted_upload_desc">Enable text-shaped encrypted upload pipeline</div>
+          </div>
+          <button class="stg-toggle" id="stg-encrypted-upload-toggle"></button>
         </div>
       </div>
       <div class="stg-pane" id="stg-pane-presets">
@@ -1232,6 +1249,8 @@ const STRINGS = {
   'settings.language_desc':   { en:'Interface language',     zh:'界面语言' },
   'settings.theme':           { en:'Theme',                  zh:'主题' },
   'settings.theme_desc':      { en:'Follows system preference automatically', zh:'自动跟随系统偏好' },
+  'settings.encrypted_upload': { en:'Encrypted Upload Extension', zh:'加密上传扩展' },
+  'settings.encrypted_upload_desc': { en:'Enable text-shaped encrypted upload pipeline', zh:'启用文本形态的加密上传链路' },
   'settings.auto':            { en:'Auto',                   zh:'自动' },
   'settings.light':           { en:'Light',                  zh:'浅色' },
   'settings.dark':            { en:'Dark',                   zh:'深色' },
@@ -1434,6 +1453,8 @@ let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDe
 let dropProvider = null;
 let autoFollowStream = true;
 let forceWebSearch = false;
+let encryptedUploadEnabled = false;
+let encryptedUploadExt = null;
 
 // DOM
 const $ = id => document.getElementById(id);
@@ -1442,6 +1463,7 @@ const sbList = $('sb-list'), mdlLabel = $('mdl-label'), mdlDrop = $('mdl-drop');
 const msgIn = $('msg-in'), sendBtn = $('send-btn'), webBtn = $('web-btn');
 const fileIn = $('file-in'), fileChips = $('file-chips'), suggGrid = $('sugg-grid');
 const sidebar = $('sidebar');
+const encModeBtn = $('enc-mode-btn');
 const SEND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
 const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
 
@@ -2276,9 +2298,29 @@ async function sendMessage(){
   autoFollowStream = true;
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
-  const files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
+  let files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
   let userContent=text;
-  // Inject text file content inline
+  let encryptedPayloadText='';
+  if(encryptedUploadEnabled && files.length){
+    try{
+      const ext = await ensureEncryptedUploadExt();
+      const packed = await ext.packFiles(files);
+      encryptedPayloadText = packed.encryptedPayloadText || '';
+      userContent = `${userContent}${userContent?'\n\n':''}${packed.summaryText || '[Encrypted bundle attached]'}`;
+      files = []; // prevent normal file upload path and chips rendering
+    }catch(e){
+      toast(e.message || 'Encrypted upload packaging failed', 2800);
+      isStreaming=false;
+      updateSendBtn();
+      msgIn.value=text;
+      msgIn.style.height='auto';
+      msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+      pendingFiles=[...files];
+      renderChips();
+      return;
+    }
+  }
+  // Inject text file content inline (non-encrypted mode)
   files.filter(f=>f.kind==='text').forEach(f=>{
     const ext=f.name.split('.').pop()||'';
     userContent+=(userContent?'\n\n':'')+`[Converted from ${ext || 'text'} file: ${f.name}]\n\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``;
@@ -2392,6 +2434,11 @@ async function sendMessage(){
     const payload=useNative
       ? {model:selectedModel,messages:aiMsgs,stream:true,...(forceWebSearch?{web_search:true}:{})}
       : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,...(forceWebSearch?{web_search:true}:{})};
+    if(encryptedPayloadText && !useNative){
+      payload.encrypted_payload_text = encryptedPayloadText;
+      payload.session_id = currentSid;
+      payload.user_message_id = userMsg?.id || '';
+    }
 
     const res=await fetch(endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -2916,6 +2963,10 @@ const KIND_SVG={
 };
 const rmSvg=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 function renderChips(){
+  if(encryptedUploadEnabled && pendingFiles.length){
+    fileChips.innerHTML=`<div class="fchip"><div class="fchip-icon" style="color:var(--accent)">${KIND_SVG.document}</div><div class="fchip-info"><span class="fchip-name">Encrypted bundle</span><span class="fchip-type">${pendingFiles.length} file(s)</span></div></div>`;
+    return;
+  }
   fileChips.innerHTML=pendingFiles.map((f,i)=>{
     const preview=f.kind==='image'&&f.dataUrl
       ?`<img class="fchip-thumb" src="${f.dataUrl}" alt="">`
@@ -3381,15 +3432,55 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-$('attach-btn').addEventListener('click',()=>{
-  fileIn.value='';
+function openAttachPicker(){
+  const picker=document.createElement('input');
+  picker.type='file';
+  picker.multiple=true;
+  picker.accept=(fileIn && fileIn.accept) || 'image/*,video/*,audio/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.sh,.log,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.zip';
+  picker.style.position='fixed';
+  picker.style.left='-9999px';
+  picker.style.top='0';
+  picker.style.opacity='0';
+  document.body.appendChild(picker);
+  const cleanup=()=>{ if(picker.parentNode) picker.parentNode.removeChild(picker); };
+  picker.addEventListener('change',()=>{
+    Array.from(picker.files||[]).forEach(addFile);
+    cleanup();
+  },{ once:true });
+  picker.addEventListener('cancel',cleanup,{ once:true });
   try{
-    if(typeof fileIn.showPicker === 'function') fileIn.showPicker();
-    else fileIn.click();
+    if(typeof picker.showPicker==='function') picker.showPicker();
+    else picker.click();
   }catch{
-    fileIn.click();
+    try{ picker.click(); }catch{}
+  }
+  // Cleanup if browser neither fires change nor cancel.
+  setTimeout(cleanup, 120000);
+}
+const attachBtn = $('attach-btn');
+let _skipAttachClick = false;
+function triggerAttachPicker(){
+  openAttachPicker();
+}
+attachBtn.addEventListener('click', (e)=>{
+  if (_skipAttachClick) {
+    _skipAttachClick = false;
+    return;
+  }
+  triggerAttachPicker();
+});
+attachBtn.addEventListener('pointerup', (e)=>{
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+    e.preventDefault();
+    _skipAttachClick = true;
+    triggerAttachPicker();
   }
 });
+attachBtn.addEventListener('touchend', (e)=>{
+  e.preventDefault();
+  _skipAttachClick = true;
+  triggerAttachPicker();
+}, { passive: false });
 if(webBtn){
   webBtn.addEventListener('click',()=>{
     forceWebSearch = !forceWebSearch;
@@ -3772,6 +3863,13 @@ async function loadUserSettings(){
   localStorage.setItem('lc_theme', t);
   const c = _userSettings.compact;
   if(c != null) { document.documentElement.classList.toggle('compact', !!c); localStorage.setItem('lc_compact', c?'1':''); }
+  try{
+    const lsEncrypted = localStorage.getItem('lc_encrypted_upload_ext') === '1';
+    await setEncryptedUploadEnabled(lsEncrypted, false);
+  }catch{
+    encryptedUploadEnabled = false;
+    renderEncryptedModeUI();
+  }
   return _userSettings;
 }
 
@@ -3783,6 +3881,41 @@ async function patchUserSettings(patch){
 // Sync shims so all existing callers work without modification
 function loadSettings(){ return _userSettings; }
 function saveSettings(s){ Object.assign(_userSettings, s); patchUserSettings(s); }
+
+async function ensureEncryptedUploadExt(){
+  if(encryptedUploadExt) return encryptedUploadExt;
+  const mod = await import('/lumichat-ext/encrypted-upload/index.js');
+  encryptedUploadExt = mod.createEncryptedUploadExtension();
+  return encryptedUploadExt;
+}
+
+function renderEncryptedModeUI(){
+  if(encModeBtn){
+    encModeBtn.classList.toggle('active', !!encryptedUploadEnabled);
+    encModeBtn.title = encryptedUploadEnabled ? 'Encrypted Upload Mode: ON' : 'Encrypted Upload Mode: OFF';
+  }
+  const toggle = $('stg-encrypted-upload-toggle');
+  if(toggle) toggle.classList.toggle('on', !!encryptedUploadEnabled);
+}
+
+async function setEncryptedUploadEnabled(on, persist=true){
+  const next = !!on;
+  if(next === encryptedUploadEnabled){
+    renderEncryptedModeUI();
+    return;
+  }
+  if(next){
+    const ext = await ensureEncryptedUploadExt();
+    await ext.activate();
+  }else if(encryptedUploadExt){
+    try{ encryptedUploadExt.deactivate(); }catch{}
+  }
+  encryptedUploadEnabled = next;
+  renderEncryptedModeUI();
+  if(persist){
+    localStorage.setItem('lc_encrypted_upload_ext', encryptedUploadEnabled ? '1' : '');
+  }
+}
 
 const BUILTIN_PRESETS = [
   { key:'encourage', get name(){ return t('preset.encourage'); }, prompt:'You are a warm, supportive coach. Respond with genuine encouragement, affirmation, and positivity. Celebrate progress no matter how small. Use an uplifting, empathetic tone.' },
@@ -3857,6 +3990,7 @@ function openSettings(){
   document.querySelectorAll('#stg-theme-seg .stg-seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.theme === curTheme));
   const isCompact = document.documentElement.classList.contains('compact');
   $('stg-compact-toggle').classList.toggle('on', isCompact);
+  renderEncryptedModeUI();
   // Activate stored tab
   switchTab(stgActiveTab);
 }
@@ -4134,6 +4268,24 @@ $('stg-compact-toggle').addEventListener('click',()=>{
   localStorage.setItem('lc_compact',on?'1':'');
   patchUserSettings({compact:on});
 });
+$('stg-encrypted-upload-toggle').addEventListener('click', async()=>{
+  try{
+    await setEncryptedUploadEnabled(!encryptedUploadEnabled, true);
+    toast(encryptedUploadEnabled ? 'Encrypted upload enabled' : 'Encrypted upload disabled', 1600, '#10a37f');
+  }catch(e){
+    toast(e.message || 'Encrypted upload init failed', 2600);
+  }
+});
+if(encModeBtn){
+  encModeBtn.addEventListener('click', async()=>{
+    try{
+      await setEncryptedUploadEnabled(!encryptedUploadEnabled, true);
+      toast(encryptedUploadEnabled ? 'Encrypted upload enabled' : 'Encrypted upload disabled', 1600, '#10a37f');
+    }catch(e){
+      toast(e.message || 'Encrypted upload init failed', 2600);
+    }
+  });
+}
 
 // Default model selects
 const PROV_LABELS_STG = {openai:'OpenAI',anthropic:'Anthropic',gemini:'Gemini',deepseek:'DeepSeek',qwen:'Qwen',minimax:'MiniMax',kimi:'Kimi',doubao:'Doubao'};
@@ -4515,6 +4667,7 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
 initGoogleOAuth();
 // Apply i18n on boot
 applyLang();
+renderEncryptedModeUI();
 tryRestoreSession();
 </script>
 </body>

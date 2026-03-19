@@ -33,45 +33,76 @@ const upload = multer({
   },
 });
 
-/**
- * Forward audio buffer to whisper.cpp /inference endpoint as multipart form data.
- * Returns parsed transcription result.
- */
-async function forwardToWhisper(buffer, filename, contentType) {
+function buildMultipartBody({ fieldName, buffer, filename, contentType }) {
   const boundary = "----WhisperBoundary" + crypto.randomBytes(8).toString("hex");
-  const safeName = sanitizeFilename(filename);
-  const endpoint = process.env.WHISPER_ENDPOINT || "/asr";
-  // openai-whisper-asr-webservice expects `audio_file`, while some whisper wrappers expect `file`.
-  const fileField = endpoint === "/asr" ? "audio_file" : (process.env.WHISPER_FILE_FIELD || "file");
-
+  const safeName = sanitizeFilename(filename || "audio.wav");
   const header = Buffer.from(
     `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r\n` +
+    `Content-Disposition: form-data; name="${fieldName}"; filename="${safeName}"\r\n` +
     `Content-Type: ${contentType}\r\n\r\n`
   );
   const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const body = Buffer.concat([header, buffer, footer]);
+  return {
+    boundary,
+    body: Buffer.concat([header, buffer, footer]),
+  };
+}
 
-  // Try /asr (openai-whisper-asr-webservice) then /inference (whisper.cpp native)
+function normalizeEndpoint(endpoint) {
+  const v = String(endpoint || "/asr").trim();
+  if (!v) return "/asr";
+  return v.startsWith("/") ? v : `/${v}`;
+}
+
+async function whisperRequest({ endpoint, fieldName, buffer, filename, contentType }) {
+  const { boundary, body } = buildMultipartBody({ fieldName, buffer, filename, contentType });
   const res = await fetch(`${WHISPER_URL}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
     body,
     signal: AbortSignal.timeout(120_000), // 2 min for long audio
   });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`whisper.cpp returned ${res.status}: ${errText}`);
-  }
-
   const raw = await res.text().catch(() => "");
-  if (!raw.trim()) return { text: "" };
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { text: raw.trim() };
+  return { res, raw };
+}
+
+/**
+ * Forward audio buffer to whisper service as multipart form data.
+ * Auto-retries common field/endpoint mismatches.
+ */
+async function forwardToWhisper(buffer, filename, contentType) {
+  const configuredEndpoint = normalizeEndpoint(process.env.WHISPER_ENDPOINT || "/asr");
+  const configuredField = String(process.env.WHISPER_FILE_FIELD || "").trim();
+
+  const endpointCandidates = Array.from(new Set([
+    configuredEndpoint,
+    "/asr",
+    "/v1/audio/transcriptions",
+    "/inference",
+  ]));
+
+  const attemptErrors = [];
+  for (const endpoint of endpointCandidates) {
+    const preferredField = configuredField || (endpoint === "/asr" ? "audio_file" : "file");
+    const fieldCandidates = Array.from(new Set([preferredField, "audio_file", "file"]));
+    for (const fieldName of fieldCandidates) {
+      const { res, raw } = await whisperRequest({ endpoint, fieldName, buffer, filename, contentType });
+      if (res.ok) {
+        if (!raw.trim()) return { text: "" };
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return { text: raw.trim() };
+        }
+      }
+      const errLine = `${endpoint} field=${fieldName} -> ${res.status}${raw ? `: ${raw.slice(0, 220)}` : ""}`;
+      attemptErrors.push(errLine);
+      // These statuses commonly mean "try another endpoint/field"
+      if ([404, 405, 415, 422].includes(res.status)) continue;
+      throw new Error(`Whisper request failed (${errLine})`);
+    }
   }
+  throw new Error(`Whisper request failed after retries: ${attemptErrors.join(" | ")}`.slice(0, 1400));
 }
 
 const router = Router();
@@ -99,7 +130,7 @@ router.post("/transcribe", upload.single("file"), async (req, res) => {
     });
   } catch (err) {
     console.error("[audio] transcribe error:", err);
-    return res.status(502).json({ ok: false, error: "Transcription failed" });
+    return res.status(502).json({ ok: false, error: err?.message || "Transcription failed" });
   }
 });
 
@@ -134,7 +165,7 @@ router.post("/transcriptions", upload.single("file"), async (req, res) => {
     }
   } catch (err) {
     console.error("[audio] transcriptions error:", err);
-    return res.status(502).json({ ok: false, error: "Transcription failed" });
+    return res.status(502).json({ ok: false, error: err?.message || "Transcription failed" });
   }
 });
 

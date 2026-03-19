@@ -1601,6 +1601,7 @@ app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
 app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
 app.use("/lumichat-icon.svg", express.static(path.join(__dirname, "public", "lumichat-icon.svg")));
 app.use("/lumichat-libs", express.static(path.join(__dirname, "public", "lumichat-libs")));
+app.use("/lumichat-ext", express.static(path.join(__dirname, "public", "lumichat-ext")));
 
 // Landing page
 app.get("/", (req, res) => {
@@ -4890,6 +4891,82 @@ async function pbFetch(path, options = {}) {
 const PB_LC_PROJECT = (process.env.PB_LC_PROJECT || "lumichat").trim() || "lumichat";
 const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
 const GOTENBERG_URL = process.env.GOTENBERG_URL || "http://lumigate-gotenberg:3000";
+const LC_ENCRYPTED_UPLOAD_LIMIT_BYTES = Number(process.env.LC_ENCRYPTED_UPLOAD_LIMIT_BYTES || 20 * 1024 * 1024);
+
+const LC_RSA_KEYPAIR = crypto.generateKeyPairSync("rsa", {
+  modulusLength: Number(process.env.LC_ENCRYPTED_RSA_BITS || 2048),
+  publicKeyEncoding: { type: "spki", format: "pem" },
+  privateKeyEncoding: { type: "pkcs8", format: "pem" },
+});
+const LC_RSA_PUBLIC_SPKI_DER = crypto.createPublicKey(LC_RSA_KEYPAIR.publicKey).export({ type: "spki", format: "der" });
+const LC_RSA_PUBLIC_SPKI_B64 = LC_RSA_PUBLIC_SPKI_DER.toString("base64");
+const LC_RSA_KEY_ID = crypto.createHash("sha256").update(LC_RSA_PUBLIC_SPKI_DER).digest("hex").slice(0, 16);
+
+function lcB64urlToBuffer(input) {
+  const normalized = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padLen = (4 - (normalized.length % 4)) % 4;
+  return Buffer.from(normalized + "=".repeat(padLen), "base64");
+}
+
+function lcParseEncryptedEnvelope(rawText) {
+  if (typeof rawText !== "string" || !rawText.startsWith("LCENC1:")) {
+    throw Object.assign(new Error("Invalid encrypted payload prefix"), { status: 400 });
+  }
+  let envelope;
+  try {
+    const jsonText = lcB64urlToBuffer(rawText.slice(7)).toString("utf8");
+    envelope = JSON.parse(jsonText);
+  } catch (err) {
+    throw Object.assign(new Error("Encrypted payload decode failed"), { status: 400 });
+  }
+  if (!envelope || envelope.v !== 1 || !envelope.ek || !envelope.iv || !envelope.tag || !envelope.ct) {
+    throw Object.assign(new Error("Encrypted payload format invalid"), { status: 400 });
+  }
+  return envelope;
+}
+
+function lcDecryptEncryptedPayload(rawText) {
+  const envelope = lcParseEncryptedEnvelope(rawText);
+  let dek;
+  try {
+    dek = crypto.privateDecrypt(
+      {
+        key: LC_RSA_KEYPAIR.privateKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: "sha256",
+      },
+      lcB64urlToBuffer(envelope.ek)
+    );
+  } catch {
+    throw Object.assign(new Error("Encrypted key unwrap failed"), { status: 422 });
+  }
+  if (dek.length !== 32) throw Object.assign(new Error("Encrypted key length invalid"), { status: 422 });
+
+  const iv = lcB64urlToBuffer(envelope.iv);
+  const tag = lcB64urlToBuffer(envelope.tag);
+  const ct = lcB64urlToBuffer(envelope.ct);
+  if (iv.length !== 12 || tag.length !== 16 || !ct.length) {
+    throw Object.assign(new Error("Encrypted payload fields invalid"), { status: 400 });
+  }
+  let plain;
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", dek, iv);
+    decipher.setAuthTag(tag);
+    plain = Buffer.concat([decipher.update(ct), decipher.final()]);
+  } catch {
+    throw Object.assign(new Error("Encrypted payload authentication failed"), { status: 422 });
+  }
+  if (plain.length > LC_ENCRYPTED_UPLOAD_LIMIT_BYTES) {
+    throw Object.assign(new Error("Encrypted payload too large"), { status: 413 });
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(plain.toString("utf8"));
+  } catch {
+    throw Object.assign(new Error("Encrypted payload JSON invalid"), { status: 400 });
+  }
+  return parsed;
+}
 
 function toLcProjectPath(path) {
   const p = String(path || "");
@@ -5038,6 +5115,10 @@ function clampExtractedTextForPb(text) {
   return String(text || "");
 }
 
+function mergeArraysUnique(a, b) {
+  return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(Boolean))];
+}
+
 function lcNormalizeExtractedText(text) {
   return String(text || "")
     .replace(/^⚠️[^\n]*\n+/u, "")
@@ -5180,6 +5261,70 @@ async function extractTextForLcUpload(tmpPath, originalName, mimeType) {
     log("warn", "lc upload extract failed", { file: originalName, error: err.message });
     return { text: "", status: "error", error: String(err.message || "extract_failed").slice(0, 500), parsedAt };
   }
+}
+
+async function extractTextForLcBuffer(buffer, originalName, mimeType) {
+  const tmpPath = path.join(os.tmpdir(), `lcenc-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`);
+  fs.writeFileSync(tmpPath, buffer);
+  try {
+    return await extractTextForLcUpload(tmpPath, originalName, mimeType);
+  } finally {
+    fs.unlink(tmpPath, () => {});
+  }
+}
+
+async function uploadLcBufferRecord({ buffer, originalName, mimeType, sessionId, userId, token }) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) throw new Error("Missing file buffer");
+  if (!sessionId || !userId || !token) throw new Error("Missing upload context");
+
+  const now = lcNowIso();
+  const safeOriginalName = String(originalName || "file");
+  const fileName = path.basename(safeOriginalName).replace(/"/g, "_");
+  const ext = path.extname(safeOriginalName).toLowerCase();
+  const detectedMime = detectLcUploadMime(safeOriginalName, mimeType);
+  const kind = lcFileKindByMimeOrExt(detectedMime, safeOriginalName);
+  const extraction = await extractTextForLcBuffer(buffer, safeOriginalName, detectedMime);
+  const boundary = `LumiGate${crypto.randomBytes(8).toString("hex")}`;
+
+  const parts = [
+    `--${boundary}\r\nContent-Disposition: form-data; name="session"\r\n\r\n${sessionId}`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${userId}`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${detectedMime}`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="size_bytes"\r\n\r\n${buffer.length}`,
+  ];
+  if (lcSupportsField("files", "original_name")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="original_name"\r\n\r\n${lcUploadSafeName(safeOriginalName)}`);
+  if (lcSupportsField("files", "ext")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="ext"\r\n\r\n${ext}`);
+  if (lcSupportsField("files", "kind")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="kind"\r\n\r\n${kind}`);
+  if (lcSupportsField("files", "parse_status")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parse_status"\r\n\r\n${extraction.status}`);
+  if (lcSupportsField("files", "parse_error")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parse_error"\r\n\r\n${extraction.error || ""}`);
+  if (lcSupportsField("files", "parsed_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="parsed_at"\r\n\r\n${extraction.parsedAt || ""}`);
+  if (lcSupportsField("files", "created_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="created_at"\r\n\r\n${now}`);
+  if (lcSupportsField("files", "updated_at")) parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="updated_at"\r\n\r\n${now}`);
+  parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="extracted_text"\r\n\r\n${extraction.text}`);
+  parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${detectedMime}\r\n\r\n`);
+
+  const head = Buffer.from(parts.join("\r\n"));
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const body = Buffer.concat([head, buffer, tail]);
+  const r = await lcPbFetch("/api/collections/lc_files/records", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    },
+    body,
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    throw Object.assign(new Error(pbErrorSummary(data, "Encrypted file save failed")), { status: r.status });
+  }
+  return {
+    id: data.id,
+    url: `/lc/files/serve/${data.id}`,
+    mime_type: detectedMime,
+    size_bytes: buffer.length,
+    extracted_text: extraction.text,
+  };
 }
 
 const LC_SCHEMA_AUTO_PATCH = !/^(0|false|no)$/i.test(String(process.env.LC_SCHEMA_AUTO_PATCH || "1"));
@@ -6682,6 +6827,15 @@ app.get("/lc/auth/me", requireLcAuth, async (req, res) => {
   }
 });
 
+// GET /lc/crypto/public-key → public key for encrypted upload extension
+app.get("/lc/crypto/public-key", requireLcAuth, async (req, res) => {
+  res.json({
+    alg: "RSA-OAEP-256",
+    kid: LC_RSA_KEY_ID,
+    spki: LC_RSA_PUBLIC_SPKI_B64,
+  });
+});
+
 // PATCH /lc/auth/profile → update display name + avatar
 app.patch("/lc/auth/profile", requireLcAuth, lcUpload.single("avatar"), async (req, res) => {
   try {
@@ -7822,13 +7976,93 @@ app.post("/v1/chat", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_
   const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
   const lcCookies = parseCookies(req);
   const lcToken = lcCookies.lc_token;
+  const lcPayload = lcToken ? validateLcTokenPayload(lcToken) : null;
+  if (lcPayload?.id) lcUserId = lcPayload.id;
+
+  // Optional encrypted upload bundle from LumiChat extension.
+  if (typeof req.body?.encrypted_payload_text === "string" && req.body.encrypted_payload_text.trim()) {
+    try {
+      const parsed = lcDecryptEncryptedPayload(req.body.encrypted_payload_text.trim());
+      const files = Array.isArray(parsed?.files) ? parsed.files : [];
+      const chunks = [];
+      const uploadedFileIds = [];
+      let totalBytes = 0;
+      const lcSessionId = validPbId(req.body?.session_id) ? req.body.session_id : null;
+      const lcUserMessageId = validPbId(req.body?.user_message_id) ? req.body.user_message_id : null;
+      for (const item of files) {
+        const name = lcUploadSafeName(item?.name || "file");
+        const mime = detectLcUploadMime(name, item?.mime || "application/octet-stream");
+        const data = lcB64urlToBuffer(item?.data_b64 || "");
+        totalBytes += data.length;
+        if (!data.length) continue;
+        if (totalBytes > LC_ENCRYPTED_UPLOAD_LIMIT_BYTES) {
+          return res.status(413).json({ error: "Encrypted upload too large" });
+        }
+        const extracted = await extractTextForLcBuffer(data, name, mime);
+        const text = String(extracted?.text || "").trim();
+        if (lcToken && lcUserId && lcSessionId) {
+          try {
+            await assertLcSessionOwned(lcSessionId, { ownerId: lcUserId, token: lcToken });
+            const saved = await uploadLcBufferRecord({
+              buffer: data,
+              originalName: name,
+              mimeType: mime,
+              sessionId: lcSessionId,
+              userId: lcUserId,
+              token: lcToken,
+            });
+            if (saved?.id) uploadedFileIds.push(saved.id);
+          } catch (uploadErr) {
+            log("warn", "Encrypted upload PB save failed", { file: name, error: uploadErr.message, traceId: req.traceId });
+          }
+        }
+        if (!text) continue;
+        chunks.push(`[Decrypted file: ${name}]\n${text}`);
+      }
+      if (uploadedFileIds.length && lcToken && lcUserMessageId) {
+        try {
+          await assertRecordOwned("messages", { id: lcUserMessageId, ownerId: lcUserId, token: lcToken });
+          const existingMsgResp = await lcPbFetch(`/api/collections/lc_messages/records/${lcUserMessageId}`, {
+            headers: { Authorization: `Bearer ${lcToken}` },
+          });
+          const existingMsg = existingMsgResp.ok ? await existingMsgResp.json() : null;
+          const nextFileIds = mergeArraysUnique(existingMsg?.file_ids, uploadedFileIds);
+          const patchBody = { file_ids: nextFileIds };
+          if (lcSupportsField("messages", "updated_at")) patchBody.updated_at = lcNowIso();
+          await lcPbFetch(`/api/collections/lc_messages/records/${lcUserMessageId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
+            body: JSON.stringify(patchBody),
+          });
+        } catch (patchErr) {
+          log("warn", "Encrypted upload message patch failed", { messageId: lcUserMessageId, error: patchErr.message, traceId: req.traceId });
+        }
+      }
+      if (chunks.length) {
+        const injected = chunks.join("\n\n");
+        const lastUserIndex = [...messages].map((m, i) => ({ m, i })).reverse().find(({ m }) => m?.role === "user")?.i;
+        if (lastUserIndex == null) {
+          messages.push({ role: "user", content: injected });
+        } else if (typeof messages[lastUserIndex].content === "string") {
+          messages[lastUserIndex].content = `${messages[lastUserIndex].content}\n\n${injected}`.trim();
+        } else if (Array.isArray(messages[lastUserIndex].content)) {
+          messages[lastUserIndex].content.push({ type: "text", text: injected });
+        } else {
+          messages[lastUserIndex].content = injected;
+        }
+      }
+      log("info", "Encrypted payload processed", { files: files.length, extractedChunks: chunks.length, storedFiles: uploadedFileIds.length, traceId: req.traceId });
+    } catch (err) {
+      const status = Number(err?.status) || 400;
+      return res.status(status).json({ error: err?.message || "Encrypted payload processing failed" });
+    }
+  }
 
   if (safeEqual(projectKey, INTERNAL_CHAT_KEY)) {
     projectName = "_chat";
   } else if (["root", "admin"].includes(getSessionRole(req))) {
     projectName = "_chat";
   } else if (!projectKey && lcToken) {
-    const lcPayload = validateLcTokenPayload(lcToken);
     if (lcPayload) {
       projectName = "_lumichat";
       if (lcPayload.id) lcUserId = lcPayload.id;
