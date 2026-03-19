@@ -357,12 +357,6 @@
     :root.light #send-btn:hover:not(:disabled){background:rgba(0,0,0,0.15);border-color:rgba(0,0,0,0.25)}
     :root.light #send-btn:disabled{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.07)}
     :root.light #send-btn svg{color:var(--t1)}
-    #stop-btn{width:34px;height:34px;background:rgba(255,255,255,0.1);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);border:1.5px solid rgba(255,255,255,0.18);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background .15s,transform .1s}
-    #stop-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.35);transform:scale(1.06)}
-    #stop-btn:active{transform:scale(0.94)}
-    :root.light #stop-btn{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.12)}
-    :root.light #stop-btn:hover{background:rgba(0,0,0,0.12);border-color:rgba(0,0,0,0.22)}
-    #stop-btn svg{width:12px;height:12px;color:var(--t1)}
     #file-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
     .fchip{display:flex;align-items:center;gap:6px;background:var(--sb-active);border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px 4px 4px;font-size:12px;color:var(--t2);max-width:180px;position:relative}
     .fchip-thumb{width:36px;height:36px;border-radius:var(--r1);object-fit:cover;flex-shrink:0}
@@ -835,12 +829,9 @@
                 <path d="M12 3a14 14 0 0 0 0 18"/>
               </svg>
             </button>
-            <button id="mic-btn" data-t-title="input.voice" title="Voice input">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-            </button>
           </div>
-          <button id="stop-btn" style="display:none" data-t-title="input.interrupt" title="Interrupt (Esc)">
-            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          <button id="mic-btn" data-t-title="input.voice" title="Voice input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
           </button>
           <button id="send-btn" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -848,7 +839,7 @@
         </div>
       </div>
       <p class="inp-hint" data-t="misc.disclaimer">LumiChat may make mistakes. Please verify important information.</p>
-      <input type="file" id="file-in" accept="image/*,video/*,audio/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.sh,.log,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.zip" multiple style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;overflow:hidden">
+      <input type="file" id="file-in" accept="image/*,video/*,audio/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.sh,.log,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.zip" multiple style="position:absolute;left:-9999px;top:0;opacity:0;width:1px;height:1px;overflow:hidden">
     </div>
   </div>
 </div>
@@ -1188,6 +1179,7 @@ const STRINGS = {
   // Chat
   'chat.placeholder':         { en:'Message LumiChat',       zh:'给 LumiChat 发消息' },
   'chat.what_help':           { en:'What can I help you with?', zh:'有什么可以帮你的？' },
+  'chat.send':                { en:'Send',                   zh:'发送' },
   'chat.copied':              { en:'Copied',                 zh:'已复制' },
   'chat.message_queued':      { en:'Message queued — will send after current response', zh:'消息已排队 — 当前回复结束后发送' },
   'chat.request_failed':      { en:'Request failed',         zh:'请求失败' },
@@ -1447,9 +1439,11 @@ let forceWebSearch = false;
 const $ = id => document.getElementById(id);
 const authEl = $('auth'), appEl = $('app'), chatEl = $('chat'), emptyEl = $('empty');
 const sbList = $('sb-list'), mdlLabel = $('mdl-label'), mdlDrop = $('mdl-drop');
-const msgIn = $('msg-in'), sendBtn = $('send-btn'), stopBtn = $('stop-btn'), webBtn = $('web-btn');
+const msgIn = $('msg-in'), sendBtn = $('send-btn'), webBtn = $('web-btn');
 const fileIn = $('file-in'), fileChips = $('file-chips'), suggGrid = $('sugg-grid');
 const sidebar = $('sidebar');
+const SEND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
@@ -2222,7 +2216,16 @@ function renderMessages(){
 
 // ── SEND ───────────────────────────────────────────────────────────────────
 function updateSendBtn(){
-  // During streaming: enable send only if there's content to send (will interrupt + continue)
+  if(isStreaming){
+    sendBtn.disabled=false;
+    sendBtn.innerHTML=PAUSE_ICON_SVG;
+    sendBtn.title=t('input.interrupt');
+    sendBtn.setAttribute('aria-label', t('input.interrupt'));
+    return;
+  }
+  sendBtn.innerHTML=SEND_ICON_SVG;
+  sendBtn.title=t('chat.send');
+  sendBtn.setAttribute('aria-label', t('chat.send'));
   sendBtn.disabled=pendingFileReads.size>0||(msgIn.value.trim()===''&&pendingFiles.length===0);
 }
 
@@ -2268,7 +2271,8 @@ async function sendMessage(){
     pendingQueue._qRow=qRow;
     return;
   }
-  isStreaming=true; stopBtn.style.display='flex';
+  isStreaming=true;
+  updateSendBtn();
   autoFollowStream = true;
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
@@ -2346,7 +2350,7 @@ async function sendMessage(){
       const sess=await apiJSON('/lc/sessions',{method:'POST',body:JSON.stringify({title:userContent.slice(0,50)||'New Chat',provider:selectedProvider,model:selectedModel})});
       currentSid=sess.id; touchSessionActivity(sess.id);
       sessions.unshift({...sess,last_activity:readSessionMeta()[sess.id]?.last_activity||''}); renderSidebar(); updateActive();
-    }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
+    }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
   }
 
   // Save user message to PB, then backfill msgId on DOM row for edit support
@@ -2357,7 +2361,7 @@ async function sendMessage(){
     messages.push(userMsg);
     userRow.dataset.msgId=userMsg.id;
     backgroundSyncFiles(files,currentSid,userMsg);
-  }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); stopBtn.style.display='none'; isStreaming=false; updateSendBtn(); return; }
+  }catch(e){ toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
 
   const dlCards=[]; // accumulated download cards — re-appended after final render
   try{
@@ -2610,7 +2614,6 @@ async function sendMessage(){
     const queued=pendingQueue; pendingQueue=null;
     isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; pendingDelta=''; streamRow=null;
     cancelAnimationFrame(rafId);
-    stopBtn.style.display='none'; sendBtn.style.display='flex';
     updateSendBtn(); scrollBot(); msgIn.focus();
     // Process queued message (sent during streaming) — after partial save resolved
     if(queued){
@@ -3344,7 +3347,6 @@ msgIn.addEventListener('compositionend',()=>{ _imeActive=false; });
 msgIn.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!_imeActive){
     e.preventDefault();
-    if(sendBtn.disabled) return;
     // During streaming: first Enter queues, second Enter sends queue immediately
     if(isStreaming && pendingQueue){
       // Already queued — second Enter: make bubble solid + abort stream → finally sends it
@@ -3357,13 +3359,19 @@ msgIn.addEventListener('keydown',e=>{
       if(abortCtrl) abortCtrl.abort();
       return;
     }
+    if(sendBtn.disabled) return;
     sendMessage();
     return;
   }
   if(e.key==='Escape'&&isStreaming&&abortCtrl){ abortCtrl.abort(); }
 });
-sendBtn.addEventListener('click',()=>{ if(!sendBtn.disabled) sendMessage(); });
-stopBtn.addEventListener('click',()=>{ if(abortCtrl) abortCtrl.abort(); });
+sendBtn.addEventListener('click',()=>{
+  if(isStreaming){
+    if(abortCtrl) abortCtrl.abort();
+    return;
+  }
+  if(!sendBtn.disabled) sendMessage();
+});
 // Keep input always focused during streaming
 document.addEventListener('keydown',e=>{
   if(isStreaming&&e.key==='Escape'&&abortCtrl){ abortCtrl.abort(); return; }
@@ -3373,7 +3381,15 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-$('attach-btn').addEventListener('click',()=>{ fileIn.value=''; fileIn.click(); });
+$('attach-btn').addEventListener('click',()=>{
+  fileIn.value='';
+  try{
+    if(typeof fileIn.showPicker === 'function') fileIn.showPicker();
+    else fileIn.click();
+  }catch{
+    fileIn.click();
+  }
+});
 if(webBtn){
   webBtn.addEventListener('click',()=>{
     forceWebSearch = !forceWebSearch;
