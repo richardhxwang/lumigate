@@ -6751,9 +6751,8 @@ $('input-wrap').addEventListener('click', e=>{
     return;
   }
   const result = execSlashCommand(cmdFull, item);
-  if(result !== 'keep'){
-    msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
-  }
+  if(result === 'keep') return; // sub-menu navigation — keep panel open
+  msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
   hideSlashPanel();
 });
 
