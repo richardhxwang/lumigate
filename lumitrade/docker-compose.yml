@@ -1,0 +1,107 @@
+# LumiTrade — Standalone Docker Compose for NAS deployment
+# Connects to remote LumiGate + PocketBase + Qdrant over the network.
+#
+# Usage:
+#   cp .env.example .env   # fill in credentials
+#   docker compose up -d --build
+#
+# Default ports:
+#   trade-engine  → 3200  (FastAPI)
+#   freqtrade     → 8080  (FreqUI)
+#   finbert       → 5000  (sentiment API)
+
+services:
+  # ── Trade Engine (FastAPI) ──────────────────────────────────────────
+  trade-engine:
+    build: ./trade-engine
+    container_name: lumitrade-engine
+    restart: unless-stopped
+    ports:
+      - "3200:3200"
+    env_file: .env
+    environment:
+      TRADE_PB_URL: ${PB_URL:-http://pocketbase:8090}
+      TRADE_LUMIGATE_URL: ${LUMIGATE_URL:-http://lumigate:9471}
+      TRADE_LUMIGATE_PROJECT_KEY: ${LUMIGATE_PROJECT_KEY:-}
+      TRADE_FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TRADE_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TRADE_TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TRADE_FREQTRADE_URL: http://freqtrade:8080
+      TRADE_FREQTRADE_USERNAME: ${FREQTRADE_USERNAME:-freqtrader}
+      TRADE_FREQTRADE_PASSWORD: ${FREQTRADE_PASSWORD:-}
+      TRADE_PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
+      TRADE_PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
+    depends_on:
+      freqtrade:
+        condition: service_healthy
+      finbert:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3200/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "10"
+    networks:
+      - lumitrade
+
+  # ── Freqtrade (crypto bot + FreqUI) ────────────────────────────────
+  freqtrade:
+    build: ./freqtrade
+    container_name: lumitrade-freqtrade
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config.json:/freqtrade/config.json
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "10"
+    networks:
+      - lumitrade
+
+  # ── FinBERT (sentiment analysis) ────────────────────────────────────
+  finbert:
+    build: ./finbert
+    container_name: lumitrade-finbert
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "10"
+    networks:
+      - lumitrade
+
+networks:
+  lumitrade:
+    name: lumitrade
+    driver: bridge

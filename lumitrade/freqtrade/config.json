@@ -1,0 +1,81 @@
+{
+    "trading_mode": "spot",
+    "margin_mode": "",
+    "max_open_trades": 5,
+    "stake_currency": "USDT",
+    "stake_amount": "unlimited",
+    "tradable_balance_ratio": 0.99,
+    "fiat_display_currency": "USD",
+    "dry_run": true,
+    "dry_run_wallet": 10000,
+    "cancel_open_orders_on_exit": false,
+    "unfilledtimeout": {
+        "entry": 10,
+        "exit": 10,
+        "exit_timeout_count": 0,
+        "unit": "minutes"
+    },
+    "entry_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1,
+        "price_last_balance": 0.0,
+        "check_depth_of_market": { "enabled": false, "bids_to_ask_delta": 1 }
+    },
+    "exit_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1
+    },
+    "exchange": {
+        "name": "okx",
+        "key": "",
+        "secret": "",
+        "password": "",
+        "ccxt_config": { "enableRateLimit": true },
+        "ccxt_async_config": { "enableRateLimit": true },
+        "pair_whitelist": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
+        "pair_blacklist": [".*DOWN/USDT", ".*UP/USDT", ".*BEAR/USDT", ".*BULL/USDT"],
+        "enable_ws": false
+    },
+    "pairlists": [
+        { "method": "StaticPairList" }
+    ],
+    "telegram": {
+        "enabled": false,
+        "token": "",
+        "chat_id": "",
+        "notification_settings": {
+            "status": "on",
+            "warning": "on",
+            "startup": "on",
+            "entry": "on",
+            "exit": "on",
+            "entry_cancel": "on",
+            "exit_cancel": "on",
+            "entry_fill": "on",
+            "exit_fill": "on",
+            "protection_trigger": "on",
+            "protection_trigger_global": "on",
+            "show_candle": "off"
+        }
+    },
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "0.0.0.0",
+        "listen_port": 8080,
+        "verbosity": "error",
+        "enable_openapi": true,
+        "jwt_secret_key": "HGt4qDlTr_aTt2ELLahW-PVtsNFQIsIZBQU9Qaa87v0",
+        "CORS_origins": [],
+        "username": "freqtrader",
+        "password": "sUhbYlJqcGugmdxXTQvGUg",
+        "ws_token": "_-3o4WOb4T0u9gJI0LjDXTXrUpAIfp8qbpe73s0LKuU"
+    },
+    "bot_name": "LumiTrade-Crypto",
+    "initial_state": "running",
+    "force_entry_enable": true,
+    "internals": {
+        "process_throttle_secs": 5
+    }
+}

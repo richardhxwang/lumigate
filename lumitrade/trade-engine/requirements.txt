@@ -1,0 +1,25 @@
+# --- Core: smartmoneyconcepts pins numpy==1.24.3, numba==0.58.1, pandas==2.0.2
+# It MUST be installed first; other packages must not override these versions.
+# See Dockerfile for split install strategy.
+
+# SMC (installed in Dockerfile step 1 — do NOT list here)
+# smartmoneyconcepts
+
+# App framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+httpx
+
+# Broker / data
+ccxt
+finnhub-python
+ib_insync
+
+# Notifications / scheduling
+python-telegram-bot
+apscheduler
+
+# Analytics
+quantstats

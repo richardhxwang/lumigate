@@ -82,6 +82,7 @@ services:
       - PB_URL=${PB_URL:-http://pocketbase:8090}
       - DOCKER_HOST=unix:///var/run/docker.sock
       - QDRANT_URL=http://lumigate-qdrant:6333
+      - TRADE_ENGINE_URL=http://lumigate-trade-engine:3200
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
@@ -300,20 +301,26 @@ services:
     container_name: lumigate-trade-engine
     profiles: ["trade"]
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "3200"
     ports:
-      - "127.0.0.1:18791:3200"
+      - "127.0.0.1:18793:3200"
     environment:
-      - TRADE_PB_URL=http://pocketbase:8090
+      - TRADE_PB_URL=http://host.docker.internal:8090
       - TRADE_LUMIGATE_URL=http://lumigate:9471
       - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
       - TRADE_FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       - TRADE_TELEGRAM_BOT_TOKEN=${TRADE_TELEGRAM_BOT_TOKEN:-}
       - TRADE_TELEGRAM_CHAT_ID=${TRADE_TELEGRAM_CHAT_ID:-}
+      - TRADE_FREQTRADE_PASSWORD=sUhbYlJqcGugmdxXTQvGUg
+      - TRADE_IBKR_HOST=lumigate-ibgateway
+      - TRADE_IBKR_PORT=4002
     depends_on:
       - pocketbase
       - qdrant
+      - freqtrade
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:3200/health"]
       interval: 10s
@@ -323,7 +330,7 @@ services:
     logging: *logging-default
 
   freqtrade:
-    image: freqtradeorg/freqtrade:stable
+    build: ./lumitrade/freqtrade
     container_name: lumigate-freqtrade
     profiles: ["trade"]
     restart: unless-stopped
@@ -369,6 +376,28 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    logging: *logging-default
+
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    container_name: lumigate-ibgateway
+    profiles: ["trade"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4001:4001"
+      - "127.0.0.1:4002:4002"
+      - "127.0.0.1:5900:5900"
+    environment:
+      - TWS_USERID=${IBKR_USERNAME:-}
+      - TWS_PASSWORD=${IBKR_PASSWORD:-}
+      - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
+      - TWS_ACCEPT_INCOMING=accept
+      - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
+      - VNC_SERVER_PASSWORD=${IBKR_VNC_PASSWORD:-lumitrade}
+    ulimits:
+      nofile:
+        soft: 10000
+        hard: 10000
     logging: *logging-default
 
 volumes:

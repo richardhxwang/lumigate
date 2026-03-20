@@ -1,0 +1,1155 @@
+2026-03-20 18:32:51,666 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-20 18:32:51,668 - freqtrade.loggers - INFO - Logfile configured
+2026-03-20 18:32:51,668 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-20 18:32:51,669 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-20 18:32:51,669 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-20 18:32:51,669 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-20 18:32:51,670 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-20 18:32:51,670 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-20 18:32:51,670 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 5 ...
+2026-03-20 18:32:51,713 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-20 18:32:51,715 - freqtrade.configuration.directory_operations - INFO - Created data directory: None
+2026-03-20 18:32:51,715 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-20 18:32:51,718 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-20 18:32:51,728 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-20 18:32:51,729 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-20 18:32:51,730 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-20 18:32:51,730 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-20 18:32:51,730 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:32:51,734 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:32:51,740 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:32:51,749 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-20 18:32:52,489 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-20 18:32:52,493 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-20 18:32:52,493 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-03-20 18:32:52,494 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-20 18:32:52,494 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-20 18:32:52,494 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-20 18:32:52,495 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 5.
+2026-03-20 18:32:52,495 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}
+2026-03-20 18:32:52,498 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-20 18:32:52,498 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.03
+2026-03-20 18:32:52,498 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-20 18:32:52,498 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.02
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-20 18:32:52,499 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-20 18:32:52,500 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-20 18:32:52,501 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-20 18:32:52,501 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-20 18:32:52,502 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-20 18:32:52,505 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-20 18:32:52,505 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-20 18:32:52,506 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-20 18:32:52,506 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-20 18:32:52,506 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-20 18:32:52,506 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-20 18:32:52,507 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-20 18:32:52,507 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-20 18:32:52,510 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 5
+2026-03-20 18:32:52,510 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-20 18:32:52,598 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-20 18:32:53,016 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-20 18:32:53,214 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-20 18:32:53,214 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-20 18:32:53,260 - uvicorn.error - INFO - Started server process [1]
+2026-03-20 18:32:53,261 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-20 18:32:53,262 - uvicorn.error - INFO - Application startup complete.
+2026-03-20 18:32:53,262 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-20 18:32:53,282 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-20 18:32:53,282 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-20 18:32:53,289 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-20 18:32:53,290 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-20 18:32:53,291 - freqtrade.strategy.hyper - INFO - No params for buy found, using default values.
+2026-03-20 18:32:53,291 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): ob_strength_min = 0.5
+2026-03-20 18:32:53,292 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): swing_length = 20
+2026-03-20 18:32:53,292 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-20 18:32:53,293 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-20 18:32:53,293 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-20 18:32:53,309 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-20 18:32:53,310 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}`\n*Trailing Stoploss:* `-0.03`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-20 18:32:53,310 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-20 18:32:58,313 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:33:58,332 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:34:58,350 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:35:58,365 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:36:58,400 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:37:58,422 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:38:58,448 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:39:58,472 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:40:58,493 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:41:58,521 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:42:58,548 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:43:58,580 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:44:58,606 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:45:04,538 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-20 18:45:04,541 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-20 18:45:04,541 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-20 18:45:04,550 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc modules ...
+2026-03-20 18:45:04,550 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc.apiserver ...
+2026-03-20 18:45:04,551 - freqtrade.rpc.api_server.webserver - INFO - Stopping API Server
+2026-03-20 18:45:04,565 - uvicorn.error - INFO - Shutting down
+2026-03-20 18:45:04,667 - uvicorn.error - INFO - Waiting for application shutdown.
+2026-03-20 18:45:04,668 - uvicorn.error - INFO - Application shutdown complete.
+2026-03-20 18:45:04,669 - uvicorn.error - INFO - Finished server process [1]
+2026-03-20 18:45:04,672 - freqtrade.exchange.exchange_ws - INFO - Resetting WS connections.
+2026-03-20 18:45:04,673 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 18:45:04,673 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 18:45:04,673 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 18:45:04,674 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 18:45:04,674 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 18:45:04,674 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 18:45:04,674 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 18:45:04,675 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 18:45:04,675 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 18:45:04,675 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 18:45:04,676 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 18:45:04,676 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 18:45:04,677 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,681 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,681 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,682 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,683 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,684 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,684 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,685 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,685 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,686 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,686 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:04,687 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 18:45:05,178 - asyncio - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-4599' coro=<Throttler.looper() running at /home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/throttler.py:78> wait_for=<Future finished result=None>>
+2026-03-20 18:45:05,434 - freqtrade - INFO - SIGINT received, aborting ...
+2026-03-20 18:45:07,608 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-20 18:45:07,608 - freqtrade.loggers - INFO - Logfile configured
+2026-03-20 18:45:07,609 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-20 18:45:07,609 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-20 18:45:07,609 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-20 18:45:07,609 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-20 18:45:07,609 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-20 18:45:07,610 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-20 18:45:07,610 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 5 ...
+2026-03-20 18:45:07,627 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-20 18:45:07,627 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-20 18:45:07,628 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-20 18:45:07,631 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-20 18:45:07,631 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-20 18:45:07,632 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-20 18:45:07,632 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-20 18:45:07,632 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:45:07,635 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:45:07,638 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 18:45:07,641 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-20 18:45:08,345 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-20 18:45:08,348 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-20 18:45:08,348 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-03-20 18:45:08,348 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-20 18:45:08,349 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-20 18:45:08,349 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-20 18:45:08,349 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 5.
+2026-03-20 18:45:08,349 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}
+2026-03-20 18:45:08,350 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-20 18:45:08,350 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.03
+2026-03-20 18:45:08,350 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-20 18:45:08,350 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-03-20 18:45:08,351 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.02
+2026-03-20 18:45:08,351 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-20 18:45:08,351 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-20 18:45:08,351 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-20 18:45:08,352 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-20 18:45:08,352 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-20 18:45:08,352 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-20 18:45:08,352 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-20 18:45:08,352 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-20 18:45:08,353 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-20 18:45:08,353 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-20 18:45:08,353 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-20 18:45:08,353 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-20 18:45:08,354 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-20 18:45:08,354 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-20 18:45:08,354 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-20 18:45:08,354 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-20 18:45:08,354 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-20 18:45:08,355 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 5
+2026-03-20 18:45:08,355 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-20 18:45:08,374 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-20 18:45:08,790 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-20 18:45:08,901 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-20 18:45:08,902 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-20 18:45:08,908 - uvicorn.error - INFO - Started server process [1]
+2026-03-20 18:45:08,908 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-20 18:45:08,909 - uvicorn.error - INFO - Application startup complete.
+2026-03-20 18:45:08,909 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-20 18:45:08,911 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-20 18:45:08,911 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-20 18:45:08,917 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-20 18:45:08,917 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-20 18:45:08,918 - freqtrade.strategy.hyper - INFO - No params for buy found, using default values.
+2026-03-20 18:45:08,918 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): ob_strength_min = 0.5
+2026-03-20 18:45:08,918 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): swing_length = 20
+2026-03-20 18:45:08,919 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-20 18:45:08,919 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-20 18:45:08,920 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-20 18:45:08,923 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-20 18:45:08,923 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}`\n*Trailing Stoploss:* `-0.03`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-20 18:45:08,924 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-20 18:45:13,926 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:46:13,941 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:47:13,963 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:48:13,991 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:49:14,021 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:50:14,048 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:51:14,074 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:52:14,098 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:53:14,123 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:54:14,147 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:55:14,172 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:56:14,195 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:57:14,227 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:58:14,248 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 18:59:14,273 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:00:16,004 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:01:16,022 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:02:16,040 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:03:16,061 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:04:16,087 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:05:16,106 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:06:16,129 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:07:16,154 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:08:16,177 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:09:16,203 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:10:16,229 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:11:16,260 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:12:16,290 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:12:18,476 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-20 19:12:18,477 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-20 19:12:18,477 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-20 19:12:18,478 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc modules ...
+2026-03-20 19:12:18,478 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc.apiserver ...
+2026-03-20 19:12:18,479 - freqtrade.rpc.api_server.webserver - INFO - Stopping API Server
+2026-03-20 19:12:18,551 - uvicorn.error - INFO - Shutting down
+2026-03-20 19:12:18,653 - uvicorn.error - INFO - Waiting for application shutdown.
+2026-03-20 19:12:18,656 - uvicorn.error - INFO - Application shutdown complete.
+2026-03-20 19:12:18,659 - uvicorn.error - INFO - Finished server process [1]
+2026-03-20 19:12:18,662 - freqtrade.exchange.exchange_ws - INFO - Resetting WS connections.
+2026-03-20 19:12:18,664 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:12:18,665 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:12:18,666 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:12:18,667 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:12:18,668 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:12:18,669 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:12:18,670 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:12:18,672 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:12:18,673 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:12:18,674 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:12:18,675 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:12:18,675 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:12:18,678 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,684 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,685 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,686 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,687 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,688 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,689 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,690 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,691 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,692 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,693 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:18,694 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:12:19,269 - asyncio - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-8918' coro=<Throttler.looper() running at /home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/throttler.py:78> wait_for=<Future finished result=None>>
+2026-03-20 19:12:21,167 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-20 19:12:21,167 - freqtrade.loggers - INFO - Logfile configured
+2026-03-20 19:12:21,167 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-20 19:12:21,168 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-20 19:12:21,168 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-20 19:12:21,168 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-20 19:12:21,168 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-20 19:12:21,168 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-20 19:12:21,169 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 5 ...
+2026-03-20 19:12:21,195 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-20 19:12:21,195 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-20 19:12:21,196 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-20 19:12:21,199 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-20 19:12:21,200 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-20 19:12:21,201 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-20 19:12:21,201 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-20 19:12:21,201 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 19:12:21,205 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 19:12:21,208 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 19:12:21,211 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-20 19:12:21,865 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-20 19:12:21,868 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-20 19:12:21,869 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-03-20 19:12:21,870 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-20 19:12:21,870 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-20 19:12:21,870 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-20 19:12:21,870 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 5.
+2026-03-20 19:12:21,871 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}
+2026-03-20 19:12:21,871 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-20 19:12:21,871 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.03
+2026-03-20 19:12:21,872 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-20 19:12:21,872 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-03-20 19:12:21,872 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.02
+2026-03-20 19:12:21,872 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-20 19:12:21,873 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-20 19:12:21,873 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-20 19:12:21,873 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-20 19:12:21,873 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-20 19:12:21,874 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-20 19:12:21,874 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-20 19:12:21,874 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-20 19:12:21,874 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-20 19:12:21,875 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-20 19:12:21,875 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-20 19:12:21,875 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-20 19:12:21,875 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-20 19:12:21,876 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-20 19:12:21,876 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-20 19:12:21,876 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-20 19:12:21,876 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-20 19:12:21,877 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 5
+2026-03-20 19:12:21,877 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-20 19:12:21,904 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-20 19:12:22,322 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-20 19:12:22,448 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-20 19:12:22,448 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-20 19:12:22,462 - uvicorn.error - INFO - Started server process [1]
+2026-03-20 19:12:22,462 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-20 19:12:22,463 - uvicorn.error - INFO - Application startup complete.
+2026-03-20 19:12:22,463 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-20 19:12:22,467 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-20 19:12:22,467 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-20 19:12:22,474 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-20 19:12:22,475 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-20 19:12:22,475 - freqtrade.strategy.hyper - INFO - No params for buy found, using default values.
+2026-03-20 19:12:22,476 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): ob_strength_min = 0.5
+2026-03-20 19:12:22,476 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): swing_length = 10
+2026-03-20 19:12:22,476 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-20 19:12:22,477 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-20 19:12:22,477 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-20 19:12:22,480 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-20 19:12:22,481 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}`\n*Trailing Stoploss:* `-0.03`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-20 19:12:22,481 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-20 19:12:27,484 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:13:27,497 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:14:27,513 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:15:31,007 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:16:31,033 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:17:31,054 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:18:06,419 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-20 19:18:06,422 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-20 19:18:06,424 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-20 19:18:06,426 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc modules ...
+2026-03-20 19:18:06,427 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc.apiserver ...
+2026-03-20 19:18:06,428 - freqtrade.rpc.api_server.webserver - INFO - Stopping API Server
+2026-03-20 19:18:06,463 - uvicorn.error - INFO - Shutting down
+2026-03-20 19:18:06,566 - uvicorn.error - INFO - Waiting for application shutdown.
+2026-03-20 19:18:06,568 - uvicorn.error - INFO - Application shutdown complete.
+2026-03-20 19:18:06,569 - uvicorn.error - INFO - Finished server process [1]
+2026-03-20 19:18:06,572 - freqtrade.exchange.exchange_ws - INFO - Resetting WS connections.
+2026-03-20 19:18:06,573 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:18:06,574 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:18:06,575 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:18:06,576 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:18:06,576 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:18:06,577 - freqtrade.exchange.exchange_ws - INFO - BNB/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:18:06,577 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:18:06,578 - freqtrade.exchange.exchange_ws - INFO - SOL/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:18:06,578 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 4h, spot - Task finished - cancelled
+2026-03-20 19:18:06,579 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 1h, spot - Task finished - cancelled
+2026-03-20 19:18:06,579 - freqtrade.exchange.exchange_ws - INFO - BTC/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:18:06,580 - freqtrade.exchange.exchange_ws - INFO - ETH/USDT, 15m, spot - Task finished - cancelled
+2026-03-20 19:18:06,582 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,586 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,587 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,588 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,589 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,590 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,591 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,592 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,593 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,594 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,594 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:06,595 - freqtrade.exchange.exchange_ws - ERROR - Exception in _unwatch_ohlcv
+Traceback (most recent call last):
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 144, in _unwatch_ohlcv
+    await self._ccxt_object.un_watch_ohlcv_for_symbols([[pair, timeframe]])
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 1021, in un_watch_ohlcv_for_symbols
+    return await self.watch_multiple(url, messageHashes, request, messageHashes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ccxt.base.errors.NetworkError: Connection closed by remote server, closing code 1006
+2026-03-20 19:18:07,078 - asyncio - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-1826' coro=<Throttler.looper() running at /home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/throttler.py:78> wait_for=<Future finished result=None>>
+2026-03-20 19:18:07,331 - freqtrade - INFO - SIGINT received, aborting ...
+2026-03-20 19:18:08,898 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-20 19:18:08,898 - freqtrade.loggers - INFO - Logfile configured
+2026-03-20 19:18:08,898 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-20 19:18:08,899 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-20 19:18:08,899 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-20 19:18:08,899 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-20 19:18:08,899 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-20 19:18:08,900 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-20 19:18:08,900 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 5 ...
+2026-03-20 19:18:08,910 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-20 19:18:08,911 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-20 19:18:08,912 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-20 19:18:08,915 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-20 19:18:08,915 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-20 19:18:08,916 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-20 19:18:08,916 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-20 19:18:08,916 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True, 'options': {'ws': False}}
+2026-03-20 19:18:08,919 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True, 'options': {'ws': False}}
+2026-03-20 19:18:08,922 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True, 'options': {'ws': False}}
+2026-03-20 19:18:08,925 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-20 19:18:09,634 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-20 19:18:09,636 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-20 19:18:09,637 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-03-20 19:18:09,637 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-20 19:18:09,638 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-20 19:18:09,638 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-20 19:18:09,638 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 5.
+2026-03-20 19:18:09,638 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}
+2026-03-20 19:18:09,639 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-20 19:18:09,639 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.03
+2026-03-20 19:18:09,639 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-20 19:18:09,639 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-03-20 19:18:09,639 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.02
+2026-03-20 19:18:09,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-20 19:18:09,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-20 19:18:09,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-20 19:18:09,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-20 19:18:09,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-20 19:18:09,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-20 19:18:09,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-20 19:18:09,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-20 19:18:09,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-20 19:18:09,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-20 19:18:09,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-20 19:18:09,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-20 19:18:09,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-20 19:18:09,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-20 19:18:09,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-20 19:18:09,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-20 19:18:09,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-20 19:18:09,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 5
+2026-03-20 19:18:09,644 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-20 19:18:09,663 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-20 19:18:10,093 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-20 19:18:10,206 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-20 19:18:10,206 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-20 19:18:10,213 - uvicorn.error - INFO - Started server process [1]
+2026-03-20 19:18:10,213 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-20 19:18:10,213 - uvicorn.error - INFO - Application startup complete.
+2026-03-20 19:18:10,214 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-20 19:18:10,216 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-20 19:18:10,216 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-20 19:18:10,222 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-20 19:18:10,222 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-20 19:18:10,223 - freqtrade.strategy.hyper - INFO - No params for buy found, using default values.
+2026-03-20 19:18:10,223 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): ob_strength_min = 0.5
+2026-03-20 19:18:10,223 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): swing_length = 10
+2026-03-20 19:18:10,223 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-20 19:18:10,224 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-20 19:18:10,224 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-20 19:18:10,226 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-20 19:18:10,227 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}`\n*Trailing Stoploss:* `-0.03`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-20 19:18:10,227 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-20 19:18:10,237 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,243 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,245 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,246 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,247 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,248 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,249 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,250 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,251 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,252 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,254 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:10,255 - asyncio - ERROR - Exception in callback ExchangeWS._continuous_stopped()()
+handle: <Handle ExchangeWS._continuous_stopped()()>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 159, in _continuous_stopped
+    if (result1 := task.result()) is not None:
+                   ~~~~~~~~~~~^^
+  File "/freqtrade/freqtrade/exchange/exchange_ws.py", line 176, in _continuously_async_watch_ohlcv
+    data = await self._ccxt_object.watch_ohlcv(pair, timeframe)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 935, in watch_ohlcv
+    ohlcv = await self.subscribe('public', name, name, symbol, params)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/pro/okx.py", line 171, in subscribe
+    return await self.watch(url, messageHash, request, messageHash)
+                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 497, in watch
+    client = self.client(url)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/async_support/base/exchange.py", line 428, in client
+    options = self.extend(self.streaming, {
+        'log': getattr(self, 'log'),
+    ...<4 lines>...
+        'decompressBinary': self.safe_bool(self.options, 'decompressBinary', True),
+    }, ws_options)
+  File "/home/ftuser/.local/lib/python3.13/site-packages/ccxt/base/exchange.py", line 1005, in extend
+    result.update(arg)
+    ~~~~~~~~~~~~~^^^^^
+TypeError: 'bool' object is not iterable
+2026-03-20 19:18:15,232 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:19:15,263 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:20:13,769 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-20 19:20:13,773 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-20 19:20:13,774 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-20 19:20:13,777 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc modules ...
+2026-03-20 19:20:13,777 - freqtrade.rpc.rpc_manager - INFO - Cleaning up rpc.apiserver ...
+2026-03-20 19:20:13,777 - freqtrade.rpc.api_server.webserver - INFO - Stopping API Server
+2026-03-20 19:20:13,870 - uvicorn.error - INFO - Shutting down
+2026-03-20 19:20:13,972 - uvicorn.error - INFO - Waiting for application shutdown.
+2026-03-20 19:20:13,973 - uvicorn.error - INFO - Application shutdown complete.
+2026-03-20 19:20:13,974 - uvicorn.error - INFO - Finished server process [1]
+2026-03-20 19:20:13,975 - freqtrade.exchange.exchange_ws - INFO - Resetting WS connections.
+2026-03-20 19:20:14,638 - freqtrade - INFO - SIGINT received, aborting ...
+2026-03-20 19:21:10,879 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-20 19:21:10,880 - freqtrade.loggers - INFO - Logfile configured
+2026-03-20 19:21:10,880 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-20 19:21:10,880 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-20 19:21:10,880 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-20 19:21:10,881 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-20 19:21:10,881 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-20 19:21:10,881 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-20 19:21:10,881 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 5 ...
+2026-03-20 19:21:10,904 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-20 19:21:10,904 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-20 19:21:10,905 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-20 19:21:10,908 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-20 19:21:10,908 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-20 19:21:10,909 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-20 19:21:10,909 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-20 19:21:10,909 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 19:21:10,912 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-20 19:21:10,915 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-20 19:21:11,546 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-20 19:21:11,550 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-20 19:21:11,551 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-03-20 19:21:11,551 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-20 19:21:11,552 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-20 19:21:11,552 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-20 19:21:11,552 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 5.
+2026-03-20 19:21:11,553 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}
+2026-03-20 19:21:11,553 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-20 19:21:11,553 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.03
+2026-03-20 19:21:11,554 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-20 19:21:11,555 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-03-20 19:21:11,555 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.02
+2026-03-20 19:21:11,555 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-20 19:21:11,555 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-20 19:21:11,556 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-20 19:21:11,556 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-20 19:21:11,556 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-20 19:21:11,556 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-20 19:21:11,557 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-20 19:21:11,558 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-20 19:21:11,558 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-20 19:21:11,558 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-20 19:21:11,558 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-20 19:21:11,559 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-20 19:21:11,559 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-20 19:21:11,559 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-20 19:21:11,560 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-20 19:21:11,560 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-20 19:21:11,560 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-20 19:21:11,561 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 5
+2026-03-20 19:21:11,561 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-20 19:21:11,588 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-20 19:21:11,966 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-20 19:21:12,105 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-20 19:21:12,105 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-20 19:21:12,120 - uvicorn.error - INFO - Started server process [1]
+2026-03-20 19:21:12,120 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-20 19:21:12,120 - uvicorn.error - INFO - Application startup complete.
+2026-03-20 19:21:12,121 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-20 19:21:12,124 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-20 19:21:12,124 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-20 19:21:12,130 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-20 19:21:12,131 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-20 19:21:12,131 - freqtrade.strategy.hyper - INFO - No params for buy found, using default values.
+2026-03-20 19:21:12,132 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): ob_strength_min = 0.5
+2026-03-20 19:21:12,132 - freqtrade.strategy.hyper - INFO - Strategy Parameter(default): swing_length = 10
+2026-03-20 19:21:12,132 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-20 19:21:12,132 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-20 19:21:12,132 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-20 19:21:12,135 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-20 19:21:12,136 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.06, '30': 0.04, '60': 0.02, '120': 0.01}`\n*Trailing Stoploss:* `-0.03`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-20 19:21:12,136 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-20 19:21:17,142 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:22:17,167 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:23:17,190 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-20 19:24:17,224 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
