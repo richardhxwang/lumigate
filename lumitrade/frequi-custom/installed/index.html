@@ -11,19 +11,120 @@
   <script type="module" crossorigin src="/assets/index-D3hXVh8R.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-CJA4txlp.css">
   <style>
-    /* LumiTrade — minimal skin: accent color + font + logo only. No background overrides. */
+    /* ============================================================
+       LumiTrade Skin — Full LumiChat visual language for FreqUI
+       Green accent · Apple fonts · Frosted glass · Auto dark/light
+       ============================================================ */
+
+    /* --- Primary accent: LumiChat green --- */
     :root {
       --p-primary-color: #10a37f !important;
       --p-primary-contrast-color: #fff !important;
+      --p-primary-50: #ecfdf5 !important; --p-primary-100: #d1fae5 !important;
+      --p-primary-200: #a7f3d0 !important; --p-primary-300: #6ee7b7 !important;
+      --p-primary-400: #34d399 !important; --p-primary-500: #10a37f !important;
+      --p-primary-600: #0d9268 !important; --p-primary-700: #047857 !important;
       --color-profit: #22c55e !important;
       --color-loss: #ef4444 !important;
     }
-    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important; }
 
-    /* Hide original broken logo image completely */
-    a[href="/"] > img, .navbar-brand > img, img[alt="Home"] {
-      display: none !important; width: 0 !important; height: 0 !important; overflow: hidden !important;
+    /* --- Apple system font everywhere --- */
+    *, body, input, button, select, textarea {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
     }
+
+    /* --- Hide original Freqtrade logo image --- */
+    a[href="/"] > img, .navbar-brand > img, img[alt="Home"] {
+      display: none !important; width: 0 !important; height: 0 !important;
+    }
+
+    /* --- LumiTrade logo: text + SVG icon (inverted: white circle, green arrow) --- */
+    .navbar-brand, a[href="/"].navbar-brand {
+      display: flex !important; align-items: center !important; gap: 8px !important;
+      font-weight: 700 !important; font-size: 17px !important; letter-spacing: -.3px !important;
+    }
+    .navbar-brand::before {
+      content: "LumiTrade";
+      color: #10a37f;
+    }
+    .navbar-brand::after {
+      content: "";
+      display: inline-block;
+      width: 22px; height: 22px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='white'/%3E%3Cpolyline points='6 22 12 14 18 18 26 10' stroke='%2310a37f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpolyline points='21 10 26 10 26 15' stroke='%2310a37f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      flex-shrink: 0;
+    }
+    /* Dark mode: inverted logo (white circle green arrow) already works.
+       Light mode: green circle white arrow */
+    @media (prefers-color-scheme: light) {
+      .navbar-brand::after {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2310a37f'/%3E%3Cpolyline points='6 22 12 14 18 18 26 10' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpolyline points='21 10 26 10 26 15' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+      }
+    }
+
+    /* --- Navbar: frosted glass --- */
+    nav, .navbar, [class*="navbar"], header {
+      backdrop-filter: blur(16px) saturate(160%) !important;
+      -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+    }
+
+    /* --- All buttons with green accent --- */
+    .btn-primary, [class*="p-button"]:not([class*="secondary"]):not([class*="text"]):not([class*="outlined"]):not([class*="danger"]):not([class*="warning"]) {
+      background-color: #10a37f !important;
+      border-color: #10a37f !important;
+    }
+    .btn-primary:hover, [class*="p-button"]:not([class*="secondary"]):not([class*="text"]):not([class*="outlined"]):hover {
+      background-color: #0d9268 !important;
+      border-color: #0d9268 !important;
+    }
+
+    /* --- Active/selected states green --- */
+    .nav-link.active, .nav-link.router-link-active,
+    [class*="p-tab"][aria-selected="true"],
+    .router-link-active {
+      color: #10a37f !important;
+      border-color: #10a37f !important;
+    }
+    .nav-link:hover { color: #10a37f !important; }
+
+    /* --- Border radius: LumiChat style --- */
+    .card, [class*="p-card"] { border-radius: 12px !important; }
+    .card-header { border-radius: 12px 12px 0 0 !important; }
+    button, .btn, [class*="p-button"] { border-radius: 8px !important; }
+    input, select, textarea, [class*="p-inputtext"], [class*="p-select"], [class*="p-inputnumber"] { border-radius: 8px !important; }
+    [class*="p-dropdown"], [class*="p-menu"], [class*="p-popover"], [class*="p-overlay"] { border-radius: 12px !important; }
+    [class*="p-dialog"] { border-radius: 16px !important; }
+
+    /* --- Focus ring green --- */
+    *:focus-visible, input:focus, select:focus, textarea:focus,
+    [class*="p-inputtext"]:focus, [class*="p-select"]:focus {
+      outline-color: #10a37f !important;
+      border-color: #10a37f !important;
+      box-shadow: 0 0 0 2px rgba(16,163,127,.25) !important;
+    }
+
+    /* --- Profit/loss colors --- */
+    .text-success, [class*="profit"] { color: #22c55e !important; }
+    .text-danger, [class*="loss"] { color: #ef4444 !important; }
+
+    /* --- Badges --- */
+    .badge.bg-primary, [class*="p-tag"][class*="success"] { background-color: #10a37f !important; }
+
+    /* --- Scrollbar --- */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.3); border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* --- Cards: subtle frosted glass --- */
+    .card, [class*="p-card"] {
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+    }
+
+    /* --- Login form title --- */
+    .card-header h3, .card-header .h3 { color: #10a37f !important; }
   </style>
 </head>
 
@@ -33,26 +134,22 @@
   </noscript>
   <div id="app"></div>
   <script>
-    // Replace "Freqtrade UI" text with "LumiTrade" after Vue mounts
-    new MutationObserver(function(mutations, obs) {
-      // Fix navbar brand text
-      var brands = document.querySelectorAll('.navbar-brand, a[href="/"]');
-      brands.forEach(function(el) {
-        el.childNodes.forEach(function(node) {
-          if (node.nodeType === 3 && node.textContent.trim().includes('Freqtrade')) {
-            node.textContent = node.textContent.replace('Freqtrade UI', 'LumiTrade').replace('FreqUI', 'LumiTrade');
+    // Replace all "Freqtrade"/"FreqUI" text with "LumiTrade"
+    new MutationObserver(function() {
+      document.querySelectorAll('.navbar-brand, a[href="/"]').forEach(function(el) {
+        el.childNodes.forEach(function(n) {
+          if (n.nodeType === 3 && /Freq(trade|UI)/i.test(n.textContent)) {
+            n.textContent = n.textContent.replace(/Freqtrade UI/gi, 'LumiTrade').replace(/FreqUI/gi, 'LumiTrade').replace(/Freqtrade/gi, 'LumiTrade');
           }
         });
-        // Also check spans
-        el.querySelectorAll('span').forEach(function(span) {
-          if (span.textContent.includes('Freqtrade') || span.textContent.includes('FreqUI')) {
-            span.textContent = span.textContent.replace('Freqtrade UI', 'LumiTrade').replace('FreqUI', 'LumiTrade');
+        el.querySelectorAll('span').forEach(function(s) {
+          if (/Freq/i.test(s.textContent)) {
+            s.textContent = s.textContent.replace(/Freqtrade UI/gi, 'LumiTrade').replace(/FreqUI/gi, 'LumiTrade').replace(/Freqtrade/gi, 'LumiTrade');
           }
         });
       });
-      // Fix page title
-      if (document.title.includes('FreqUI')) document.title = document.title.replace('FreqUI', 'LumiTrade');
-    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+      if (/FreqUI/.test(document.title)) document.title = 'LumiTrade';
+    }).observe(document.body, { childList: true, subtree: true });
   </script>
 </body>
 
