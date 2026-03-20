@@ -243,6 +243,16 @@
     #enc-mode-btn:hover{background:var(--sb-hover);color:var(--t1)}
     #enc-mode-btn.active{color:var(--accent);background:rgba(16,163,127,0.12)}
     #enc-mode-btn svg{width:16px;height:16px}
+    #think-mode-btn{display:none;align-items:center;gap:4px;height:28px;padding:0 10px;border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.06);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--t2);font-size:11px;font-weight:500;border-radius:14px;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+    #think-mode-btn:hover{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.2);color:var(--t1)}
+    #think-mode-btn.active{display:flex}
+    #think-mode-btn svg{width:13px;height:13px;flex-shrink:0}
+    #think-mode-btn[data-mode="think"]{color:var(--accent);border-color:rgba(16,163,127,0.3);background:rgba(16,163,127,0.10)}
+    #think-mode-btn[data-mode="fast"]{color:#e8a23e;border-color:rgba(232,162,62,0.3);background:rgba(232,162,62,0.10)}
+    :root.light #think-mode-btn{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.04)}
+    :root.light #think-mode-btn:hover{background:rgba(0,0,0,0.08);border-color:rgba(0,0,0,0.14);color:var(--t1)}
+    :root.light #think-mode-btn[data-mode="think"]{color:#0d9268;border-color:rgba(13,146,104,0.3);background:rgba(13,146,104,0.08)}
+    :root.light #think-mode-btn[data-mode="fast"]{color:#c4851c;border-color:rgba(196,133,28,0.3);background:rgba(196,133,28,0.08)}
     #mdl-drop{position:fixed;background:rgba(30,30,32,0.72);-webkit-backdrop-filter:blur(28px) saturate(160%);backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:8px;min-width:340px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;z-index:1000;box-shadow:0 12px 48px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.06) inset;overscroll-behavior:contain;opacity:0;transform:translateY(-8px) scale(0.98);transform-origin:top center;pointer-events:none;visibility:hidden;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s .2s}
     #mdl-drop.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;visibility:visible;transition:opacity .2s cubic-bezier(.4,0,.2,1),transform .2s cubic-bezier(.4,0,.2,1),visibility 0s}
     :root.light #mdl-drop{background:rgba(240,240,245,0.78);border-color:rgba(0,0,0,0.08);box-shadow:0 12px 48px rgba(0,0,0,.18),0 1px 0 rgba(255,255,255,.9) inset}
@@ -986,6 +996,10 @@
             <rect x="5" y="11" width="14" height="10" rx="2"></rect>
             <path d="M8 11V8a4 4 0 1 1 8 0v3"></path>
           </svg>
+        </button>
+        <button id="think-mode-btn" data-mode="auto" title="Thinking Mode">
+          <svg id="think-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <span id="think-mode-label">Auto</span>
         </button>
         <div id="mdl-drop"></div>
         <div id="proj-banner"><div id="proj-banner-dot"></div><span id="proj-banner-name"></span></div>
@@ -1811,6 +1825,63 @@ const encModeBtn = $('enc-mode-btn');
 const SEND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
 const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
 
+// ── THINKING MODE ────────────────────────────────────────────────────────
+const THINKING_MODELS = {
+  openai: { think: 'gpt-5.4', fast: 'gpt-5.4-mini' },
+  deepseek: { think: 'deepseek-reasoner', fast: 'deepseek-chat' },
+  minimax: { think: 'MiniMax-M2.7', fast: 'MiniMax-M2.5' },
+  anthropic: { think: 'claude-sonnet-4-6', fast: 'claude-haiku-4-5' },
+};
+const THINK_MODES = ['auto','think','fast'];
+const THINK_SVG = {
+  auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  think: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="22" x2="15" y2="22"/></svg>',
+  fast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>',
+};
+const THINK_LABELS = { auto: 'Auto', think: 'Think', fast: 'Fast' };
+let thinkingMode = localStorage.getItem('lc_thinking_mode') || 'auto';
+const thinkModeBtn = $('think-mode-btn');
+const thinkModeLabel = $('think-mode-label');
+
+function hasThinkingVariants(provider){ return !!THINKING_MODELS[provider]; }
+
+function updateThinkModeVisibility(){
+  if(hasThinkingVariants(selectedProvider)){
+    thinkModeBtn.classList.add('active');
+  } else {
+    thinkModeBtn.classList.remove('active');
+  }
+  thinkModeBtn.dataset.mode = thinkingMode;
+  // Replace SVG icon — use querySelector to avoid stale reference after outerHTML swap
+  const iconEl = thinkModeBtn.querySelector('svg');
+  if(iconEl){
+    const tmp = document.createElement('span');
+    tmp.innerHTML = THINK_SVG[thinkingMode].replace('<svg', '<svg id="think-mode-icon"');
+    iconEl.replaceWith(tmp.firstChild);
+  }
+  thinkModeLabel.textContent = THINK_LABELS[thinkingMode];
+}
+
+function cycleThinkMode(){
+  const idx = THINK_MODES.indexOf(thinkingMode);
+  thinkingMode = THINK_MODES[(idx+1) % THINK_MODES.length];
+  localStorage.setItem('lc_thinking_mode', thinkingMode);
+  updateThinkModeVisibility();
+}
+
+thinkModeBtn.addEventListener('click', e => { e.stopPropagation(); cycleThinkMode(); });
+
+/** Apply thinking mode overrides — returns {provider, model, extraSystemPrompt} */
+function applyThinkingMode(provider, model){
+  const variants = THINKING_MODELS[provider];
+  if(!variants || thinkingMode === 'auto') return { provider, model, extraSystemPrompt: null };
+  if(thinkingMode === 'think'){
+    return { provider, model: variants.think, extraSystemPrompt: null };
+  }
+  // fast
+  return { provider, model: variants.fast, extraSystemPrompt: 'Answer directly and concisely.' };
+}
+
 // ── UTILS ──────────────────────────────────────────────────────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7) }
@@ -2267,7 +2338,7 @@ async function onLoggedIn(){
   updateProjBanner();
   // Defer heavy loads to next frame so UI paints first
   requestAnimationFrame(()=>{
-    loadProviders().then(buildModelDropdown).then(()=>updateCapBar());
+    loadProviders().then(buildModelDropdown).then(()=>{ updateCapBar(); updateThinkModeVisibility(); });
     loadSessions();
     loadAISuggestions();
     if(window.__startKeepalive) window.__startKeepalive();
@@ -2522,7 +2593,7 @@ async function openSession(id){
   currentSid=id;
   touchSessionActivity(id);
   const sess=sessions.find(s=>s.id===id);
-  if(sess){ selectedProvider=sess.provider||selectedProvider; selectedModel=sess.model||selectedModel; mdlLabel.textContent=fmtModel(selectedModel); updateCapBar(); }
+  if(sess){ selectedProvider=sess.provider||selectedProvider; selectedModel=sess.model||selectedModel; mdlLabel.textContent=fmtModel(selectedModel); updateCapBar(); updateThinkModeVisibility(); }
   updateActive();
   try{
     const d=await apiJSON(`/lc/sessions/${id}/messages`);
@@ -3424,11 +3495,20 @@ async function sendMessage(){
 
     abortCtrl=new AbortController();
 
+    // Apply thinking mode overrides (think/fast switch model, fast adds system prompt)
+    const _tm = applyThinkingMode(selectedProvider, selectedModel);
+    const _sendProvider = _tm.provider, _sendModel = _tm.model;
+    if(_tm.extraSystemPrompt){
+      const hasSys = aiMsgs[0]?.role === 'system';
+      if(hasSys) aiMsgs[0].content += '\n\n' + _tm.extraSystemPrompt;
+      else aiMsgs.unshift({role:'system',content:_tm.extraSystemPrompt});
+    }
+
     // Use Gemini native endpoint for multimodal content, otherwise clean /v1/chat
     const endpoint=useNative?'/lc/chat/gemini-native':'/v1/chat';
     const payload=useNative
-      ? {model:selectedModel,messages:aiMsgs,stream:true,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})}
-      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})};
+      ? {model:_sendModel,messages:aiMsgs,stream:true,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})}
+      : {provider:_sendProvider,model:_sendModel,messages:aiMsgs,stream:true,lang:_lang,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})};
     if(selectedProTool){
       payload.specialist_mode = selectedProTool;
       payload.specialist_category = selectedProCategory || "";
@@ -4800,7 +4880,7 @@ mdlDrop.addEventListener('click',e=>{
   const optAccess=getProviderAccess(opt.dataset.provider);
   if(optAccess==='locked'){ toast(t('error.upgrade_premium'),2500); return; }
   selectedProvider=opt.dataset.provider; selectedModel=opt.dataset.model;
-  mdlLabel.textContent=fmtModel(selectedModel); mdlDrop.classList.remove('open'); renderModelDropdown(); updateCapBar();
+  mdlLabel.textContent=fmtModel(selectedModel); mdlDrop.classList.remove('open'); renderModelDropdown(); updateCapBar(); updateThinkModeVisibility();
   // Persist model change to current session (so switching sessions won't revert)
   if(currentSid){
     const sess=sessions.find(s=>s.id===currentSid);
@@ -5887,7 +5967,7 @@ $('stg-save').addEventListener('click',()=>{
   // Apply new default immediately (if not in an active session)
   if(!currentSid && s.default_provider && s.default_model){
     selectedProvider=s.default_provider; selectedModel=s.default_model;
-    mdlLabel.textContent=fmtModel(selectedModel); updateCapBar();
+    mdlLabel.textContent=fmtModel(selectedModel); updateCapBar(); updateThinkModeVisibility();
   }
   closeSettings();
   toast(t('settings.settings_saved'),2000,'#10a37f');
