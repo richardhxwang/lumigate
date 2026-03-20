@@ -83,6 +83,69 @@ function registerBuiltinLumigentTools(registry, bridges = {}) {
     }, bridges.internalHttp.codeRun);
   }
 
+  if (bridges.internalHttp?.sandboxExec) {
+    registry.registerTool({
+      name: "sandbox_exec",
+      description: "Run CLI commands in an isolated micro-computer sandbox with strict limits.",
+      input_schema: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "Shell command to run inside sandbox (allowlisted commands only)" },
+          timeout: { type: "number", description: "Maximum execution time in milliseconds" },
+          stdin: { type: "string", description: "Optional stdin content" },
+          cwd: { type: "string", description: "Working directory inside sandbox, default /workspace" },
+          allow_network: { type: "boolean", description: "Request network access if policy allows" },
+          image: { type: "string", description: "Optional sandbox image override" },
+        },
+        required: ["command"],
+      },
+    }, bridges.internalHttp.sandboxExec);
+  }
+
+  if (bridges.internalHttp?.ragRetrieve) {
+    registry.registerTool({
+      name: "rag_retrieve",
+      description: "Retrieve relevant knowledge from project and shared RAG scopes with ACL filtering.",
+      input_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "User query to retrieve evidence for" },
+          domain: { type: "string", description: "Domain namespace, e.g. fn, lc" },
+          project_id: { type: "string", description: "Project identifier, defaults to furnote for fn domain" },
+          owner_id: { type: "string", description: "Owner/user id for ACL scope (optional if caller context exists)" },
+          pet_local_id: { type: "string", description: "Optional pet local id to narrow FurNote retrieval" },
+          scope_mode: { type: "string", enum: ["project_only", "project_then_shared", "shared_only"], description: "Retrieval scope policy" },
+          top_k: { type: "number", description: "Maximum number of retrieved chunks" },
+        },
+        required: ["query"],
+      },
+    }, bridges.internalHttp.ragRetrieve);
+  }
+
+  if (bridges.internalHttp?.ragTrace) {
+    registry.registerTool({
+      name: "rag_trace",
+      description: "Persist retrieval and answer trace for auditing and analytics.",
+      input_schema: {
+        type: "object",
+        properties: {
+          domain: { type: "string", description: "Domain namespace, e.g. fn, lc" },
+          project_id: { type: "string", description: "Project identifier" },
+          owner_id: { type: "string", description: "Owner/user id for ACL scope" },
+          pet_local_id: { type: "string", description: "Optional pet local id" },
+          query: { type: "string", description: "Original retrieval query" },
+          answer: { type: "string", description: "Assistant answer for trace linkage" },
+          model: { type: "string", description: "Model id used for generation" },
+          retrieved_chunks: { type: "array", description: "Retrieved chunks with scores and scope" },
+          top_similarity: { type: "number", description: "Top similarity score" },
+          tokens_used: { type: "number", description: "Tokens consumed by generation" },
+          mode: { type: "string", enum: ["project_only", "project_then_shared", "shared_only"], description: "Retrieval mode used" },
+        },
+        required: ["query"],
+      },
+    }, bridges.internalHttp.ragTrace);
+  }
+
   if (bridges.mcp?.browserAction) {
     registry.registerTool({
       name: "browser_action",

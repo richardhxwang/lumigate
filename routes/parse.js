@@ -128,7 +128,7 @@ function stripHtml(html) {
   return text;
 }
 
-// --- Route: POST / (mounted at /v1/parse) ---
+// --- Route: POST / (mounted at /platform/parse) ---
 
 router.post("/", upload.single("file"), async (req, res) => {
   try {

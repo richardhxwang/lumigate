@@ -510,7 +510,7 @@ class WorkflowEngine {
         state.trace = trace;
 
         if (this._store) {
-          await this._store.saveExecution(state).catch(() => {});
+          await this._store.saveExecution(state).catch(e => this.log('warn', 'workflow_execution_save_failed', { executionId: state.executionId, error: e.message }));
         }
 
         trace.push({ nodeId, type: node.type, status: "paused", durationMs: Date.now() - nodeStart });

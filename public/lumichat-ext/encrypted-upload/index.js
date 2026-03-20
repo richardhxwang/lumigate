@@ -14,6 +14,15 @@ function utf8ToBase64Url(str) {
   return bytesToBase64Url(textEncoder.encode(String(str || "")));
 }
 
+function bytesToHex(bytes) {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return bytesToHex(new Uint8Array(digest));
+}
+
 function getMime(file) {
   return String(file?.mime || file?.type || file?.file?.type || "application/octet-stream");
 }
@@ -66,6 +75,57 @@ async function readFileBytes(fileObj) {
   return new Uint8Array(buf);
 }
 
+async function gzipCompressBytes(bytes) {
+  if (typeof CompressionStream !== "function") return { bytes, algorithm: "none" };
+  const cs = new CompressionStream("gzip");
+  const writer = cs.writable.getWriter();
+  await writer.write(bytes);
+  await writer.close();
+  const ab = await new Response(cs.readable).arrayBuffer();
+  return { bytes: new Uint8Array(ab), algorithm: "gzip" };
+}
+
+function packBundleV2(records) {
+  const manifest = {
+    v: 2,
+    kind: "encrypted_upload_bundle",
+    created_at: new Date().toISOString(),
+    files: [],
+  };
+  let dataBytes = 0;
+  for (const rec of records) {
+    dataBytes += rec.bytes.length;
+  }
+  let offset = 0;
+  for (const rec of records) {
+    manifest.files.push({
+      name: rec.name,
+      mime: rec.mime,
+      kind: rec.kind,
+      size: rec.size,
+      offset,
+      length: rec.bytes.length,
+      sha256: rec.sha256,
+    });
+    offset += rec.bytes.length;
+  }
+  const manifestBytes = textEncoder.encode(JSON.stringify(manifest));
+  const magic = textEncoder.encode("LCPK2");
+  const len = new Uint8Array(4);
+  new DataView(len.buffer).setUint32(0, manifestBytes.length, false);
+
+  const out = new Uint8Array(magic.length + len.length + manifestBytes.length + dataBytes);
+  let p = 0;
+  out.set(magic, p); p += magic.length;
+  out.set(len, p); p += len.length;
+  out.set(manifestBytes, p); p += manifestBytes.length;
+  for (const rec of records) {
+    out.set(rec.bytes, p);
+    p += rec.bytes.length;
+  }
+  return out;
+}
+
 async function importServerPublicKey(spkiB64) {
   const raw = Uint8Array.from(atob(spkiB64), c => c.charCodeAt(0));
   return crypto.subtle.importKey(
@@ -90,10 +150,8 @@ async function fetchPublicKey() {
   return data;
 }
 
-async function encryptPayloadJson(payloadObj, keyInfo) {
+async function encryptPayloadBytes(plaintext, keyInfo, opts = {}) {
   const publicKey = await importServerPublicKey(keyInfo.spki);
-
-  const plaintext = textEncoder.encode(JSON.stringify(payloadObj));
   const dek = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
@@ -107,9 +165,13 @@ async function encryptPayloadJson(payloadObj, keyInfo) {
   const wrappedKey = new Uint8Array(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, dek));
 
   const envelope = {
-    v: 1,
+    v: 2,
     alg: "RSA-OAEP-256/A256GCM",
     kid: keyInfo.kid || "default",
+    fmt: opts.format || "json",
+    zip: opts.zip || "none",
+    usize: Number(opts.uncompressedSize || plaintext.length || 0),
+    psize: Number(opts.packedSize || plaintext.length || 0),
     ek: bytesToBase64Url(wrappedKey),
     iv: bytesToBase64Url(iv),
     tag: bytesToBase64Url(tag),
@@ -136,25 +198,31 @@ export function createEncryptedUploadExtension() {
     for (const f of files) {
       if (!f?.file) continue;
       const bytes = await readFileBytes(f);
+      const sha256 = await sha256Hex(bytes);
       records.push({
         name: normalizeName(f.name || f.file?.name || "file"),
         mime: getMime(f),
         kind: kindFromMimeName(f),
         size: Number(f.file?.size || bytes.length || 0),
-        data_b64: bytesToBase64Url(bytes),
+        sha256,
+        bytes,
       });
     }
 
     if (!records.length) throw new Error("No valid files to encrypt");
 
+    const packed = packBundleV2(records);
+    const compressed = await gzipCompressBytes(packed);
+    const compressionRatio = packed.length ? Number((compressed.bytes.length / packed.length).toFixed(4)) : 1;
+
     // Always refresh public key before packing to avoid stale-key failures after server restart.
     const keyInfo = await ensureKey(true);
-    const payload = {
-      kind: "encrypted_upload_bundle",
-      created_at: new Date().toISOString(),
-      files: records,
-    };
-    const encryptedText = await encryptPayloadJson(payload, keyInfo);
+    const encryptedText = await encryptPayloadBytes(compressed.bytes, keyInfo, {
+      format: "lcpack2",
+      zip: compressed.algorithm,
+      uncompressedSize: packed.length,
+      packedSize: compressed.bytes.length,
+    });
 
     const summaryText = buildSummaryText(records, lang);
     try {
@@ -162,6 +230,10 @@ export function createEncryptedUploadExtension() {
         fileCount: records.length,
         kinds: records.map(r => r.kind),
         totalBytes: records.reduce((sum, r) => sum + (r.size || 0), 0),
+        packedBytes: packed.length,
+        compressedBytes: compressed.bytes.length,
+        compression: compressed.algorithm,
+        compressionRatio,
         summaryText,
       });
     } catch {}

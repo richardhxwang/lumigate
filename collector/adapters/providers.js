@@ -26,9 +26,13 @@ const doubao = {
   },
 
   async buildRequest(messages, model, cred) {
-    // Use only the last user message as prompt (豆包 web UI style)
-    const lastUser = [...messages].reverse().find(m => m.role === 'user');
-    const prompt = lastUser?.content || messages.map(m => m.content).join('\n');
+    // Preserve system + attachment-grounding context instead of only last user turn.
+    // Losing system context here causes file-reading failures in collector mode.
+    const prompt = messages.map((m) => {
+      const role = m?.role === 'system' ? 'system' : (m?.role === 'assistant' ? 'assistant' : 'user');
+      const content = typeof m?.content === 'string' ? m.content : JSON.stringify(m?.content || '');
+      return `<|im_start|>${role}\n${content}\n<|im_end|>`;
+    }).join('\n');
 
     const params = new URLSearchParams({
       aid: '497858', device_platform: 'web', language: 'zh',

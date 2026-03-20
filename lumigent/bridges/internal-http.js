@@ -20,7 +20,7 @@ function createInternalHttpBridge(options = {}) {
 
   return {
     async visionAnalyze(toolInput) {
-      const out = await postJson("/v1/vision/analyze", {
+      const out = await postJson("/platform/vision/analyze", {
         image_url: toolInput.image_url,
         prompt: toolInput.prompt,
         detail: toolInput.detail,
@@ -30,9 +30,30 @@ function createInternalHttpBridge(options = {}) {
     },
 
     async codeRun(toolInput) {
-      const out = await postJson("/v1/code/run", toolInput || {});
+      const out = await postJson("/platform/code/run", toolInput || {});
       if (!out.ok && out.data && Object.keys(out.data).length) return { data: out.data };
       if (!out.ok) throw new Error(`Code run failed (${out.status})`);
+      return { data: out.data };
+    },
+
+    async sandboxExec(toolInput) {
+      const out = await postJson("/platform/sandbox/exec", toolInput || {});
+      if (!out.ok && out.data && Object.keys(out.data).length) return { data: out.data };
+      if (!out.ok) throw new Error(`Sandbox exec failed (${out.status})`);
+      return { data: out.data };
+    },
+
+    async ragRetrieve(toolInput) {
+      const out = await postJson("/platform/rag/retrieve", toolInput || {});
+      if (!out.ok && out.data && Object.keys(out.data).length) return { data: out.data };
+      if (!out.ok) throw new Error(`RAG retrieve failed (${out.status})`);
+      return { data: out.data };
+    },
+
+    async ragTrace(toolInput) {
+      const out = await postJson("/platform/rag/trace", toolInput || {});
+      if (!out.ok && out.data && Object.keys(out.data).length) return { data: out.data };
+      if (!out.ok) throw new Error(`RAG trace failed (${out.status})`);
       return { data: out.data };
     },
   };

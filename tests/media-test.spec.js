@@ -362,7 +362,7 @@ async function testAudioTranscriptionEndpoint() {
 
   try {
     // Test the endpoint exists with a properly formed request
-    const res = await fetch("http://localhost:9471/v1/audio/transcriptions", {
+    const res = await fetch("http://localhost:9471/platform/audio/transcriptions", {
       method: "POST",
       headers: { "Content-Type": "audio/wav" },
       body: wavBuf,

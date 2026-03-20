@@ -279,7 +279,7 @@ class TraceCollector {
             error: trace.error || '',
           });
         }
-      }).catch(() => {});
+      }).catch(e => this.log('warn', 'pb_write_failed', { component: 'trace-collector', collection: 'traces', traceId, error: e.message }));
     }
 
     this._active.delete(traceId);

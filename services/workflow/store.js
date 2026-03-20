@@ -172,8 +172,8 @@ class WorkflowStore {
       // Delete from PocketBase (async, non-blocking)
       if (this._pbStore) {
         this._pbStore.findOne("workflows", `id='${pbEscape(sanitized)}'`).then((rec) => {
-          if (rec) this._pbStore.delete("workflows", rec.id).catch(() => {});
-        }).catch(() => {});
+          if (rec) this._pbStore.delete("workflows", rec.id).catch(e => console.error(`[workflow-store] pb_write_failed action=delete collection=workflows id=${rec.id} error=${e.message}`));
+        }).catch(e => console.error(`[workflow-store] pb_write_failed action=find_for_delete collection=workflows error=${e.message}`));
       }
 
       return true;
@@ -222,7 +222,7 @@ class WorkflowStore {
         "workflow_executions",
         `workflow_id='${pbEscape(execution.workflowId)}' && id='${pbEscape(sanitized)}'`,
         pbData,
-      ).catch(() => {});
+      ).catch(e => console.error(`[workflow-store] pb_write_failed collection=workflow_executions executionId=${sanitized} error=${e.message}`));
     }
   }
 
@@ -328,7 +328,7 @@ class WorkflowStore {
     // We still write it for faster cold starts on large stores.
     const indexPath = path.join(this.dataDir, "_index.json");
     const entries = Array.from(this._index.values());
-    await atomicWrite(indexPath, entries).catch(() => {});
+    await atomicWrite(indexPath, entries).catch(e => console.error(`[workflow-store] index_flush_failed error=${e.message}`));
     this._indexDirty = false;
   }
 }

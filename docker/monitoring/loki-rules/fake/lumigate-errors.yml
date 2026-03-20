@@ -57,6 +57,102 @@ groups:
           description: "LumiChat 客户端文件上传失败，用户无法发送附件。"
           suggested_fix: "检查服务端 /platform/parse 接口是否正常，确认文件大小未超过 10MB 限制，查看 file-parser 服务状态。"
 
+      # --- New: PB write failures ---
+      - alert: PBWriteFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "pb_write_failed" [5m])) > 3
+        for: 1m
+        labels:
+          severity: critical
+          component: pocketbase
+        annotations:
+          summary: "PocketBase 写入失败"
+          description: "5分钟内超过3次PB写入失败，可能PB服务宕机或磁盘满。"
+          suggested_fix: "检查PB容器状态: docker logs lumigate-pb --tail 20; docker compose restart pocketbase"
+
+      # --- New: RAG retrieval failures ---
+      - alert: RAGRetrievalFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "rag_retrieval_failed" [5m])) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "RAG 检索失败"
+          description: "Qdrant/RAGFlow 检索异常，知识库查询功能受影响。"
+          suggested_fix: "检查Qdrant容器: docker logs lumigate-qdrant --tail 20; 确认Qdrant端口6333可达"
+
+      # --- New: Embedding failures ---
+      - alert: EmbeddingFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "embedding_failed" [5m])) > 3
+        for: 1m
+        labels:
+          severity: warning
+          component: embedding
+        annotations:
+          summary: "Embedding 生成失败"
+          description: "文本向量化失败，RAG检索和记忆功能受影响。"
+          suggested_fix: "检查embedding模型服务是否正常，确认Ollama或OpenAI embedding API可达"
+
+      # --- New: Memory ingest failures ---
+      - alert: MemoryIngestFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "user_memory_ingest_failed" [5m])) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "用户记忆写入失败"
+          description: "长期记忆提取或存储失败，用户个性化功能受影响。"
+          suggested_fix: "检查Qdrant和PB服务状态，确认embedding模型正常"
+
+      # --- New: Frontend error spike ---
+      - alert: FrontendErrorSpike
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"component\":\"lumichat-client\"" |= "\"level\":\"error\"" [5m])) > 10
+        for: 1m
+        labels:
+          severity: warning
+          component: frontend
+        annotations:
+          summary: "前端错误激增"
+          description: "LumiChat 客户端在5分钟内报告超过10次错误，用户体验可能严重受损。"
+          suggested_fix: "查看客户端日志: docker logs lumigate --tail 200 | grep lumichat-client; 检查是否有JS错误或网络问题"
+
+      # --- New: Tool execution failures ---
+      - alert: ToolExecutionFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "tool_execution_failed" [5m])) > 3
+        for: 1m
+        labels:
+          severity: warning
+          component: tools
+        annotations:
+          summary: "工具执行失败"
+          description: "AI工具调用执行失败超过3次，可能影响文件生成、代码执行等功能。"
+          suggested_fix: "检查工具依赖服务: file-parser, whisper, sandbox容器是否正常运行"
+
+      # --- New: Client window errors ---
+      - alert: ClientWindowError
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"msg\":\"window_error\"" [5m])) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: frontend
+        annotations:
+          summary: "前端 JS 异常"
+          description: "LumiChat 浏览器端出现未捕获的JavaScript异常。"
+          suggested_fix: "查看日志中 window_error 条目的 source/line/column 定位问题"
+
+      # --- New: Unhandled promise rejections from client ---
+      - alert: ClientUnhandledRejection
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"msg\":\"unhandled_rejection\"" [5m])) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: frontend
+        annotations:
+          summary: "前端 Promise 未处理拒绝"
+          description: "LumiChat 浏览器端出现未处理的Promise rejection。"
+          suggested_fix: "查看日志中 unhandled_rejection 条目的 reason 字段定位问题"
+
   - name: lumigate-infrastructure
     interval: 30s
     rules:
@@ -135,3 +231,15 @@ groups:
           summary: "HTTP 5xx 错误率飙升"
           description: "Nginx 过去 3 分钟内 5xx 响应占比超过 5%，用户请求大面积失败。"
           suggested_fix: "检查 LumiGate 后端是否正常响应，查看 nginx 错误日志，确认上游服务健康状态。"
+
+      # --- New: Alert webhook delivery failures ---
+      - alert: AlertWebhookFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "alert_webhook_failed" [5m])) > 3
+        for: 1m
+        labels:
+          severity: warning
+          component: alerts
+        annotations:
+          summary: "告警 Webhook 发送失败"
+          description: "告警通知无法送达，可能导致后续故障无法及时发现。"
+          suggested_fix: "检查 ALERT_WEBHOOK_URL 环境变量是否正确，目标服务是否可达"

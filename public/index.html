@@ -48,6 +48,12 @@
     white-space: nowrap;
   }
   .header-chat:hover { background: rgba(0,122,255,0.15); }
+  .header-lang {
+    height: 32px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(255,255,255,0.75); color: rgba(0,0,0,0.62);
+    font-size: 12px; font-weight: 600; padding: 0 10px; cursor: pointer;
+    font-family: inherit;
+  }
 
   /* Main Tabs */
   .main-tabs {
@@ -516,30 +522,34 @@
     <span class="header-badge on" id="hBadge">Online</span>
     <span class="header-uptime" id="hUptime"></span>
     <div class="header-spacer"></div>
-    <a href="/chat" class="header-chat">Start Chat</a>
+    <select id="admin-lang-switch" class="header-lang" title="Language">
+      <option value="en">EN</option>
+      <option value="zh">中文</option>
+    </select>
+    <a href="/chat" class="header-chat" data-i18n="start_chat">Start Chat</a>
   </div>
 
   <div class="main-tabs">
-    <button class="main-tab active" data-tab="overview"><span class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span> Overview</button>
-    <button class="main-tab" data-tab="providers"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span> Providers</button>
-    <button class="main-tab" data-tab="projects"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span> Projects</button>
-    <button class="main-tab" data-tab="usage"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span> Usage</button>
-    <button class="main-tab" data-tab="users" id="usersTabBtn" style="display:none"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Users<span class="notif-dot" id="usersNotifDot"></span></button>
-    <button class="main-tab" data-tab="settings" id="settingsTabBtn" style="display:none"><span class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span> Settings</button>
+    <button class="main-tab active" data-tab="overview"><span class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span data-i18n="tab_overview">Overview</span></button>
+    <button class="main-tab" data-tab="providers"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span><span data-i18n="tab_providers">Providers</span></button>
+    <button class="main-tab" data-tab="projects"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span><span data-i18n="tab_projects">Projects</span></button>
+    <button class="main-tab" data-tab="usage"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span><span data-i18n="tab_usage">Usage</span></button>
+    <button class="main-tab" data-tab="users" id="usersTabBtn" style="display:none"><span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span data-i18n="tab_users">Users</span><span class="notif-dot" id="usersNotifDot"></span></button>
+    <button class="main-tab" data-tab="settings" id="settingsTabBtn" style="display:none"><span class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span><span data-i18n="tab_settings">Settings</span></button>
   </div>
 
   <!-- Overview Tab -->
   <div class="tab-content active" id="tab-overview">
     <div class="stats">
-      <div class="stat"><div class="label">Status</div><div class="val green" id="sStatus">--</div></div>
-      <div class="stat"><div class="label">Providers</div><div class="val" id="sCount">--</div></div>
-      <div class="stat"><div class="label">Total Requests</div><div class="val" id="sTotalReqs">--</div></div>
+      <div class="stat"><div class="label" data-i18n="stat_status">Status</div><div class="val green" id="sStatus">--</div></div>
+      <div class="stat"><div class="label" data-i18n="stat_providers">Providers</div><div class="val" id="sCount">--</div></div>
+      <div class="stat"><div class="label" data-i18n="stat_total_requests">Total Requests</div><div class="val" id="sTotalReqs">--</div></div>
     </div>
     <div class="prov-grid" id="provGrid"></div>
     <div class="glass">
       <div class="activity-card">
-        <div class="activity-title">Recent Activity</div>
-        <div id="activityList"><div class="activity-empty">Loading...</div></div>
+        <div class="activity-title" data-i18n="recent_activity">Recent Activity</div>
+        <div id="activityList"><div class="activity-empty" data-i18n="loading">Loading...</div></div>
       </div>
     </div>
   </div>
@@ -549,7 +559,7 @@
     <div class="glass">
       <div class="prov-tabs" id="provTabs"></div>
       <div class="prov-panel" id="provPanel">
-        <div style="padding:20px;color:rgba(0,0,0,0.3);text-align:center;font-size:13px">Loading...</div>
+        <div style="padding:20px;color:rgba(0,0,0,0.3);text-align:center;font-size:13px" data-i18n="loading">Loading...</div>
       </div>
     </div>
   </div>
@@ -558,11 +568,11 @@
   <div class="tab-content" id="tab-projects">
     <div class="glass">
       <div class="card-head">
-        <h2>Project Keys</h2>
-        <button class="btn sm pri" onclick="openProjM()" id="addProjBtn">+ Project</button>
+        <h2 data-i18n="project_keys">Project Keys</h2>
+        <button class="btn sm pri" onclick="openProjM()" id="addProjBtn" data-i18n="add_project">+ Project</button>
       </div>
       <div class="proj-list" id="projList">
-        <div class="proj-empty">Loading...</div>
+        <div class="proj-empty" data-i18n="loading">Loading...</div>
       </div>
     </div>
   </div>
@@ -822,6 +832,60 @@
                 <label class="switch"><input type="checkbox" id="lcSoftDeleteEnabled"><span class="slider"></span></label>
                 <span style="font-size:13px;color:rgba(0,0,0,0.6)">Enable soft delete + trash restore</span>
               </div>
+            </div>
+          </div>
+          <div style="border-top:1px solid rgba(0,0,0,0.06);margin:16px 0 12px"></div>
+          <div style="font-size:12px;color:rgba(0,0,0,0.45);margin-bottom:10px">LumiChat File Sandbox Policy (root only)</div>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lcFileSandboxUploadEnabled" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Upload Sandbox</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lcFileSandboxUploadTrustedBypass" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Trusted Upload Bypass</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lcFileSandboxDownloadEnabled" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Download Sandbox</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lcFileSandboxRequireConsent" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Download Consent Token</span>
+            </div>
+          </div>
+          <div class="fg" style="margin-top:10px">
+            <label>Trusted LumiChat User IDs (comma/newline separated)</label>
+            <textarea id="lcFileSandboxTrustedUsers" rows="3" placeholder="user_id_1,user_id_2"></textarea>
+          </div>
+          <div style="border-top:1px solid rgba(0,0,0,0.06);margin:16px 0 12px"></div>
+          <div style="font-size:12px;color:rgba(0,0,0,0.45);margin-bottom:10px">Lumigent Micro-Computer Sandbox (LLM CLI/Python Tool)</div>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lumigentSandboxEnabled" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Enable sandbox_exec</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lumigentSandboxNetworkDefaultEnabled" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Network default ON</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lumigentSandboxNetworkForceDisabled"><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Force network OFF</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="switch"><input type="checkbox" id="lumigentSandboxLocalFallbackEnabled" checked><span class="slider"></span></label>
+              <span style="font-size:13px;color:rgba(0,0,0,0.6)">Enable local fallback engine</span>
+            </div>
+          </div>
+          <div class="fg-row" style="margin-top:10px">
+            <div class="fg">
+              <label>Sandbox Docker Image</label>
+              <input id="lumigentSandboxImage" placeholder="python:3.12-alpine">
+            </div>
+            <div class="fg">
+              <label>Allowed CLI Commands (comma/newline)</label>
+              <textarea id="lumigentSandboxCommandAllowlist" rows="3" placeholder="python,python3,pip,node,npm,ls,cat,grep,rg"></textarea>
             </div>
           </div>
         </div>
@@ -1146,6 +1210,70 @@ let cachedUsageSummary = null;
 let cachedUsageDetail = null;
 let collectorStatus = {}; // { providers: { deepseek: { accessMode, collectorSupported, hasToken, keyUrl }, ... }, credentialFields: {...} }
 let projectsList = [];
+let adminLang = localStorage.getItem('lg_admin_lang') || 'en';
+
+const ADMIN_I18N = {
+  en: {
+    start_chat: 'Start Chat',
+    tab_overview: 'Overview',
+    tab_providers: 'Providers',
+    tab_projects: 'Projects',
+    tab_usage: 'Usage',
+    tab_users: 'Users',
+    tab_settings: 'Settings',
+    stat_status: 'Status',
+    stat_providers: 'Providers',
+    stat_total_requests: 'Total Requests',
+    recent_activity: 'Recent Activity',
+    project_keys: 'Project Keys',
+    add_project: '+ Project',
+    loading: 'Loading...',
+    online: 'Online',
+    offline: 'Offline',
+  },
+  zh: {
+    start_chat: '进入聊天',
+    tab_overview: '总览',
+    tab_providers: '模型服务',
+    tab_projects: '项目',
+    tab_usage: '用量',
+    tab_users: '用户',
+    tab_settings: '设置',
+    stat_status: '状态',
+    stat_providers: '服务商',
+    stat_total_requests: '总请求数',
+    recent_activity: '最近活动',
+    project_keys: '项目密钥',
+    add_project: '+ 新建项目',
+    loading: '加载中...',
+    online: '在线',
+    offline: '离线',
+  }
+};
+
+function ta(key){
+  return ADMIN_I18N[adminLang]?.[key] || ADMIN_I18N.en[key] || key;
+}
+
+function applyAdminI18n(){
+  document.documentElement.lang = adminLang === 'zh' ? 'zh' : 'en';
+  const sw = document.getElementById('admin-lang-switch');
+  if (sw) sw.value = adminLang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (k) el.textContent = ta(k);
+  });
+  const hb = document.getElementById('hBadge');
+  if (hb) {
+    const isOnline = hb.classList.contains('on');
+    hb.textContent = isOnline ? ta('online') : ta('offline');
+  }
+  const ss = document.getElementById('sStatus');
+  if (ss) {
+    const isOnline = ss.classList.contains('green');
+    ss.textContent = isOnline ? ta('online') : ta('offline');
+  }
+}
 
 function esc(s) {
   const d = document.createElement('div');
@@ -1233,6 +1361,17 @@ async function loadSystemSettings() {
     document.getElementById('toolInjectionEnabled').checked = d.toolInjectionEnabled !== false;
     document.getElementById('attachmentSearchMode').value = d.attachmentSearchMode || 'assistant_decide';
     document.getElementById('lcSoftDeleteEnabled').checked = !!d.lcSoftDeleteEnabled;
+    document.getElementById('lcFileSandboxUploadEnabled').checked = d.lcFileSandboxUploadEnabled !== false;
+    document.getElementById('lcFileSandboxUploadTrustedBypass').checked = d.lcFileSandboxUploadTrustedBypass !== false;
+    document.getElementById('lcFileSandboxDownloadEnabled').checked = d.lcFileSandboxDownloadEnabled !== false;
+    document.getElementById('lcFileSandboxRequireConsent').checked = d.lcFileSandboxRequireConsent !== false;
+    document.getElementById('lcFileSandboxTrustedUsers').value = (d.lcFileSandboxTrustedUsers || []).join('\n');
+    document.getElementById('lumigentSandboxEnabled').checked = d.lumigentSandboxEnabled !== false;
+    document.getElementById('lumigentSandboxImage').value = d.lumigentSandboxImage || 'python:3.12-alpine';
+    document.getElementById('lumigentSandboxCommandAllowlist').value = (d.lumigentSandboxCommandAllowlist || []).join('\n');
+    document.getElementById('lumigentSandboxNetworkDefaultEnabled').checked = d.lumigentSandboxNetworkDefaultEnabled !== false;
+    document.getElementById('lumigentSandboxNetworkForceDisabled').checked = d.lumigentSandboxNetworkForceDisabled === true;
+    document.getElementById('lumigentSandboxLocalFallbackEnabled').checked = d.lumigentSandboxLocalFallbackEnabled !== false;
     // Info
     {
       const infoEl = document.getElementById('settingsInfo');
@@ -1443,6 +1582,17 @@ async function saveSystemSettings() {
     toolInjectionEnabled: document.getElementById('toolInjectionEnabled').checked,
     attachmentSearchMode: document.getElementById('attachmentSearchMode').value,
     lcSoftDeleteEnabled: document.getElementById('lcSoftDeleteEnabled').checked,
+    lcFileSandboxUploadEnabled: document.getElementById('lcFileSandboxUploadEnabled').checked,
+    lcFileSandboxUploadTrustedBypass: document.getElementById('lcFileSandboxUploadTrustedBypass').checked,
+    lcFileSandboxDownloadEnabled: document.getElementById('lcFileSandboxDownloadEnabled').checked,
+    lcFileSandboxRequireConsent: document.getElementById('lcFileSandboxRequireConsent').checked,
+    lcFileSandboxTrustedUsers: document.getElementById('lcFileSandboxTrustedUsers').value,
+    lumigentSandboxEnabled: document.getElementById('lumigentSandboxEnabled').checked,
+    lumigentSandboxImage: document.getElementById('lumigentSandboxImage').value.trim(),
+    lumigentSandboxCommandAllowlist: document.getElementById('lumigentSandboxCommandAllowlist').value,
+    lumigentSandboxNetworkDefaultEnabled: document.getElementById('lumigentSandboxNetworkDefaultEnabled').checked,
+    lumigentSandboxNetworkForceDisabled: document.getElementById('lumigentSandboxNetworkForceDisabled').checked,
+    lumigentSandboxLocalFallbackEnabled: document.getElementById('lumigentSandboxLocalFallbackEnabled').checked,
   };
   try {
     const d = await fetch(B + '/admin/settings', {
@@ -1896,11 +2046,11 @@ async function load() {
 
     const isOk = h.status === 'ok';
     const badge = document.getElementById('hBadge');
-    badge.textContent = isOk ? 'Online' : 'Offline';
+    badge.textContent = isOk ? ta('online') : ta('offline');
     badge.className = 'header-badge ' + (isOk ? 'on' : 'off');
 
     const s = document.getElementById('sStatus');
-    s.textContent = isOk ? 'Online' : 'Offline';
+    s.textContent = isOk ? ta('online') : ta('offline');
     s.className = 'val ' + (isOk ? 'green' : 'red');
 
     const a = p.filter(x => x.available).length;
@@ -1924,9 +2074,9 @@ async function load() {
     }
     switchProv(activeProv);
   } catch {
-    document.getElementById('sStatus').textContent = 'Offline';
+    document.getElementById('sStatus').textContent = ta('offline');
     document.getElementById('sStatus').className = 'val red';
-    document.getElementById('hBadge').textContent = 'Offline';
+    document.getElementById('hBadge').textContent = ta('offline');
     document.getElementById('hBadge').className = 'header-badge off';
   }
 }
@@ -3714,6 +3864,18 @@ document.getElementById('editSmartCandidates').addEventListener('click', e => {
 document.getElementById('userProjectChips').addEventListener('click', e => {
   e.target.closest('.model-chip')?.classList.toggle('sel');
 });
+
+const adminLangSwitch = document.getElementById('admin-lang-switch');
+if (adminLangSwitch) {
+  adminLangSwitch.value = adminLang;
+  adminLangSwitch.addEventListener('change', e => {
+    adminLang = e.target.value === 'zh' ? 'zh' : 'en';
+    localStorage.setItem('lg_admin_lang', adminLang);
+    applyAdminI18n();
+    load();
+  });
+}
+applyAdminI18n();
 
 setInterval(load, 30000);
 setInterval(() => {

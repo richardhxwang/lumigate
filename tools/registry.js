@@ -55,6 +55,6 @@ class ToolRegistry {
 
 const registry = new ToolRegistry();
 // Pre-warm on import
-registry.refresh().catch(() => {});
+registry.refresh().catch(e => console.error(`[tool-registry] refresh_failed error=${e.message}`));
 
 module.exports = { registry, executeToolCall };

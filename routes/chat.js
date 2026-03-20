@@ -1602,7 +1602,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         provider: providerName,
         model: modelId,
         sessionId: req.body?.session_id || "",
-      }).catch(() => {}); // silent — never block or error the response
+      }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
     }
   } catch (err) {
     log("error", "Clean chat proxy error", { provider: providerName, error: err.message });

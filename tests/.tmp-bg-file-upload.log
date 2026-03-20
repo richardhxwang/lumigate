@@ -1,0 +1,92 @@
+[12:40:48] Could not register test account: fetch failed
+[12:40:48] Launching Chromium (headed)...
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+browserType.launch: Target page, context or browser has been closed
+Browser logs:
+
+<launching> /Users/macmini/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --no-sandbox --window-size=1400,900 --user-data-dir=/var/folders/kl/ygchypsd5fj4ly2m31n83c0h0000gn/T/playwright_chromiumdev_profile-BEN6Qd --remote-debugging-pipe --no-startup-window
+<launched> pid=93440
+[pid=93440][err] [0319/204048.842012:ERROR:third_party/crashpad/crashpad/util/mach/bootstrap.cc:65] bootstrap_check_in org.chromium.crashpad.child_port_handshake.93444.172263700.ERGKAIOHZRAXMKTE: Permission denied (1100)
+[pid=93440][err] [0319/204048.842884:ERROR:third_party/crashpad/crashpad/util/file/file_io.cc:103] ReadExactly: expected 4, observed 0
+[pid=93440][err] [0319/204048.843199:ERROR:third_party/crashpad/crashpad/util/mach/bootstrap.cc:65] bootstrap_check_in org.chromium.crashpad.child_port_handshake.93442.172263698.WFUHGEFLLIXCMIBL: Permission denied (1100)
+[pid=93440][err] [0319/204048.843346:ERROR:third_party/crashpad/crashpad/util/file/file_io.cc:103] ReadExactly: expected 4, observed 0
+[pid=93440][err] [0319/204048.843608:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:208] open /Users/macmini/Library/Application Support/Google/Chrome for Testing/Crashpad/settings.dat: Operation not permitted (1)
+[pid=93440][err] [0319/204048.843684:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:208] open /Users/macmini/Library/Application Support/Google/Chrome for Testing/Crashpad/settings.dat: Operation not permitted (1)
+[pid=93440][err] Received signal 6
+[pid=93440][err]  [0x000119ac8c74]
+[pid=93440][err]  [0x000119accbdc]
+[pid=93440][err]  [0x000193e63744]
+[pid=93440][err]  [0x000193e59888]
+[pid=93440][err]  [0x000193d5e850]
+[pid=93440][err]  [0x00019b504e40]
+[pid=93440][err]  [0x000193cb6ad4]
+[pid=93440][err]  [0x000193c9fa60]
+[pid=93440][err]  [0x00019b4d78cc]
+[pid=93440][err]  [0x00019b4d76e8]
+[pid=93440][err]  [0x0001992c8e8c]
+[pid=93440][err]  [0x0001992c9b2c]
+[pid=93440][err]  [0x0001992c8bb8]
+[pid=93440][err]  [0x0001992cc058]
+[pid=93440][err]  [0x0001982f2ce0]
+[pid=93440][err]  [0x0001982f0e38]
+[pid=93440][err]  [0x0001982f092c]
+[pid=93440][err]  [0x0001151772e8]
+[pid=93440][err]  [0x000115937010]
+[pid=93440][err]  [0x000115936e04]
+[pid=93440][err]  [0x000114e0db3c]
+[pid=93440][err]  [0x00011439c860]
+[pid=93440][err]  [0x0001129ee2f4]
+[pid=93440][err]  [0x00010098c85c]
+[pid=93440][err]  [0x000193a91d54]
+[pid=93440][err] [end of stack trace]
+Call log:
+[2m  - <launching> /Users/macmini/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --no-sandbox --window-size=1400,900 --user-data-dir=/var/folders/kl/ygchypsd5fj4ly2m31n83c0h0000gn/T/playwright_chromiumdev_profile-BEN6Qd --remote-debugging-pipe --no-startup-window[22m
+[2m  - <launched> pid=93440[22m
+[2m  - [pid=93440][err] [0319/204048.842012:ERROR:third_party/crashpad/crashpad/util/mach/bootstrap.cc:65] bootstrap_check_in org.chromium.crashpad.child_port_handshake.93444.172263700.ERGKAIOHZRAXMKTE: Permission denied (1100)[22m
+[2m  - [pid=93440][err] [0319/204048.842884:ERROR:third_party/crashpad/crashpad/util/file/file_io.cc:103] ReadExactly: expected 4, observed 0[22m
+[2m  - [pid=93440][err] [0319/204048.843199:ERROR:third_party/crashpad/crashpad/util/mach/bootstrap.cc:65] bootstrap_check_in org.chromium.crashpad.child_port_handshake.93442.172263698.WFUHGEFLLIXCMIBL: Permission denied (1100)[22m
+[2m  - [pid=93440][err] [0319/204048.843346:ERROR:third_party/crashpad/crashpad/util/file/file_io.cc:103] ReadExactly: expected 4, observed 0[22m
+[2m  - [pid=93440][err] [0319/204048.843608:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:208] open /Users/macmini/Library/Application Support/Google/Chrome for Testing/Crashpad/settings.dat: Operation not permitted (1)[22m
+[2m  - [pid=93440][err] [0319/204048.843684:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:208] open /Users/macmini/Library/Application Support/Google/Chrome for Testing/Crashpad/settings.dat: Operation not permitted (1)[22m
+[2m  - [pid=93440][err] Received signal 6[22m
+[2m  - [pid=93440][err]  [0x000119ac8c74][22m
+[2m  - [pid=93440][err]  [0x000119accbdc][22m
+[2m  - [pid=93440][err]  [0x000193e63744][22m
+[2m  - [pid=93440][err]  [0x000193e59888][22m
+[2m  - [pid=93440][err]  [0x000193d5e850][22m
+[2m  - [pid=93440][err]  [0x00019b504e40][22m
+[2m  - [pid=93440][err]  [0x000193cb6ad4][22m
+[2m  - [pid=93440][err]  [0x000193c9fa60][22m
+[2m  - [pid=93440][err]  [0x00019b4d78cc][22m
+[2m  - [pid=93440][err]  [0x00019b4d76e8][22m
+[2m  - [pid=93440][err]  [0x0001992c8e8c][22m
+[2m  - [pid=93440][err]  [0x0001992c9b2c][22m
+[2m  - [pid=93440][err]  [0x0001992c8bb8][22m
+[2m  - [pid=93440][err]  [0x0001992cc058][22m
+[2m  - [pid=93440][err]  [0x0001982f2ce0][22m
+[2m  - [pid=93440][err]  [0x0001982f0e38][22m
+[2m  - [pid=93440][err]  [0x0001982f092c][22m
+[2m  - [pid=93440][err]  [0x0001151772e8][22m
+[2m  - [pid=93440][err]  [0x000115937010][22m
+[2m  - [pid=93440][err]  [0x000115936e04][22m
+[2m  - [pid=93440][err]  [0x000114e0db3c][22m
+[2m  - [pid=93440][err]  [0x00011439c860][22m
+[2m  - [pid=93440][err]  [0x0001129ee2f4][22m
+[2m  - [pid=93440][err]  [0x00010098c85c][22m
+[2m  - [pid=93440][err]  [0x000193a91d54][22m
+[2m  - [pid=93440][err] [end of stack trace][22m
+[2m  - [pid=93440] <gracefully close start>[22m
+[2m  - [pid=93440] <kill>[22m
+[2m  - [pid=93440] <will force kill>[22m
+[2m  - [pid=93440] exception while trying to kill process: Error: kill EPERM[22m
+[2m  - [pid=93440] <process did exit: exitCode=null, signal=SIGABRT>[22m
+[2m  - [pid=93440] starting temporary directories cleanup[22m
+[2m  - [pid=93440] finished temporary directories cleanup[22m
+[2m  - [pid=93440] <gracefully close end>[22m
+
+    at /Volumes/SSD Acer M7000/MacMini-Data/Projects/Project/General/ai-api-proxy/tests/file-upload.spec.js:329:34
+
+Node.js v22.16.0

@@ -4,7 +4,8 @@
   "description": "LumiGate — Self-hosted multi-provider AI API gateway",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "logs:errors": "node scripts/error_log_summary.js --since-minutes 180 --only-errors"
   },
   "dependencies": {
     "cors": "^2.8.5",

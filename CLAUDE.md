@@ -56,11 +56,11 @@ curl http://localhost:9471/health
 
 ## Agent Platform API endpoints
 - `POST /v1/chat` — **Clean Chat Proxy**（推荐所有 App 使用）
-- `POST /v1/parse` — Upload file (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) → extracted text
-- `POST /v1/audio/transcribe` — Upload audio → text (whisper.cpp)
-- `POST /v1/audio/transcriptions` — OpenAI-compatible transcription
-- `POST /v1/vision/analyze` — Upload image → description (Ollama vision model)
-- `POST /v1/code/run` — Execute code in Docker sandbox (Python/JS/Shell)
+- `POST /platform/parse` — Upload file (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) → extracted text
+- `POST /platform/audio/transcribe` — Upload audio → text (whisper.cpp)
+- `POST /platform/audio/transcriptions` — OpenAI-compatible transcription
+- `POST /platform/vision/analyze` — Upload image → description (Ollama vision model)
+- `POST /platform/code/run` — Execute code in Docker sandbox (Python/JS/Shell)
 - Tool execution: AI `tool_use` responses → unified registry → auto-execute + return results
 
 ## Security pipeline

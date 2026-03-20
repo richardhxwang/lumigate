@@ -60,9 +60,9 @@ function writeSecurityEvent(pbUrl, record) {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(record),
-      }).catch(() => {});
+      }).catch(e => console.error(`[security-middleware] pb_write_failed collection=security_events type=${record.type || 'unknown'} error=${e.message}`));
     })
-    .catch(() => {});
+    .catch(e => console.error(`[security-middleware] pb_write_failed reason=no_token error=${e.message}`));
 }
 
 /** Route patterns that should be scanned. */

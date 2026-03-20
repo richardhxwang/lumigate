@@ -7,6 +7,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc websockify \
     fonts-wqy-zenhei fonts-noto-cjk \
     procps curl ca-certificates \
+    python3 python3-pip \
+    gnupg \
+    git jq ripgrep \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Docker CLI (newer API than Debian docker.io) for sandbox docker-exec
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Node.js 20 (official nodesource)
@@ -28,7 +40,16 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+RUN set -eux; \
+    i=0; \
+    until [ "$i" -ge 3 ]; do \
+      npm ci --omit=dev --no-audit --no-fund && break; \
+      i=$((i+1)); \
+      echo "npm ci failed, retry $i/3"; \
+      sleep 5; \
+    done; \
+    [ "$i" -lt 3 ]; \
+    npm cache clean --force
 
 COPY server.js ./
 COPY public ./public
@@ -39,6 +60,7 @@ COPY tools ./tools
 COPY routes ./routes
 COPY middleware ./middleware
 COPY templates ./templates
+COPY services ./services
 
 RUN mkdir -p /app/data && chown -R chrome:chrome /app/data
 

@@ -22,6 +22,9 @@
   - Decide: keep LumiChat in default DB intentionally, or move to `/api/p/{project}` and add `lumichat` project config/migrations.
 - [ ] Reduce host coupling.
   - Replace fragile `host.docker.internal` dependency with explicit internal routing/network strategy for deployment portability.
+- [ ] Re-enable Telegram alert delivery after observability baseline is stable.
+  - Keep current Loki/Promtail/Alertmanager local capture as primary.
+  - Then wire bot token/chat id from 1Password and run a live delivery test.
 
 ## P2 - Security hygiene
 

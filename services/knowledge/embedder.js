@@ -88,13 +88,24 @@ class Embedder {
   async embed(texts) {
     if (!texts || texts.length === 0) return [];
 
-    const results = [];
-    for (let i = 0; i < texts.length; i += this.batchSize) {
-      const batch = texts.slice(i, i + this.batchSize);
-      const vectors = await this._embedBatch(batch);
-      results.push(...vectors);
+    try {
+      const results = [];
+      for (let i = 0; i < texts.length; i += this.batchSize) {
+        const batch = texts.slice(i, i + this.batchSize);
+        const vectors = await this._embedBatch(batch);
+        results.push(...vectors);
+      }
+      return results;
+    } catch (err) {
+      this.log("error", "embedding_failed", {
+        component: "embedding",
+        provider: this.provider,
+        model: this.model,
+        textCount: texts.length,
+        error: err.message,
+      });
+      throw err;
     }
-    return results;
   }
 
   /**

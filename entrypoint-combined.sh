@@ -66,6 +66,7 @@ echo "Chrome ready on 127.0.0.1:9223"
 # ── Node.js (LumiGate server) ──
 export CDP_HOST=127.0.0.1
 export CDP_PORT=9223
+NODE_MAX_OLD_SPACE_MB=${NODE_MAX_OLD_SPACE_MB:-768}
 
 cd /app
-exec node --max-old-space-size=256 server.js >>/app/data/logs/runtime/server.log 2>&1
+exec node --max-old-space-size="${NODE_MAX_OLD_SPACE_MB}" server.js >>/app/data/logs/runtime/server.log 2>&1

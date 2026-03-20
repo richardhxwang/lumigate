@@ -65,7 +65,7 @@ module.exports = function createProxyRouter(deps) {
     _collector,
   } = deps;
 
-  const router = express.Router();
+  const router = express.Router({ mergeParams: true });
 
   router.use("/", apiLimiter, async (req, res, next) => {
     // Identify project: internal chat key, admin session, project key, or reject
@@ -424,8 +424,8 @@ module.exports = function createProxyRouter(deps) {
                 session_id: sessionId || "",
                 ip_address: req.ip,
               }),
-            }).catch(() => {});
-          }).catch(() => {});
+            }).catch(e => log("warn", "pb_write_failed", { component: "proxy", collection: "security_events", error: e.message }));
+          }).catch(e => log("warn", "pb_write_failed", { component: "proxy", collection: "security_events", reason: "no_token", error: e.message }));
         }
       }
     }

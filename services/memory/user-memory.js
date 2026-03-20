@@ -524,7 +524,7 @@ class UserMemory {
       // Also delete from PB
       for (const p of toDelete) {
         if (p.payload?.pb_id) {
-          this.pbStore.delete(PB_MEMORIES_COLLECTION, p.payload.pb_id).catch(() => {});
+          this.pbStore.delete(PB_MEMORIES_COLLECTION, p.payload.pb_id).catch(e => this.log("warn", "pb_write_failed", { component: "user-memory", collection: PB_MEMORIES_COLLECTION, action: "prune_delete", pbId: p.payload.pb_id, error: e.message }));
         }
       }
 

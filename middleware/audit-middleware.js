@@ -54,9 +54,9 @@ function writeAuditLog(pbUrl, record) {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(record),
-      }).catch(() => {});
+      }).catch(e => console.error(`[audit-middleware] pb_write_failed collection=audit_log event=${record.event_type || 'unknown'} error=${e.message}`));
     })
-    .catch(() => {});
+    .catch(e => console.error(`[audit-middleware] pb_write_failed reason=no_token error=${e.message}`));
 }
 
 // ---------------------------------------------------------------------------

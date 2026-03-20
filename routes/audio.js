@@ -77,7 +77,7 @@ async function forwardToWhisper(buffer, filename, contentType) {
   const endpointCandidates = Array.from(new Set([
     configuredEndpoint,
     "/asr",
-    "/v1/audio/transcriptions",
+    "/platform/audio/transcriptions",
     "/inference",
   ]));
 
@@ -107,7 +107,7 @@ async function forwardToWhisper(buffer, filename, contentType) {
 
 const router = Router();
 
-// POST /transcribe  (mounted at /v1/audio → /v1/audio/transcribe)
+// POST /transcribe  (mounted at /platform/audio → /platform/audio/transcribe)
 router.post("/transcribe", upload.single("file"), async (req, res) => {
   const start = Date.now();
   try {
@@ -134,7 +134,7 @@ router.post("/transcribe", upload.single("file"), async (req, res) => {
   }
 });
 
-// POST /transcriptions  (OpenAI-compatible: /v1/audio/transcriptions)
+// POST /transcriptions  (OpenAI-compatible: /platform/audio/transcriptions)
 router.post("/transcriptions", upload.single("file"), async (req, res) => {
   const start = Date.now();
   try {

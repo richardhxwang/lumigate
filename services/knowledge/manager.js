@@ -275,8 +275,8 @@ class KnowledgeBaseManager {
     // Delete from PocketBase (async, non-blocking)
     if (this._pbStore) {
       this._pbStore.findOne("knowledge_bases", `name='${pbEscape(meta.name)}'`).then((rec) => {
-        if (rec) this._pbStore.delete("knowledge_bases", rec.id).catch(() => {});
-      }).catch(() => {});
+        if (rec) this._pbStore.delete("knowledge_bases", rec.id).catch(e => this.log("warn", "pb_write_failed", { component: "knowledge", collection: "knowledge_bases", action: "delete", kbId, error: e.message }));
+      }).catch(e => this.log("warn", "pb_write_failed", { component: "knowledge", collection: "knowledge_bases", action: "find_for_delete", kbId, error: e.message }));
     }
 
     this.log("info", "kb_deleted", { component: "knowledge", kbId, name: meta.name });
@@ -373,7 +373,7 @@ class KnowledgeBaseManager {
             document_count: meta.documents.length,
           });
         }
-      }).catch(() => {});
+      }).catch(e => this.log("warn", "pb_write_failed", { component: "knowledge", collection: "knowledge_bases", action: "update_doc_count", kbId, error: e.message }));
     }
 
     this.log("info", "kb_document_added", {
@@ -761,7 +761,7 @@ class KnowledgeBaseManager {
     const perKbLimit = Math.max(limit, Math.ceil(limit * 1.5 / kbIds.length));
     const promises = kbIds.map((id) =>
       this.retrieve(id, query, { ...opts, limit: perKbLimit }).catch((err) => {
-        this.log("warn", "kb_retrieve_error", {
+        this.log("warn", "rag_retrieval_failed", {
           component: "knowledge",
           kbId: id,
           error: err.message,

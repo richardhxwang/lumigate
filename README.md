@@ -21,6 +21,45 @@ First-time PocketBase bootstrap:
 2. Create the first superuser.
 3. Put the same credentials into `.env` as `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` (required for admin-tier and subscription actions in LumiGate).
 
+## Auto Error Detection (Loki + Promtail + Alertmanager)
+
+Enable optional observability stack:
+
+```bash
+docker compose --profile observability up -d loki promtail alertmanager
+```
+
+Endpoints:
+- Loki API: `http://127.0.0.1:19410`
+- Alertmanager UI/API: `http://127.0.0.1:19093`
+
+Preloaded log alert rules:
+- `network error`
+- `Bad request to AI provider`
+- `未能从当前链接提取可读内容`
+
+Telegram bot push (optional):
+1. Add to `.env`:
+   - `ALERT_TELEGRAM_BOT_TOKEN=...`
+   - `ALERT_TELEGRAM_CHAT_ID=...`
+2. Restart Alertmanager:
+
+```bash
+docker compose --profile observability restart alertmanager
+```
+
+Watch firing alerts from terminal:
+
+```bash
+./scripts/watch_alerts.sh
+```
+
+One-command error aggregation report (grouped by session/provider/model/error type):
+
+```bash
+npm run logs:errors
+```
+
 ## File Parsing Priority (Excel First)
 
 Current parsing priority and behavior is:
@@ -70,7 +109,7 @@ flowchart LR
       A1["/lc/auth/*"]
       L1["/lc/* data APIs"]
       F1["/lc/files (upload + serve)"]
-      V1["/v1/audio/transcriptions"]
+      V1["/platform/audio/transcriptions"]
       C1["/v1/chat (SSE)"]
       M1["/lc/messages PATCH/POST"]
     end
@@ -142,7 +181,7 @@ This is the current production data flow and trust boundary:
 3. PocketBase is the system of record for LumiChat domain data: users, projects, sessions, messages, files, usage settings.
 4. Ownership checks are enforced in gateway routes before write/read of sensitive records (`assertLcSessionOwned` / `assertRecordOwned`) and mapped to proper client status codes.
 5. File flow: browser uploads multipart file to `POST /lc/files` -> LumiGate streams file to PocketBase `lc_files` -> browser consumes via guarded `GET /lc/files/serve/:id`.
-6. Voice flow: browser records audio with `MediaRecorder` -> uploads as multipart `file` field to `/v1/audio/transcriptions` -> gateway audio route forwards to Whisper service -> transcript is inserted into chat input.
+6. Voice flow: browser records audio with `MediaRecorder` -> uploads as multipart `file` field to `/platform/audio/transcriptions` -> gateway audio route forwards to Whisper service -> transcript is inserted into chat input.
 7. AI flow: UI sends chat to LumiGate (`/v1/chat`) -> provider routing/tool execution/search happens server-side -> SSE stream returns clean text + optional tool/file events.
 
 Security boundaries in this architecture:
@@ -163,7 +202,7 @@ flowchart TB
     AUTH["Auth + Rate Limit + Ownership Check"]
     CHAT["/v1/chat (SSE)"]
     FILE["/lc/files + /lc/files/serve/:id"]
-    AUDIO["/v1/audio/transcriptions"]
+    AUDIO["/platform/audio/transcriptions"]
   end
 
   subgraph Data["Data Layer"]
@@ -314,10 +353,34 @@ Source of truth is `server.js`; list below mirrors current routes.
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/v1/chat` | Unified streaming chat API |
-| POST | `/v1/tools/execute` | Server-side tool execution |
+| POST | `/platform/parse` | File parsing (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) |
+| POST | `/platform/audio/transcribe` | Audio transcription (native path) |
+| POST | `/platform/audio/transcriptions` | OpenAI-compatible transcription |
+| POST | `/platform/vision/analyze` | Vision/image analysis |
+| POST | `/platform/code/run` | Code runtime execution |
+| POST | `/platform/sandbox/exec` | CLI sandbox execution (Lumigent tool) |
+| GET | `/platform/lumigent/tools` | Lumigent tool catalog |
+| GET | `/platform/lumigent/traces` | Lumigent execution traces |
+| POST | `/platform/lumigent/execute` | Lumigent tool execution endpoint |
+| POST | `/platform/tools/execute` | Server-side tool execution |
 | POST | `/v1/token` | Ephemeral token issuance |
 | POST | `/v1/otp/send` | OTP send |
 | POST | `/v1/otp/verify` | OTP verify |
+
+Legacy platform endpoint migration:
+
+| Old Path | New Path |
+|---|---|
+| `/v1/parse` | `/platform/parse` |
+| `/v1/audio/transcribe` | `/platform/audio/transcribe` |
+| `/v1/audio/transcriptions` | `/platform/audio/transcriptions` |
+| `/v1/vision/analyze` | `/platform/vision/analyze` |
+| `/v1/code/run` | `/platform/code/run` |
+| `/v1/sandbox/exec` | `/platform/sandbox/exec` |
+| `/v1/lumigent/tools` | `/platform/lumigent/tools` |
+| `/v1/lumigent/traces` | `/platform/lumigent/traces` |
+| `/v1/lumigent/execute` | `/platform/lumigent/execute` |
+| `/v1/tools/execute` | `/platform/tools/execute` |
 
 #### Domain APIs (Config-driven)
 

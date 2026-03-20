@@ -281,7 +281,7 @@ class VersionManager {
         if (rec) {
           this._pbStore.updateAsync('entity_versions', rec.id, { channel });
         }
-      }).catch(() => {});
+      }).catch(e => this.log(`[versions] pb_write_failed action=publish collection=entity_versions entity=${entityType}/${entityId} error=${e.message}`));
     }
 
     this.log(`[versions] ${entityType}/${entityId} v${version.version} published to ${channel}`);

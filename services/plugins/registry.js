@@ -174,8 +174,8 @@ class PluginRegistry {
     // Delete from PocketBase (async, non-blocking)
     if (this._pbStore) {
       this._pbStore.findOne('plugins', `name='${removed.name}' && version='${removed.version}'`).then((rec) => {
-        if (rec) this._pbStore.delete('plugins', rec.id).catch(() => {});
-      }).catch(() => {});
+        if (rec) this._pbStore.delete('plugins', rec.id).catch(e => this.log(`[plugins] pb_write_failed action=delete collection=plugins name=${removed.name} error=${e.message}`));
+      }).catch(e => this.log(`[plugins] pb_write_failed action=find_for_delete collection=plugins name=${removed.name} error=${e.message}`));
     }
 
     this.log(`[plugins] unregistered: ${removed.id} (${removed.name})`);
@@ -244,7 +244,7 @@ class PluginRegistry {
             enabled: plugin.enabled,
           });
         }
-      }).catch(() => {});
+      }).catch(e => this.log(`[plugins] pb_write_failed action=update collection=plugins name=${plugin.name} error=${e.message}`));
     }
 
     this.log(`[plugins] updated: ${plugin.id} (${plugin.name})`);

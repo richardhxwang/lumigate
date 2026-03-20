@@ -145,11 +145,11 @@ Media:       Image Generation MCP, Audio MCP
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                   API Layer                               │    │
 │  │  /v1/{provider}/v1/chat/completions  — AI 代理 (8 prov)  │    │
-│  │  /v1/parse                           — 文件解析           │    │
-│  │  /v1/audio/transcribe                — 语音转文字         │    │
-│  │  /v1/vision/analyze                  — 图片识别           │    │
-│  │  /v1/tools/execute                   — 工具执行           │    │
-│  │  /v1/code/run                        — 沙箱代码执行       │    │
+│  │  /platform/parse                           — 文件解析           │    │
+│  │  /platform/audio/transcribe                — 语音转文字         │    │
+│  │  /platform/vision/analyze                  — 图片识别           │    │
+│  │  /platform/tools/execute                   — 工具执行           │    │
+│  │  /platform/code/run                        — 沙箱代码执行       │    │
 │  │  /v1/browser/action                  — 浏览器自动化       │    │
 │  │  /lc/*                               — LumiChat 后端     │    │
 │  └─────────────────────────────────────────────────────────┘    │
@@ -213,13 +213,13 @@ Media:       Image Generation MCP, Audio MCP
 - 写入 PB `security_events` collection
 
 ### Phase 2: 统一文件解析 + Whisper ✅ 完成
-- `routes/parse.js` — `POST /v1/parse`，分发到 file-parser/Gotenberg
-- `routes/audio.js` — `POST /v1/audio/transcribe`
+- `routes/parse.js` — `POST /platform/parse`，分发到 file-parser/Gotenberg
+- `routes/audio.js` — `POST /platform/audio/transcribe`
 - `docker/whisper/` — whisper.cpp Docker 容器配置
 - 新增 PPT/HTML/TXT/MD 支持
 
 ### Phase 3: 本地视觉模型 ✅ 完成
-- `routes/vision.js` — `POST /v1/vision/analyze` → Ollama vision API
+- `routes/vision.js` — `POST /platform/vision/analyze` → Ollama vision API
 - 支持 `qwen2.5-vl:3b` 和 `llava` 模型
 - LumiChat 图片附件可选本地分析
 
@@ -239,7 +239,7 @@ Media:       Image Generation MCP, Audio MCP
 - 参考：[MCPJungle](https://github.com/mcpjungle/MCPJungle)
 
 ### Phase 6: 代码沙箱 ✅ 完成
-- `routes/code.js` — `POST /v1/code/run`
+- `routes/code.js` — `POST /platform/code/run`
 - 支持 Python 和 JavaScript 安全执行（Shell 已移除，安全考量）
 - Docker 隔离沙箱，输出 + 文件保存到 PB `generated_files`
 
@@ -289,14 +289,14 @@ Media:       Image Generation MCP, Audio MCP
 - `/dashboard` → `/v1/sys/panel` 路径迁移
 
 **Agent B: 文件解析 + Whisper + Vision**
-- `POST /v1/parse` 路由 + PPT/HTML/TXT 支持
-- whisper.cpp Docker 容器 + `POST /v1/audio/transcribe`
-- `ollama pull` 视觉模型 + `POST /v1/vision/analyze`
+- `POST /platform/parse` 路由 + PPT/HTML/TXT 支持
+- whisper.cpp Docker 容器 + `POST /platform/audio/transcribe`
+- `ollama pull` 视觉模型 + `POST /platform/vision/analyze`
 
 **Agent C: Tool Middleware + MCPJungle**
 - Tool registry + schema 注入 + 拦截执行框架
 - MCPJungle Docker 部署 + Playwright MCP 注册
-- `POST /v1/code/run` 沙箱
+- `POST /platform/code/run` 沙箱
 
 三组可以在 git worktree 中并行开发，最后 merge。
 
@@ -304,10 +304,10 @@ Media:       Image Generation MCP, Audio MCP
 
 ## 八、验证
 
-- [x] `curl -X POST /v1/parse -F file=@test.xlsx` → 解析文本
-- [x] `curl -X POST /v1/parse -F file=@test.pptx` → Gotenberg 转 PDF → 解析
-- [x] `curl -X POST /v1/audio/transcribe -F file=@test.mp3` → 转写（Docker 镜像待拉取）
-- [x] `curl -X POST /v1/vision/analyze -F image=@test.jpg` → 描述（需 `ollama pull qwen2.5-vl:3b`）
+- [x] `curl -X POST /platform/parse -F file=@test.xlsx` → 解析文本
+- [x] `curl -X POST /platform/parse -F file=@test.pptx` → Gotenberg 转 PDF → 解析
+- [x] `curl -X POST /platform/audio/transcribe -F file=@test.mp3` → 转写（Docker 镜像待拉取）
+- [x] `curl -X POST /platform/vision/analyze -F image=@test.jpg` → 描述（需 `ollama pull qwen2.5-vl:3b`）
 - [x] 发送含 API key 的消息 → PII 检测 → security_event 写入 PB
 - [x] AI 回复包含 tool_use → LumiGate 执行 → 结果注入 → 继续生成
 - [ ] Playwright MCP 截图网页 → 返回图片（MCPJungle 待部署）
