@@ -113,7 +113,7 @@ function sendAlert(type, payload) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type, ts: new Date().toISOString(), gateway: "lumigate", ...payload }),
-  }).catch(() => {}); // silent fail — never affects main flow
+  }).catch(e => log("warn", "alert_webhook_failed", { component: "alerts", type, error: e.message }));
 }
 
 async function hashPassword(password, salt) {
@@ -740,7 +740,7 @@ function saveCollectorTokens(tokens) {
   fs.writeFileSync(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, COLLECTOR_TOKENS_FILE);
   // Non-blocking PB backup
-  backupCollectorTokensToPB(tokens).catch(() => {});
+  backupCollectorTokensToPB(tokens).catch(e => log("warn", "pb_write_failed", { component: "collector", collection: "collector_tokens_backup", error: e.message }));
 }
 let collectorTokens = loadCollectorTokens();
 
@@ -1736,7 +1736,7 @@ app.get("/lumichat", (req, res) => {
   }
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader("Content-Security-Policy",
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'`
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'`
   );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
@@ -2421,8 +2421,8 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
               duration_ms: result.duration || 0,
               session_id: sessionId,
             }),
-          }).catch(() => {});
-        }).catch(() => {});
+          }).catch(e => log("warn", "pb_write_failed", { component: "tools", collection: "tool_calls", tool: toolName, error: e.message }));
+        }).catch(e => log("warn", "pb_write_failed", { component: "tools", collection: "tool_calls", reason: "no_token", error: e.message }));
 
         // If tool generated a file, save to PocketBase generated_files collection
         if (result.ok && result.file) {
@@ -2441,9 +2441,9 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
                 method: "POST",
                 headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, Authorization: pbToken },
                 body,
-              }).catch(() => {});
+              }).catch(e => log("warn", "pb_write_failed", { component: "tools", collection: "generated_files", filename: result.filename, error: e.message }));
             }
-          } catch {}
+          } catch (e) { log("warn", "pb_write_failed", { component: "tools", collection: "generated_files", error: e.message }); }
         }
 
         // Build tool_result content
