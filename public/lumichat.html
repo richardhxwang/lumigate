@@ -4028,7 +4028,7 @@ async function sendMessage(){
         streamEl.textContent='';
         renderMarkdown(streamEl,streamText);
         // Insert thinking block on abort too
-        if(_thinkingContent.trim()){
+        if(typeof _thinkingContent==='string' && _thinkingContent.trim()){
           if(!_thinkingEndTime) _thinkingEndTime=Date.now();
           const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
           const details=document.createElement('details');
