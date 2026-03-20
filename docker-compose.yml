@@ -84,8 +84,8 @@ services:
       - QDRANT_URL=http://lumigate-qdrant:6333
       - TRADE_ENGINE_URL=http://lumigate-trade-engine:3200
       - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
-      - TRADE_FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-freqtrader}
-      - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-sUhbYlJqcGugmdxXTQvGUg}
+      - TRADE_FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-lumitrade}
+      - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-123123@}
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
@@ -317,7 +317,7 @@ services:
       - TRADE_FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       - TRADE_TELEGRAM_BOT_TOKEN=${TRADE_TELEGRAM_BOT_TOKEN:-}
       - TRADE_TELEGRAM_CHAT_ID=${TRADE_TELEGRAM_CHAT_ID:-}
-      - TRADE_FREQTRADE_PASSWORD=sUhbYlJqcGugmdxXTQvGUg
+      - TRADE_FREQTRADE_PASSWORD=123123@
       - TRADE_IBKR_HOST=lumigate-ibgateway
       - TRADE_IBKR_PORT=4002
     depends_on:

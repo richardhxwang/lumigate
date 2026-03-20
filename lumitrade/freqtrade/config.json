@@ -68,8 +68,8 @@
         "enable_openapi": true,
         "jwt_secret_key": "HGt4qDlTr_aTt2ELLahW-PVtsNFQIsIZBQU9Qaa87v0",
         "CORS_origins": [],
-        "username": "freqtrader",
-        "password": "sUhbYlJqcGugmdxXTQvGUg",
+        "username": "lumitrade",
+        "password": "123123@",
         "ws_token": "_-3o4WOb4T0u9gJI0LjDXTXrUpAIfp8qbpe73s0LKuU"
     },
     "bot_name": "LumiTrade-Crypto",
