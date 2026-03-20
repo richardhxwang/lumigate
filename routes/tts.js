@@ -1,99 +1,100 @@
 "use strict";
 
 const { Router } = require("express");
+const { execFile } = require("child_process");
 const crypto = require("node:crypto");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
-const VOLCENGINE_TTS_URL = process.env.VOLCENGINE_TTS_URL || "https://openspeech.bytedance.com/api/v1/tts";
-const VOLCENGINE_APP_ID = process.env.VOLCENGINE_TTS_APP_ID || "wxk-tts";
-const VOLCENGINE_TOKEN = process.env.VOLCENGINE_TTS_TOKEN || "OrKH2_RUyb-u3OfUPiWGvMqdwS-PYxyW";
-const VOLCENGINE_CLUSTER = process.env.VOLCENGINE_TTS_CLUSTER || "volcano_tts";
-
-// Text length limit per request
 const MAX_TEXT_LENGTH = 5000;
 
-// Voice presets — id → Volcengine voice_type
+// Edge TTS voices — high quality, free, no API key needed
 const VOICES = {
-  // Chinese female
-  "zh-female-sisi":       "zh_female_shuangkuaisisi_moon_bigtts",
-  "zh-female-qingxin":    "zh_female_qingxin",
-  // Chinese male
-  "zh-male-chunhou":      "zh_male_chunhou_moon_bigtts",
-  "zh-male-jingqiang":    "zh_male_jingqiang",
-  // English female
-  "en-female-sarah":      "en_female_sarah_moon_bigtts",
-  // English male
-  "en-male-caleb":        "en_male_caleb_moon_bigtts",
+  "zh-female-xiaoxiao": "zh-CN-XiaoxiaoNeural",
+  "zh-female-xiaoyi":   "zh-CN-XiaoyiNeural",
+  "zh-male-yunxi":      "zh-CN-YunxiNeural",
+  "zh-male-yunjian":    "zh-CN-YunjianNeural",
+  "zh-hk-female":       "zh-HK-HiuMaanNeural",
+  "zh-hk-male":         "zh-HK-WanLungNeural",
+  "zh-tw-female":       "zh-TW-HsiaoChenNeural",
+  "en-female-jenny":    "en-US-JennyNeural",
+  "en-female-aria":     "en-US-AriaNeural",
+  "en-male-guy":        "en-US-GuyNeural",
+  "en-male-davis":      "en-US-DavisNeural",
+  "en-gb-female":       "en-GB-SoniaNeural",
+  "en-gb-male":         "en-GB-RyanNeural",
+  "ja-female":          "ja-JP-NanamiNeural",
+  "ko-female":          "ko-KR-SunHiNeural",
 };
 
-const DEFAULT_VOICE = "zh-female-sisi";
+const DEFAULT_VOICE_ZH = "zh-CN-XiaoxiaoNeural";
+const DEFAULT_VOICE_EN = "en-US-JennyNeural";
 
 const router = Router();
 
 /**
  * POST /tts
- * Body: { text: string, voice?: string, speed?: number }
+ * Body: { text: string, voice?: string, speed?: string, lang?: string }
  * Returns: audio/mpeg binary
  */
 router.post("/tts", async (req, res) => {
-  const { text, voice = DEFAULT_VOICE, speed = 1.0 } = req.body || {};
+  const { text, voice, speed, lang } = req.body || {};
 
   if (!text || typeof text !== "string") {
-    return res.status(400).json({ ok: false, error: "text is required (string)" });
+    return res.status(400).json({ ok: false, error: "text is required" });
   }
   if (text.length > MAX_TEXT_LENGTH) {
-    return res.status(400).json({ ok: false, error: `Text too long (max ${MAX_TEXT_LENGTH} chars, got ${text.length})` });
+    return res.status(400).json({ ok: false, error: `Text too long (max ${MAX_TEXT_LENGTH})` });
   }
 
-  const speedRatio = Math.max(0.5, Math.min(2.0, Number(speed) || 1.0));
-  const voiceType = VOICES[voice] || voice; // allow passing raw voice_type directly
-  const reqid = crypto.randomUUID();
+  // Resolve voice
+  let edgeVoice = VOICES[voice] || voice;
+  if (!edgeVoice || !edgeVoice.includes("Neural")) {
+    // Auto-detect language
+    const isZh = lang === "zh" || /[\u4e00-\u9fff]/.test(text.slice(0, 100));
+    edgeVoice = isZh ? DEFAULT_VOICE_ZH : DEFAULT_VOICE_EN;
+  }
+
+  const rateStr = speed ? `+${Math.round((Number(speed) - 1) * 100)}%` : "+0%";
+  const tmpFile = path.join(os.tmpdir(), `tts-${crypto.randomUUID()}.mp3`);
 
   try {
-    const ttsRes = await fetch(VOLCENGINE_TTS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer;${VOLCENGINE_TOKEN}`,
-      },
-      body: JSON.stringify({
-        app: { appid: VOLCENGINE_APP_ID, token: "access_token", cluster: VOLCENGINE_CLUSTER },
-        user: { uid: req._lcUserId || "lumichat" },
-        audio: { voice_type: voiceType, encoding: "mp3", speed_ratio: speedRatio },
-        request: { reqid, text, operation: "query" },
-      }),
-      signal: AbortSignal.timeout(15_000),
+    await new Promise((resolve, reject) => {
+      const args = ["-m", "edge_tts", "--voice", edgeVoice, "--rate", rateStr, "--text", text, "--write-media", tmpFile];
+      execFile("python3", args, { timeout: 20000 }, (err, stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      });
     });
 
-    const data = await ttsRes.json();
-
-    // Volcengine success code is 3000
-    if (data.code !== 3000 || !data.data) {
-      console.error("[tts] Volcengine error:", data.code, data.message);
-      return res.status(502).json({ ok: false, error: data.message || "TTS synthesis failed", code: data.code });
+    if (!fs.existsSync(tmpFile)) {
+      return res.status(500).json({ ok: false, error: "TTS output file not created" });
     }
 
-    const audioBuffer = Buffer.from(data.data, "base64");
+    const audio = fs.readFileSync(tmpFile);
+    fs.unlink(tmpFile, () => {});
+
     res.set("Content-Type", "audio/mpeg");
-    res.set("Content-Length", String(audioBuffer.length));
+    res.set("Content-Length", String(audio.length));
     res.set("Cache-Control", "no-store");
-    res.send(audioBuffer);
+    res.send(audio);
   } catch (err) {
-    console.error("[tts] error:", err);
-    if (err.name === "TimeoutError") {
-      return res.status(504).json({ ok: false, error: "TTS request timed out" });
+    fs.unlink(tmpFile, () => {});
+    if (err.message?.includes("No module named")) {
+      return res.status(500).json({ ok: false, error: "edge-tts not installed. Run: pip install edge-tts" });
     }
-    return res.status(500).json({ ok: false, error: err.message || "Internal TTS error" });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 /**
  * GET /tts/voices
- * Returns list of available voice presets
  */
 router.get("/tts/voices", (_req, res) => {
-  const voices = Object.entries(VOICES).map(([id, type]) => {
-    const [lang, gender] = id.split("-");
-    return { id, voiceType: type, lang, gender };
+  const voices = Object.entries(VOICES).map(([id, edgeId]) => {
+    const parts = id.split("-");
+    return { id, edgeVoice: edgeId, lang: parts[0] + (parts[1]?.length === 2 ? "-" + parts[1] : ""), gender: parts.find(p => ["female", "male"].includes(p)) || "unknown" };
   });
   res.json({ ok: true, voices });
 });

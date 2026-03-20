@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git jq ripgrep \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Edge TTS (Microsoft free high-quality TTS, no API key needed)
+RUN pip install --break-system-packages edge-tts
+
 # Docker CLI (newer API than Debian docker.io) for sandbox docker-exec
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
