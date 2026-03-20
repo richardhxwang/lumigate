@@ -151,7 +151,7 @@ class UserMemory {
    * @param {number} [opts.scoreThreshold=0.55]
    * @returns {Promise<string>} — formatted context for system prompt injection
    */
-  async recall(userId, query, { limit = 10, recencyWeight = 0.3, scoreThreshold = 0.55 } = {}) {
+  async recall(userId, query, { limit = 10, recencyWeight = 0.3, scoreThreshold = 0.15 } = {}) {
     if (!userId || !query) return "";
 
     try {
