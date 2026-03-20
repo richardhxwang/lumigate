@@ -394,3 +394,33 @@ PB fire-and-forget 写入 (`.catch(() => {})`) 绝对不能静默吞错误。本
 - Pattern-Key: log-first-debugging
 
 ---
+
+## [LRN-20260321-007] correction
+
+**Priority**: critical
+**Status**: pending
+**Area**: workflow
+
+### 内容
+后端改了必须同步改前端。已犯 5+ 次。每次后端改动后 checklist：1) 前端是否依赖此行为？2) Docker 需要 rebuild？3) nginx 需要同步？4) 新 API 前端需要调？
+
+### 元数据
+- Source: correction (用户第 5+ 次提醒)
+- Pattern-Key: backend-frontend-sync-checklist
+
+---
+
+## [LRN-20260321-008] correction
+
+**Priority**: high
+**Status**: pending
+**Area**: tools
+
+### 内容
+财务分析 regex 必须同时覆盖繁体（港股）+ 简体（A股）+ 英文三种。pdftotext 输出取决于 PDF 字体编码，不能只做一种。
+
+### 元数据
+- Source: correction
+- Pattern-Key: trilingual-regex
+
+---
