@@ -133,7 +133,7 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(r"finished\s*goods|产成品|產成品|成品|库存商品|庫存商品"),
         ],
         "inventory_consumables": [
-            *lbl(r"consumables?|supplies|low[\s\-]*value\s*consumables?|周转材料|週轉材料|低值易耗品|消耗品"),
+            *lbl(r"consumables?\s*(?:and\s*)?(?:packing\s*)?(?:materials?)?|supplies|low[\s\-]*value\s*consumables?|周转材料|週轉材料|低值易耗品|消耗品|易耗品及包裝材料"),
         ],
 
         # ── Accounts Receivable ──
@@ -174,20 +174,24 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
         "loan_current": [
             *lbl(
                 r"current\s*(?:portion\s*of\s*)?(?:bank\s*)?(?:loans?|borrowings?)"
-                r"|短期借款|短期貸款|流动负债.*借款|流動負債.*借款"
+                r"|short[\-\s]*term\s*(?:bank\s*)?loans?"
+                r"|短期借款|短期貸款|短期銀行貸款|流动负债.*借款|流動負債.*借款"
             ),
         ],
         "loan_non_current": [
             *lbl(
                 r"non[\-\s]*current\s*(?:bank\s*)?(?:loans?|borrowings?)"
-                r"|长期借款|長期借款|非流动.*借款|非流動.*借款"
+                r"|long[\-\s]*term\s*(?:bank\s*)?loans?"
+                r"|长期借款|長期借款|長期銀行貸款|非流动.*借款|非流動.*借款"
             ),
         ],
         "loan_lt_1y": [
             *lbl(r"within\s*(?:one|1)\s*year|<\s*1y|less\s*than\s*(?:one|1)\s*year|一年以内|一年以內"),
         ],
         "loan_1_2y": [
-            *lbl(r"(?:1[\-\u2013]2|one\s*to\s*two)\s*years?|一至二年|1至2年"),
+            *lbl(r"(?:1[\-\u2013]2|one\s*to\s*two)\s*years?|一至二年|1至2年"
+                 r"|after\s*1\s*years?,?\s*(?:but\s*)?within\s*2\s*years?"
+                 r"|一年以上至兩年內|一年以上至两年内"),
         ],
         "loan_2_3y": [
             *lbl(r"(?:2[\-\u2013]3|two\s*to\s*three)\s*years?|二至三年|2至3年"),
@@ -196,7 +200,9 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(r"(?:over\s*(?:three|3)|>\s*3y|more\s*than\s*(?:three|3))\s*years?|三年以上"),
         ],
         "loan_gt_2y": [
-            *lbl(r"(?:over\s*(?:two|2)|>\s*2y|more\s*than\s*(?:two|2))\s*years?|二年以上|两年以上|兩年以上"),
+            *lbl(r"(?:over\s*(?:two|2)|>\s*2y|more\s*than\s*(?:two|2))\s*years?|二年以上|两年以上|兩年以上"
+                 r"|after\s*2\s*years?,?\s*(?:but\s*)?within\s*5\s*years?"
+                 r"|兩年以上至五年內|两年以上至五年内"),
         ],
 
         # ── Property, Plant and Equipment ──
@@ -238,10 +244,13 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(r"gross\s*profit|毛利|毛利润|毛利潤"),
         ],
         "net_income": [
+            # Priority: profit attributable to shareholders first (for RE reconciliation)
+            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)[^0-9\n]*{sep}{num}",
+            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)[^0-9\n]*\s*\n\s*{num}",
             *lbl(
-                r"(?:net\s*)?(?:income|profit|loss)\s*(?:for\s*the\s*(?:year|period))?"
-                r"|净利润|淨利潤|纯利|純利|溢利|(?:税后|稅後)(?:净|淨)?(?:利润|利潤)"
-                r"|profit\s*(?:attributable|for\s*the\s*year)"
+                r"net\s*(?:income|profit|loss)\s*(?:for\s*the\s*(?:year|period))?"
+                r"|(?:total\s*)?profit\s*for\s*the\s*(?:year|period)"
+                r"|净利润|淨利潤|纯利|純利|本年度溢利|(?:税后|稅後)(?:净|淨)?(?:利润|利潤)"
             ),
         ],
         "depreciation_is": [
@@ -303,26 +312,30 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
         # ── Cash Flow Statement ──
         "cfo": [
             *lbl(
-                r"\bcfo\b|cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*operat(?:ing|ions)"
+                r"\bcfo\b|(?:net\s*)?cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*operat(?:ing|ions)\s*(?:activities)?"
                 r"|经营活动现金流|經營活動現金流|经营活动产生的现金|經營活動產生的現金"
+                r"|經營活動之現金流入淨額|经营活动之现金流入净额"
             ),
         ],
         "cfi": [
             *lbl(
-                r"\bcfi\b|cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*invest(?:ing|ment)"
+                r"\bcfi\b|(?:net\s*)?cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*invest(?:ing|ment)\s*(?:activities)?"
                 r"|投资活动现金流|投資活動現金流|投资活动产生的现金|投資活動產生的現金"
+                r"|投資活動使用之淨現金|投资活动使用之净现金"
             ),
         ],
         "cff": [
             *lbl(
-                r"\bcff\b|cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*financ(?:ing|e)"
+                r"\bcff\b|(?:net\s*)?cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*financ(?:ing|e)\s*(?:activities)?"
                 r"|筹资活动现金流|籌資活動現金流|融资活动|融資活動"
+                r"|融資活動使用之淨現金|融资活动使用之净现金"
             ),
         ],
         "fx_effect": [
             *lbl(
                 r"(?:effect\s*of\s*)?(?:exchange\s*rate|foreign\s*exchange|fx)\s*(?:changes?|effect|difference)"
-                r"|汇率变动|匯率變動|汇率影响|匯率影響"
+                r"|effect\s*of\s*foreign\s*exchange\s*rate\s*changes?"
+                r"|汇率变动|匯率變動|汇率影响|匯率影響|匯率調整之影響|汇率调整之影响"
                 r"|(?:exchange\s*rate\s*)?(?:effect|changes?)\s*on\s*cash"
             ),
         ],
@@ -330,14 +343,18 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(
                 r"(?:opening|beginning)\s*(?:balance\s*of\s*)?cash"
                 r"|cash[^.\n]*(?:at\s*)?(?:beginning|opening)"
+                r"|cash[^.\n]*(?:as\s*at\s*)?(?:1\s*January|January\s*1)"
                 r"|期初现金|期初現金|年初现金|年初現金"
+                r"|於一月一日之現金|于一月一日之现金"
             ),
         ],
         "cash_close": [
             *lbl(
                 r"(?:closing|ending)\s*(?:balance\s*of\s*)?cash"
                 r"|cash[^.\n]*(?:at\s*)?(?:end|closing)"
+                r"|cash[^.\n]*(?:as\s*at\s*)?(?:31\s*December|December\s*31)"
                 r"|期末现金|期末現金|年末现金|年末現金"
+                r"|於十二月三十一日之現金|于十二月三十一日之现金"
             ),
         ],
         "depreciation_cf": [
@@ -350,16 +367,19 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
 
         # ── Retained Earnings ──
         "re_open": [
-            rf"(?:retained\s*earnings?|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:opening|期初|年初)[^0-9\-()]*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)\s*(?:opening|期初|年初)(?:\s*\([^)]*\))?\s*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?))\s*(?:as\s*at\s*)?1\s*January(?:\s*\d{{4}})?\s*{num}",
         ],
         "re_profit": [
-            rf"(?:retained\s*earnings?|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:profit|net\s*income|净利润|淨利潤|溢利)[^0-9\-()]*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:profit|net\s*income|净利润|淨利潤|溢利)[^0-9\-()]*{num}",
         ],
         "re_div": [
-            rf"(?:retained\s*earnings?|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:dividends?|股息|股利|分红|分紅)[^0-9\-()]*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:dividends?|股息|股利|分红|分紅)[^0-9\-()]*{num}",
+            *lbl(r"dividends?\s*(?:declared|paid|proposed)|已宣派股息|已派发股息|已派發股息|分红|分紅|股利分配"),
         ],
         "re_close": [
-            rf"(?:retained\s*earnings?|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:closing|期末|年末)[^0-9\-()]*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)\s*(?:closing|期末|年末)(?:\s*\([^)]*\))?\s*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?))\s*(?:as\s*at\s*)?31\s*December(?:\s*\d{{4}})?\s*{num}",
         ],
         "dividends_declared": [
             *lbl(
@@ -626,8 +646,9 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
     ))
 
     # 4b. Gross profit bridge: Revenue - COGS == Gross profit
+    # Note: COGS may be negative (parenthesized in financial statements), use absolute value
     if fields.get("revenue") is not None and fields.get("cogs") is not None:
-        computed_gp = fields["revenue"] - fields["cogs"]
+        computed_gp = fields["revenue"] - abs(fields["cogs"])
         gp_reported = fields.get("gross_profit")
         if gp_reported is not None:
             diff = gp_reported - computed_gp
@@ -643,7 +664,7 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
                 ],
                 "detail_sum": computed_gp,
                 "difference": diff,
-                "formula": f"{fields['revenue']:,.2f} - {fields['cogs']:,.2f} = {computed_gp:,.2f} {'==' if status == 'pass' else '!='} {gp_reported:,.2f}" + (" [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"),
+                "formula": f"{fields['revenue']:,.2f} - {abs(fields['cogs']):,.2f} = {computed_gp:,.2f} {'==' if status == 'pass' else '!='} {gp_reported:,.2f}" + (" [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"),
             })
         else:
             cross_checks.append({
@@ -657,7 +678,7 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
                 ],
                 "detail_sum": computed_gp,
                 "difference": None,
-                "formula": f"Revenue {fields['revenue']:,.2f} - COGS {fields['cogs']:,.2f} = {computed_gp:,.2f} (gross profit not found for comparison)",
+                "formula": f"Revenue {fields['revenue']:,.2f} - COGS {abs(fields['cogs']):,.2f} = {computed_gp:,.2f} (gross profit not found for comparison)",
             })
     else:
         cross_checks.append({
@@ -675,8 +696,9 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
         })
 
     # 4c. Net income == Closing RE - Opening RE + Dividends
+    # Note: dividends may be negative (parenthesized in statements), use absolute value
     if fields.get("re_open") is not None and fields.get("re_close") is not None:
-        dividends = fields.get("dividends_declared") or fields.get("re_div") or 0
+        dividends = abs(fields.get("dividends_declared") or fields.get("re_div") or 0)
         computed_ni = fields["re_close"] - fields["re_open"] + dividends
         ni_reported = fields.get("net_income")
         if ni_reported is not None:
@@ -1013,14 +1035,14 @@ def main() -> None:
             "gross_profit = revenue - cogs",
             {"revenue": fields.get("revenue"), "cogs": fields.get("cogs"), "gross_profit": fields.get("gross_profit")},
             fields.get("gross_profit"),
-            (fields.get("revenue") or 0) - (fields.get("cogs") or 0) if None not in (fields.get("revenue"), fields.get("cogs")) else None,
+            (fields.get("revenue") or 0) - abs(fields.get("cogs") or 0) if None not in (fields.get("revenue"), fields.get("cogs")) else None,
         ),
         _check(
             "cash_bridge",
-            "cash_close = cash_open + cfo + cfi + cff",
+            "cash_close = cash_open + cfo + cfi + cff + fx_effect",
             {"cash_open": fields.get("cash_open"), "cfo": fields.get("cfo"), "cfi": fields.get("cfi"), "cff": fields.get("cff"), "cash_close": fields.get("cash_close")},
             fields.get("cash_close"),
-            (fields.get("cash_open") or 0) + (fields.get("cfo") or 0) + (fields.get("cfi") or 0) + (fields.get("cff") or 0) if None not in (fields.get("cash_open"), fields.get("cfo"), fields.get("cfi"), fields.get("cff")) else None,
+            (fields.get("cash_open") or 0) + (fields.get("cfo") or 0) + (fields.get("cfi") or 0) + (fields.get("cff") or 0) + (fields.get("fx_effect") or 0) if None not in (fields.get("cash_open"), fields.get("cfo"), fields.get("cfi"), fields.get("cff")) else None,
         ),
         _check(
             "retained_earnings_bridge",
