@@ -99,8 +99,69 @@ Date: 2026-03-21
 - Qdrant + RAGFlow docker services
 - Watchdog with 5s polling, <10s recovery
 
+## Completed Since Initial Report (2026-03-21)
+
+### Native Function Calling (Hybrid Architecture)
+- **4 providers native**: OpenAI, Anthropic, Gemini, DeepSeek use native `tool_use` / `function_calling` protocol
+- **4 providers fallback**: MiniMax, Kimi, Doubao, Qwen use prompt-injection with `[TOOL:name]{params}[/TOOL]` text tags
+- Hybrid streaming parser handles both native tool_call chunks and text-based tags
+
+### Thinking Mode Selector
+- UI: Auto / Think / Fast pill selector in header (between model name and encrypted lock)
+- Per-model capability map for all 38 models across 8 providers (not per-provider)
+- Models without thinking capability grey out Think mode
+- Real-time thinking display during streaming (GPT-style lightweight look)
+- `<think>` tag content forwarded as `reasoning_content` SSE events (was being stripped by server)
+- Collapsible thinking blocks in rendered output
+- **Test**: 8/9 Playwright pass
+
+### MiniMax M2.7 Model
+- Added to provider model list (self-evolving, thinking capable)
+- Fixed false tool trigger issue (M2.7 would mistrigger non-URL tools with "URL extraction failed")
+
+### TTS Integration (Volcengine/Doubao)
+- Server-side natural voice synthesis via Volcengine/Doubao TTS API
+- Browser Web Speech API as automatic fallback
+- Stop playback on session switch
+- Text cleaning: strips markdown, code blocks, symbols before synthesis
+- Source chips hide inline links (text only, chips at bottom)
+- **Test**: Volcengine API working
+
+### Quote Bar (ChatGPT-style)
+- Text selection floating menu: Ask / Explain / Translate actions
+- Selected text inserted as quoted context in input
+
+### Pro Tools Panel
+- Frosted glass styling consistent with macOS 26 design
+- Two-level animation: panel open + staggered item expand
+- Light mode fix (no longer pure white background)
+
+### Source Chips
+- Inline links replaced with plain text in message body
+- Source chips rendered at bottom of message only (no duplication)
+
+### Settings Sync
+- Language preference synced to PocketBase
+- Encrypted settings synced to PocketBase
+
+### UI Polish
+- Capability tooltip: min-width 80px, max 260px, proper line-height + shadow
+- Header spacing: Model + Auto close (4px gap), lock further right (12px margin)
+- Auto pill: no border (matches enc-mode style), wider gaps, lock margin
+- Tips animation improvements
+- nginx CSP fix for /lumichat (let server.js nonce CSP take effect)
+
+### Bug Fixes
+- CompressionStream disabled for encrypted upload (hangs in Safari + Headless Chrome)
+- `<think>` tags forwarded as reasoning_content instead of being stripped
+- MiniMax M2.7 false tool trigger suppressed
+- Per-model thinking capability (was incorrectly per-provider)
+
 ## Test Results
 - **E2E**: 38/46 pass (83%), zero server crashes
+- **Thinking mode**: 8/9 Playwright pass
+- **Encrypted upload**: packFiles no longer hangs (CompressionStream removed)
+- **TTS**: Volcengine API working, browser fallback verified
 - **Financial analysis**: 6/6 cross-checks PASS (CR Beer 2025 annual report)
 - **RAG memory**: 6/7 facts recalled correctly
 - **Smoke test**: 23 tools registered, all endpoints responding
@@ -117,7 +178,7 @@ Date: 2026-03-21
 - **P1**: `host.docker.internal` coupling reduces deployment portability
 - **P1**: Telegram alert delivery not yet live-tested
 - **P2**: Committed secrets need rotation and purge
-- Non-streaming path was missing `userMemory.ingest()` call (fixed in this session)
+- Non-streaming path was missing `userMemory.ingest()` call (fixed in prior session)
 
 ## Next Steps
 1. Fix remaining 8 E2E test failures
@@ -128,3 +189,5 @@ Date: 2026-03-21
 6. VBA/Macro Excel support (Python openpyxl)
 7. Collector login UI redesign (LumiChat style)
 8. Consider moving LumiChat data to PB multi-project routing
+9. Thinking mode: fix remaining 1/9 Playwright failure
+10. TTS: add more voice options / voice selection UI

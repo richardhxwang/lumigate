@@ -449,3 +449,63 @@ PB fire-and-forget 写入 (`.catch(() => {})`) 绝对不能静默吞错误。本
 - Pattern-Key: use-existing-never-reinvent
 
 ---
+
+## [LRN-20260321-010] best_practice
+
+**Priority**: critical
+**Status**: pending
+**Area**: browser-compat
+
+### 内容
+CompressionStream API 在 Safari 和 Headless Chrome 中会 hang（永远不 resolve），导致加密上传的 packFiles 函数永远不返回。这不是报错，是静默挂起，极难调试。
+
+### 建议修复
+1. 不要在面向终端用户的 Web 应用中依赖 CompressionStream，改用纯 JS 压缩库（如 pako）或直接跳过压缩
+2. 任何使用 Web Stream API 的地方都要加超时兜底
+3. 上线前必须在 Safari + Chrome Headless 环境下测试文件上传链路
+
+### 元数据
+- Source: task_review
+- Pattern-Key: compressionstream-safari-headless-hang
+
+---
+
+## [LRN-20260321-011] best_practice
+
+**Priority**: high
+**Status**: pending
+**Area**: streaming
+
+### 内容
+服务端在 SSE 流中遇到 `<think>` 标签时，不能直接剥离丢弃——这些是模型的推理过程内容，前端需要展示为可折叠的 thinking block。必须作为 `reasoning_content` SSE 事件转发给前端。MiniMax 和 DeepSeek-R1 都会输出 `<think>` 标签。
+
+### 建议修复
+1. SSE clean pipe 遇到 `<think>...</think>` 时转发为 `event: reasoning_content`，不要吞掉
+2. 前端接收 reasoning_content 事件后渲染为可折叠 thinking block
+3. 新增模型时检查其是否输出 `<think>` 标签，确保流解析器能正确处理
+
+### 元数据
+- Source: task_review
+- Pattern-Key: forward-think-tags-not-strip
+
+---
+
+## [LRN-20260321-012] best_practice
+
+**Priority**: high
+**Status**: pending
+**Area**: architecture
+
+### 内容
+模型的 thinking/reasoning 能力必须按单个模型粒度配置，不能按 provider 粒度。同一个 provider 下不同模型的 thinking 能力差异很大：比如 OpenAI 的 o3 支持 thinking 但 gpt-4o 不支持；Anthropic 的 claude-3-5-sonnet 支持但 claude-3-haiku 不支持。按 provider 粒度配置会导致不支持 thinking 的模型被错误标记为支持。
+
+### 建议修复
+1. 维护一个 per-model capability map（如 `MODEL_CAPS[modelId].thinking = true/false`）
+2. 前端 UI 根据当前选中模型动态显示/隐藏 thinking mode selector
+3. 新增模型时必须在 capability map 中注册其能力
+
+### 元数据
+- Source: task_review
+- Pattern-Key: per-model-not-per-provider-capability
+
+---
