@@ -1954,10 +1954,15 @@ const thinkModeLabel = $('think-mode-label');
 function hasThinkingVariants(provider){ return !!THINKING_MODELS[provider]; }
 
 function updateThinkModeVisibility(){
-  if(hasThinkingVariants(selectedProvider)){
+  // Show thinking mode selector if: provider has variants AND current model or its think variant supports thinking
+  const variants = THINKING_MODELS[selectedProvider];
+  const currentHasThinking = MODEL_HAS_THINKING[selectedModel];
+  const thinkVariantExists = variants && MODEL_HAS_THINKING[variants.think];
+  if(variants && (currentHasThinking || thinkVariantExists)){
     thinkModeBtn.classList.add('active');
   } else {
     thinkModeBtn.classList.remove('active');
+    if(thinkingMode !== 'auto'){ thinkingMode = 'auto'; localStorage.setItem('lc_thinking_mode','auto'); }
   }
   thinkModeBtn.dataset.mode = thinkingMode;
   // Replace SVG icon — use querySelector to avoid stale reference after outerHTML swap
