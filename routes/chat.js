@@ -1348,8 +1348,18 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             }
           } catch (e) { log("warn", "Non-stream native tool execution failed", { tool: tc.name, error: e.message }); }
         }
+        const _nsContent1 = content || "已处理完成。";
+        if (userMemory && lcUserId && userQueryText && _nsContent1) {
+          userMemory.ingest(lcUserId, {
+            userMessage: userQueryText,
+            assistantMessage: _nsContent1.slice(0, 4000),
+            provider: providerName,
+            model: modelId,
+            sessionId: req.body?.session_id || "",
+          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+        }
         return res.json({
-          choices: [{ message: { role: "assistant", content: content || "已处理完成。" } }],
+          choices: [{ message: { role: "assistant", content: _nsContent1 } }],
           tool_results: toolResults.length ? toolResults : undefined,
         });
       }
@@ -1364,10 +1374,30 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         const cleanContent = content.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
           .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
           .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "").trim();
+        const _nsContent2 = cleanContent !== "" ? cleanContent : "已处理完成。";
+        if (userMemory && lcUserId && userQueryText && _nsContent2) {
+          userMemory.ingest(lcUserId, {
+            userMessage: userQueryText,
+            assistantMessage: _nsContent2.slice(0, 4000),
+            provider: providerName,
+            model: modelId,
+            sessionId: req.body?.session_id || "",
+          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+        }
         return res.json({
-          choices: [{ message: { role: "assistant", content: cleanContent !== "" ? cleanContent : "已处理完成。" } }],
+          choices: [{ message: { role: "assistant", content: _nsContent2 } }],
           tool_results: toolResults.length ? toolResults : undefined,
         });
+      }
+      // Plain non-streaming response (no tools)
+      if (userMemory && lcUserId && userQueryText && content) {
+        userMemory.ingest(lcUserId, {
+          userMessage: userQueryText,
+          assistantMessage: content.slice(0, 4000),
+          provider: providerName,
+          model: modelId,
+          sessionId: req.body?.session_id || "",
+        }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
       }
       return res.json({ choices: [{ message: { role: "assistant", content } }] });
     }

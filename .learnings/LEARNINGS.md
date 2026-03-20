@@ -424,3 +424,28 @@ PB fire-and-forget 写入 (`.catch(() => {})`) 绝对不能静默吞错误。本
 - Pattern-Key: trilingual-regex
 
 ---
+
+## [LRN-20260321-009] correction
+
+**Priority**: critical
+**Status**: pending
+**Area**: architecture
+
+### 内容
+能用现成开源组件就用现成的，不要自己造轮子。用户反复强调。GitHub 上有成熟方案的直接拿来用，自己只写胶水代码和业务定制。
+
+例子：
+- RAG → RAGFlow (不是自己写 BM25+reranker)
+- SMC 指标 → joshyattridge/smart-money-concepts (不是自己写 order block 检测)
+- 交易框架 → Freqtrade / CCXT (不是自己写交易所 API)
+- K线图表 → TradingView Lightweight Charts (不是自己画 canvas)
+- 工作流编辑 → React Flow (不是自己写拖拽)
+
+### 建议修复
+每次做新功能前，先搜 GitHub 有没有现成的。只有确认没有或不满足需求才自己写。
+
+### 元数据
+- Source: correction (用户反复强调)
+- Pattern-Key: use-existing-never-reinvent
+
+---
