@@ -279,7 +279,7 @@
     .cap-icon{position:relative;width:26px;height:26px;border-radius:var(--r1);border:1px solid var(--border);background:var(--inp);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;color:var(--t2)}
     .cap-icon svg{width:13px;height:13px}
     .cap-icon:hover{background:var(--sb-active);color:var(--t1)}
-    .cap-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--border);border-radius:var(--r2);padding:6px 12px;font-size:12px;line-height:1.4;color:#fff;white-space:normal;min-width:80px;max-width:260px;text-align:center;pointer-events:none;opacity:0;transition:opacity .15s;z-index:500;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+    .cap-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--border);border-radius:var(--r2);padding:6px 12px;font-size:12px;line-height:1.4;color:#fff;white-space:normal;min-width:fit-content;max-width:260px;text-align:center;pointer-events:none;opacity:0;transition:opacity .15s;z-index:500;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
     :root.light .cap-tip{background:#333}
     .cap-icon:hover .cap-tip{opacity:1}
     /* clamp tooltip to viewport */
@@ -395,7 +395,8 @@
     .tb.tb-active{color:var(--accent);background:rgba(16,163,127,0.1)}
     .tb.tb-mode-active{color:var(--accent);background:rgba(16,163,127,0.12)}
     .pro-wrap{position:relative}
-    #pro-menu{position:absolute;left:0;bottom:44px;min-width:280px;max-width:min(92vw,420px);background:var(--bg);opacity:1;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.26),0 1px 0 rgba(255,255,255,.04) inset;padding:10px;display:none;z-index:60}
+    #pro-menu{position:absolute;left:0;bottom:44px;min-width:280px;max-width:min(92vw,420px);background:rgba(var(--bg-rgb,33,33,33),0.85);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);opacity:1;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.26),0 1px 0 rgba(255,255,255,.04) inset;padding:10px;display:none;z-index:60}
+    :root.light #pro-menu{background:rgba(255,255,255,0.85)}
     #pro-menu.open{display:block}
     .pro-grid{display:grid;grid-template-columns:130px 1fr;gap:10px}
     .pro-col-title{font-size:11px;color:var(--t3);letter-spacing:.02em;text-transform:uppercase;margin:0 0 6px}
@@ -405,6 +406,13 @@
     .pro-item.active{border-color:var(--accent);background:rgba(16,163,127,.12)}
     .pro-item.disabled{opacity:.55;cursor:not-allowed}
     .pro-hint{margin-top:8px;font-size:11px;color:var(--t3)}
+    .pro-category{max-height:0;overflow:hidden;transition:max-height .3s ease,opacity .2s;opacity:0}
+    .pro-category.open{max-height:500px;opacity:1}
+    .pro-tool-item{opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease}
+    .pro-category.open .pro-tool-item{opacity:1;transform:translateY(0)}
+    .pro-category.open .pro-tool-item:nth-child(2){transition-delay:.05s}
+    .pro-category.open .pro-tool-item:nth-child(3){transition-delay:.1s}
+    .pro-category.open .pro-tool-item:nth-child(4){transition-delay:.15s}
     @media (max-width: 640px){
       #pro-menu{
         position:fixed;
@@ -766,6 +774,10 @@
       animation:sel-menu-in .15s ease;
       -webkit-user-select:none;user-select:none;
     }
+    #quote-bar{display:none;padding:8px 12px;background:var(--sb);border:1px solid var(--border);border-radius:var(--r2) var(--r2) 0 0;margin-bottom:-1px}
+    .quote-bar-inner{display:flex;align-items:center;gap:8px}
+    .quote-text{flex:1;font-size:13px;color:var(--t2);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .quote-close{background:none;border:none;cursor:pointer;color:var(--t3);padding:2px;display:flex;align-items:center}
     @keyframes sel-menu-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
     #sel-menu button{
       display:flex;align-items:center;gap:5px;
@@ -1749,7 +1761,7 @@ const STRINGS = {
 
 let _lang = localStorage.getItem('lc_lang') || 'en';
 function t(key){ return STRINGS[key]?.[_lang] || STRINGS[key]?.en || key; }
-function setLang(lang){ _lang = lang; localStorage.setItem('lc_lang', lang); applyLang(); }
+function setLang(lang){ _lang = lang; localStorage.setItem('lc_lang', lang); applyLang(); try{ patchUserSettings?.({lang}); }catch{} }
 function applyLang(){
   // Static data-t elements
   document.querySelectorAll('[data-t]').forEach(el=>{
@@ -3203,7 +3215,7 @@ function renderProfessionalToolsMenu(){
   const nodes=tools.map((tool)=>{
     const btn=document.createElement("button");
     const enabled=tool.enabled!==false;
-    btn.className=`pro-item ${selectedProTool===tool.id?"active":""} ${enabled?"":"disabled"}`;
+    btn.className=`pro-item pro-tool-item ${selectedProTool===tool.id?"active":""} ${enabled?"":"disabled"}`;
     btn.type="button";
     btn.textContent=t(tool.labelKey);
     if(!enabled){
@@ -3221,11 +3233,17 @@ function renderProfessionalToolsMenu(){
   });
   if(!nodes.length){
     const empty=document.createElement("div");
-    empty.className="pro-item disabled";
+    empty.className="pro-item pro-tool-item disabled";
     empty.textContent=t("pro.tool_coming_soon");
     nodes.push(empty);
   }
-  proToolList.replaceChildren(...nodes);
+  // Wrap in animated category container
+  const catWrap = document.createElement("div");
+  catWrap.className = "pro-category";
+  nodes.forEach(n => catWrap.appendChild(n));
+  proToolList.replaceChildren(catWrap);
+  // Trigger open animation on next frame
+  requestAnimationFrame(() => catWrap.classList.add("open"));
   proHint.textContent = selectedProTool ? `${t("pro.mode_on")}: ${t((tools.find((x)=>x.id===selectedProTool)||{}).labelKey || "pro.tool_fs_analysis")}` : t("pro.mode_hint");
 }
 
@@ -3256,7 +3274,10 @@ async function sendMessage(){
     const readTimeout = new Promise(r => setTimeout(r, 8000));
     await Promise.race([Promise.allSettled([...pendingFileReads]), readTimeout]);
   }
-  const text=msgIn.value.trim(); if(!text&&!pendingFiles.length) return;
+  let text=msgIn.value.trim();
+  const quotedText = document.getElementById('quote-bar')?._quotedText;
+  if(quotedText){ text = '> ' + quotedText.replace(/\n/g, '\n> ') + '\n\n' + text; if(typeof closeQuoteBar==='function') closeQuoteBar(); }
+  if(!text&&!pendingFiles.length) return;
   // Block if provider is locked
   const sendAccess=getProviderAccess(selectedProvider);
   if(sendAccess==='locked'){
@@ -5465,9 +5486,13 @@ async function loadUserSettings(){
   localStorage.setItem('lc_theme', t);
   const c = _userSettings.compact;
   if(c != null) { document.documentElement.classList.toggle('compact', !!c); localStorage.setItem('lc_compact', c?'1':''); }
+  // Sync lang from PB
+  if(_userSettings.lang && _userSettings.lang !== _lang) setLang(_userSettings.lang);
+  // Sync encrypted upload from PB (prefer PB value over localStorage)
   try{
+    const pbEncrypted = _userSettings.encrypted_upload === '1';
     const lsEncrypted = localStorage.getItem('lc_encrypted_upload_ext') === '1';
-    await setEncryptedUploadEnabled(lsEncrypted, false);
+    await setEncryptedUploadEnabled(pbEncrypted || lsEncrypted, false);
   }catch{
     encryptedUploadEnabled = false;
     renderEncryptedModeUI();
@@ -5554,6 +5579,7 @@ async function setEncryptedUploadEnabled(on, persist=true){
   renderEncryptedModeUI();
   if(persist){
     localStorage.setItem('lc_encrypted_upload_ext', encryptedUploadEnabled ? '1' : '');
+    try{ patchUserSettings?.({encrypted_upload: next ? '1' : ''}); }catch{}
   }
 }
 
@@ -6372,6 +6398,27 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
     if(!e.target.closest('#sel-menu')) hideSelMenu();
   }, {passive:true});
 
+  // Quote bar helpers
+  function showQuoteBar(text, prefill = '') {
+    let bar = document.getElementById('quote-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'quote-bar';
+      const inputWrap = document.getElementById('input-wrap');
+      inputWrap.insertBefore(bar, inputWrap.firstChild);
+    }
+    bar.innerHTML = `<div class="quote-bar-inner"><div class="quote-text">${esc(text.length > 100 ? text.slice(0, 100) + '...' : text)}</div><button class="quote-close" onclick="closeQuoteBar()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;
+    bar.style.display = 'block';
+    bar._quotedText = text;
+    if (prefill) msgIn.value = prefill;
+    msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+    updateSendBtn(); msgIn.focus();
+  }
+  window.closeQuoteBar = function() {
+    const bar = document.getElementById('quote-bar');
+    if (bar) { bar.style.display = 'none'; bar._quotedText = ''; }
+  };
+
   // Action handler (global for onclick attributes)
   window.selAction = function(action){
     const text = _selText;
@@ -6384,24 +6431,15 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
       return;
     }
     if(action === 'ask'){
-      // Quote text and let user add their question
-      msgIn.value = '> ' + text.replace(/\n/g, '\n> ') + '\n\n';
-      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
-      updateSendBtn(); msgIn.focus();
-      msgIn.setSelectionRange(msgIn.value.length, msgIn.value.length);
+      showQuoteBar(text, '');
       return;
     }
     if(action === 'explain'){
-      msgIn.value = 'Explain this in detail:\n> ' + text.replace(/\n/g, '\n> ');
-      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
-      updateSendBtn(); sendMessage();
+      showQuoteBar(text, _lang === 'zh' ? '解释一下：' : 'Explain: ');
       return;
     }
     if(action === 'translate'){
-      const targetLang = _lang === 'zh' ? 'English' : '中文';
-      msgIn.value = 'Translate to ' + targetLang + ':\n> ' + text.replace(/\n/g, '\n> ');
-      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
-      updateSendBtn(); sendMessage();
+      showQuoteBar(text, _lang === 'zh' ? '翻译成英文：' : 'Translate to Chinese: ');
       return;
     }
   };
