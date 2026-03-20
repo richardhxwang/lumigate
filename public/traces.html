@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>LumiGate Traces</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script>(function(){try{var t=localStorage.getItem('lg_traces_theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})()</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f7f7f8; --sb: #f7f7f8; --sb-hover: #ececec;
+    --t1: #0d0d0d; --t2: #555; --t3: #999;
+    --border: #e5e5e5; --border2: rgba(0,0,0,0.06);
+    --accent: #10a37f; --accent-hover: #0d9268;
+    --card-bg: rgba(255,255,255,0.65); --card-border: rgba(255,255,255,0.7);
+    --inp: #f4f4f5; --inp-border: #d9d9d9;
+    --glass-blur: blur(20px) saturate(160%);
+    --r1: 8px; --r2: 12px; --r3: 16px; --r4: 20px; --r5: 26px;
+    --status-ok: #34c759; --status-err: #ff3b30; --status-run: #ff9f0a;
+    --span-llm: #007aff; --span-tool: #34c759; --span-retrieval: #ff9500; --span-code: #af52de;
+    --row-hover: rgba(0,0,0,0.02);
+  }
+  :root.dark {
+    --bg: #212121; --bg2: #1a1a1a; --sb: #171717; --sb-hover: #222;
+    --t1: #ececec; --t2: #8e8e8e; --t3: #555;
+    --border: #333; --border2: rgba(255,255,255,0.06);
+    --card-bg: rgba(40,40,40,0.7); --card-border: rgba(255,255,255,0.08);
+    --inp: #2f2f2f; --inp-border: #444;
+    --row-hover: rgba(255,255,255,0.03);
+  }
+
+  html { height: 100%; }
+  body {
+    height: 100%; background: var(--bg); color: var(--t1);
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ---- Top Nav ---- */
+  .topnav {
+    height: 52px; display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+    backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+    flex-shrink: 0; z-index: 20;
+  }
+  .topnav-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .topnav-spacer { flex: 1; }
+  .topnav-tabs { display: flex; gap: 2px; background: var(--inp); border-radius: var(--r1); padding: 2px; }
+  .topnav-tab {
+    padding: 5px 14px; border-radius: 6px; border: none; background: none;
+    font-family: inherit; font-size: 12px; font-weight: 500; color: var(--t2);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .topnav-tab.active { background: var(--bg); color: var(--t1); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .topnav-tab:hover:not(.active) { color: var(--t1); }
+
+  .date-range {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .date-range input[type="date"] {
+    height: 30px; padding: 0 8px; border: 1px solid var(--inp-border);
+    border-radius: var(--r1); background: var(--inp); color: var(--t1);
+    font-family: inherit; font-size: 12px;
+  }
+  .date-range-sep { color: var(--t3); font-size: 12px; }
+
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: var(--r1); border: 1px solid var(--border2);
+    background: var(--inp); color: var(--t1); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .icon-btn:hover { background: var(--sb-hover); }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  /* ---- Layout ---- */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ---- Sidebar Filters ---- */
+  .sidebar {
+    width: 220px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: var(--sb); padding: 16px; overflow-y: auto;
+  }
+  .filter-group { margin-bottom: 16px; }
+  .filter-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--t3); margin-bottom: 8px;
+  }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .filter-chip {
+    padding: 4px 10px; border-radius: var(--r1); border: 1px solid var(--border);
+    background: none; color: var(--t2); font-family: inherit; font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .filter-chip:hover { border-color: var(--accent); color: var(--t1); }
+  .filter-chip.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .filter-reset {
+    display: inline-block; margin-top: 8px; font-size: 11px; color: var(--accent);
+    cursor: pointer; border: none; background: none; font-family: inherit;
+  }
+  .filter-reset:hover { text-decoration: underline; }
+
+  /* ---- Main Area ---- */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .main-view { flex: 1; overflow: hidden; display: none; flex-direction: column; }
+  .main-view.active { display: flex; }
+
+  /* ---- Trace Table ---- */
+  .trace-table-wrap { flex: 1; overflow-y: auto; }
+  .trace-table { width: 100%; border-collapse: collapse; }
+  .trace-table th {
+    position: sticky; top: 0; z-index: 5;
+    padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; color: var(--t3);
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  .trace-table th:hover { color: var(--t1); }
+  .trace-table th .sort-arrow { display: inline-block; margin-left: 4px; font-size: 10px; opacity: 0.3; }
+  .trace-table th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+  .trace-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border2);
+    font-size: 13px; white-space: nowrap;
+  }
+  .trace-table tr.data-row { cursor: pointer; transition: background 0.1s; }
+  .trace-table tr.data-row:hover { background: var(--row-hover); }
+  .trace-table tr.data-row.selected { background: rgba(16,163,127,0.06); }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-ok { background: rgba(52,199,89,0.12); color: #1a7f37; }
+  .badge-err { background: rgba(255,59,48,0.12); color: #d1242f; }
+  .badge-run { background: rgba(255,159,10,0.12); color: #b25000; }
+  :root.dark .badge-ok { color: #3fb950; }
+  :root.dark .badge-err { color: #f85149; }
+  :root.dark .badge-run { color: #d29922; }
+
+  .type-label { font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 4px; }
+  .type-chat { background: rgba(0,122,255,0.1); color: #007aff; }
+  .type-tool { background: rgba(52,199,89,0.1); color: #34c759; }
+  .type-workflow { background: rgba(175,82,222,0.1); color: #af52de; }
+
+  /* Pagination */
+  .pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--t2); flex-shrink: 0;
+  }
+  .pagination-btns { display: flex; gap: 4px; }
+  .pg-btn {
+    padding: 4px 12px; border-radius: var(--r1); border: 1px solid var(--border);
+    background: none; color: var(--t1); font-family: inherit; font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .pg-btn:hover:not(:disabled) { background: var(--sb-hover); }
+  .pg-btn:disabled { opacity: 0.3; cursor: default; }
+  .pg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ---- Detail Panel ---- */
+  .detail-overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.4);
+  }
+  .detail-overlay.open { display: flex; align-items: center; justify-content: center; }
+  .detail-panel {
+    width: min(960px, 92vw); max-height: 85vh; border-radius: var(--r5);
+    background: var(--bg); border: 1px solid var(--border);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+  .detail-header {
+    display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .detail-header h2 { font-size: 15px; font-weight: 600; flex: 1; }
+  .detail-close {
+    width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: var(--inp); color: var(--t2); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .detail-close:hover { background: var(--sb-hover); color: var(--t1); }
+
+  .detail-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .detail-meta {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .meta-item-label { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.3px; }
+  .meta-item-value { font-size: 14px; font-weight: 500; margin-top: 2px; }
+
+  /* Waterfall */
+  .waterfall-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .waterfall { margin-bottom: 20px; }
+  .wf-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid var(--border2); cursor: pointer;
+  }
+  .wf-row:hover { background: var(--row-hover); }
+  .wf-label {
+    width: 140px; flex-shrink: 0; font-size: 12px; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .wf-bar-area { flex: 1; height: 20px; position: relative; }
+  .wf-bar {
+    position: absolute; height: 14px; top: 3px; border-radius: 3px;
+    min-width: 4px; transition: opacity 0.15s;
+  }
+  .wf-bar.llm { background: var(--span-llm); }
+  .wf-bar.tool { background: var(--span-tool); }
+  .wf-bar.retrieval { background: var(--span-retrieval); }
+  .wf-bar.code { background: var(--span-code); }
+  .wf-dur { width: 60px; text-align: right; font-size: 11px; color: var(--t2); flex-shrink: 0; }
+
+  .wf-legend { display: flex; gap: 16px; margin-bottom: 16px; }
+  .wf-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--t2); }
+  .wf-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Span detail */
+  .span-detail { display: none; margin: 0 0 12px 148px; padding: 12px; background: var(--inp); border-radius: var(--r2); }
+  .span-detail.open { display: block; animation: tabFadeIn 0.15s ease; }
+  @keyframes tabFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .span-section { margin-bottom: 8px; }
+  .span-section-title { font-size: 11px; font-weight: 600; color: var(--t3); text-transform: uppercase; margin-bottom: 4px; }
+  .span-json {
+    font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;
+    padding: 8px; background: var(--bg2); border-radius: var(--r1); color: var(--t2);
+  }
+
+  /* ---- Stats View ---- */
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    padding: 20px; overflow-y: auto; flex: 1;
+  }
+  .stat-card {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--r3); padding: 16px; min-height: 280px;
+    display: flex; flex-direction: column;
+  }
+  .stat-card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .stat-card canvas { flex: 1; width: 100%; }
+
+  /* ---- Empty State ---- */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; color: var(--t3); gap: 8px; padding: 40px;
+  }
+  .empty-state svg { width: 48px; height: 48px; opacity: 0.3; }
+  .empty-state-text { font-size: 14px; }
+
+  /* ---- Loading ---- */
+  .loading-bar {
+    height: 2px; background: var(--accent); position: fixed; top: 0; left: 0; z-index: 100;
+    width: 0; transition: width 0.3s ease; opacity: 0;
+  }
+  .loading-bar.active { opacity: 1; animation: loadPulse 1.5s ease infinite; }
+  @keyframes loadPulse { 0%{width:10%} 50%{width:70%} 100%{width:90%} }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .date-range { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-bar" id="loadingBar"></div>
+
+<!-- Top Navigation -->
+<nav class="topnav">
+  <span class="topnav-title">LumiGate Traces</span>
+  <div class="topnav-tabs">
+    <button class="topnav-tab active" data-view="traces">Traces</button>
+    <button class="topnav-tab" data-view="stats">Stats</button>
+  </div>
+  <span class="topnav-spacer"></span>
+  <div class="date-range">
+    <input type="date" id="dateFrom">
+    <span class="date-range-sep">&mdash;</span>
+    <input type="date" id="dateTo">
+  </div>
+  <!-- Refresh -->
+  <button class="icon-btn" id="refreshBtn" title="Refresh">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M21 12a9 9 0 1 1-2.636-6.364"/>
+      <path d="M21 3v6h-6"/>
+    </svg>
+  </button>
+  <!-- Theme toggle -->
+  <button class="icon-btn" id="themeBtn" title="Toggle theme">
+    <svg id="themeIcon" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M12 3v1m0 16v1m8.66-13.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 7.66l-.71-.71M4.05 4.05l-.71-.71"/>
+      <circle cx="12" cy="12" r="4"/>
+    </svg>
+  </button>
+</nav>
+
+<div class="layout">
+  <!-- Sidebar Filters -->
+  <aside class="sidebar" id="sidebar">
+    <div class="filter-group">
+      <div class="filter-label">Type</div>
+      <div class="filter-chips" data-filter="type">
+        <button class="filter-chip active" data-value="">All</button>
+        <button class="filter-chip" data-value="chat">Chat</button>
+        <button class="filter-chip" data-value="tool">Tool</button>
+        <button class="filter-chip" data-value="workflow">Workflow</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Status</div>
+      <div class="filter-chips" data-filter="status">
+        <button class="filter-chip active" data-value="">All</button>
+        <button class="filter-chip" data-value="completed">Completed</button>
+        <button class="filter-chip" data-value="error">Error</button>
+        <button class="filter-chip" data-value="running">Running</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Provider</div>
+      <div class="filter-chips" data-filter="provider">
+        <button class="filter-chip active" data-value="">All</button>
+        <button class="filter-chip" data-value="openai">OpenAI</button>
+        <button class="filter-chip" data-value="anthropic">Anthropic</button>
+        <button class="filter-chip" data-value="gemini">Gemini</button>
+        <button class="filter-chip" data-value="deepseek">DeepSeek</button>
+        <button class="filter-chip" data-value="kimi">Kimi</button>
+        <button class="filter-chip" data-value="doubao">Doubao</button>
+        <button class="filter-chip" data-value="qwen">Qwen</button>
+        <button class="filter-chip" data-value="minimax">MiniMax</button>
+      </div>
+    </div>
+    <button class="filter-reset" id="resetFilters">Reset all filters</button>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Traces View -->
+    <div class="main-view active" id="viewTraces">
+      <div class="trace-table-wrap" id="tableWrap">
+        <table class="trace-table">
+          <thead>
+            <tr>
+              <th data-sort="time">Time <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="type">Type <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="duration">Duration <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="status">Status <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="provider">Provider <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="tokens">Tokens <span class="sort-arrow">&#9660;</span></th>
+              <th data-sort="cost">Cost <span class="sort-arrow">&#9660;</span></th>
+            </tr>
+          </thead>
+          <tbody id="traceBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <svg fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+        </svg>
+        <span class="empty-state-text">No traces found</span>
+      </div>
+      <div class="pagination" id="pagination">
+        <span id="pageInfo">Page 1 of 1</span>
+        <div class="pagination-btns" id="pageBtns"></div>
+      </div>
+    </div>
+
+    <!-- Stats View -->
+    <div class="main-view" id="viewStats">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-title">Request Volume</div>
+          <canvas id="chartVolume"></canvas>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-title">Avg Latency by Provider</div>
+          <canvas id="chartLatency"></canvas>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-title">Token Usage</div>
+          <canvas id="chartTokens"></canvas>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-title">Success / Error Rate</div>
+          <canvas id="chartErrors"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Overlay -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <h2 id="detailTitle">Trace Detail</h2>
+      <button class="detail-close" id="detailClose">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ---- State ----
+  const PAGE_SIZE = 50;
+  let currentPage = 1;
+  let totalPages = 1;
+  let traces = [];
+  let sortCol = 'time';
+  let sortDir = 'desc';
+  let filters = { type: '', status: '', provider: '' };
+  let currentView = 'traces';
+  let statsData = null;
+
+  // ---- DOM refs ----
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+  const loadingBar = $('#loadingBar');
+  const traceBody = $('#traceBody');
+  const emptyState = $('#emptyState');
+  const tableWrap = $('#tableWrap');
+  const pageInfo = $('#pageInfo');
+  const pageBtns = $('#pageBtns');
+  const detailOverlay = $('#detailOverlay');
+  const detailBody = $('#detailBody');
+  const detailTitle = $('#detailTitle');
+  const dateFrom = $('#dateFrom');
+  const dateTo = $('#dateTo');
+
+  // ---- Init dates ----
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  dateFrom.value = fmtDate(weekAgo);
+  dateTo.value = fmtDate(today);
+
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  // ---- Theme ----
+  function applyTheme() {
+    const dark = document.documentElement.classList.contains('dark');
+    const icon = $('#themeIcon');
+    if (dark) {
+      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      icon.innerHTML = '<path d="M12 3v1m0 16v1m8.66-13.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 7.66l-.71-.71M4.05 4.05l-.71-.71"/><circle cx="12" cy="12" r="4"/>';
+    }
+  }
+  $('#themeBtn').addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('lg_traces_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    applyTheme();
+    if (currentView === 'stats' && statsData) renderStats();
+  });
+  applyTheme();
+
+  // ---- View tabs ----
+  $$('.topnav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      $$('.topnav-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentView = tab.dataset.view;
+      $$('.main-view').forEach(v => v.classList.remove('active'));
+      $('#view' + currentView.charAt(0).toUpperCase() + currentView.slice(1)).classList.add('active');
+      if (currentView === 'stats') fetchStats();
+    });
+  });
+
+  // ---- Filters ----
+  $$('.filter-chips').forEach(group => {
+    const filterKey = group.dataset.filter;
+    group.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        filters[filterKey] = chip.dataset.value;
+        currentPage = 1;
+        fetchTraces();
+      });
+    });
+  });
+
+  $('#resetFilters').addEventListener('click', () => {
+    filters = { type: '', status: '', provider: '' };
+    $$('.filter-chips').forEach(g => {
+      g.querySelectorAll('.filter-chip').forEach((c, i) => {
+        c.classList.toggle('active', i === 0);
+      });
+    });
+    currentPage = 1;
+    fetchTraces();
+  });
+
+  // ---- Sorting ----
+  $$('.trace-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortCol = col;
+        sortDir = 'desc';
+      }
+      $$('.trace-table th').forEach(h => h.classList.remove('sorted'));
+      th.classList.add('sorted');
+      th.querySelector('.sort-arrow').textContent = sortDir === 'asc' ? '\u25B2' : '\u25BC';
+      sortAndRender();
+    });
+  });
+
+  // ---- Date change ----
+  dateFrom.addEventListener('change', () => { currentPage = 1; fetchTraces(); });
+  dateTo.addEventListener('change', () => { currentPage = 1; fetchTraces(); });
+  $('#refreshBtn').addEventListener('click', () => {
+    fetchTraces();
+    if (currentView === 'stats') fetchStats();
+  });
+
+  // ---- API ----
+  function showLoading() { loadingBar.classList.add('active'); }
+  function hideLoading() { loadingBar.classList.remove('active'); loadingBar.style.width = '100%'; setTimeout(() => { loadingBar.style.width = '0'; }, 200); }
+
+  async function fetchTraces() {
+    showLoading();
+    const params = new URLSearchParams({
+      page: currentPage,
+      limit: PAGE_SIZE,
+      sort: sortCol,
+      dir: sortDir
+    });
+    if (filters.type) params.set('type', filters.type);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.provider) params.set('provider', filters.provider);
+    if (dateFrom.value) params.set('from', dateFrom.value);
+    if (dateTo.value) params.set('to', dateTo.value);
+
+    try {
+      const res = await fetch('/v1/traces?' + params.toString(), { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      traces = data.traces || [];
+      totalPages = data.totalPages || 1;
+      currentPage = data.page || 1;
+      renderTable();
+      renderPagination();
+    } catch (err) {
+      console.error('Failed to fetch traces:', err);
+      traces = [];
+      renderTable();
+    } finally {
+      hideLoading();
+    }
+  }
+
+  async function fetchTraceDetail(id) {
+    showLoading();
+    try {
+      const res = await fetch('/v1/traces/' + encodeURIComponent(id), { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      renderDetail(data);
+    } catch (err) {
+      console.error('Failed to fetch trace detail:', err);
+      detailBody.innerHTML = '<div class="empty-state"><span class="empty-state-text">Failed to load trace detail</span></div>';
+    } finally {
+      hideLoading();
+    }
+  }
+
+  async function fetchStats() {
+    showLoading();
+    const params = new URLSearchParams();
+    if (dateFrom.value) params.set('from', dateFrom.value);
+    if (dateTo.value) params.set('to', dateTo.value);
+    try {
+      const res = await fetch('/v1/traces/stats?' + params.toString(), { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      statsData = await res.json();
+      renderStats();
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // ---- Render Trace Table ----
+  function sortAndRender() {
+    traces.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (sortCol === 'time') { va = new Date(va).getTime(); vb = new Date(vb).getTime(); }
+      if (sortCol === 'duration' || sortCol === 'tokens' || sortCol === 'cost') { va = Number(va) || 0; vb = Number(vb) || 0; }
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    renderTable();
+  }
+
+  function renderTable() {
+    if (traces.length === 0) {
+      traceBody.innerHTML = '';
+      tableWrap.style.display = 'none';
+      emptyState.style.display = 'flex';
+      return;
+    }
+    tableWrap.style.display = '';
+    emptyState.style.display = 'none';
+    traceBody.innerHTML = traces.map(t => {
+      const time = fmtTime(t.time);
+      const typeClass = 'type-' + (t.type || 'chat');
+      const statusClass = t.status === 'completed' ? 'badge-ok' : t.status === 'error' ? 'badge-err' : 'badge-run';
+      const dur = t.duration != null ? t.duration + 'ms' : '--';
+      const tokens = t.tokens != null ? t.tokens.toLocaleString() : '--';
+      const cost = t.cost != null ? '$' + Number(t.cost).toFixed(4) : '--';
+      return '<tr class="data-row" data-id="' + escHtml(t.id) + '">' +
+        '<td>' + time + '</td>' +
+        '<td><span class="type-label ' + typeClass + '">' + escHtml(t.type || 'chat') + '</span></td>' +
+        '<td>' + dur + '</td>' +
+        '<td><span class="badge ' + statusClass + '">' + escHtml(t.status || 'unknown') + '</span></td>' +
+        '<td>' + escHtml(t.provider || '--') + '</td>' +
+        '<td>' + tokens + '</td>' +
+        '<td>' + cost + '</td>' +
+        '</tr>';
+    }).join('');
+
+    traceBody.querySelectorAll('.data-row').forEach(row => {
+      row.addEventListener('click', () => {
+        traceBody.querySelectorAll('.data-row').forEach(r => r.classList.remove('selected'));
+        row.classList.add('selected');
+        fetchTraceDetail(row.dataset.id);
+        detailOverlay.classList.add('open');
+      });
+    });
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const s = String(d.getSeconds()).padStart(2, '0');
+    const mon = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return mon + '/' + day + ' ' + h + ':' + m + ':' + s;
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ---- Pagination ----
+  function renderPagination() {
+    pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages;
+    pageBtns.innerHTML = '';
+    const prev = document.createElement('button');
+    prev.className = 'pg-btn'; prev.textContent = 'Prev'; prev.disabled = currentPage <= 1;
+    prev.addEventListener('click', () => { if (currentPage > 1) { currentPage--; fetchTraces(); } });
+    pageBtns.appendChild(prev);
+
+    const maxShow = 5;
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + maxShow - 1);
+    if (end - start < maxShow - 1) start = Math.max(1, end - maxShow + 1);
+
+    for (let i = start; i <= end; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'pg-btn' + (i === currentPage ? ' active' : '');
+      btn.textContent = i;
+      btn.addEventListener('click', () => { currentPage = i; fetchTraces(); });
+      pageBtns.appendChild(btn);
+    }
+
+    const next = document.createElement('button');
+    next.className = 'pg-btn'; next.textContent = 'Next'; next.disabled = currentPage >= totalPages;
+    next.addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; fetchTraces(); } });
+    pageBtns.appendChild(next);
+  }
+
+  // ---- Detail Panel ----
+  $('#detailClose').addEventListener('click', closeDetail);
+  detailOverlay.addEventListener('click', (e) => { if (e.target === detailOverlay) closeDetail(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+
+  function closeDetail() {
+    detailOverlay.classList.remove('open');
+    traceBody.querySelectorAll('.data-row').forEach(r => r.classList.remove('selected'));
+  }
+
+  function renderDetail(trace) {
+    detailTitle.textContent = 'Trace: ' + (trace.id || 'Unknown');
+    let html = '';
+
+    // Meta
+    html += '<div class="detail-meta">';
+    const metas = [
+      { label: 'Type', value: trace.type || '--' },
+      { label: 'Status', value: trace.status || '--' },
+      { label: 'Provider', value: trace.provider || '--' },
+      { label: 'Model', value: trace.model || '--' },
+      { label: 'Duration', value: trace.duration != null ? trace.duration + 'ms' : '--' },
+      { label: 'Tokens', value: trace.tokens != null ? trace.tokens.toLocaleString() : '--' },
+      { label: 'Cost', value: trace.cost != null ? '$' + Number(trace.cost).toFixed(4) : '--' },
+      { label: 'Time', value: trace.time ? new Date(trace.time).toLocaleString() : '--' },
+    ];
+    metas.forEach(m => {
+      html += '<div><div class="meta-item-label">' + m.label + '</div><div class="meta-item-value">' + escHtml(m.value) + '</div></div>';
+    });
+    html += '</div>';
+
+    // Waterfall
+    const spans = trace.spans || [];
+    if (spans.length > 0) {
+      html += '<div class="wf-legend">';
+      html += '<div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--span-llm)"></div>LLM</div>';
+      html += '<div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--span-tool)"></div>Tool</div>';
+      html += '<div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--span-retrieval)"></div>Retrieval</div>';
+      html += '<div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--span-code)"></div>Code</div>';
+      html += '</div>';
+
+      const traceStart = Math.min(...spans.map(s => s.startTime || 0));
+      const traceEnd = Math.max(...spans.map(s => (s.startTime || 0) + (s.duration || 0)));
+      const totalDur = traceEnd - traceStart || 1;
+
+      html += '<div class="waterfall-title">Span Timeline</div>';
+      html += '<div class="waterfall">';
+      spans.forEach((span, idx) => {
+        const offset = ((span.startTime || 0) - traceStart) / totalDur * 100;
+        const width = Math.max(((span.duration || 0) / totalDur) * 100, 1);
+        const typeClass = span.type === 'llm' ? 'llm' : span.type === 'tool' ? 'tool' : span.type === 'retrieval' ? 'retrieval' : 'code';
+        const dur = span.duration != null ? span.duration + 'ms' : '--';
+        html += '<div class="wf-row" data-span-idx="' + idx + '">';
+        html += '<div class="wf-label" title="' + escHtml(span.name || span.type) + '">' + escHtml(span.name || span.type) + '</div>';
+        html += '<div class="wf-bar-area"><div class="wf-bar ' + typeClass + '" style="left:' + offset + '%;width:' + width + '%"></div></div>';
+        html += '<div class="wf-dur">' + dur + '</div>';
+        html += '</div>';
+
+        // Collapsible span detail
+        html += '<div class="span-detail" id="spanDetail' + idx + '">';
+        if (span.type === 'llm') {
+          html += '<div class="span-section"><div class="span-section-title">Model</div><div>' + escHtml(span.model || '--') + '</div></div>';
+          html += '<div class="span-section"><div class="span-section-title">Tokens</div><div>' + (span.tokens || '--') + '</div></div>';
+          if (span.prompt) {
+            html += '<div class="span-section"><div class="span-section-title">Prompt Preview</div><div class="span-json">' + escHtml(truncate(span.prompt, 500)) + '</div></div>';
+          }
+        }
+        if (span.type === 'tool') {
+          html += '<div class="span-section"><div class="span-section-title">Tool</div><div>' + escHtml(span.name || '--') + '</div></div>';
+          if (span.params) {
+            html += '<div class="span-section"><div class="span-section-title">Parameters</div><div class="span-json">' + escHtml(formatJSON(span.params)) + '</div></div>';
+          }
+          if (span.result) {
+            html += '<div class="span-section"><div class="span-section-title">Result</div><div class="span-json">' + escHtml(formatJSON(span.result)) + '</div></div>';
+          }
+        }
+        if (span.input && span.type !== 'tool') {
+          html += '<div class="span-section"><div class="span-section-title">Input</div><div class="span-json">' + escHtml(formatJSON(span.input)) + '</div></div>';
+        }
+        if (span.output && span.type !== 'tool') {
+          html += '<div class="span-section"><div class="span-section-title">Output</div><div class="span-json">' + escHtml(formatJSON(span.output)) + '</div></div>';
+        }
+        if (span.error) {
+          html += '<div class="span-section"><div class="span-section-title">Error</div><div class="span-json" style="color:var(--status-err)">' + escHtml(span.error) + '</div></div>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="color:var(--t3);font-size:13px;padding:20px 0">No spans recorded for this trace.</div>';
+    }
+
+    detailBody.innerHTML = html;
+
+    // Toggle span details on click
+    detailBody.querySelectorAll('.wf-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = row.dataset.spanIdx;
+        const detail = detailBody.querySelector('#spanDetail' + idx);
+        if (detail) detail.classList.toggle('open');
+      });
+    });
+  }
+
+  function truncate(s, max) {
+    if (!s) return '';
+    return s.length > max ? s.substring(0, max) + '...' : s;
+  }
+
+  function formatJSON(obj) {
+    if (typeof obj === 'string') {
+      try { obj = JSON.parse(obj); } catch(e) { return obj; }
+    }
+    try { return JSON.stringify(obj, null, 2); } catch(e) { return String(obj); }
+  }
+
+  // ---- Stats Charts (Canvas) ----
+  function renderStats() {
+    if (!statsData) return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#8e8e8e' : '#555';
+    const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const bgColors = ['#007aff','#34c759','#ff9500','#af52de','#ff3b30','#5ac8fa','#ffcc00','#ff2d55'];
+
+    renderVolumeChart(textColor, gridColor);
+    renderLatencyChart(textColor, gridColor, bgColors);
+    renderTokensChart(textColor, bgColors);
+    renderErrorChart(textColor, gridColor);
+  }
+
+  function getCtx(id) {
+    const canvas = document.getElementById(id);
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  function renderVolumeChart(textColor, gridColor) {
+    const { ctx, w, h } = getCtx('chartVolume');
+    const data = statsData.volume || [];
+    if (data.length === 0) { drawEmpty(ctx, w, h, textColor); return; }
+
+    const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+    const maxVal = Math.max(...data.map(d => d.count), 1);
+
+    // Grid
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (ch / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+      ctx.fillStyle = textColor; ctx.font = '11px -apple-system, sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxVal - (maxVal / 4) * i), pad.left - 8, y + 4);
+    }
+
+    // Line
+    ctx.strokeStyle = '#10a37f';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+      const y = pad.top + ch - (d.count / maxVal) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill
+    const lastX = pad.left + cw;
+    ctx.lineTo(lastX, pad.top + ch);
+    ctx.lineTo(pad.left, pad.top + ch);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+    grad.addColorStop(0, 'rgba(16,163,127,0.2)');
+    grad.addColorStop(1, 'rgba(16,163,127,0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // X labels
+    ctx.fillStyle = textColor; ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(data.length / 6));
+    data.forEach((d, i) => {
+      if (i % step === 0 || i === data.length - 1) {
+        const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+        ctx.fillText(d.label || '', x, h - pad.bottom + 20);
+      }
+    });
+  }
+
+  function renderLatencyChart(textColor, gridColor, bgColors) {
+    const { ctx, w, h } = getCtx('chartLatency');
+    const data = statsData.latency || [];
+    if (data.length === 0) { drawEmpty(ctx, w, h, textColor); return; }
+
+    const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+    const maxVal = Math.max(...data.map(d => d.avg), 1);
+    const barW = Math.min(40, cw / data.length * 0.6);
+    const gap = cw / data.length;
+
+    // Grid
+    ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (ch / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+      ctx.fillStyle = textColor; ctx.font = '11px -apple-system, sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxVal - (maxVal / 4) * i) + 'ms', pad.left - 8, y + 4);
+    }
+
+    // Bars
+    data.forEach((d, i) => {
+      const x = pad.left + gap * i + (gap - barW) / 2;
+      const barH = (d.avg / maxVal) * ch;
+      const y = pad.top + ch - barH;
+
+      ctx.fillStyle = bgColors[i % bgColors.length];
+      roundRect(ctx, x, y, barW, barH, 4);
+      ctx.fill();
+
+      ctx.fillStyle = textColor; ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(d.provider || '', x + barW / 2, h - pad.bottom + 16);
+    });
+  }
+
+  function renderTokensChart(textColor, bgColors) {
+    const { ctx, w, h } = getCtx('chartTokens');
+    const data = statsData.tokens || [];
+    if (data.length === 0) { drawEmpty(ctx, w, h, textColor); return; }
+
+    const total = data.reduce((s, d) => s + (d.count || 0), 0) || 1;
+    const cx = w * 0.35, cy = h / 2, radius = Math.min(w * 0.3, h * 0.4);
+    let startAngle = -Math.PI / 2;
+
+    data.forEach((d, i) => {
+      const sliceAngle = (d.count / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, startAngle, startAngle + sliceAngle);
+      ctx.closePath();
+      ctx.fillStyle = bgColors[i % bgColors.length];
+      ctx.fill();
+      startAngle += sliceAngle;
+    });
+
+    // Inner circle for donut
+    const isDark = document.documentElement.classList.contains('dark');
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#212121' : '#ffffff';
+    ctx.fill();
+
+    // Center text
+    ctx.fillStyle = textColor; ctx.font = 'bold 16px -apple-system, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(formatNum(total), cx, cy + 2);
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.fillText('tokens', cx, cy + 16);
+
+    // Legend
+    const legendX = w * 0.65;
+    let legendY = Math.max(20, cy - data.length * 11);
+    ctx.textAlign = 'left';
+    data.forEach((d, i) => {
+      ctx.fillStyle = bgColors[i % bgColors.length];
+      ctx.fillRect(legendX, legendY, 10, 10);
+      ctx.fillStyle = textColor; ctx.font = '11px -apple-system, sans-serif';
+      const pct = ((d.count / total) * 100).toFixed(1);
+      ctx.fillText((d.provider || 'unknown') + ' (' + pct + '%)', legendX + 16, legendY + 9);
+      legendY += 22;
+    });
+  }
+
+  function renderErrorChart(textColor, gridColor) {
+    const { ctx, w, h } = getCtx('chartErrors');
+    const data = statsData.errors || [];
+    if (data.length === 0) { drawEmpty(ctx, w, h, textColor); return; }
+
+    const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+    const maxVal = Math.max(...data.map(d => (d.success || 0) + (d.error || 0)), 1);
+
+    // Grid
+    ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (ch / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+      ctx.fillStyle = textColor; ctx.font = '11px -apple-system, sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxVal - (maxVal / 4) * i), pad.left - 8, y + 4);
+    }
+
+    // Stacked area: success
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+      const total = (d.success || 0) + (d.error || 0);
+      const y = pad.top + ch - (total / maxVal) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad.left + cw, pad.top + ch);
+    ctx.lineTo(pad.left, pad.top + ch);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(52,199,89,0.25)';
+    ctx.fill();
+
+    // Stacked area: error on top
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+      const y = pad.top + ch - ((d.error || 0) / maxVal) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad.left + cw, pad.top + ch);
+    ctx.lineTo(pad.left, pad.top + ch);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,59,48,0.25)';
+    ctx.fill();
+
+    // Lines
+    ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    // Success line
+    ctx.strokeStyle = '#34c759';
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+      const total = (d.success || 0) + (d.error || 0);
+      const y = pad.top + ch - (total / maxVal) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Error line
+    ctx.strokeStyle = '#ff3b30';
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+      const y = pad.top + ch - ((d.error || 0) / maxVal) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // X labels
+    ctx.fillStyle = textColor; ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(data.length / 6));
+    data.forEach((d, i) => {
+      if (i % step === 0 || i === data.length - 1) {
+        const x = pad.left + (i / (data.length - 1 || 1)) * cw;
+        ctx.fillText(d.label || '', x, h - pad.bottom + 20);
+      }
+    });
+
+    // Legend
+    ctx.textAlign = 'right'; ctx.font = '11px -apple-system, sans-serif';
+    ctx.fillStyle = '#34c759';
+    ctx.fillRect(w - pad.right - 110, pad.top, 10, 10);
+    ctx.fillStyle = textColor;
+    ctx.fillText('Success', w - pad.right - 54, pad.top + 9);
+    ctx.fillStyle = '#ff3b30';
+    ctx.fillRect(w - pad.right - 50, pad.top, 10, 10);
+    ctx.fillStyle = textColor;
+    ctx.fillText('Error', w - pad.right, pad.top + 9);
+  }
+
+  function drawEmpty(ctx, w, h, color) {
+    ctx.fillStyle = color; ctx.font = '13px -apple-system, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No data available', w / 2, h / 2);
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function formatNum(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  // ---- Resize observer for charts ----
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (currentView === 'stats' && statsData) renderStats();
+    }, 200);
+  });
+
+  // ---- Init ----
+  fetchTraces();
+
+})();
+</script>
+</body>
+</html>
