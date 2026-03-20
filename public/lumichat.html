@@ -331,11 +331,21 @@
     .asst-content a{color:#6ea8fe;text-decoration:none}
     .asst-content a:hover{text-decoration:underline}
     /* Source chips — ChatGPT-style reference pills at bottom of response */
-    .source-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
-    .source-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 6px;border-radius:999px;font-size:12px;color:var(--t2);text-decoration:none;background:var(--inp);border:1px solid var(--border);backdrop-filter:blur(8px);transition:background .15s,border-color .15s;max-width:200px;overflow:hidden}
-    .source-chip:hover{background:var(--hover);border-color:var(--t3);text-decoration:none}
-    .source-chip img{width:14px;height:14px;border-radius:2px;flex-shrink:0}
-    .source-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .source-chips{margin-top:8px;position:relative;display:inline-flex;align-items:center}
+    .source-stack{display:inline-flex;align-items:center;cursor:pointer;padding:3px 8px 3px 2px;border-radius:999px;background:var(--inp);border:1px solid var(--border);transition:background .15s;gap:2px}
+    .source-stack:hover{background:var(--sb-hover)}
+    .source-stack-icons{display:flex;align-items:center}
+    .source-stack-icons img{width:18px;height:18px;border-radius:50%;border:2px solid var(--bg);margin-left:-6px;background:var(--inp);transition:transform .15s}
+    .source-stack-icons img:first-child{margin-left:0}
+    .source-stack:hover .source-stack-icons img{transform:translateX(2px)}
+    .source-stack-count{font-size:11px;color:var(--t3);margin-left:4px;white-space:nowrap}
+    .source-expanded{display:none;flex-direction:column;gap:4px;margin-top:6px;animation:srcExpand .2s ease}
+    .source-expanded.open{display:flex}
+    @keyframes srcExpand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    .source-item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:var(--r1);font-size:12px;color:var(--t2);text-decoration:none;transition:background .15s}
+    .source-item:hover{background:var(--sb-hover);text-decoration:none}
+    .source-item img{width:14px;height:14px;border-radius:2px;flex-shrink:0}
+    .source-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:250px}
     .stream-tail{white-space:pre-wrap;word-break:break-word}
     .msg-acts{display:flex;gap:2px;margin-top:6px;opacity:0;transition:opacity .15s}
     .msg-row:hover .msg-acts{opacity:1}
@@ -2757,9 +2767,15 @@ function extractSourceUrls(text){
 }
 function buildSourceChipsHtml(sources){
   if(!sources.length) return '';
-  return '<div class="source-chips">'+sources.map(s=>
-    `<a href="${s.url.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="source-chip"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=16" width="14" height="14" onerror="this.src='${GLOBE_FALLBACK_SVG}'" loading="lazy"><span>${s.domain}</span></a>`
-  ).join('')+'</div>';
+  const maxIcons = Math.min(sources.length, 4);
+  const icons = sources.slice(0, maxIcons).map(s =>
+    `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=32" width="18" height="18" onerror="this.src='${GLOBE_FALLBACK_SVG}'" loading="lazy" alt="${esc(s.domain)}">`
+  ).join('');
+  const countText = sources.length === 1 ? '1 source' : sources.length + ' sources';
+  const items = sources.map(s =>
+    `<a href="${s.url.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="source-item"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=16" width="14" height="14" onerror="this.src='${GLOBE_FALLBACK_SVG}'" loading="lazy"><span>${esc(s.domain)}</span></a>`
+  ).join('');
+  return `<div class="source-chips"><div class="source-stack" onclick="this.nextElementSibling.classList.toggle('open')"><div class="source-stack-icons">${icons}</div><span class="source-stack-count">${countText}</span></div><div class="source-expanded">${items}</div></div>`;
 }
 
 // Full render: injects code headers + hljs syntax highlighting + source chips
