@@ -340,6 +340,7 @@ services:
     volumes:
       - ./lumitrade/freqtrade/user_data:/freqtrade/user_data
       - ./lumitrade/freqtrade/config.json:/freqtrade/config.json:ro
+      - ./lumitrade/frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
     ports:
       - "127.0.0.1:18790:8080"
     environment:

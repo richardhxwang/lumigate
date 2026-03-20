@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2310a37f'/%3E%3Cpolyline points='6 22 12 14 18 18 26 10' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpolyline points='21 10 26 10 26 15' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <title>LumiTrade</title>
+
+  <script type="module" crossorigin src="/assets/index-D3hXVh8R.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CJA4txlp.css">
+  <style>
+    /* LumiTrade Skin — accent green + Apple fonts, preserves FreqUI dark/light mode */
+    :root {
+      --bs-primary: #10a37f !important;
+      --bs-primary-rgb: 16,163,127 !important;
+      --bs-link-color: #10a37f !important;
+      --bs-link-hover-color: #0d9268 !important;
+    }
+    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important; }
+
+    /* Logo */
+    .navbar-brand img { display: none !important; }
+    .navbar-brand::before { content: "LumiTrade"; color: #10a37f; font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+
+    /* Accent buttons */
+    .btn-primary, .btn-info { background-color: #10a37f !important; border-color: #10a37f !important; border-radius: 8px !important; }
+    .btn-primary:hover, .btn-info:hover { background-color: #0d9268 !important; border-color: #0d9268 !important; }
+    .btn-outline-primary { color: #10a37f !important; border-color: #10a37f !important; border-radius: 8px !important; }
+    .btn-outline-primary:hover { background-color: #10a37f !important; color: #fff !important; }
+    .btn { border-radius: 8px !important; }
+
+    /* Active nav */
+    .nav-link:hover, .nav-link.active, .nav-link.router-link-active { color: #10a37f !important; }
+
+    /* Badges */
+    .badge.bg-primary { background-color: #10a37f !important; }
+    .badge.bg-success { background-color: #22c55e !important; }
+    .badge.bg-danger { background-color: #ef4444 !important; }
+
+    /* Profit/loss */
+    .text-success, .profit-positive { color: #22c55e !important; }
+    .text-danger, .profit-negative { color: #ef4444 !important; }
+
+    /* Focus rings */
+    .form-control:focus, .form-select:focus { border-color: #10a37f !important; box-shadow: 0 0 0 .2rem rgba(16,163,127,.25) !important; }
+
+    /* Border radius polish */
+    .card { border-radius: 12px !important; }
+    .card-header { border-radius: 12px 12px 0 0 !important; }
+    .form-control, .form-select, input, select, textarea { border-radius: 8px !important; }
+    .dropdown-menu { border-radius: 12px !important; }
+    .modal-content { border-radius: 16px !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.3); border-radius: 3px; }
+  </style>
+</head>
+
+<body>
+  <noscript>
+    <strong>We're sorry but LumiTrade doesn't work properly without JavaScript enabled. Please enable it to
+      continue.</strong>
+  </noscript>
+  <div id="app"></div>
+</body>
+
+</html>
