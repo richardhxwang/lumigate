@@ -3361,10 +3361,19 @@ const platformAuth = async (req, res, next) => {
   }
   return res.status(401).json({ error: "Authentication required" });
 };
-app.use("/v1/parse", apiLimiter, platformAuth, require("./routes/parse"));
-app.use("/v1/audio", apiLimiter, platformAuth, require("./routes/audio"));
-app.use("/v1/vision", apiLimiter, platformAuth, require("./routes/vision"));
-app.use("/v1/code", apiLimiter, platformAuth, require("./routes/code"));
+// Mount platform routes at BOTH /platform/* (actual consumers) and /v1/* (legacy)
+const parseRouter = require("./routes/parse");
+const audioRouter = require("./routes/audio");
+const visionRouter = require("./routes/vision");
+const codeRouter = require("./routes/code");
+app.use("/platform/parse", apiLimiter, platformAuth, parseRouter);
+app.use("/platform/audio", apiLimiter, platformAuth, audioRouter);
+app.use("/platform/vision", apiLimiter, platformAuth, visionRouter);
+app.use("/platform/code", apiLimiter, platformAuth, codeRouter);
+app.use("/v1/parse", apiLimiter, platformAuth, parseRouter);
+app.use("/v1/audio", apiLimiter, platformAuth, audioRouter);
+app.use("/v1/vision", apiLimiter, platformAuth, visionRouter);
+app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ manager: knowledgeManager, log }));
 
 app.get("/v1/lumigent/tools", apiLimiter, platformAuth, async (_req, res) => {
