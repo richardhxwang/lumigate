@@ -741,25 +741,23 @@
     #voice-overlay.voice-mode-cancel .vwave{transform:scale(.92);opacity:.75}
 
     /* SLASH COMMAND PANEL */
-    #slash-panel{position:absolute;bottom:calc(100% + 8px);left:12px;right:12px;background:rgba(30,30,32,0.92);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:6px;z-index:200;display:none;box-shadow:0 -8px 32px rgba(0,0,0,.5);max-height:min(420px,50vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
-    #slash-panel::-webkit-scrollbar{width:5px}
-    #slash-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
-    :root.light #slash-panel{background:rgba(242,242,247,0.96);border-color:rgba(0,0,0,0.08);scrollbar-color:rgba(0,0,0,.12) transparent}
-    :root.light #slash-panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
+    #slash-panel{position:absolute;bottom:calc(100% + 4px);left:8px;right:8px;background:rgba(30,30,32,0.72);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r2);padding:3px;z-index:200;display:none;box-shadow:0 -4px 20px rgba(0,0,0,.35);max-height:min(340px,42vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.10) transparent}
+    #slash-panel::-webkit-scrollbar{width:3px}
+    #slash-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.10);border-radius:2px}
+    :root.light #slash-panel{background:rgba(255,255,255,0.80);border-color:rgba(0,0,0,0.06);scrollbar-color:rgba(0,0,0,.08) transparent;box-shadow:0 -4px 16px rgba(0,0,0,.10)}
+    :root.light #slash-panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,.08)}
     #slash-panel.open{display:block;animation:slash-in .15s ease}
-    @keyframes slash-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-    .slash-divider{font-size:10px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding:8px 10px 4px;user-select:none;pointer-events:none;display:flex;align-items:center;gap:8px}
-    .slash-divider::before,.slash-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
-    :root.light .slash-divider::before,:root.light .slash-divider::after{background:rgba(0,0,0,.06)}
-    .slash-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r1);cursor:pointer;transition:background .1s}
-    .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.08)}
-    :root.light .slash-item:hover,:root.light .slash-item.sel{background:rgba(0,0,0,0.06)}
-    .slash-cmd{font-size:13px;font-weight:600;color:var(--accent);font-family:'SF Mono',SFMono-Regular,ui-monospace,Menlo,monospace;min-width:160px;flex-shrink:0}
-    .slash-desc{font-size:12px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @keyframes slash-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .slash-divider{font-size:9px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;padding:4px 8px 2px;user-select:none;pointer-events:none;opacity:.6}
+    .slash-item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;transition:background .1s}
+    .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.07)}
+    :root.light .slash-item:hover,:root.light .slash-item.sel{background:rgba(0,0,0,0.05)}
+    .slash-cmd{font-size:12.5px;font-weight:500;color:var(--accent);font-family:inherit;min-width:0;flex-shrink:0}
+    .slash-desc{font-size:11.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:2px}
     .slash-item.sel .slash-desc{color:var(--t2)}
-    .slash-arrow{margin-left:auto;color:var(--t3);font-size:11px;flex-shrink:0;opacity:.6}
-    .slash-back{font-size:11px;color:var(--t3);padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;border-radius:var(--r1);transition:background .1s;user-select:none}
-    .slash-back:hover{background:rgba(255,255,255,0.06)}
+    .slash-arrow{margin-left:auto;color:var(--t3);font-size:10px;flex-shrink:0;opacity:.5}
+    .slash-back{font-size:11px;color:var(--t3);padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:3px;border-radius:6px;transition:background .1s;user-select:none}
+    .slash-back:hover{background:rgba(255,255,255,0.05)}
     :root.light .slash-back:hover{background:rgba(0,0,0,0.04)}
 
     /* CONTEXT USAGE BAR */
