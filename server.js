@@ -3397,7 +3397,7 @@ app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
 });
 
 // ── Workflow routes ───────────────────────────────────────────────────────────
-const createWorkflowRouter = require("./routes/workflow");
+const { createWorkflowRouter } = require("./routes/workflow");
 app.use("/v1/workflows", apiLimiter, platformAuth, createWorkflowRouter({ unifiedRegistry, lumigentRuntime, log }));
 
 // ── Observability routes ──────────────────────────────────────────────────────
