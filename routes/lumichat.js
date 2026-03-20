@@ -43,6 +43,7 @@ module.exports = function createLumiChatRouter(deps) {
     requireLcAuth,
     requireFnAuth,
     requireRole,
+    adminAuth,
     isAdminRequest,
     lcAuthLimiter,
     lcRegisterLimiter,
@@ -734,7 +735,8 @@ function buildStructuredAttachmentPayloadBlock({ userQuery = "", attachments = [
 function buildFinancialAnalysisPromptBlock(analysisResult = {}) {
   if (!analysisResult || typeof analysisResult !== "object") return "";
   const checks = Array.isArray(analysisResult.checks) ? analysisResult.checks : [];
-  if (!checks.length) return "";
+  const crossChecks = Array.isArray(analysisResult.cross_checks) ? analysisResult.cross_checks : [];
+  if (!checks.length && !crossChecks.length) return "";
   const normalized = checks.slice(0, 20).map((c) => ({
     check: String(c.check || ""),
     formula: String(c.formula || ""),
@@ -744,13 +746,45 @@ function buildFinancialAnalysisPromptBlock(analysisResult = {}) {
     status: String(c.status || ""),
     missing_fields: Array.isArray(c.missing_fields) ? c.missing_fields : [],
   }));
+
+  // Build human-readable cross-check summary for the AI
+  let crossCheckBlock = "";
+  if (crossChecks.length > 0) {
+    const lines = ["=== PROGRAMMATIC CROSS-CHECKS (computed, not estimated) ==="];
+    crossChecks.forEach((xc, i) => {
+      const status = String(xc.status || "insufficient");
+      const icon = status === "pass" ? "[PASS]" : status === "fail" ? "[FAIL]" : "[?]";
+      const checkName = String(xc.check || "").replace(/_/g, " ");
+      const formula = String(xc.formula || "");
+      const mainVal = xc.main_value != null ? Number(xc.main_value).toLocaleString("en-US") : "N/A";
+      const detailSum = xc.detail_sum != null ? Number(xc.detail_sum).toLocaleString("en-US") : "N/A";
+      const source = String(xc.main_source || "");
+      if (status === "pass") {
+        lines.push(`${i + 1}. ${icon} ${checkName}: ${source} ${mainVal} == Detail sum ${detailSum}`);
+      } else if (status === "fail") {
+        const diff = xc.difference != null ? Number(xc.difference).toLocaleString("en-US") : "?";
+        lines.push(`${i + 1}. ${icon} ${checkName}: ${source} ${mainVal} != Detail sum ${detailSum} (diff: ${diff})`);
+      } else {
+        lines.push(`${i + 1}. ${icon} ${checkName}: insufficient data for verification`);
+      }
+      if (formula) lines.push(`   Formula: ${formula}`);
+    });
+    crossCheckBlock = lines.join("\n");
+  }
+
   const payload = {
     summary: String(analysisResult.summary || ""),
     checks: normalized,
+    cross_checks: crossChecks.slice(0, 20),
+    extracted_fields: analysisResult.extracted_fields || {},
     missing_fields: Array.isArray(analysisResult.missing_fields) ? analysisResult.missing_fields : [],
     meta: analysisResult.meta && typeof analysisResult.meta === "object" ? analysisResult.meta : {},
   };
-  return `[Financial Analysis JSON]\n${JSON.stringify(payload)}`;
+  let block = `[Financial Analysis JSON]\n${JSON.stringify(payload)}`;
+  if (crossCheckBlock) {
+    block += `\n\n${crossCheckBlock}`;
+  }
+  return block;
 }
 async function runFinancialAnalysisForAttachments({ query = "", attachments = [], lang = "en" } = {}) {
   const docs = normalizeAttachmentContextItems(attachments).map((item) => ({
@@ -5167,7 +5201,7 @@ router.get("/lc/admin/upgrade-action", async (req, res) => {
 });
 
 // GET /admin/upgrade-requests — list pending upgrade requests
-router.get("/admin/upgrade-requests", requireRole("root", "admin"), async (req, res) => {
+router.get("/admin/upgrade-requests", adminAuth, requireRole("root", "admin"), async (req, res) => {
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
