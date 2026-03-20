@@ -717,7 +717,10 @@ class WorkflowEngine {
   /** Template node: string interpolation. */
   _executeTemplate(node, inputs, execContext) {
     const template = node.config?.template || inputs.template || "";
-    const text = interpolate(template, execContext);
+    // Merge resolved inputs into the interpolation context so {{varName}} works
+    // in addition to {{nodes.x.output.y}}, {{input.z}}, etc.
+    const mergedContext = { ...execContext, ...inputs };
+    const text = interpolate(template, mergedContext);
     return { text };
   }
 

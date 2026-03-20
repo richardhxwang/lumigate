@@ -1452,11 +1452,13 @@ async function saveWorkflow() {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.id) { workflowId = data.id; showIdBadge(workflowId); }
+      const savedId = data.id || data.workflow?.id;
+      if (savedId) { workflowId = savedId; showIdBadge(workflowId); }
       markClean();
       showToast('Workflow saved');
     } else {
-      showToast('Save failed: HTTP ' + res.status, true);
+      const err = await res.json().catch(() => ({}));
+      showToast('Save failed: ' + (err.errors?.join(', ') || err.error || 'HTTP ' + res.status), true);
     }
   } catch (err) {
     showToast('Save error: ' + err.message, true);
@@ -1475,11 +1477,13 @@ async function loadWorkflowById(id) {
   }
 }
 
-function applyWorkflowData(data, id) {
-  workflowId = data.id || id;
+function applyWorkflowData(raw, id) {
+  // Support both flat response and { workflow: {...} } wrapper
+  const data = raw.workflow || raw;
+  workflowId = data.id || raw.id || id;
   showIdBadge(workflowId);
   document.getElementById('wf-name').value = data.name || 'Untitled';
-  nodeConfigs = data.configs || {};
+  nodeConfigs = data.configs || data._configs || {};
 
   const restoredNodes = (data.nodes || []).map(n => ({
     id: n.id,
