@@ -1,0 +1,126 @@
+groups:
+  - name: lumigate-log-errors
+    interval: 30s
+    rules:
+      - alert: LumiGateNetworkError
+        expr: sum(count_over_time({compose_service="lumigate"} |= "network error" [2m])) > 0
+        for: 30s
+        labels:
+          severity: warning
+          component: lumigate
+        annotations:
+          summary: "Detected 'network error' in LumiGate logs"
+          description: "One or more network error events were logged by lumigate in the last 2 minutes."
+
+      - alert: LumiGateBadRequestProvider
+        expr: sum(count_over_time({compose_service="lumigate"} |= "Bad request to AI provider" [3m])) > 0
+        for: 30s
+        labels:
+          severity: warning
+          component: lumigate
+        annotations:
+          summary: "Detected provider bad request errors"
+          description: "LumiGate logged provider bad request errors in the last 3 minutes."
+
+      - alert: LumiGateUrlExtractFallback
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"msg\":\"Tool fallback emitted\"" |= "\"fallbackType\":\"url_extract_failed\"" [3m])) > 0
+        for: 45s
+        labels:
+          severity: warning
+          component: lumigate
+        annotations:
+          summary: "Detected URL extraction fallback events"
+          description: "LumiGate emitted structured fallbackType=url_extract_failed events in the last 3 minutes."
+
+      - alert: LumiChatEncryptedPackFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"component\":\"lumichat-client\"" |= "\"msg\":\"encrypted_pack_failed\"" [3m])) > 0
+        for: 20s
+        labels:
+          severity: warning
+          component: lumichat
+        annotations:
+          summary: "Detected encrypted upload packaging failures"
+          description: "LumiChat client reported encrypted_pack_failed in the last 3 minutes."
+
+      - alert: LumiChatFileUploadFailed
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"component\":\"lumichat-client\"" |= "\"msg\":\"file_upload_failed\"" [3m])) > 0
+        for: 20s
+        labels:
+          severity: warning
+          component: lumichat
+        annotations:
+          summary: "Detected file upload failures"
+          description: "LumiChat client reported file_upload_failed in the last 3 minutes."
+
+  - name: lumigate-infrastructure
+    interval: 30s
+    rules:
+      # OOM risk: container logging memory pressure indicators
+      - alert: LumiGateOOMRisk
+        expr: sum(count_over_time({compose_service="lumigate"} |~ "(?i)(heap|memory|oom|allocation failed|out of memory|ENOMEM|JavaScript heap)" [2m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: lumigate
+        annotations:
+          summary: "LumiGate container OOM risk detected"
+          description: "Memory-related errors detected in LumiGate logs, container may be at risk of OOM kill."
+
+      # High latency: slow request warnings
+      - alert: LumiGateHighLatency
+        expr: sum(count_over_time({compose_service="lumigate"} |= "\"level\":\"warn\"" |~ "(?i)(slow|timeout|took \\d{4,}ms|latency)" [5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: lumigate
+        annotations:
+          summary: "High request latency detected"
+          description: "Multiple slow request or timeout events logged in the last 5 minutes."
+
+      # Collector down: collector health failures
+      - alert: CollectorDown
+        expr: sum(count_over_time({compose_service="lumigate"} |~ "(?i)(collector.*(unavailable|down|failed|error|unhealthy)|CDP.*(error|refused|timeout))" [2m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: collector
+        annotations:
+          summary: "Collector (Chrome CDP) is down"
+          description: "Collector health check failures detected for 2+ minutes."
+
+      # PocketBase unavailable
+      - alert: PocketBaseUnavailable
+        expr: sum(count_over_time({compose_service="lumigate"} |~ "(?i)(pocketbase.*(unavailable|refused|timeout|ECONNREFUSED)|PB.*(error|failed|unreachable))" [1m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: pocketbase
+        annotations:
+          summary: "PocketBase is unavailable"
+          description: "PocketBase connection errors detected for 1+ minute. Auth and data persistence are impacted."
+
+      # Error rate spike: high volume of error-level log entries
+      - alert: ErrorRateSpike
+        expr: |
+          sum(count_over_time({compose_service="lumigate"} |= "\"level\":\"error\"" [3m])) /
+          (sum(count_over_time({compose_service="lumigate"} [3m])) > 0) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          component: lumigate
+        annotations:
+          summary: "Error rate spike: >5% of log entries are errors"
+          description: "More than 5% of LumiGate log entries in the last 3 minutes are at error level."
+
+      # 5xx rate spike (via nginx access logs)
+      - alert: Http5xxRateSpike
+        expr: |
+          sum(count_over_time({compose_service="nginx"} |~ "\" 5\\d{2} " [3m])) /
+          (sum(count_over_time({compose_service="nginx"} [3m])) > 0) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          component: nginx
+        annotations:
+          summary: "HTTP 5xx error rate >5%"
+          description: "More than 5% of nginx requests returned 5xx status codes in the last 3 minutes."

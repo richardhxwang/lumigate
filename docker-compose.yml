@@ -71,16 +71,23 @@ services:
       - CDP_HOST=127.0.0.1
       - CDP_PORT=9223
       - RESOLUTION=1280x800x24
+      - NODE_MAX_OLD_SPACE_MB=${NODE_MAX_OLD_SPACE_MB:-768}
+      - LUMIGENT_SANDBOX_IMAGE=${LUMIGENT_SANDBOX_IMAGE:-lumigate/sandbox-runtime:latest}
+      - LUMIGENT_SANDBOX_CMD_ALLOWLIST=${LUMIGENT_SANDBOX_CMD_ALLOWLIST:-ALL}
       - WHISPER_URL=http://whisper:9000
       - WHISPER_ENDPOINT=/asr
       - PB_URL=${PB_URL:-http://pocketbase:8090}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - QDRANT_URL=http://lumigate-qdrant:6333
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - searxng
       - whisper
       - pocketbase
+      - qdrant
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:9471/health"]
       interval: 5s
@@ -113,7 +120,7 @@ services:
     environment:
       - FILE_PARSER_MAX_FILE_SIZE=104857600
     working_dir: /app
-    command: sh -c "npm install --production && node server.js"
+    command: sh -c "apk add --no-cache poppler-utils poppler-data >/dev/null && npm install --omit=dev && node server.js"
     expose:
       - "3100"
     ports:
@@ -182,5 +189,90 @@ services:
       start_period: 30s
     logging: *logging-default
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: lumigate-qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:6333/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging: *logging-default
+
+  ragflow:
+    image: infiniflow/ragflow:latest
+    container_name: lumigate-ragflow
+    restart: unless-stopped
+    profiles: ["rag"]
+    ports:
+      - "127.0.0.1:9380:9380"
+    volumes:
+      - ragflow_data:/ragflow/data
+    environment:
+      - RAGFLOW_API_KEY=${RAGFLOW_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9380/api/v1/datasets?page_size=1", "-H", "Authorization: Bearer ${RAGFLOW_API_KEY:-test}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging: *logging-default
+
+  loki:
+    image: grafana/loki:latest
+    container_name: lumigate-loki
+    profiles: ["observability"]
+    command:
+      - -config.file=/etc/loki/config.yml
+    ports:
+      - "127.0.0.1:19410:3100"
+    volumes:
+      - ./docker/monitoring/loki-config.yml:/etc/loki/config.yml:ro
+      - ./docker/monitoring/loki-rules:/etc/loki/rules:ro
+      - ./data/monitoring/loki:/loki
+    depends_on:
+      - alertmanager
+    restart: unless-stopped
+    logging: *logging-default
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: lumigate-promtail
+    profiles: ["observability"]
+    command:
+      - -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./docker/monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./data/monitoring/promtail:/tmp
+      - ./data:/host_data:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+    logging: *logging-default
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: lumigate-alertmanager
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "127.0.0.1:19093:9093"
+    volumes:
+      - ./docker/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./data/monitoring/alertmanager:/alertmanager
+    restart: unless-stopped
+    logging: *logging-default
+
 volumes:
   collector-chrome-profile:
+  qdrant_data:
+  ragflow_data:
