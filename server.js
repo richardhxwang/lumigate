@@ -1745,13 +1745,32 @@ app.get("/lumichat", (req, res) => {
   }
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader("Content-Security-Policy",
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com https://*.googleusercontent.com; media-src 'self' blob:; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; frame-ancestors 'none'`
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com https://*.google.com https://*.gstatic.com https://*.googleusercontent.com; media-src 'self' blob:; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; frame-ancestors 'none'`
   );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   // Inject nonce into all <script nonce="{{NONCE}}"> and <style nonce="{{NONCE}}"> placeholders
   const html = lumichatHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
+});
+
+// FreqUI auto-login token endpoint — password stays server-side
+app.post("/lumitrade/frequi-token", async (req, res) => {
+  const ftUrl = process.env.TRADE_FREQTRADE_URL || "http://lumigate-freqtrade:8080";
+  const ftUser = process.env.TRADE_FREQTRADE_USERNAME || "freqtrader";
+  const ftPass = process.env.TRADE_FREQTRADE_PASSWORD || "";
+  if (!ftPass) return res.status(503).json({ error: "Freqtrade password not configured" });
+  try {
+    const r = await fetch(`${ftUrl}/api/v1/token/login`, {
+      method: "POST",
+      headers: { Authorization: "Basic " + Buffer.from(`${ftUser}:${ftPass}`).toString("base64") },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: "Freqtrade login failed" });
+    const data = await r.json();
+    res.json({ access_token: data.access_token, refresh_token: data.refresh_token });
+  } catch (err) {
+    res.status(502).json({ error: "Freqtrade unreachable", detail: err.message });
+  }
 });
 
 // Serve LumiTrade interface (nonce injected into HTML for CSP)
@@ -2642,7 +2661,7 @@ async function memoryLlmFetch(messages, { temperature = 0, maxTokens = 1024 } = 
   const defaultModels = {
     deepseek: "deepseek-chat",
     openai: "gpt-4o-mini",
-    gemini: "gemini-2.0-flash",
+    gemini: "gemini-2.5-flash",
   };
 
   for (const provName of providers) {

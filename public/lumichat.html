@@ -2775,7 +2775,7 @@ function buildSourceChipsHtml(sources){
   const items = sources.map(s =>
     `<a href="${s.url.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="source-item"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=16" width="14" height="14" onerror="this.src='${GLOBE_FALLBACK_SVG}'" loading="lazy"><span>${esc(s.domain)}</span></a>`
   ).join('');
-  return `<div class="source-chips"><div class="source-stack" onclick="this.nextElementSibling.classList.toggle('open')"><div class="source-stack-icons">${icons}</div><span class="source-stack-count">${countText}</span></div><div class="source-expanded">${items}</div></div>`;
+  return `<div class="source-chips"><div class="source-stack"><div class="source-stack-icons">${icons}</div><span class="source-stack-count">${countText}</span></div><div class="source-expanded">${items}</div></div>`;
 }
 
 // Full render: injects code headers + hljs syntax highlighting + source chips
@@ -2818,6 +2818,13 @@ function renderMarkdown(el, text){
     chipsDiv.innerHTML=DOMPurify.sanitize(chipsHtml,{ADD_ATTR:['onerror'],FORCE_BODY:true});
     if(chipsDiv.firstElementChild) el.appendChild(chipsDiv.firstElementChild);
   }
+  // Source stack click → expand/collapse (no inline onclick for CSP compat)
+  el.querySelectorAll('.source-stack').forEach(stack=>{
+    stack.addEventListener('click',()=>{
+      const expanded=stack.nextElementSibling;
+      if(expanded) expanded.classList.toggle('open');
+    });
+  });
   // Add "Open in Canvas" buttons to code blocks
   addCanvasButtons(el);
 }
@@ -3136,14 +3143,15 @@ async function speakMessage(btn){
   if(_ttsAudio && !_ttsAudio.paused){ stopTTS(); return; }
   btn.classList.add('speaking');
   try{
-    const voice=_lang==='zh'?'zh-female-sisi':'en-female-sarah';
+    const voice=_lang==='zh'?'zh-female-xiaoxiao':'en-female-jenny';
     const res=await fetch('/platform/audio/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,5000),voice})});
-    if(!res.ok){ throw new Error('TTS failed'); }
+    if(!res.ok){ throw new Error('TTS failed: '+res.status); }
     const blob=await res.blob();
-    _ttsAudio=new Audio(URL.createObjectURL(blob));
-    _ttsAudio.onended=()=>{btn.classList.remove('speaking');_ttsAudio=null;};
-    _ttsAudio.onerror=()=>{btn.classList.remove('speaking');_ttsAudio=null;};
-    _ttsAudio.play();
+    const url=URL.createObjectURL(blob);
+    _ttsAudio=new Audio(url);
+    _ttsAudio.onended=()=>{btn.classList.remove('speaking');URL.revokeObjectURL(url);_ttsAudio=null;};
+    _ttsAudio.onerror=()=>{btn.classList.remove('speaking');URL.revokeObjectURL(url);_ttsAudio=null;};
+    await _ttsAudio.play();
   }catch(e){
     btn.classList.remove('speaking');
     // Fallback to browser TTS
@@ -3851,7 +3859,8 @@ async function sendMessage(){
               if(!tb){
                 tb=document.createElement('div');tb.className='thinking-block-live';
                 tb.style.opacity='0';tb.style.transform='translateY(4px)';
-                tb.innerHTML='<div class="think-live-label" onclick="this.parentElement.classList.toggle(\'open\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span></span><svg class="think-chevron" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .2s"><polyline points="9 18 15 12 9 6"/></svg></div><div class="think-live-text"></div>';
+                tb.innerHTML='<div class="think-live-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span></span><svg class="think-chevron" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .2s"><polyline points="9 18 15 12 9 6"/></svg></div><div class="think-live-text"></div>';
+                tb.querySelector('.think-live-label').addEventListener('click',()=>tb.classList.toggle('open'));
                 streamEl.parentElement.insertBefore(tb,streamEl);
                 // Hide tips during thinking
                 const tipEl=streamEl.parentElement?.querySelector('.tip-line');
@@ -6292,7 +6301,7 @@ const CTX_SIZES = {
   'claude-opus-4': 200000, 'claude-sonnet-4': 200000, 'claude-haiku-4': 200000,
   'claude-opus-4-5': 200000, 'claude-sonnet-4-5': 200000, 'claude-haiku-4-5': 200000,
   'claude-opus-4-6': 200000, 'claude-sonnet-4-6': 200000,
-  'gemini-2.5-pro': 1000000, 'gemini-2.5-flash': 1000000, 'gemini-2.0-flash': 1000000,
+  'gemini-2.5-pro': 1000000, 'gemini-2.5-flash': 1000000,
   'deepseek-chat': 64000, 'deepseek-reasoner': 64000,
 };
 function getCtxSize(modelId){
