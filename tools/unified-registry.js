@@ -2,7 +2,8 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
-const { registry, executeToolCall: builtinExecute } = require("./registry");
+const { registry } = require("./registry");
+const { executeToolCall: builtinExecute } = require("./builtin-handlers");
 
 /**
  * UnifiedRegistry — Enhanced tool registry that combines built-in tools,
@@ -87,6 +88,24 @@ class UnifiedRegistry {
     const mcpSchemas = await this._getMCPSchemas();
     for (const s of mcpSchemas) {
       schemaMap.set(s.name, s);
+    }
+
+    // 5. Ensure use_template is always present (handled specially in executeToolCall)
+    if (!schemaMap.has('use_template')) {
+      schemaMap.set('use_template', {
+        name: 'use_template',
+        description: 'Use a professional template to generate files. Supports inspect mode to preview structure before filling data.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', description: 'Template category (e.g. "finance/dcf", "hr/offer-letter")' },
+            template: { type: 'string', description: 'Template name' },
+            inspect: { type: 'boolean', description: 'If true, returns template structure without generating file' },
+            data: { type: 'object', description: 'Data to fill the template with (company, sheets, etc.)' }
+          },
+          required: ['category', 'template']
+        }
+      });
     }
 
     return Array.from(schemaMap.values());
@@ -254,8 +273,6 @@ class UnifiedRegistry {
       const result = await builtinExecute("generate_spreadsheet", { title: `${company} - ${match.name}`, sheets });
       if (result.ok) result.data = { ...result.data, based_on_template: match.name };
       return result;
-
-      return this._templateFallback(toolInput, startTime);
     } catch (err) {
       return { ok: false, error: `Template error: ${err.message}`, duration: Date.now() - startTime };
     }
@@ -316,7 +333,7 @@ class UnifiedRegistry {
 
     return [
       "You can generate files. Output: [TOOL:name]{json}[/TOOL]",
-      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template",
+      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template, financial_statement_analyze",
       "",
       "=== FILE GENERATION WORKFLOW ===",
       "ONLY use tools when user EXPLICITLY asks for file generation. Do NOT generate files for greetings or questions.",
@@ -351,6 +368,12 @@ class UnifiedRegistry {
       "  Terminal Value, Enterprise Value, Equity Value, Per Share Value.",
       "",
       "For Excel: real numbers (not strings), formulas with =, percentages as decimals (0.15 not 15%).",
+      "",
+      "=== FINANCIAL ANALYSIS ===",
+      "When user uploads financial statements and asks for tie-out checks, verification, or analysis:",
+      "  Use [TOOL:financial_statement_analyze]{\"query\":\"...\",\"documents\":[{\"text\":\"...\",\"name\":\"...\"}]}[/TOOL]",
+      "  This runs deterministic arithmetic checks (balance sheet equation, gross profit bridge, cash flow bridge, etc).",
+      "  Use the returned structured results as ground truth. You may explain naturally but do not contradict computed checks.",
       templateHint,
     ].join("\n");
   }
@@ -443,6 +466,24 @@ class UnifiedRegistry {
     // MCP cached
     for (const s of this._mcpSchemasCache) {
       schemaMap.set(s.name, s);
+    }
+
+    // Ensure use_template is always present
+    if (!schemaMap.has('use_template')) {
+      schemaMap.set('use_template', {
+        name: 'use_template',
+        description: 'Use a professional template to generate files. Supports inspect mode to preview structure before filling data.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', description: 'Template category (e.g. "finance/dcf", "hr/offer-letter")' },
+            template: { type: 'string', description: 'Template name' },
+            inspect: { type: 'boolean', description: 'If true, returns template structure without generating file' },
+            data: { type: 'object', description: 'Data to fill the template with (company, sheets, etc.)' }
+          },
+          required: ['category', 'template']
+        }
+      });
     }
 
     return Array.from(schemaMap.values());

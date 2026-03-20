@@ -4,6 +4,7 @@ class LumigentTraceStore {
   constructor(options = {}) {
     this.limit = Math.max(10, Number(options.limit) || 200);
     this.items = [];
+    this._onTrace = typeof options.onTrace === "function" ? options.onTrace : null;
   }
 
   add(entry) {
@@ -14,6 +15,9 @@ class LumigentTraceStore {
     };
     this.items.push(item);
     if (this.items.length > this.limit) this.items.splice(0, this.items.length - this.limit);
+    if (this._onTrace) {
+      try { this._onTrace(item); } catch {}
+    }
     return item;
   }
 

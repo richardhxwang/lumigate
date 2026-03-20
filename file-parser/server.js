@@ -10,6 +10,12 @@
 
 const http = require("http");
 const path = require("path");
+const fs = require("fs/promises");
+const os = require("os");
+const crypto = require("crypto");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 
 // 0 means unlimited (subject to container memory / upstream proxy limits).
 const MAX_FILE_SIZE = Number(process.env.FILE_PARSER_MAX_FILE_SIZE || 0);
@@ -17,6 +23,34 @@ const MAX_FILE_SIZE = Number(process.env.FILE_PARSER_MAX_FILE_SIZE || 0);
 // ── Parsers ──────────────────────────────────────────────────────────────────
 
 async function parsePDF(buffer) {
+  const primary = await parsePDFWithPdfParse(buffer);
+  const fallback = await parsePDFWithPdfJs(buffer).catch(() => ({ text: "", pages: primary?.pages || 0 }));
+  const poppler = await parsePDFWithPdftotext(buffer).catch(() => ({ text: "", pages: primary?.pages || 0 }));
+  const primaryScore = extractionScore(primary?.text || "");
+  const fallbackScore = extractionScore(fallback?.text || "");
+  const popplerScore = extractionScore(poppler?.text || "");
+  if (popplerScore > Math.max(primaryScore, fallbackScore)) {
+    return {
+      text: poppler.text || "",
+      pages: poppler.pages || primary?.pages || 0,
+      info: { engine: "pdftotext-fallback" },
+    };
+  }
+  if (fallbackScore > primaryScore) {
+    return {
+      text: fallback.text || "",
+      pages: fallback.pages || primary?.pages || 0,
+      info: { engine: "pdfjs-dist-fallback" },
+    };
+  }
+  return primary;
+}
+
+function extractionScore(text) {
+  return String(text || "").replace(/\s+/g, "").length;
+}
+
+async function parsePDFWithPdfParse(buffer) {
   const pdfParse = require("pdf-parse");
   const customPagerender = async (pageData) => {
     const textContent = await pageData.getTextContent({
@@ -59,6 +93,67 @@ async function parsePDF(buffer) {
     pages: result.numpages,
     info: result.info,
   };
+}
+
+async function parsePDFWithPdfJs(buffer) {
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    isEvalSupported: false,
+  });
+  const pdf = await loadingTask.promise;
+  const pages = [];
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const textContent = await page.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    });
+    const rows = [];
+    for (const item of textContent.items || []) {
+      const str = sanitizeCellText(item.str || "");
+      if (!str) continue;
+      const x = Number(item.transform?.[4] || 0);
+      const y = Number(item.transform?.[5] || 0);
+      rows.push({ x, y: Math.round(y * 2) / 2, str });
+    }
+    rows.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+    const lines = [];
+    let currentY = null;
+    let currentRow = [];
+    for (const it of rows) {
+      if (currentY == null || Math.abs(it.y - currentY) <= 0.5) {
+        currentY = it.y;
+        currentRow.push(it);
+      } else {
+        currentRow.sort((a, b) => a.x - b.x);
+        lines.push(currentRow.map((x) => x.str).join(" | "));
+        currentY = it.y;
+        currentRow = [it];
+      }
+    }
+    if (currentRow.length) {
+      currentRow.sort((a, b) => a.x - b.x);
+      lines.push(currentRow.map((x) => x.str).join(" | "));
+    }
+    pages.push(lines.join("\n"));
+  }
+  return { text: pages.join("\n\n"), pages: pdf.numPages, info: { engine: "pdfjs-dist" } };
+}
+
+async function parsePDFWithPdftotext(buffer) {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "lumigate-pdf-"));
+  const inFile = path.join(tempDir, `${crypto.randomUUID()}.pdf`);
+  const outFile = path.join(tempDir, `${crypto.randomUUID()}.txt`);
+  try {
+    await fs.writeFile(inFile, buffer);
+    await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", inFile, outFile], { timeout: 20000 });
+    const text = await fs.readFile(outFile, "utf-8");
+    return { text, pages: 0, info: { engine: "pdftotext" } };
+  } finally {
+    await Promise.allSettled([fs.unlink(inFile), fs.unlink(outFile), fs.rm(tempDir, { recursive: true, force: true })]);
+  }
 }
 
 function sanitizeCellText(v) {
@@ -254,7 +349,13 @@ function parseExcel(buffer) {
           const ref = XLSX.utils.encode_cell({ r, c });
           const cell = sheet[ref];
           const value = cell?.w ?? cell?.v ?? "";
-          row.push(sanitizeCellText(value));
+          const display = sanitizeCellText(value);
+          // Include formula string when available so AI can see the model structure
+          if (cell?.f) {
+            row.push(display ? `${display} [=${cell.f}]` : `[=${cell.f}]`);
+          } else {
+            row.push(display);
+          }
         }
         matrix.push(row);
       }

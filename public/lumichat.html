@@ -334,6 +334,15 @@
     /* No CSS cursor — typing dots handle all waiting states */
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+    .st-text{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transform:translateY(4px);transition:opacity .24s ease,transform .24s ease}
+    .st-text.show{opacity:1;transform:translateY(0)}
+    .st-text.done{opacity:.72}
+    .st-ico{width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid var(--border);background:var(--inp);color:var(--t2);flex-shrink:0}
+    .st-msg{white-space:pre-wrap;word-break:break-word;line-height:1.35}
+    .st-text.swap .st-msg{animation:stSwap .28s ease}
+    @keyframes stSwap{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+    .asst-content.streaming-active{transition:none;opacity:1;filter:none}
+    .asst-content.streaming-active.sse-bump{animation:none}
     .trunc-bar{text-align:center;font-size:12px;color:var(--t3);padding:8px 24px 0;max-width:768px;margin:0 auto}
 
     /* INPUT */
@@ -351,6 +360,32 @@
     .tb{width:32px;height:32px;background:transparent;border:none;color:var(--t3);cursor:pointer;border-radius:var(--r1);display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s}
     .tb:hover{background:var(--sb-hover);color:var(--t1)}
     .tb.tb-active{color:var(--accent);background:rgba(16,163,127,0.1)}
+    .tb.tb-mode-active{color:var(--accent);background:rgba(16,163,127,0.12)}
+    .pro-wrap{position:relative}
+    #pro-menu{position:absolute;left:0;bottom:44px;min-width:280px;max-width:min(92vw,420px);background:var(--bg);opacity:1;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.26),0 1px 0 rgba(255,255,255,.04) inset;padding:10px;display:none;z-index:60}
+    #pro-menu.open{display:block}
+    .pro-grid{display:grid;grid-template-columns:130px 1fr;gap:10px}
+    .pro-col-title{font-size:11px;color:var(--t3);letter-spacing:.02em;text-transform:uppercase;margin:0 0 6px}
+    .pro-list{display:flex;flex-direction:column;gap:6px}
+    .pro-item{border:1px solid var(--border);background:var(--inp);color:var(--t1);border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.3;text-align:left;cursor:pointer}
+    .pro-item:hover{border-color:var(--accent)}
+    .pro-item.active{border-color:var(--accent);background:rgba(16,163,127,.12)}
+    .pro-item.disabled{opacity:.55;cursor:not-allowed}
+    .pro-hint{margin-top:8px;font-size:11px;color:var(--t3)}
+    @media (max-width: 640px){
+      #pro-menu{
+        position:fixed;
+        left:12px;
+        right:12px;
+        bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+        min-width:0;
+        max-width:none;
+        max-height:min(62vh,420px);
+        overflow-y:auto;
+        overflow-x:hidden;
+      }
+      .pro-grid{grid-template-columns:1fr}
+    }
     .tb svg{width:16px;height:16px}
     #send-btn{width:34px;height:34px;background:rgba(255,255,255,0.15);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);border:1.5px solid rgba(255,255,255,0.22);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,opacity .15s,transform .1s;flex-shrink:0}
     #send-btn:hover:not(:disabled){background:rgba(255,255,255,0.26);border-color:rgba(255,255,255,0.38);transform:scale(1.06)}
@@ -362,7 +397,7 @@
     :root.light #send-btn:disabled{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.07)}
     :root.light #send-btn svg{color:var(--t1)}
     #file-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
-    .fchip{display:flex;align-items:center;gap:6px;background:var(--sb-active);border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px 4px 4px;font-size:12px;color:var(--t2);max-width:260px;position:relative}
+    .fchip{display:flex;align-items:center;gap:6px;background:var(--sb-active);border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px 4px 4px;font-size:12px;color:var(--t2);width:min(460px,calc(100vw - 48px));max-width:100%;position:relative}
     .fchip.fchip-busy{border-color:rgba(16,163,127,0.35)}
     .fchip.fchip-error{border-color:rgba(239,68,68,0.45)}
     .fchip-thumb{width:36px;height:36px;border-radius:var(--r1);object-fit:cover;flex-shrink:0}
@@ -370,6 +405,8 @@
     .fchip-info{display:flex;flex-direction:column;overflow:hidden;flex:1}
     .fchip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1);font-size:12px;font-weight:500}
     .fchip-type{font-size:10.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .fchip.fchip-busy .fchip-info{overflow:visible}
+    .fchip.fchip-busy .fchip-type{overflow:visible;text-overflow:clip;white-space:normal;line-height:1.2}
     .fchip.fchip-compact{max-width:240px}
     .fchip-rm{background:none;border:none;color:var(--t3);cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0;margin-left:2px}
     .fchip-rm:hover{color:var(--t1)}
@@ -378,6 +415,16 @@
     .fchip-status-ok{color:var(--accent)}
     .fchip-status-err{color:#ef4444}
     @keyframes fchip-spin{to{transform:rotate(360deg)}}
+    @media(max-width:640px){
+      .fchip{width:min(100%,calc(100vw - 24px));gap:8px}
+      .fchip.fchip-busy .fchip-type{
+        display:-webkit-box;
+        -webkit-line-clamp:2;
+        -webkit-box-orient:vertical;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+    }
     .inp-hint{text-align:center;font-size:11.5px;color:var(--t3);margin-top:6px}
 
     /* TOAST */
@@ -492,6 +539,7 @@
     .stg-toggle{width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,0.12);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
     :root.light .stg-toggle{background:rgba(0,0,0,0.12)}
     .stg-toggle.on{background:var(--accent)}
+    #stg-encrypted-upload-toggle.on{background:#10a37f}
     .stg-toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.3)}
     .stg-toggle.on::after{left:21px}
     .stg-toggle:disabled{opacity:.55;cursor:not-allowed}
@@ -850,6 +898,27 @@
                 <path d="M12 3a14 14 0 0 0 0 18"/>
               </svg>
             </button>
+            <div class="pro-wrap">
+              <button class="tb" id="pro-btn" data-t-title="input.pro_tools" title="Professional Tools" aria-haspopup="menu" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 4h12l2 4-8 12L4 8z"/>
+                  <path d="M9 8h6"/>
+                </svg>
+              </button>
+              <div id="pro-menu" role="menu">
+                <div class="pro-grid">
+                  <div>
+                    <div class="pro-col-title" data-t="pro.category">Category</div>
+                    <div class="pro-list" id="pro-cat-list"></div>
+                  </div>
+                  <div>
+                    <div class="pro-col-title" data-t="pro.tool">Tool</div>
+                    <div class="pro-list" id="pro-tool-list"></div>
+                  </div>
+                </div>
+                <div class="pro-hint" id="pro-hint"></div>
+              </div>
+            </div>
           </div>
           <button id="mic-btn" data-t-title="input.voice" title="Voice input">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
@@ -931,6 +1000,7 @@
           </div>
           <button class="stg-toggle" id="stg-encrypted-upload-toggle"></button>
         </div>
+        <div id="stg-runtime-config" style="display:none">
         <div class="stg-row" style="margin-top:20px">
           <div class="stg-lbl" data-t="settings.server_runtime">Server Runtime</div>
           <div class="stg-sublbl" id="stg-runtime-managed-hint" data-t="settings.managed_by_server">Managed by server</div>
@@ -963,6 +1033,7 @@
           <div class="stg-lbl" data-t="settings.search_keyword_model">Search Keyword Model</div>
           <select class="auth-input stg-select" id="stg-search-keyword-model" disabled></select>
           <div class="stg-sublbl" data-t="settings.search_keyword_model_desc">Exact model configured on the server for search keyword generation</div>
+        </div>
         </div>
       </div>
       <div class="stg-pane" id="stg-pane-presets">
@@ -1272,8 +1343,19 @@ const STRINGS = {
   'chat.request_failed':      { en:'Request failed',         zh:'请求失败' },
   'chat.thinking':            { en:'Thinking',               zh:'Thinking' },
   'chat.searching':           { en:'Searching',              zh:'Searching' },
-  'chat.uploading':           { en:'Uploading...',           zh:'上传中…' },
+  'chat.uploading':           { en:'Uploading...',           zh:'正在上传…' },
   'chat.in_out':              { en:'in',                     zh:'in' },
+  'input.pro_tools':          { en:'Professional Tools',     zh:'专业工具' },
+  'pro.category':             { en:'Category',               zh:'分类' },
+  'pro.tool':                 { en:'Tool',                   zh:'工具' },
+  'pro.cat_finance':          { en:'Finance',                zh:'金融' },
+  'pro.cat_lumihooks':        { en:'LumiHooks',              zh:'LumiHooks' },
+  'pro.tool_fs_analysis':     { en:'Financial Statement Analysis', zh:'财务报表分析' },
+  'pro.tool_fin_modeling':    { en:'Financial Modeling',     zh:'财务建模' },
+  'pro.tool_coming_soon':     { en:'Coming soon',            zh:'即将上线' },
+  'pro.mode_off':             { en:'Professional mode: off', zh:'专业模式：关闭' },
+  'pro.mode_on':              { en:'Professional mode',      zh:'专业模式' },
+  'pro.mode_hint':            { en:'Selected tools route messages to specialist workflow.', zh:'已选工具会将消息路由到专用流程。' },
 
   // Sidebar
   'sidebar.new_chat':         { en:'New Chat',               zh:'新对话' },
@@ -1521,6 +1603,8 @@ function applyLang(){
   // Refresh suggestions if on empty screen
   if(emptyEl && emptyEl.style.display !== 'none' && typeof renderSuggestions === 'function') renderSuggestions();
   if(typeof renderWebSearchToggle === 'function') renderWebSearchToggle();
+  if(typeof renderProfessionalToolsMenu === 'function') renderProfessionalToolsMenu();
+  if(typeof renderProfessionalToolsButton === 'function') renderProfessionalToolsButton();
   // SLASH_COMMANDS, BUILTIN_PRESETS, CAP_META, SENS_DESCS all use getters — auto-update on lang change
 }
 
@@ -1538,14 +1622,25 @@ let autoFollowStream = true;
 let forceWebSearch = false;
 let encryptedUploadEnabled = false;
 let encryptedUploadExt = null;
+let proMenuOpen = false;
+let selectedProCategory = "finance";
+let selectedProTool = "";
 const sessionSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lumichat-sync') : null;
 let sessionRefreshTimer = null;
+const PRO_TOOL_TREE = {
+  finance: [
+    { id: "financial_statement_analysis", labelKey: "pro.tool_fs_analysis", enabled: true },
+    { id: "financial_modeling", labelKey: "pro.tool_fin_modeling", enabled: false },
+  ],
+  lumihooks: [],
+};
 
 // DOM
 const $ = id => document.getElementById(id);
 const authEl = $('auth'), appEl = $('app'), chatEl = $('chat'), emptyEl = $('empty');
 const sbList = $('sb-list'), mdlLabel = $('mdl-label'), mdlDrop = $('mdl-drop');
 const msgIn = $('msg-in'), sendBtn = $('send-btn'), webBtn = $('web-btn');
+const proBtn = $('pro-btn'), proMenu = $('pro-menu'), proCatList = $('pro-cat-list'), proToolList = $('pro-tool-list'), proHint = $('pro-hint');
 const fileIn = $('file-in'), fileChips = $('file-chips'), suggGrid = $('sugg-grid');
 const sidebar = $('sidebar');
 const encModeBtn = $('enc-mode-btn');
@@ -1725,7 +1820,7 @@ async function flushClientLogs(){
       method:'POST',
       credentials:'same-origin',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(batch.length===1 ? batch[0] : { level:'info', event:'client_log_batch', data:{ items: batch }, href: location.href, sessionId: currentSid || '', userId: currentUser?.id || '' }),
+      body:JSON.stringify(batch.length===1 ? batch[0] : { batch }),
     });
   }catch{}
 }
@@ -1744,7 +1839,8 @@ function clientLog(level, event, data={}){
     else console.log('[LumiChat]', event, data);
   }catch{}
   clientLogQueue.push(entry);
-  if(clientLogQueue.length >= 10) flushClientLogsSoon(50);
+  if(level === 'error') flushClientLogsSoon(10);
+  else if(clientLogQueue.length >= 10) flushClientLogsSoon(50);
   else flushClientLogsSoon(300);
 }
 window.clientLog = clientLog;
@@ -2305,8 +2401,20 @@ function renameSession(id, itemEl){
 }
 
 function newChat(){
-  if(isStreaming) return;
+  if(isStreaming && abortCtrl){
+    // Force-start a new chat even during streaming.
+    // Clear queued payload before abort so finally{} won't auto-send stale content.
+    pendingQueue=null;
+    try{ abortCtrl.abort(); }catch{}
+  }
+  isStreaming=false;
+  abortCtrl=null;
+  streamEl=null;
+  streamText='';
+  streamRow=null;
+  pendingDelta='';
   currentSid=null; messages=[];
+  $('typ-row')?.remove();
   while(chatEl.lastChild&&chatEl.lastChild!==emptyEl) chatEl.removeChild(chatEl.lastChild);
   emptyEl.style.display='flex';
   updateActive(); updateSendBtn();
@@ -2341,6 +2449,12 @@ function renderMarkdownStream(el, text){
   const withHdr=withCodeHeaders(raw);
   el.innerHTML=DOMPurify.sanitize(withHdr,{ADD_ATTR:['onclick'],FORCE_BODY:true});
 }
+function likelyMarkdownStreaming(text){
+  const s=String(text||'');
+  if(!s) return false;
+  return /(^|\n)\s*```|(^|\n)\s*#{1,6}\s|(^|\n)\s*>\s|(^|\n)\s*[-*+]\s|(^|\n)\s*\d+\.\s|\|[^\n]*\|/.test(s)
+    || /[*_~`]/.test(s);
+}
 window.cpCode=function(btn){
   const c=btn.closest('pre').querySelector('code'); if(!c) return;
   navigator.clipboard.writeText(c.innerText).then(()=>{ btn.textContent=t('misc.copied_code'); setTimeout(()=>{ btn.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> ${t('misc.copy_code')}`; },1500); });
@@ -2348,6 +2462,97 @@ window.cpCode=function(btn){
 
 const COPY_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const EDIT_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+const IS_LUMICHAT_TEST = window.location.pathname === "/lumichat/test";
+
+function toolStatusIcon(icon){
+  const k=String(icon||"").toLowerCase();
+  if(k==="search") return "S";
+  if(k==="file") return "F";
+  if(k==="code") return "C";
+  if(k==="image"||k==="vision") return "V";
+  return "T";
+}
+function ellipsis(s,max=88){
+  const t=String(s||'').trim();
+  if(!t) return '';
+  return t.length>max ? `${t.slice(0,Math.max(0,max-3))}...` : t;
+}
+function compactStatusPayload(raw){
+  let out=String(raw||'').trim();
+  if(!out) return out;
+  out=out.replace(/https?:\/\/[^\s]+/g, m=>ellipsis(m,84));
+  out=out.replace(/\b[\w.\-]+\.(?:pdf|docx?|xlsx?|csv|pptx?|txt|md|json|xml)\b/gi, m=>ellipsis(m,44));
+  return ellipsis(out,120);
+}
+function normalizeToolStatusText(st){
+  const raw=compactStatusPayload(st?.text||"");
+  const zh=_lang==='zh';
+  const lower=raw.toLowerCase();
+  if(!raw) return zh ? "正在处理..." : "Working...";
+  if(zh){
+    if(/^searching:\s*/i.test(raw)) return `正在搜索 ${raw.replace(/^searching:\s*/i,"")}`;
+    if(/^found\s+\d+\s+results/i.test(raw)) return `${raw.replace(/^found\s+/i,"找到 ")}`
+      .replace(/\s+results?$/i," 条结果");
+    if(/^fetching url:\s*/i.test(raw)) return `正在读取网站 ${raw.replace(/^fetching url:\s*/i,"")}`;
+    if(/^url fetch done/i.test(raw)) return "网站读取完成";
+    if(/^generating excel:/i.test(raw)) return `正在生成 Excel ${raw.replace(/^generating excel:\s*/i,"")}`;
+    if(/^generating document:/i.test(raw)) return `正在生成文档 ${raw.replace(/^generating document:\s*/i,"")}`;
+    if(/^generating ppt:/i.test(raw)) return `正在生成演示文稿 ${raw.replace(/^generating ppt:\s*/i,"")}`;
+    if(lower.includes("processing")) return "正在处理中";
+    if(lower.includes("bash")) return `正在执行 Bash 命令 ${raw}`;
+    if(lower.includes("git")) return `正在执行 Git 操作 ${raw}`;
+    if(lower.includes("python")) return `正在执行 Python 脚本 ${raw}`;
+    if(lower.includes("done")||lower.includes("generated")) return "已完成";
+    if(raw.startsWith("正在")) return raw;
+    return `正在${raw}`;
+  }
+  if(/^searching:\s*/i.test(raw)) return `Searching ${raw.replace(/^searching:\s*/i,"")}`;
+  if(/^fetching url:\s*/i.test(raw)) return `Reading website ${raw.replace(/^fetching url:\s*/i,"")}`;
+  if(/^url fetch done/i.test(raw)) return "Website read complete";
+  if(/^generating excel:/i.test(raw)) return `Generating Excel ${raw.replace(/^generating excel:\s*/i,"")}`;
+  if(/^generating document:/i.test(raw)) return `Generating document ${raw.replace(/^generating document:\s*/i,"")}`;
+  if(/^generating ppt:/i.test(raw)) return `Generating presentation ${raw.replace(/^generating ppt:\s*/i,"")}`;
+  if(lower.includes("processing")) return "Processing";
+  if(lower.includes("bash")) return `Running Bash ${raw}`;
+  if(lower.includes("git")) return `Running Git ${raw}`;
+  if(lower.includes("python")) return `Running Python ${raw}`;
+  if(lower.includes("done")||lower.includes("generated")) return "Done";
+  return raw;
+}
+function ensureToolStatusEl(){
+  const typBubble=$('typ-row')?.querySelector('.typing');
+  if(!typBubble) return null;
+  let statusEl=typBubble.querySelector('.st-text');
+  if(statusEl) return statusEl;
+  statusEl=document.createElement('div');
+  statusEl.className='st-text';
+  statusEl.innerHTML='<span class="st-ico">T</span><span class="st-msg"></span>';
+  typBubble.appendChild(statusEl);
+  requestAnimationFrame(()=>statusEl.classList.add('show'));
+  return statusEl;
+}
+function updateToolStatusBubble(statusEl, st){
+  if(!statusEl) return;
+  const ico=statusEl.querySelector('.st-ico');
+  const msg=statusEl.querySelector('.st-msg');
+  if(ico) ico.textContent=toolStatusIcon(st?.icon);
+  const next=normalizeToolStatusText(st);
+  if(msg){
+    if(msg.textContent!==next){
+      msg.textContent=next;
+      statusEl.classList.remove('swap');
+      void statusEl.offsetWidth;
+      statusEl.classList.add('swap');
+      setTimeout(()=>statusEl.classList.remove('swap'),300);
+    }
+  }
+  statusEl.classList.toggle('done', !!st?.done);
+  statusEl.classList.add('show');
+}
+function bumpStreaming(el){
+  // Disabled to avoid visible flicker from per-chunk animation toggles.
+  return;
+}
 
 function makeCopyBtn(getText){
   const btn=document.createElement('button'); btn.className='mab'; btn.title=t('misc.copy_code');
@@ -2414,23 +2619,46 @@ function appendMsg(role, content, msgId, files=[]){
     retryBtn.className='mab'; retryBtn.title='Retry';
     retryBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>';
     retryBtn.addEventListener('click', async()=>{
+      if(isStreaming && abortCtrl){
+        try{ abortCtrl.abort(); }catch{}
+        // allow finally{} to release streaming state
+        setTimeout(()=>retryBtn.click(),120);
+        return;
+      }
       if(isStreaming) return;
       const mId = row.dataset.msgId;
-      const idx = messages.findIndex(m=>m.id===mId);
-      if(idx<0) return;
+      let idx = mId ? messages.findIndex(m=>m.id===mId) : -1;
+      if(idx < 0){
+        for(let i=messages.length-1;i>=0;i--){
+          if(messages[i]?.role === 'assistant'){ idx = i; break; }
+        }
+      }
+      if(idx<0){
+        // Fallback: if in-memory messages desynced, derive previous user text from DOM.
+        const prevUser=[...chatEl.querySelectorAll('.msg-row.user')].pop();
+        const txt=prevUser?.querySelector('.user-bub')?.textContent?.trim()||'';
+        if(!txt) return;
+        msgIn.value=txt;
+        msgIn.style.height='auto';
+        msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+        updateSendBtn();
+        sendMessage();
+        return;
+      }
       // Delete assistant message from PB and DOM
-      apiJSON(`/lc/messages/${mId}`,{method:'DELETE'}).catch(()=>{});
+      if(mId) apiJSON(`/lc/messages/${mId}`,{method:'DELETE'}).catch(()=>{});
       messages.splice(idx,1);
       row.remove();
       // Find last user message and re-send
-      const lastUser=[...messages].reverse().find(m=>m.role==='user');
+      const lastUser=[...messages.slice(0, idx)].reverse().find(m=>m.role==='user');
       if(lastUser){
         const uIdx=messages.findIndex(m=>m.id===lastUser.id);
-        messages.splice(uIdx,1);
-        apiJSON(`/lc/messages/${lastUser.id}`,{method:'DELETE'}).catch(()=>{});
+        if(uIdx>=0) messages.splice(uIdx,1);
+        if(lastUser.id) apiJSON(`/lc/messages/${lastUser.id}`,{method:'DELETE'}).catch(()=>{});
         document.querySelector(`.msg-row[data-msg-id="${lastUser.id}"]`)?.remove();
-        msgIn.value=lastUser.content;
-        updateCtxBar();
+        msgIn.value=String(lastUser.content||'');
+        msgIn.style.height='auto';
+        msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
         sendMessage();
       }
     });
@@ -2457,10 +2685,16 @@ function updateSendBtn(){
     sendBtn.setAttribute('aria-label', t('input.interrupt'));
     return;
   }
+  if(pendingFileReads.size>0){
+    sendBtn.disabled=true;
+    sendBtn.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>';
+    sendBtn.title='Reading files...';
+    return;
+  }
   sendBtn.innerHTML=SEND_ICON_SVG;
   sendBtn.title=t('chat.send');
   sendBtn.setAttribute('aria-label', t('chat.send'));
-  sendBtn.disabled=pendingFileReads.size>0||(msgIn.value.trim()===''&&pendingFiles.length===0);
+  sendBtn.disabled=(msgIn.value.trim()===''&&pendingFiles.length===0);
 }
 
 function renderWebSearchToggle(){
@@ -2470,17 +2704,85 @@ function renderWebSearchToggle(){
   webBtn.title = forceWebSearch ? `${t('input.search')} (Always)` : `${t('input.search')} (Assistants decide)`;
 }
 
+function proCategoryLabel(categoryId){
+  if(categoryId === "finance") return t("pro.cat_finance");
+  if(categoryId === "lumihooks") return t("pro.cat_lumihooks");
+  return categoryId;
+}
+
+function renderProfessionalToolsMenu(){
+  if(!proCatList || !proToolList || !proHint) return;
+  const categoryOrder = ["finance", "lumihooks"];
+  proCatList.replaceChildren(...categoryOrder.map((cat)=>{
+    const btn=document.createElement("button");
+    btn.className=`pro-item ${selectedProCategory===cat?"active":""}`;
+    btn.type="button";
+    btn.textContent=proCategoryLabel(cat);
+    btn.addEventListener("click", ()=>{
+      selectedProCategory=cat;
+      const tools=PRO_TOOL_TREE[cat]||[];
+      if(!tools.find((x)=>x.id===selectedProTool)) selectedProTool="";
+      renderProfessionalToolsMenu();
+      renderProfessionalToolsButton();
+    });
+    return btn;
+  }));
+  const tools=PRO_TOOL_TREE[selectedProCategory]||[];
+  const nodes=tools.map((tool)=>{
+    const btn=document.createElement("button");
+    const enabled=tool.enabled!==false;
+    btn.className=`pro-item ${selectedProTool===tool.id?"active":""} ${enabled?"":"disabled"}`;
+    btn.type="button";
+    btn.textContent=t(tool.labelKey);
+    if(!enabled){
+      btn.title=t("pro.tool_coming_soon");
+      return btn;
+    }
+    btn.addEventListener("click", ()=>{
+      selectedProTool = selectedProTool===tool.id ? "" : tool.id;
+      proMenuOpen=false;
+      if(proMenu) proMenu.classList.remove("open");
+      renderProfessionalToolsMenu();
+      renderProfessionalToolsButton();
+    });
+    return btn;
+  });
+  if(!nodes.length){
+    const empty=document.createElement("div");
+    empty.className="pro-item disabled";
+    empty.textContent=t("pro.tool_coming_soon");
+    nodes.push(empty);
+  }
+  proToolList.replaceChildren(...nodes);
+  proHint.textContent = selectedProTool ? `${t("pro.mode_on")}: ${t((tools.find((x)=>x.id===selectedProTool)||{}).labelKey || "pro.tool_fs_analysis")}` : t("pro.mode_hint");
+}
+
+function renderProfessionalToolsButton(){
+  if(!proBtn) return;
+  proBtn.classList.toggle("tb-mode-active", !!selectedProTool);
+  proBtn.setAttribute("aria-expanded", proMenuOpen ? "true" : "false");
+  proBtn.title = selectedProTool ? `${t("pro.mode_on")}: ${selectedProTool}` : t("input.pro_tools");
+}
+
 async function sendMessage(){
+  if(isStreaming && !abortCtrl && !streamEl && !$('typ-row')){
+    clientLog('warn', 'streaming_state_stale_reset', { reason: 'isStreaming true without active stream handles' });
+    isStreaming=false;
+    pendingQueue=null;
+    updateSendBtn();
+  }
   clientLog('info', 'send_message_start', {
     provider: selectedProvider,
     model: selectedModel,
     textLength: msgIn.value.trim().length,
     pendingFiles: pendingFiles.length,
     encryptedUploadEnabled: !!encryptedUploadEnabled,
+    specialistMode: selectedProTool || '',
     isStreaming: !!isStreaming,
   });
   if(pendingFileReads.size){
-    await Promise.allSettled([...pendingFileReads]);
+    const readTimeout = new Promise(r => setTimeout(r, 8000));
+    await Promise.race([Promise.allSettled([...pendingFileReads]), readTimeout]);
   }
   const text=msgIn.value.trim(); if(!text&&!pendingFiles.length) return;
   // Block if provider is locked
@@ -2495,43 +2797,78 @@ async function sendMessage(){
   }
   // Mid-stream: show queued bubble with grey style, send on second Enter
   if(isStreaming){
-    pendingQueue={text,files:[...pendingFiles]};
-    msgIn.value=''; msgIn.style.height='auto';
-    pendingFiles=[]; renderChips(); updateSendBtn();
-    // Show queued message as grey bubble
-    const qRow=appendMsg('user',text);
-    qRow.classList.add('queued');
-    qRow.style.opacity='0.5';
-    // Add "Queued" label
-    const qLabel=document.createElement('div');
-    qLabel.className='queued-label';
-    qLabel.style.cssText='font-size:11px;color:var(--t3);text-align:right;margin-top:2px;font-style:italic';
-    qLabel.textContent=_lang==='zh'?'排队中 · 再按回车立即发送':'Queued · press Enter to send now';
-    qRow.appendChild(qLabel);
-    scrollBot(false);
-    // Store ref so second Enter can remove it
-    pendingQueue._qRow=qRow;
-    return;
+    const queued={ text, files:[...pendingFiles] };
+    if(queued.files.length){
+      pendingQueue=queued;
+      clientLog('info', 'queue_with_files_interrupt_stream', { queuedFiles: queued.files.length, queuedTextLength: text.length });
+      if(abortCtrl){
+        abortCtrl.abort();
+        return;
+      }
+      clientLog('warn', 'queue_with_files_no_abort_controller', { queuedFiles: queued.files.length, queuedTextLength: text.length });
+      isStreaming=false;
+      pendingQueue=null;
+      updateSendBtn();
+    } else {
+      pendingQueue=queued;
+      msgIn.value=''; msgIn.style.height='auto';
+      // Show queued message as grey bubble
+      const qRow=appendMsg('user',text,null,queued.files);
+      qRow.classList.add('queued');
+      qRow.style.opacity='0.5';
+      // Add "Queued" label
+      const qLabel=document.createElement('div');
+      qLabel.className='queued-label';
+      qLabel.style.cssText='font-size:11px;color:var(--t3);text-align:right;margin-top:2px;font-style:italic';
+      qLabel.textContent=_lang==='zh'?'排队中 · 再按回车立即发送':'Queued · press Enter to send now';
+      qRow.appendChild(qLabel);
+      scrollBot(false);
+      // Store ref so second Enter can remove it
+      pendingQueue._qRow=qRow;
+      return;
+    }
   }
   isStreaming=true;
   updateSendBtn();
   autoFollowStream = true;
   msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
 
-  let files=[...pendingFiles]; pendingFiles=[]; fileChips.innerHTML='';
+  let files=[...pendingFiles];
   const displayFiles=[...files];
   let userContent=text;
   let displayContent=text;
   let encryptedPayloadText='';
+  const restorePendingFilesAfterFailure = ()=>{
+    if(!displayFiles.length) return;
+    const keep = new Set(pendingFiles);
+    for(const f of displayFiles){
+      if(!f) continue;
+      if(!keep.has(f)) pendingFiles.push(f);
+      setFileTransferState(f,'ready');
+    }
+    renderChips();
+    updateSendBtn();
+  };
+  const consumePendingFilesOnSend = ()=>{
+    if(!displayFiles.length) return;
+    const sent = new Set(displayFiles);
+    pendingFiles = pendingFiles.filter(f=>!sent.has(f));
+    renderChips();
+    updateSendBtn();
+  };
   displayFiles.forEach(f=>setFileTransferState(f,'uploading'));
   if(encryptedUploadEnabled && files.length){
     try{
       const ext = await ensureEncryptedUploadExt();
-      const packed = await ext.packFiles(files);
+      const ENCRYPTED_PACK_TIMEOUT_MS = 25000;
+      const packed = await Promise.race([
+        ext.packFiles(files),
+        new Promise((_, reject)=>setTimeout(()=>reject(new Error(_lang==='zh' ? '加密打包超时，请重试' : 'Encrypted packaging timed out, please retry')), ENCRYPTED_PACK_TIMEOUT_MS)),
+      ]);
       encryptedPayloadText = packed.encryptedPayloadText || '';
-      const bundle = getEncryptedBundleLabel(files);
-      const summaryText = packed.summaryText || `[${bundle.title}: ${bundle.subtitle}]`;
-      userContent = `${userContent}${userContent?'\n\n':''}${summaryText}`;
+      if(!encryptedPayloadText){
+        throw new Error(_lang==='zh' ? '加密打包为空，请重试' : 'Encrypted payload is empty, please retry');
+      }
       displayContent = text.trim();
       files = []; // prevent normal file upload path and chips rendering
     }catch(e){
@@ -2543,27 +2880,17 @@ async function sendMessage(){
       msgIn.value=text;
       msgIn.style.height='auto';
       msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
-      pendingFiles=[...files];
-      renderChips();
+      restorePendingFilesAfterFailure();
       return;
     }
   }
-  // Inject text file content inline (non-encrypted mode)
-  files.filter(f=>f.kind==='text').forEach(f=>{
-    const ext=f.name.split('.').pop()||'';
-    userContent+=(userContent?'\n\n':'')+formatAttachmentContext({
-      name: f.name,
-      kind: f.kind || 'text',
-      mime: f.mime || `text/${ext || 'plain'}`,
-      text: `\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``,
-      note: 'inline text attachment',
-    });
-  });
+  consumePendingFilesOnSend();
   const storedUserContent=clampMessageContentForPb(getMessageContentForStorage(userContent, displayFiles));
 
   // === IMMEDIATE: show user bubble + typing indicator before any network calls ===
   // If queued message already has a bubble, reuse it
-  const userRow=window._skipUserBubble||(appendMsg('user',displayContent,null,displayFiles)); window._skipUserBubble=null;
+  const bubbleFiles=displayFiles.map(f=>({ ...f, status:'ready', statusError:'' }));
+  const userRow=window._skipUserBubble||(appendMsg('user',displayContent,null,bubbleFiles)); window._skipUserBubble=null;
   scrollBot(false);
   const typRow=document.createElement('div'); typRow.className='msg-row assistant'; typRow.id='typ-row';
   const typBub=document.createElement('div'); typBub.className='typing';
@@ -2606,7 +2933,12 @@ async function sendMessage(){
     if(!tipEl){
       tipEl=document.createElement('div'); tipEl.className='tip-line';
       tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .4s ease';
-      tr.querySelector('.typing')?.appendChild(tipEl);
+      const typing=tr.querySelector('.typing');
+      const stEl=typing?.querySelector('.st-text');
+      if(typing){
+        if(stEl) typing.insertBefore(tipEl, stEl);
+        else typing.appendChild(tipEl);
+      }
     }
     // Fade out → swap → fade in
     tipEl.style.opacity='0';
@@ -2628,10 +2960,20 @@ async function sendMessage(){
       const nextSess={...sess,last_activity:readSessionMeta()[sess.id]?.last_activity||''};
       sessions.unshift(nextSess); renderSidebar(); updateActive();
       broadcastSessionSync('session_upsert', nextSess);
-    }catch(e){ clientLog('error', 'session_create_failed', { message: e.message || '', provider: selectedProvider, model: selectedModel }); toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
+    }catch(e){
+      clientLog('error', 'session_create_failed', { message: e.message || '', provider: selectedProvider, model: selectedModel });
+      displayFiles.forEach(f=>setFileTransferState(f,'error', e?.message || 'Session create failed'));
+      toast(e.message);
+      restorePendingFilesAfterFailure();
+      if(!msgIn.value.trim() && text) msgIn.value=text;
+      isStreaming=false;
+      updateSendBtn();
+      return;
+    }
   }
 
   // Save user message to PB, then backfill msgId on DOM row for edit support
+  const cachedEncPayload = encryptedPayloadText;
   let userMsg;
   try{
     if(!currentSid||!storedUserContent) throw new Error('Session or content missing');
@@ -2639,19 +2981,34 @@ async function sendMessage(){
     messages.push(userMsg);
     userRow.dataset.msgId=userMsg.id;
     backgroundSyncFiles(files,currentSid,userMsg);
-  }catch(e){ clientLog('error', 'user_message_store_failed', { message: e.message || '', sessionId: currentSid }); toast(e.message); userRow.remove(); typRow.remove(); isStreaming=false; updateSendBtn(); return; }
+  }catch(e){
+    clientLog('error', 'user_message_store_failed', { message: e.message || '', sessionId: currentSid });
+    displayFiles.forEach(f=>setFileTransferState(f,'error', e?.message || 'Message store failed'));
+    toast(e.message);
+    userRow.style.opacity='0.5'; userRow.style.borderLeft='3px solid #f44';
+    typRow.remove();
+    restorePendingFilesAfterFailure();
+    if(!msgIn.value.trim() && text) msgIn.value=text;
+    encryptedPayloadText = cachedEncPayload;
+    isStreaming=false;
+    updateSendBtn();
+    return;
+  }
 
   const dlCards=[]; // accumulated download cards — re-appended after final render
   try{
     const hist=messages;
-    const aiMsgs=await buildAiMsgs(hist,files,currentSid);
-    const hasAttachmentContext = aiMsgs.some(messageHasAttachmentContext);
+    const built=await buildAiMsgs(hist,files,currentSid);
+    const aiMsgs=built.messages;
+    const attachmentContexts=Array.isArray(built.attachmentContexts)?built.attachmentContexts:[];
+    const hasAttachmentContext = attachmentContexts.length>0 || aiMsgs.some(messageHasAttachmentContext);
 
     // Use Gemini native endpoint for any structured multimodal content.
     // This avoids splitting Gemini requests across two different code paths
     // depending on whether the attachment came in as image_url vs file_data.
     const hasRichParts=aiMsgs.some(m=>Array.isArray(m.content));
-    const useNative=selectedProvider==='gemini'&&hasRichParts;
+    // Encrypted uploads must go through /v1/chat — native endpoints skip encrypted_payload_text
+    const useNative=selectedProvider==='gemini'&&hasRichParts&&!encryptedPayloadText;
 
     // Prepend global memory + active preset as system message
     const sysPr = getActiveSystemPrompt();
@@ -2669,8 +3026,12 @@ async function sendMessage(){
     // Use Gemini native endpoint for multimodal content, otherwise clean /v1/chat
     const endpoint=useNative?'/lc/chat/gemini-native':'/v1/chat';
     const payload=useNative
-      ? {model:selectedModel,messages:aiMsgs,stream:true,...(forceWebSearch?{web_search:true}:{})}
-      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,...(forceWebSearch?{web_search:true}:{})};
+      ? {model:selectedModel,messages:aiMsgs,stream:true,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})}
+      : {provider:selectedProvider,model:selectedModel,messages:aiMsgs,stream:true,lang:_lang,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})};
+    if(selectedProTool){
+      payload.specialist_mode = selectedProTool;
+      payload.specialist_category = selectedProCategory || "";
+    }
     if(!forceWebSearch && hasAttachmentContext){
       payload.web_search = false;
     }
@@ -2688,6 +3049,7 @@ async function sendMessage(){
       messageCount: aiMsgs.length,
       hasEncryptedPayload: !!encryptedPayloadText,
       fileCount: displayFiles.length,
+      specialistMode: selectedProTool || '',
     });
 
     const res=await fetch(endpoint,{
@@ -2710,6 +3072,8 @@ async function sendMessage(){
       toast(msg);
       messages.pop();
       try{ await apiJSON(`/lc/messages/${userMsg.id}`,{method:'DELETE'}); }catch{}
+      restorePendingFilesAfterFailure();
+      if(!msgIn.value.trim() && text) msgIn.value=text;
       return;
     }
     displayFiles.forEach(f=>setFileTransferState(f,'uploaded'));
@@ -2721,8 +3085,11 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
-    // Throttled markdown render during streaming (full markdown re-render, GPT-like behavior)
-    let mdTimer=null;
+    // Streaming render: plain-text first, markdown only when likely needed.
+    let mdRaf=0;
+    let mdLastTs=0;
+    let streamRenderMode='plain';
+    const MD_STREAM_MIN_GAP_MS=IS_LUMICHAT_TEST?20:42;
 
     while(true){
       const{done,value}=await reader.read(); if(done) break;
@@ -2747,29 +3114,11 @@ async function sendMessage(){
           try{
             const st=JSON.parse(data);
             if(streamRow) streamRow.style.display='';
-            // Reuse existing typing indicator — just add a status text line below the dots
-            const typBubble=$('typ-row')?.querySelector('.typing');
-            if(!statusEl && typBubble){
-              statusEl=document.createElement('div');
-              statusEl.className='st-text';
-              statusEl.style.cssText='color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transition:opacity .3s ease';
-              typBubble.appendChild(statusEl);
-            }
-            if(st.done){
-              // Hide status text, keep dots bouncing
-              if(statusEl){ statusEl.style.opacity='0'; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; },300); }
-            } else {
-              if(statusEl){
-                statusEl.textContent=st.text;
-                requestAnimationFrame(()=>{
-                  statusEl.style.opacity='1';
-                  // Scroll after DOM has updated
-                  requestAnimationFrame(()=>{
-                    if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
-                  });
-                });
-              }
-            }
+            statusEl = statusEl || ensureToolStatusEl();
+            if(statusEl) updateToolStatusBubble(statusEl, st);
+            requestAnimationFrame(()=>{
+              if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
+            });
           }catch{}
           sseEventType=''; continue;
         }
@@ -2791,7 +3140,30 @@ async function sendMessage(){
             card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
             card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
-              <a href="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+              <a href="#" data-secure-dl="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+            const dlA=card.querySelector('a[data-secure-dl]');
+            if(dlA){
+              dlA.addEventListener('click', async (ev)=>{
+                ev.preventDefault();
+                try{
+                  const secureHref=await secureDownloadHref(dlA.getAttribute('data-secure-dl')||'');
+                  if(isExternalHttpLink(secureHref)){
+                    if(!confirmExternalNavigation(secureHref)) return;
+                    openExternalTab(secureHref);
+                    return;
+                  }
+                  const temp=document.createElement('a');
+                  temp.href=secureHref;
+                  temp.download=fn;
+                  temp.style.display='none';
+                  document.body.appendChild(temp);
+                  temp.click();
+                  temp.remove();
+                }catch(e){
+                  toast(e.message||'Download failed',2200);
+                }
+              });
+            }
             dlCards.push(card);
             // Try to append immediately (best effort — will re-append after final render)
             if(streamRow) streamRow.style.display='';
@@ -2822,20 +3194,36 @@ async function sendMessage(){
             }
             if(streamRow) streamRow.style.display='';
             streamEl.classList.add('streaming-active');
-            if(!mdTimer){
-              mdTimer=setTimeout(()=>{
-                mdTimer=null;
+            if(streamRenderMode==='plain' && likelyMarkdownStreaming(streamText)) streamRenderMode='markdown';
+            if(!mdRaf){
+              mdRaf=requestAnimationFrame((ts)=>{
+                mdRaf=0;
                 if(!streamEl) return;
-                renderMarkdownStream(streamEl,streamText);
+                if((ts-mdLastTs)<MD_STREAM_MIN_GAP_MS){
+                  mdRaf=requestAnimationFrame((ts2)=>{
+                    mdRaf=0;
+                    if(!streamEl) return;
+                    mdLastTs=ts2;
+                    if(streamRenderMode==='markdown') renderMarkdownStream(streamEl,streamText);
+                    else streamEl.textContent=streamText;
+                    if(streamRenderMode==='markdown') bumpStreaming(streamEl);
+                    if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
+                  });
+                  return;
+                }
+                mdLastTs=ts;
+                if(streamRenderMode==='markdown') renderMarkdownStream(streamEl,streamText);
+                else streamEl.textContent=streamText;
+                if(streamRenderMode==='markdown') bumpStreaming(streamEl);
                 if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
-              },80);
+              });
             }
           }
         }catch{}
       }
     }
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
-    if(mdTimer){clearTimeout(mdTimer);mdTimer=null;}
+    if(mdRaf){cancelAnimationFrame(mdRaf);mdRaf=0;}
 
     // Final render
     $('typ-row')?.remove(); if(streamRow) streamRow.style.display='';
@@ -2911,6 +3299,8 @@ async function sendMessage(){
     } else {
       toast(err.message||t('chat.request_failed'));
       if(streamEl&&!streamText&&!dlCards.length) streamEl.closest('.msg-row')?.remove();
+      restorePendingFilesAfterFailure();
+      if(!msgIn.value.trim() && text) msgIn.value=text;
     }
   }finally{
     const queued=pendingQueue; pendingQueue=null;
@@ -2968,6 +3358,41 @@ function mergeFileIds(existing, extra){
   return [...new Set([...(Array.isArray(existing)?existing:[]), ...(Array.isArray(extra)?extra:[])].filter(Boolean))];
 }
 
+async function secureDownloadHref(rawUrl){
+  const url=String(rawUrl||'');
+  const m=url.match(/^\/lc\/files\/serve\/([A-Za-z0-9]{15})(?:\?.*)?$/);
+  if(!m) return url;
+  const fileId=m[1];
+  const r=await fetch(`/lc/files/consent/${fileId}`,{method:'POST',credentials:'same-origin'});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d?.downloadUrl) throw new Error(d?.error||`Consent failed (${r.status})`);
+  return d.downloadUrl;
+}
+
+function isExternalHttpLink(rawUrl){
+  try{
+    const u=new URL(String(rawUrl||''), window.location.origin);
+    return (u.protocol==='http:'||u.protocol==='https:') && u.origin!==window.location.origin;
+  }catch{
+    return false;
+  }
+}
+
+function confirmExternalNavigation(rawUrl){
+  let resolved='';
+  try{ resolved=new URL(String(rawUrl||''), window.location.origin).toString(); }catch{ return false; }
+  if(!isExternalHttpLink(resolved)) return true;
+  const msg=_lang==='zh'
+    ? `正在跳转第三方网站：\n${resolved}\n\n该网站可能存在安全风险，是否继续？`
+    : `You are opening a third-party website:\n${resolved}\n\nThis site may be unsafe. Continue?`;
+  return window.confirm(msg);
+}
+
+function openExternalTab(url){
+  const w=window.open(String(url||''), '_blank', 'noopener,noreferrer');
+  if(w) w.opener=null;
+}
+
 function supportsNativeImageInput(provider, modelId){
   const p=(provider||'').toLowerCase();
   const id=(modelId||'').toLowerCase();
@@ -2988,7 +3413,7 @@ async function analyzeImageForModel(f){
   const form=new FormData();
   form.append('image', f.file, f.name);
   form.append('prompt', 'Describe this image in detail, extract all visible text, and summarize the important visual information for another AI model that cannot see the image directly.');
-  const res=await fetch('/v1/vision/analyze',{method:'POST',credentials:'same-origin',body:form});
+  const res=await fetch('/platform/vision/analyze',{method:'POST',credentials:'same-origin',body:form});
   const data=await res.json().catch(()=>({}));
   if(!res.ok||!data.ok) throw new Error(data.error||`Vision analysis failed ${res.status}`);
   return data.description||'';
@@ -2997,7 +3422,7 @@ async function analyzeImageForModel(f){
 async function transcribeAudioForModel(f){
   const form=new FormData();
   form.append('file', f.file, f.name);
-  const res=await fetch('/v1/audio/transcribe',{method:'POST',credentials:'same-origin',body:form});
+  const res=await fetch('/platform/audio/transcribe',{method:'POST',credentials:'same-origin',body:form});
   const data=await res.json().catch(()=>({}));
   if(!res.ok||!data.ok) throw new Error(data.error||`Audio transcription failed ${res.status}`);
   return data.text||'';
@@ -3053,7 +3478,7 @@ function showSecurityNotice(message){
 async function parseFileForNonGemini(file){
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch('/v1/parse', { method: 'POST', body: formData });
+  const res = await fetch('/platform/parse', { method: 'POST', body: formData });
   if(!res.ok) return null;
   const data = await res.json();
   return data.ok ? clampAttachmentTextForModel(data.text, file?.name || 'attachment') : null;
@@ -3061,24 +3486,77 @@ async function parseFileForNonGemini(file){
 
 async function buildAiMsgs(msgs, files, sessId){
   const out=msgs.map(m=>({role:m.role,content:m.content,file_ids:Array.isArray(m.file_ids)?m.file_ids:[]}));
+  const attachmentContexts=[];
+  const pushAttachmentContext=(ctx)=>{
+    const text=String(ctx?.text||'').trim();
+    if(!text) return;
+    attachmentContexts.push({
+      file_id: String(ctx.file_id || '').trim(),
+      name: String(ctx.name || '').trim(),
+      kind: String(ctx.kind || '').trim(),
+      mime: String(ctx.mime || '').trim(),
+      note: String(ctx.note || 'parsed attachment text').trim(),
+      source: String(ctx.source || 'attachment').trim(),
+      text,
+    });
+  };
   const currentQueryText = extractMessagePlainText(out[out.length-1]?.content);
+  const tryRecoverContextFromPb = async (f, note='parsed attachment text')=>{
+    if(!f || !sessId) return false;
+    try{
+      const pb=await ensurePbUpload(f, sessId);
+      if(!pb?.id) return false;
+      const map=await fetchStoredAttachmentContexts([pb.id], currentQueryText);
+      const item=map.get(pb.id);
+      if(!item?.context) return false;
+      pushAttachmentContext({
+        file_id: pb.id,
+        name: item.name || f.name || '',
+        kind: item.kind || f.kind || '',
+        mime: item.mime || f.mime || '',
+        note,
+        source: 'upload_pb',
+        text: item.context,
+      });
+      return true;
+    }catch{
+      return false;
+    }
+  };
   const historicalFileIds = [...new Set(out.flatMap(m=>Array.isArray(m.file_ids)?m.file_ids:[]).filter(Boolean))];
   const storedContextMap = historicalFileIds.length ? await fetchStoredAttachmentContexts(historicalFileIds, currentQueryText) : new Map();
-  out.forEach(m=>{
-    if(m.role !== 'user' || !Array.isArray(m.file_ids) || !m.file_ids.length) return;
-    const contexts = m.file_ids.map(id=>storedContextMap.get(id)?.context).filter(Boolean);
-    if(!contexts.length) return;
-    if(typeof m.content === 'string'){
-      const merged = [m.content.trim(), ...contexts].filter(Boolean).join('\n\n').trim();
-      m.content = merged;
-    }else if(Array.isArray(m.content)){
-      contexts.forEach(context=>m.content.push({ type:'text', text:context }));
-    }
+  historicalFileIds.forEach((id)=>{
+    const item=storedContextMap.get(id);
+    if(!item?.context) return;
+    pushAttachmentContext({
+      file_id: id,
+      name: item.name || '',
+      kind: item.kind || '',
+      mime: item.mime || '',
+      note: 'historical attachment context',
+      source: 'history',
+      text: item.context,
+    });
   });
-  const mediaFiles=files.filter(f=>f.kind!=='text'); // text already injected
-  if(!mediaFiles.length||!out.length) return out.map(({ role, content })=>({ role, content }));
+
+  const textFiles=files.filter(f=>f.kind==='text');
+  textFiles.forEach((f)=>{
+    const ext=f.name.split('.').pop()||'';
+    const inlineText=`\`\`\`${ext}\n${(f.dataUrl||'')}\n\`\`\``;
+    pushAttachmentContext({
+      name: f.name,
+      kind: f.kind || 'text',
+      mime: f.mime || `text/${ext || 'plain'}`,
+      note: 'inline text attachment',
+      source: 'upload',
+      text: inlineText,
+    });
+  });
+
+  const mediaFiles=files.filter(f=>f.kind!=='text');
+  if(!out.length) return { messages: out.map(({ role, content })=>({ role, content })), attachmentContexts };
   const last=out[out.length-1];
-  if(last.role!=='user') return out.map(({ role, content })=>({ role, content }));
+  if(last.role!=='user') return { messages: out.map(({ role, content })=>({ role, content })), attachmentContexts };
   const parts=[{type:'text',text:last.content||''}];
 
   for(const f of mediaFiles){
@@ -3088,7 +3566,14 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const description=await analyzeImageForModel(f);
-          parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:description, note:'vision-derived description' })}`;
+          pushAttachmentContext({
+            name:f.name,
+            kind:f.kind,
+            mime:f.mime,
+            note:'vision-derived description',
+            source:'upload',
+            text:description,
+          });
         }catch(e){
           parts[0].text+=`\n[Attached image: ${f.name} — vision preprocessing failed: ${e.message}]`;
         }
@@ -3105,7 +3590,14 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const transcript=await transcribeAudioForModel(f);
-          parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:transcript, note:'audio transcription' })}`;
+          pushAttachmentContext({
+            name:f.name,
+            kind:f.kind,
+            mime:f.mime,
+            note:'audio transcription',
+            source:'upload',
+            text:transcript,
+          });
         }catch(e){
           parts[0].text+=`\n[Attached audio: ${f.name} — transcription failed: ${e.message}]`;
         }
@@ -3121,13 +3613,26 @@ async function buildAiMsgs(msgs, files, sessId){
           parts[0].text+=`\n[Failed to upload ${f.name}: ${e.message}]`;
         }
       } else if(f.kind==='pdf'){
-        // Non-Gemini: parse PDF via /v1/parse and inject as text
+        // Non-Gemini: parse PDF via /platform/parse and inject as text
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:parsed, note:'parsed attachment text' })}`;
-          else parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed]`;
+          if(parsed){
+            pushAttachmentContext({
+              name:f.name,
+              kind:f.kind,
+              mime:f.mime,
+              note:'parsed attachment text',
+              source:'upload',
+              text:parsed,
+            });
+          }
+          else {
+            const recovered = await tryRecoverContextFromPb(f, 'pb fallback parsed attachment text');
+            if(!recovered) parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed]`;
+          }
         }catch(e){
-          parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed: ${e.message}]`;
+          const recovered = await tryRecoverContextFromPb(f, 'pb fallback parsed attachment text');
+          if(!recovered) parts[0].text+=`\n[Attached: ${f.name} — PDF conversion failed: ${e.message}]`;
         }
       } else {
         parts[0].text+=`\n[Attached: ${f.name} — Video: requires Gemini for AI analysis]`;
@@ -3145,16 +3650,29 @@ async function buildAiMsgs(msgs, files, sessId){
       } else {
         try{
           const parsed=await parseFileForNonGemini(f.file);
-          if(parsed) parts[0].text+=`\n\n${formatAttachmentContext({ name:f.name, kind:f.kind, mime:f.mime, text:parsed, note:'parsed attachment text' })}`;
-          else parts[0].text+=`\n[Attached: ${f.name} — document conversion failed]`;
+          if(parsed){
+            pushAttachmentContext({
+              name:f.name,
+              kind:f.kind,
+              mime:f.mime,
+              note:'parsed attachment text',
+              source:'upload',
+              text:parsed,
+            });
+          }
+          else {
+            const recovered = await tryRecoverContextFromPb(f, 'pb fallback parsed attachment text');
+            if(!recovered) parts[0].text+=`\n[Attached: ${f.name} — document conversion failed]`;
+          }
         }catch(e){
-          parts[0].text+=`\n[Attached: ${f.name} — document conversion failed: ${e.message}]`;
+          const recovered = await tryRecoverContextFromPb(f, 'pb fallback parsed attachment text');
+          if(!recovered) parts[0].text+=`\n[Attached: ${f.name} — document conversion failed: ${e.message}]`;
         }
       }
     }
   }
   last.content=parts.length>1?parts:parts[0].text;
-  return out.map(({ role, content })=>({ role, content }));
+  return { messages: out.map(({ role, content })=>({ role, content })), attachmentContexts };
 }
 function messageHasAttachmentContext(message){
   if(!message) return false;
@@ -3215,29 +3733,74 @@ async function addFile(file){
   let settleRead;
   const readPromise=new Promise(resolve=>{ settleRead=resolve; });
   pendingFileReads.add(readPromise);
+  let readSettled=false;
+  const readTimeout=setTimeout(()=>{
+    if(readSettled) return;
+    readSettled=true;
+    const idx=pendingFiles.indexOf(obj);
+    if(idx>=0) pendingFiles.splice(idx,1);
+    pendingFileReads.delete(readPromise);
+    settleRead();
+    clientLog('error', 'file_read_timeout', { name: file.name, kind, size: file.size || 0 });
+    toast(`File read timed out: ${file.name}`);
+    renderChips();
+    updateSendBtn();
+  }, 30000);
+  const settleReadState = ()=>{
+    if(readSettled) return false;
+    readSettled=true;
+    clearTimeout(readTimeout);
+    pendingFileReads.delete(readPromise);
+    settleRead();
+    return true;
+  };
   reader.onload=ev=>{
     obj.dataUrl=ev.target.result; // always store dataUrl
     obj.loading=false;
     obj.status='ready';
     clientLog('info', 'file_read_ok', { name: file.name, kind, size: file.size || 0 });
-    pendingFileReads.delete(readPromise);
-    settleRead();
+    if(!settleReadState()) return;
     renderChips();
     updateSendBtn();
   };
   reader.onerror=()=>{
     const idx=pendingFiles.indexOf(obj);
     if(idx>=0) pendingFiles.splice(idx,1);
-    pendingFileReads.delete(readPromise);
-    settleRead();
+    if(!settleReadState()) return;
     clientLog('error', 'file_read_failed', { name: file.name, kind, size: file.size || 0 });
     toast(`Failed to read file: ${file.name}`);
     renderChips();
     updateSendBtn();
   };
-  if(kind==='text') reader.readAsText(file);
-  else if(kind==='document') reader.readAsDataURL(file);
-  else reader.readAsDataURL(file);
+  reader.onabort=()=>{
+    const idx=pendingFiles.indexOf(obj);
+    if(idx>=0) pendingFiles.splice(idx,1);
+    if(!settleReadState()) return;
+    clientLog('error', 'file_read_aborted', { name: file.name, kind, size: file.size || 0 });
+    toast(`File read aborted: ${file.name}`);
+    renderChips();
+    updateSendBtn();
+  };
+  if(file.size===0){
+    obj.textContent='(empty file)';
+    if(!settleReadState()) return;
+    renderChips();
+    updateSendBtn();
+    return;
+  }
+  try{
+    if(kind==='text') reader.readAsText(file);
+    else if(kind==='document') reader.readAsDataURL(file);
+    else reader.readAsDataURL(file);
+  }catch(e){
+    const idx=pendingFiles.indexOf(obj);
+    if(idx>=0) pendingFiles.splice(idx,1);
+    if(!settleReadState()) return;
+    clientLog('error', 'file_read_exception', { name: file.name, kind, size: file.size || 0, message: e?.message || 'read exception' });
+    toast(`Failed to read file: ${file.name}`);
+    renderChips();
+    updateSendBtn();
+  }
 }
 
 const KIND_LABEL={
@@ -3267,7 +3830,7 @@ function getFileStatusLabel(f){
   const MAP={
     preparing:{en:'Preparing',zh:'处理中'},
     ready:{en:getKindLabel(f.kind),zh:getKindLabel(f.kind)},
-    uploading:{en:'Uploading',zh:'上传中'},
+    uploading:{en:'Uploading',zh:'正在上传'},
     uploaded:{en:'Uploaded',zh:'已上传'},
     error:{en:'Failed',zh:'失败'},
   };
@@ -3703,8 +4266,13 @@ $('sb-toggle').addEventListener('click',()=>{
   else { sidebar.classList.toggle('collapsed'); }
 });
 $('new-chat').addEventListener('click',()=>{ newChat(); if(isMobile()) closeMobileSidebar(); else if(window.innerWidth<640) sidebar.classList.add('collapsed'); });
+$('sb-logo')?.addEventListener('click',()=>{ newChat(); if(isMobile()) closeMobileSidebar(); });
 
 sbList.addEventListener('click',e=>{
+  if(sbList.__skipNextClick){
+    sbList.__skipNextClick=false;
+    return;
+  }
   // Project "New" button
   const sbact = e.target.closest('[data-sbact]');
   if(sbact){ e.stopPropagation(); if(sbact.dataset.sbact==='new-proj') openProjectModal(null); return; }
@@ -3724,6 +4292,18 @@ sbList.addEventListener('click',e=>{
   const item=e.target.closest('.sess-item');
   if(item){ openSession(item.dataset.sid); if(isMobile()) closeMobileSidebar(); else if(window.innerWidth<640) sidebar.classList.add('collapsed'); }
 });
+
+// Mobile: handle tap on first touch-up, avoid iOS-style first tap hover/effect swallowing.
+sbList.addEventListener('pointerup',e=>{
+  if(!(e.pointerType==='touch'||e.pointerType==='pen')) return;
+  if(e.target.closest('[data-sbact]')||e.target.closest('[data-pact]')||e.target.closest('[data-act]')) return;
+  const item=e.target.closest('.sess-item');
+  if(!item) return;
+  e.preventDefault();
+  sbList.__skipNextClick=true;
+  openSession(item.dataset.sid);
+  if(isMobile()) closeMobileSidebar();
+}, { passive:false });
 
 $('mdl-btn').addEventListener('click',e=>{
   e.stopPropagation();
@@ -3765,6 +4345,19 @@ mdlDrop.addEventListener('click',e=>{
   }
 });
 document.addEventListener('click',e=>{ if(!e.target.closest('#mdl-btn')&&!e.target.closest('#mdl-drop')) mdlDrop.classList.remove('open'); });
+
+// Confirm before leaving to third-party links from assistant output.
+chatEl.addEventListener('click', (e)=>{
+  const a=e.target.closest('.msg-row a[href]');
+  if(!a || a.hasAttribute('data-secure-dl')) return;
+  const href=String(a.getAttribute('href')||'').trim();
+  if(!href || href.startsWith('#') || href.startsWith('blob:') || href.startsWith('data:')) return;
+  const resolved=new URL(href, window.location.origin).toString();
+  if(!isExternalHttpLink(resolved)) return;
+  e.preventDefault();
+  if(!confirmExternalNavigation(resolved)) return;
+  openExternalTab(resolved);
+});
 
 msgIn.addEventListener('input',()=>{ msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px'; updateSendBtn(); });
 let _imeActive=false;
@@ -3863,6 +4456,23 @@ if(webBtn){
   });
   renderWebSearchToggle();
 }
+if(proBtn && proMenu){
+  proBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    proMenuOpen=!proMenuOpen;
+    proMenu.classList.toggle('open', proMenuOpen);
+    renderProfessionalToolsButton();
+  });
+  proMenu.addEventListener('click', (e)=>{ e.stopPropagation(); });
+  document.addEventListener('click', ()=>{
+    if(!proMenuOpen) return;
+    proMenuOpen=false;
+    proMenu.classList.remove('open');
+    renderProfessionalToolsButton();
+  });
+  renderProfessionalToolsMenu();
+  renderProfessionalToolsButton();
+}
 fileIn.addEventListener('change',()=>{ Array.from(fileIn.files).forEach(addFile); fileIn.value=''; });
 fileChips.addEventListener('click',e=>{ const b=e.target.closest('.fchip-rm'); if(!b) return; pendingFiles.splice(+b.dataset.i,1); renderChips(); updateSendBtn(); });
 sessionSyncChannel?.addEventListener('message',e=>{
@@ -3924,7 +4534,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) schedule
 
 suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); if(!c) return; msgIn.value=c.dataset.p; msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px'; updateSendBtn(); msgIn.focus(); });
 
-// ── VOICE INPUT (Whisper via /v1/audio/transcriptions) ────────────────────
+// ── VOICE INPUT (Whisper via /platform/audio/transcriptions) ────────────────────
 (function(){
   const micBtn   = $('mic-btn');
   const overlay  = $('voice-overlay');
@@ -4024,7 +4634,7 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
     const form = new FormData();
     form.append('file', audioBlob, `voice-input.${ext}`);
     form.append('response_format', 'json');
-    const res = await fetch('/v1/audio/transcriptions', {
+    const res = await fetch('/platform/audio/transcriptions', {
       method: 'POST',
       credentials: 'same-origin',
       body: form,
@@ -4906,7 +5516,7 @@ async function collectorRelogin(provider){
   }
 }
 
-// Hidden dashboard entry — tap 5 times within 2s on logo OR empty title
+// Hidden dashboard entry — tap 5 times within 2s on empty title/secret area
 (()=>{
   let tapCount=0,tapTimer=null;
   function handleTap(){
@@ -4915,7 +5525,7 @@ async function collectorRelogin(provider){
     tapTimer=setTimeout(()=>{ tapCount=0; },2000);
     if(tapCount>=5){ tapCount=0; window.open('/v1/sys/panel','_blank'); }
   }
-  ['sb-logo','empty-title','hdr-secret'].forEach(id=>{
+  ['empty-title','hdr-secret'].forEach(id=>{
     const el=$(id); if(el) el.addEventListener('click',handleTap);
   });
 })();
