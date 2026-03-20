@@ -512,6 +512,66 @@
   .lc-grid .flt-inp { width: 100%; border: 1px solid rgba(0,0,0,0.08); border-radius: 6px; padding: 4px 6px; font-size: 11px; background: #fff; }
   .lc-grid .th-btn { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .lc-grid-empty { padding: 10px; font-size: 12px; color: rgba(0,0,0,0.45); }
+
+  /* Platform Parameters — collapsible groups */
+  .param-group {
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.45);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .param-group:hover { box-shadow: 0 1px 6px rgba(0,0,0,0.04); }
+  .param-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+    font-size: 13px; font-weight: 600; color: rgba(0,0,0,0.7);
+    transition: background 0.15s;
+  }
+  .param-header:hover { background: rgba(0,0,0,0.02); }
+  .param-chevron {
+    display: inline-block; font-size: 12px; color: rgba(0,0,0,0.3);
+    transition: transform 0.2s ease;
+  }
+  .param-group.open .param-chevron { transform: rotate(90deg); }
+  .param-body {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 16px;
+  }
+  .param-group.open .param-body {
+    max-height: 800px;
+    padding: 0 16px 16px;
+  }
+  .param-row {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .param-row:last-child { border-bottom: none; }
+  .param-info { flex: 1; min-width: 0; }
+  .param-label {
+    font-size: 13px; font-weight: 500; color: rgba(0,0,0,0.72);
+    margin-bottom: 2px;
+  }
+  .param-desc {
+    font-size: 11px; color: rgba(0,0,0,0.38); line-height: 1.5;
+  }
+  .param-input {
+    width: 140px; flex-shrink: 0;
+    padding: 7px 10px; border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+    font-size: 13px; font-family: inherit;
+    background: #fff; color: #1c1c1e;
+    outline: none; transition: border-color 0.15s;
+  }
+  .param-input:focus { border-color: rgba(0,122,255,0.5); }
+  select.param-input { appearance: auto; }
+  .param-toggle-wrap {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .param-toggle-label { font-size: 12px; color: rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -920,6 +980,187 @@
 
         <div style="border-top:1px solid rgba(0,0,0,0.06);margin:20px 0"></div>
 
+        <!-- Platform Parameters -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.7);margin-bottom:4px" data-i18n="pp_title">Platform Parameters</div>
+          <div style="font-size:12px;color:rgba(0,0,0,0.4);margin-bottom:12px" data-i18n="pp_subtitle">Fine-tune agent runtime, RAG, search, rate limiting, and more.</div>
+
+          <!-- Agent Runtime -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_agent_runtime">Agent Runtime</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_agentMaxIterations">Max Agent Iterations</div>
+                  <div class="param-desc" data-i18n="pp_agentMaxIterations_desc">Maximum plan-execute-reflect cycles per request</div>
+                </div>
+                <input type="number" class="param-input" id="pp_agentMaxIterations" value="8" min="1" max="50">
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_toolRetryMax">Tool Retry Max</div>
+                  <div class="param-desc" data-i18n="pp_toolRetryMax_desc">How many times to retry a failed tool before giving up</div>
+                </div>
+                <input type="number" class="param-input" id="pp_toolRetryMax" value="2" min="0" max="10">
+              </div>
+            </div>
+          </div>
+
+          <!-- RAG & Memory -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_rag_memory">RAG & Memory</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_memoryRecallLimit">Memory Recall Limit</div>
+                  <div class="param-desc" data-i18n="pp_memoryRecallLimit_desc">Number of relevant memories injected into context per query</div>
+                </div>
+                <input type="number" class="param-input" id="pp_memoryRecallLimit" value="10" min="1" max="100">
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_memoryScoreThreshold">Memory Score Threshold</div>
+                  <div class="param-desc" data-i18n="pp_memoryScoreThreshold_desc">Lower = more memories recalled, higher = stricter matching</div>
+                </div>
+                <input type="number" class="param-input" id="pp_memoryScoreThreshold" value="0.15" min="0" max="1" step="0.01">
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_ragStrategy">RAG Strategy</div>
+                  <div class="param-desc" data-i18n="pp_ragStrategy_desc">Retrieval strategy: simple (fast), standard, thorough, or agentic (multi-hop)</div>
+                </div>
+                <select class="param-input" id="pp_ragStrategy">
+                  <option value="simple">simple</option>
+                  <option value="standard" selected>standard</option>
+                  <option value="thorough">thorough</option>
+                  <option value="agentic">agentic</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_search">Search</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_searchMaxResults">Max Search Results</div>
+                  <div class="param-desc" data-i18n="pp_searchMaxResults_desc">Initial search results before adaptive re-fetch (up to 30)</div>
+                </div>
+                <input type="number" class="param-input" id="pp_searchMaxResults" value="15" min="1" max="100">
+              </div>
+            </div>
+          </div>
+
+          <!-- Rate Limiting -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_rate_limiting">Rate Limiting</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_dailyTokenLimitBasic">Daily Token Limit (Basic)</div>
+                  <div class="param-desc" data-i18n="pp_dailyTokenLimitBasic_desc">Daily token cap for basic-tier users (0 = unlimited)</div>
+                </div>
+                <input type="number" class="param-input" id="pp_dailyTokenLimitBasic" value="100000" min="0" step="10000">
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_dailyTokenLimitPremium">Daily Token Limit (Premium)</div>
+                  <div class="param-desc" data-i18n="pp_dailyTokenLimitPremium_desc">Daily token cap for premium-tier users (0 = unlimited)</div>
+                </div>
+                <input type="number" class="param-input" id="pp_dailyTokenLimitPremium" value="0" min="0" step="10000">
+              </div>
+            </div>
+          </div>
+
+          <!-- File Processing -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_file_processing">File Processing</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_pdfEnginePreference">PDF Engine</div>
+                  <div class="param-desc" data-i18n="pp_pdfEnginePreference_desc">Preferred PDF parsing engine for document extraction</div>
+                </div>
+                <select class="param-input" id="pp_pdfEnginePreference">
+                  <option value="pdftotext" selected>pdftotext</option>
+                  <option value="pdfjs">pdfjs</option>
+                  <option value="pdf-parse">pdf-parse</option>
+                  <option value="docling">docling</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Workflow -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_workflow">Workflow</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_workflowNodeTimeout">Node Timeout (seconds)</div>
+                  <div class="param-desc" data-i18n="pp_workflowNodeTimeout_desc">Per-node execution timeout for workflow steps</div>
+                </div>
+                <input type="number" class="param-input" id="pp_workflowNodeTimeout" value="30" min="5" max="300">
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_workflowMaxNodes">Max Nodes</div>
+                  <div class="param-desc" data-i18n="pp_workflowMaxNodes_desc">Maximum number of nodes allowed per workflow</div>
+                </div>
+                <input type="number" class="param-input" id="pp_workflowMaxNodes" value="50" min="1" max="500">
+              </div>
+            </div>
+          </div>
+
+          <!-- TTS -->
+          <div class="param-group">
+            <div class="param-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="param-chevron">&#9656;</span>
+              <span data-i18n="pp_tts">TTS (Text-to-Speech)</span>
+            </div>
+            <div class="param-body">
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_ttsEnabled">Enable TTS</div>
+                  <div class="param-desc" data-i18n="pp_ttsEnabled_desc">Enable or disable text-to-speech functionality</div>
+                </div>
+                <div class="param-toggle-wrap">
+                  <label class="switch"><input type="checkbox" id="pp_ttsEnabled" checked><span class="slider"></span></label>
+                </div>
+              </div>
+              <div class="param-row">
+                <div class="param-info">
+                  <div class="param-label" data-i18n="pp_ttsDefaultVoice">Default Voice</div>
+                  <div class="param-desc" data-i18n="pp_ttsDefaultVoice_desc">Default TTS voice identifier (empty = auto-detect by language)</div>
+                </div>
+                <input type="text" class="param-input" id="pp_ttsDefaultVoice" value="" placeholder="auto">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid rgba(0,0,0,0.06);margin:20px 0"></div>
+
         <!-- System Info -->
         <div style="margin-bottom:16px">
           <div style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.7);margin-bottom:10px">System Info</div>
@@ -1230,6 +1471,41 @@ const ADMIN_I18N = {
     loading: 'Loading...',
     online: 'Online',
     offline: 'Offline',
+    pp_title: 'Platform Parameters',
+    pp_subtitle: 'Fine-tune agent runtime, RAG, search, rate limiting, and more.',
+    pp_agent_runtime: 'Agent Runtime',
+    pp_agentMaxIterations: 'Max Agent Iterations',
+    pp_agentMaxIterations_desc: 'Maximum plan-execute-reflect cycles per request',
+    pp_toolRetryMax: 'Tool Retry Max',
+    pp_toolRetryMax_desc: 'How many times to retry a failed tool before giving up',
+    pp_rag_memory: 'RAG & Memory',
+    pp_memoryRecallLimit: 'Memory Recall Limit',
+    pp_memoryRecallLimit_desc: 'Number of relevant memories injected into context per query',
+    pp_memoryScoreThreshold: 'Memory Score Threshold',
+    pp_memoryScoreThreshold_desc: 'Lower = more memories recalled, higher = stricter matching',
+    pp_ragStrategy: 'RAG Strategy',
+    pp_ragStrategy_desc: 'Retrieval strategy: simple (fast), standard, thorough, or agentic (multi-hop)',
+    pp_search: 'Search',
+    pp_searchMaxResults: 'Max Search Results',
+    pp_searchMaxResults_desc: 'Initial search results before adaptive re-fetch (up to 30)',
+    pp_rate_limiting: 'Rate Limiting',
+    pp_dailyTokenLimitBasic: 'Daily Token Limit (Basic)',
+    pp_dailyTokenLimitBasic_desc: 'Daily token cap for basic-tier users (0 = unlimited)',
+    pp_dailyTokenLimitPremium: 'Daily Token Limit (Premium)',
+    pp_dailyTokenLimitPremium_desc: 'Daily token cap for premium-tier users (0 = unlimited)',
+    pp_file_processing: 'File Processing',
+    pp_pdfEnginePreference: 'PDF Engine',
+    pp_pdfEnginePreference_desc: 'Preferred PDF parsing engine for document extraction',
+    pp_workflow: 'Workflow',
+    pp_workflowNodeTimeout: 'Node Timeout (seconds)',
+    pp_workflowNodeTimeout_desc: 'Per-node execution timeout for workflow steps',
+    pp_workflowMaxNodes: 'Max Nodes',
+    pp_workflowMaxNodes_desc: 'Maximum number of nodes allowed per workflow',
+    pp_tts: 'TTS (Text-to-Speech)',
+    pp_ttsEnabled: 'Enable TTS',
+    pp_ttsEnabled_desc: 'Enable or disable text-to-speech functionality',
+    pp_ttsDefaultVoice: 'Default Voice',
+    pp_ttsDefaultVoice_desc: 'Default TTS voice identifier (empty = auto-detect by language)',
   },
   zh: {
     start_chat: '进入聊天',
@@ -1248,6 +1524,41 @@ const ADMIN_I18N = {
     loading: '加载中...',
     online: '在线',
     offline: '离线',
+    pp_title: '平台参数',
+    pp_subtitle: '调整 Agent 运行时、RAG、搜索、限流等参数。',
+    pp_agent_runtime: 'Agent 运行时',
+    pp_agentMaxIterations: '最大迭代次数',
+    pp_agentMaxIterations_desc: '每次请求的最大 计划-执行-反思 循环次数',
+    pp_toolRetryMax: '工具重试上限',
+    pp_toolRetryMax_desc: '工具调用失败后的最大重试次数',
+    pp_rag_memory: 'RAG 与记忆',
+    pp_memoryRecallLimit: '记忆召回数量',
+    pp_memoryRecallLimit_desc: '每次查询注入上下文的相关记忆条数',
+    pp_memoryScoreThreshold: '记忆匹配阈值',
+    pp_memoryScoreThreshold_desc: '越低召回越多，越高匹配越严格',
+    pp_ragStrategy: 'RAG 检索策略',
+    pp_ragStrategy_desc: '检索策略：simple（快速）、standard、thorough、agentic（多跳）',
+    pp_search: '搜索',
+    pp_searchMaxResults: '最大搜索结果数',
+    pp_searchMaxResults_desc: '自适应重查前的初始搜索结果数（最多 30）',
+    pp_rate_limiting: '限流',
+    pp_dailyTokenLimitBasic: '基础版每日 Token 上限',
+    pp_dailyTokenLimitBasic_desc: '基础用户每日 Token 额度（0 = 不限）',
+    pp_dailyTokenLimitPremium: '高级版每日 Token 上限',
+    pp_dailyTokenLimitPremium_desc: '高级用户每日 Token 额度（0 = 不限）',
+    pp_file_processing: '文件处理',
+    pp_pdfEnginePreference: 'PDF 解析引擎',
+    pp_pdfEnginePreference_desc: '文档提取使用的 PDF 解析引擎',
+    pp_workflow: '工作流',
+    pp_workflowNodeTimeout: '节点超时（秒）',
+    pp_workflowNodeTimeout_desc: '工作流单个节点的执行超时时间',
+    pp_workflowMaxNodes: '最大节点数',
+    pp_workflowMaxNodes_desc: '每个工作流允许的最大节点数量',
+    pp_tts: 'TTS（文本转语音）',
+    pp_ttsEnabled: '启用 TTS',
+    pp_ttsEnabled_desc: '启用或禁用文本转语音功能',
+    pp_ttsDefaultVoice: '默认语音',
+    pp_ttsDefaultVoice_desc: '默认 TTS 语音标识（留空 = 自动检测语言）',
   }
 };
 
@@ -1372,6 +1683,20 @@ async function loadSystemSettings() {
     document.getElementById('lumigentSandboxNetworkDefaultEnabled').checked = d.lumigentSandboxNetworkDefaultEnabled !== false;
     document.getElementById('lumigentSandboxNetworkForceDisabled').checked = d.lumigentSandboxNetworkForceDisabled === true;
     document.getElementById('lumigentSandboxLocalFallbackEnabled').checked = d.lumigentSandboxLocalFallbackEnabled !== false;
+    // Platform Parameters
+    document.getElementById('pp_agentMaxIterations').value = d.agentMaxIterations ?? 8;
+    document.getElementById('pp_toolRetryMax').value = d.toolRetryMax ?? 2;
+    document.getElementById('pp_memoryRecallLimit').value = d.memoryRecallLimit ?? 10;
+    document.getElementById('pp_memoryScoreThreshold').value = d.memoryScoreThreshold ?? 0.15;
+    document.getElementById('pp_ragStrategy').value = d.ragStrategy || 'standard';
+    document.getElementById('pp_searchMaxResults').value = d.searchMaxResults ?? 15;
+    document.getElementById('pp_dailyTokenLimitBasic').value = d.dailyTokenLimitBasic ?? 100000;
+    document.getElementById('pp_dailyTokenLimitPremium').value = d.dailyTokenLimitPremium ?? 0;
+    document.getElementById('pp_pdfEnginePreference').value = d.pdfEnginePreference || 'pdftotext';
+    document.getElementById('pp_workflowNodeTimeout').value = d.workflowNodeTimeout ?? 30;
+    document.getElementById('pp_workflowMaxNodes').value = d.workflowMaxNodes ?? 50;
+    document.getElementById('pp_ttsEnabled').checked = d.ttsEnabled !== false;
+    document.getElementById('pp_ttsDefaultVoice').value = d.ttsDefaultVoice || '';
     // Info
     {
       const infoEl = document.getElementById('settingsInfo');
@@ -1593,6 +1918,20 @@ async function saveSystemSettings() {
     lumigentSandboxNetworkDefaultEnabled: document.getElementById('lumigentSandboxNetworkDefaultEnabled').checked,
     lumigentSandboxNetworkForceDisabled: document.getElementById('lumigentSandboxNetworkForceDisabled').checked,
     lumigentSandboxLocalFallbackEnabled: document.getElementById('lumigentSandboxLocalFallbackEnabled').checked,
+    // Platform Parameters
+    agentMaxIterations: Number(document.getElementById('pp_agentMaxIterations').value) || 8,
+    toolRetryMax: Number(document.getElementById('pp_toolRetryMax').value) || 2,
+    memoryRecallLimit: Number(document.getElementById('pp_memoryRecallLimit').value) || 10,
+    memoryScoreThreshold: parseFloat(document.getElementById('pp_memoryScoreThreshold').value) || 0.15,
+    ragStrategy: document.getElementById('pp_ragStrategy').value,
+    searchMaxResults: Number(document.getElementById('pp_searchMaxResults').value) || 15,
+    dailyTokenLimitBasic: Number(document.getElementById('pp_dailyTokenLimitBasic').value) || 0,
+    dailyTokenLimitPremium: Number(document.getElementById('pp_dailyTokenLimitPremium').value) || 0,
+    pdfEnginePreference: document.getElementById('pp_pdfEnginePreference').value,
+    workflowNodeTimeout: Number(document.getElementById('pp_workflowNodeTimeout').value) || 30,
+    workflowMaxNodes: Number(document.getElementById('pp_workflowMaxNodes').value) || 50,
+    ttsEnabled: document.getElementById('pp_ttsEnabled').checked,
+    ttsDefaultVoice: document.getElementById('pp_ttsDefaultVoice').value.trim(),
   };
   try {
     const d = await fetch(B + '/admin/settings', {

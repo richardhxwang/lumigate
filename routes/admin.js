@@ -902,6 +902,32 @@ module.exports = function createAdminRouter(deps) {
       lcSoftDeleteEnabled: isLcSoftDeleteEnabled(),
       attachmentSearchMode: getAttachmentSearchMode(),
       domainApiRegistry,
+      // Platform Parameters
+      agentMaxIterations: settings.agentMaxIterations ?? 8,
+      toolRetryMax: settings.toolRetryMax ?? 2,
+      memoryRecallLimit: settings.memoryRecallLimit ?? 10,
+      memoryScoreThreshold: settings.memoryScoreThreshold ?? 0.15,
+      ragStrategy: settings.ragStrategy || "standard",
+      searchMaxResults: settings.searchMaxResults ?? 15,
+      dailyTokenLimitBasic: settings.dailyTokenLimitBasic ?? 100000,
+      dailyTokenLimitPremium: settings.dailyTokenLimitPremium ?? 0,
+      pdfEnginePreference: settings.pdfEnginePreference || "pdftotext",
+      workflowNodeTimeout: settings.workflowNodeTimeout ?? 30,
+      workflowMaxNodes: settings.workflowMaxNodes ?? 50,
+      ttsEnabled: settings.ttsEnabled !== false,
+      ttsDefaultVoice: settings.ttsDefaultVoice || "",
+      // Sandbox settings
+      lcFileSandboxUploadEnabled: settings.lcFileSandboxUploadEnabled !== false,
+      lcFileSandboxUploadTrustedBypass: settings.lcFileSandboxUploadTrustedBypass !== false,
+      lcFileSandboxDownloadEnabled: settings.lcFileSandboxDownloadEnabled !== false,
+      lcFileSandboxRequireConsent: settings.lcFileSandboxRequireConsent !== false,
+      lcFileSandboxTrustedUsers: settings.lcFileSandboxTrustedUsers || [],
+      lumigentSandboxEnabled: settings.lumigentSandboxEnabled !== false,
+      lumigentSandboxImage: settings.lumigentSandboxImage || "python:3.12-alpine",
+      lumigentSandboxCommandAllowlist: settings.lumigentSandboxCommandAllowlist || [],
+      lumigentSandboxNetworkDefaultEnabled: settings.lumigentSandboxNetworkDefaultEnabled !== false,
+      lumigentSandboxNetworkForceDisabled: settings.lumigentSandboxNetworkForceDisabled === true,
+      lumigentSandboxLocalFallbackEnabled: settings.lumigentSandboxLocalFallbackEnabled !== false,
     });
   });
 
@@ -923,7 +949,18 @@ module.exports = function createAdminRouter(deps) {
             stealthMode, approvalEmail, approvalEnabled,
             searchKeywordProvider, searchKeywordModel, autoSearchEnabled, toolInjectionEnabled,
             attachmentSearchMode,
-            lcSoftDeleteEnabled, domainApiRegistry } = req.body;
+            lcSoftDeleteEnabled, domainApiRegistry,
+            // Platform Parameters
+            agentMaxIterations, toolRetryMax, memoryRecallLimit, memoryScoreThreshold,
+            ragStrategy, searchMaxResults, dailyTokenLimitBasic, dailyTokenLimitPremium,
+            pdfEnginePreference, workflowNodeTimeout, workflowMaxNodes,
+            ttsEnabled, ttsDefaultVoice,
+            // Sandbox settings
+            lcFileSandboxUploadEnabled, lcFileSandboxUploadTrustedBypass,
+            lcFileSandboxDownloadEnabled, lcFileSandboxRequireConsent,
+            lcFileSandboxTrustedUsers, lumigentSandboxEnabled, lumigentSandboxImage,
+            lumigentSandboxCommandAllowlist, lumigentSandboxNetworkDefaultEnabled,
+            lumigentSandboxNetworkForceDisabled, lumigentSandboxLocalFallbackEnabled } = req.body;
     if (!confirmSecret || !safeEqual(confirmSecret, ADMIN_SECRET)) {
       return res.status(403).json({ error: "Admin secret required to change settings" });
     }
@@ -1021,6 +1058,69 @@ module.exports = function createAdminRouter(deps) {
       settings.domainApiRegistry = sanitized;
       changes.domainApiRegistry = Object.keys(sanitized);
     }
+    // Platform Parameters
+    if (agentMaxIterations !== undefined) {
+      const v = Math.max(1, Math.min(50, Number(agentMaxIterations) || 8));
+      settings.agentMaxIterations = v; changes.agentMaxIterations = v;
+    }
+    if (toolRetryMax !== undefined) {
+      const v = Math.max(0, Math.min(10, Number(toolRetryMax) || 0));
+      settings.toolRetryMax = v; changes.toolRetryMax = v;
+    }
+    if (memoryRecallLimit !== undefined) {
+      const v = Math.max(1, Math.min(100, Number(memoryRecallLimit) || 10));
+      settings.memoryRecallLimit = v; changes.memoryRecallLimit = v;
+    }
+    if (memoryScoreThreshold !== undefined) {
+      const v = Math.max(0, Math.min(1, parseFloat(memoryScoreThreshold) || 0.15));
+      settings.memoryScoreThreshold = v; changes.memoryScoreThreshold = v;
+    }
+    if (typeof ragStrategy === "string" && ["simple", "standard", "thorough", "agentic"].includes(ragStrategy)) {
+      settings.ragStrategy = ragStrategy; changes.ragStrategy = ragStrategy;
+    }
+    if (searchMaxResults !== undefined) {
+      const v = Math.max(1, Math.min(100, Number(searchMaxResults) || 15));
+      settings.searchMaxResults = v; changes.searchMaxResults = v;
+    }
+    if (dailyTokenLimitBasic !== undefined) {
+      const v = Math.max(0, Number(dailyTokenLimitBasic) || 0);
+      settings.dailyTokenLimitBasic = v; changes.dailyTokenLimitBasic = v;
+    }
+    if (dailyTokenLimitPremium !== undefined) {
+      const v = Math.max(0, Number(dailyTokenLimitPremium) || 0);
+      settings.dailyTokenLimitPremium = v; changes.dailyTokenLimitPremium = v;
+    }
+    if (typeof pdfEnginePreference === "string" && ["pdftotext", "pdfjs", "pdf-parse", "docling"].includes(pdfEnginePreference)) {
+      settings.pdfEnginePreference = pdfEnginePreference; changes.pdfEnginePreference = pdfEnginePreference;
+    }
+    if (workflowNodeTimeout !== undefined) {
+      const v = Math.max(5, Math.min(300, Number(workflowNodeTimeout) || 30));
+      settings.workflowNodeTimeout = v; changes.workflowNodeTimeout = v;
+    }
+    if (workflowMaxNodes !== undefined) {
+      const v = Math.max(1, Math.min(500, Number(workflowMaxNodes) || 50));
+      settings.workflowMaxNodes = v; changes.workflowMaxNodes = v;
+    }
+    if (ttsEnabled !== undefined) { settings.ttsEnabled = !!ttsEnabled; changes.ttsEnabled = settings.ttsEnabled; }
+    if (typeof ttsDefaultVoice === "string") { settings.ttsDefaultVoice = ttsDefaultVoice.trim(); changes.ttsDefaultVoice = settings.ttsDefaultVoice; }
+    // Sandbox settings
+    if (lcFileSandboxUploadEnabled !== undefined) { settings.lcFileSandboxUploadEnabled = !!lcFileSandboxUploadEnabled; changes.lcFileSandboxUploadEnabled = settings.lcFileSandboxUploadEnabled; }
+    if (lcFileSandboxUploadTrustedBypass !== undefined) { settings.lcFileSandboxUploadTrustedBypass = !!lcFileSandboxUploadTrustedBypass; changes.lcFileSandboxUploadTrustedBypass = settings.lcFileSandboxUploadTrustedBypass; }
+    if (lcFileSandboxDownloadEnabled !== undefined) { settings.lcFileSandboxDownloadEnabled = !!lcFileSandboxDownloadEnabled; changes.lcFileSandboxDownloadEnabled = settings.lcFileSandboxDownloadEnabled; }
+    if (lcFileSandboxRequireConsent !== undefined) { settings.lcFileSandboxRequireConsent = !!lcFileSandboxRequireConsent; changes.lcFileSandboxRequireConsent = settings.lcFileSandboxRequireConsent; }
+    if (typeof lcFileSandboxTrustedUsers === "string") {
+      settings.lcFileSandboxTrustedUsers = lcFileSandboxTrustedUsers.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+      changes.lcFileSandboxTrustedUsers = settings.lcFileSandboxTrustedUsers;
+    }
+    if (lumigentSandboxEnabled !== undefined) { settings.lumigentSandboxEnabled = !!lumigentSandboxEnabled; changes.lumigentSandboxEnabled = settings.lumigentSandboxEnabled; }
+    if (typeof lumigentSandboxImage === "string" && lumigentSandboxImage.trim()) { settings.lumigentSandboxImage = lumigentSandboxImage.trim(); changes.lumigentSandboxImage = settings.lumigentSandboxImage; }
+    if (typeof lumigentSandboxCommandAllowlist === "string") {
+      settings.lumigentSandboxCommandAllowlist = lumigentSandboxCommandAllowlist.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+      changes.lumigentSandboxCommandAllowlist = settings.lumigentSandboxCommandAllowlist;
+    }
+    if (lumigentSandboxNetworkDefaultEnabled !== undefined) { settings.lumigentSandboxNetworkDefaultEnabled = !!lumigentSandboxNetworkDefaultEnabled; changes.lumigentSandboxNetworkDefaultEnabled = settings.lumigentSandboxNetworkDefaultEnabled; }
+    if (lumigentSandboxNetworkForceDisabled !== undefined) { settings.lumigentSandboxNetworkForceDisabled = !!lumigentSandboxNetworkForceDisabled; changes.lumigentSandboxNetworkForceDisabled = settings.lumigentSandboxNetworkForceDisabled; }
+    if (lumigentSandboxLocalFallbackEnabled !== undefined) { settings.lumigentSandboxLocalFallbackEnabled = !!lumigentSandboxLocalFallbackEnabled; changes.lumigentSandboxLocalFallbackEnabled = settings.lumigentSandboxLocalFallbackEnabled; }
     saveSettings(settings);
     audit(req.userName, "settings_update", null, changes);
     logParamChange("admin", req.userName, changes, {
