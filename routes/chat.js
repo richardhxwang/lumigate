@@ -388,15 +388,43 @@ function formatNativeTools(providerName, schemas) {
 }
 
 /**
- * Select relevant tools based on user message content.
+ * Map slash-command specialist_mode IDs to actual registered tool names.
+ * When user selects /audit jet, specialist_mode = "audit_jet" → we must include
+ * the corresponding tool "journal_entry_testing" in the native tool list.
+ */
+const SPECIALIST_MODE_TO_TOOLS = {
+  audit_jet:            ["journal_entry_testing"],
+  audit_mus:            ["audit_sampling"],
+  audit_benford:        ["benford_analysis"],
+  audit_materiality:    ["materiality_calculator"],
+  audit_reconciliation: ["reconciliation"],
+  audit_going_concern:  ["going_concern_check"],
+  audit_gl_extract:     ["gl_extract"],
+  audit_data_clean:     ["data_cleaning"],
+  audit_ppe:            ["variance_analysis"],  // PPE rollforward uses variance analysis
+  audit_far:            ["financial_analytics_review"],
+};
+
+// All audit tool names (used to include the full set when any audit specialist is active)
+const ALL_AUDIT_TOOL_NAMES = new Set([
+  "audit_sampling", "benford_analysis", "journal_entry_testing",
+  "variance_analysis", "materiality_calculator", "reconciliation",
+  "going_concern_check", "gl_extract", "data_cleaning",
+  "audit_workpaper_fill", "financial_analytics_review",
+]);
+
+/**
+ * Select relevant tools based on user message content and specialist mode.
  * Avoids sending all 22+ tool schemas every request (saves tokens).
  * @param {string} userMessage
  * @param {object[]} allSchemas
+ * @param {string} [specialistMode] - specialist_mode from slash command (e.g. "audit_jet")
  * @returns {object[]}
  */
-function selectRelevantTools(userMessage, allSchemas) {
+function selectRelevantTools(userMessage, allSchemas, specialistMode) {
   if (!allSchemas || !allSchemas.length) return [];
   const msg = String(userMessage || "").toLowerCase();
+  const sMode = String(specialistMode || "").toLowerCase();
 
   // Core tools: always include
   const alwaysInclude = new Set([
@@ -405,9 +433,12 @@ function selectRelevantTools(userMessage, allSchemas) {
     'fill_template',
   ]);
 
-  // Audit tools: only if message mentions audit/financial keywords
+  // If specialist mode is an audit tool, always include all audit tools
+  const isAuditSpecialist = sMode.startsWith("audit_") || ALL_AUDIT_TOOL_NAMES.has(sMode);
+
+  // Audit tools: include if specialist mode is audit OR message mentions audit/financial keywords
   const auditKeywords = /audit|sampling|journal|entry|entries|benford|material|reconcil|going.?concern|gl\b|general\s*ledger|抽样|分录|审计|对账|重大性|持续经营/i;
-  const includeAudit = auditKeywords.test(msg);
+  const includeAudit = isAuditSpecialist || auditKeywords.test(msg);
 
   // Financial analysis
   const financeKeywords = /financial.?statement|tie.?out|balance.?sheet|income.?statement|cash.?flow|variance|财务报表|资产负债|利润表|现金流/i;
@@ -427,7 +458,7 @@ function selectRelevantTools(userMessage, allSchemas) {
 
   return allSchemas.filter(s => {
     if (alwaysInclude.has(s.name)) return true;
-    if (includeAudit && /^(audit_sampling|benford_analysis|journal_entry_testing|variance_analysis|materiality_calculator|reconciliation|going_concern_check)$/.test(s.name)) return true;
+    if (includeAudit && ALL_AUDIT_TOOL_NAMES.has(s.name)) return true;
     if (includeFinance && s.name === 'financial_statement_analyze') return true;
     if (includeHkex && s.name === 'hkex_download') return true;
     if (includeMedia && /^(vision_analyze|transcribe_audio)$/.test(s.name)) return true;
@@ -825,7 +856,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   } else {
     shouldAutoSearch = obviousWebNeed;
   }
-  if (specialistMode === "financial_statement_analysis" && req.body.web_search !== true) {
+  if ((specialistMode === "financial_statement_analysis" || SPECIALIST_MODE_TO_TOOLS[specialistMode]) && req.body.web_search !== true) {
     shouldAutoSearch = false;
   }
 
@@ -1123,6 +1154,28 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       injectedSystemPrompt += `${precomputedBlock}\n\nUse Financial Analysis JSON as deterministic ground truth for tie/not_tie status. You may explain it naturally, but do not contradict computed checks.\n\n`;
     }
   }
+  // ── Audit specialist mode: slash commands like /audit jet, /audit mus, etc. ──
+  // These work as normal AI tool calls — the AI sees the tool in its system prompt
+  // and decides to call it. No server-side pre-computation needed (unlike financial_statement_analysis).
+  if (specialistMode && SPECIALIST_MODE_TO_TOOLS[specialistMode]) {
+    const primaryToolNames = SPECIALIST_MODE_TO_TOOLS[specialistMode];
+    const toolDescriptions = {
+      audit_jet: "Journal Entry Testing (JET) — run 15 standard tests on general ledger data",
+      audit_mus: "Monetary Unit Sampling (MUS/AICPA) — statistical audit sampling",
+      audit_benford: "Benford's Analysis — first-digit distribution fraud detection",
+      audit_materiality: "Materiality Calculator — ISA 320 materiality levels",
+      audit_reconciliation: "Reconciliation — auto-reconcile two datasets",
+      audit_going_concern: "Going Concern Check — ISA 570 going concern indicators",
+      audit_gl_extract: "GL Extract — extract sub-ledger by account code",
+      audit_data_clean: "Data Cleaning — clean and normalize financial data",
+      audit_ppe: "PPE Rollforward — fixed asset movement schedule + depreciation rates",
+      audit_far: "Financial Analytics Review — year-over-year variance analysis",
+    };
+    const desc = toolDescriptions[specialistMode] || specialistMode.replace(/_/g, " ");
+    injectedSystemPrompt += `\nSpecialist mode: Audit — ${desc}.\n`;
+    injectedSystemPrompt += `The user has specifically selected this audit tool. You MUST call the appropriate tool function (${primaryToolNames.join(", ")}) to process any attached data. Do not attempt to perform the analysis manually — use the tool.\n`;
+    injectedSystemPrompt += "If the user has not provided data/attachments yet, ask them to upload the relevant file (e.g., general ledger, trial balance, financial statements).\n\n";
+  }
   const structuredInputBlock = buildStructuredAttachmentPayloadBlock({
     userQuery: userTextForUrlDetection || userText,
     attachments: requestAttachmentContexts,
@@ -1153,7 +1206,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         const allSchemas = lumigentRuntime.registry
           ? await lumigentRuntime.registry.getSchemas()
           : [];
-        const relevant = selectRelevantTools(userText, allSchemas);
+        const relevant = selectRelevantTools(userText, allSchemas, specialistMode);
         if (relevant.length > 0) {
           nativeToolsParam = formatNativeTools(pnLower, relevant);
           log("info", "Native tools enabled", { provider: pnLower, model: modelId, toolCount: relevant.length, tools: relevant.map(s => s.name) });
