@@ -19,3 +19,9 @@
 {"ts":"2026-03-20T03:21:00+08:00","action":"add","type":"learning","id":"LRN-20260320-001","summary":"镜像更新后仅 restart 不会加载新代码；必须 force-recreate 并在容器内校验关键标记"}
 ```
 {"ts":"2026-03-20T20:20:00+08:00","action":"add","type":"learning","id":"LRN-20260320-002","summary":"排错先查Loki/运行日志，再给结论；禁止先猜代码路径"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-001","summary":"路由拆分必须系统性扫描闭包依赖，node -c 检测不出运行时 ReferenceError"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-002","summary":"子路由挂载在参数化路径下必须 mergeParams:true，否则 req.params 全是 undefined"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-003","summary":"多 agent 不能并行改同一文件，后完成的会覆盖先完成的"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-004","summary":"LumiChat 有双层 CSP (nginx + server.js nonce)，改 CDN 白名单两处都要改"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-005","summary":"有选项的功能先列选项让用户选，不要直接全做"}
+{"ts":"2026-03-21T01:00:00+08:00","action":"add","type":"learning","id":"LRN-20260321-006","summary":"PB fire-and-forget 写入绝不允许空 catch，必须 log 错误"}
