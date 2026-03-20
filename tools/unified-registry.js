@@ -333,7 +333,7 @@ class UnifiedRegistry {
 
     return [
       "You can generate files. Output: [TOOL:name]{json}[/TOOL]",
-      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template, financial_statement_analyze, audit_sampling, benford_analysis, journal_entry_testing, variance_analysis, materiality_calculator, reconciliation, going_concern_check",
+      "Tools: generate_spreadsheet, generate_document, generate_presentation, use_template, fill_template, financial_statement_analyze, audit_sampling, benford_analysis, journal_entry_testing, variance_analysis, materiality_calculator, reconciliation, going_concern_check",
       "",
       "=== FILE GENERATION WORKFLOW ===",
       "ONLY use tools when user EXPLICITLY asks for file generation. Do NOT generate files for greetings or questions.",
@@ -398,6 +398,16 @@ class UnifiedRegistry {
       "",
       "- going_concern_check: ISA 570 going concern assessment from financial data + qualitative factors.",
       "  Example: [TOOL:going_concern_check]{\"current_year\":{\"revenue\":1000000,\"net_income\":-50000,\"current_assets\":200000,\"current_liabilities\":350000,\"operating_cash_flow\":-80000}}[/TOOL]",
+      "",
+      "=== TEMPLATE FILLING ===",
+      "Fill Word templates with data from Excel/tables. Generates multiple personalized documents from one template.",
+      "Use cases: director confirmations, bank confirmations, AR/AP confirmations, audit letters.",
+      "",
+      "- fill_template: Fill a Word template ({{placeholder}} syntax) with data. Generates N copies from N data rows.",
+      "  Params: template_text (text with {{placeholders}}), template_file_id (PB file ID of .docx template), data (array of objects), key_field, merge, output_format",
+      "  Text template: [TOOL:fill_template]{\"template_text\":\"Dear {{director_name}},\\nThis confirms your position as {{position}} with compensation {{total_compensation}}.\",\"data\":[{\"director_name\":\"Alice Chen\",\"position\":\"Executive Director\",\"total_compensation\":\"HK$1,200,000\"},{\"director_name\":\"Bob Wong\",\"position\":\"Non-Executive Director\",\"total_compensation\":\"HK$400,000\"}],\"key_field\":\"director_name\",\"output_filename\":\"Director_Confirmation\"}[/TOOL]",
+      "  Binary template: [TOOL:fill_template]{\"template_file_id\":\"abc123\",\"data\":[{\"director_name\":\"Alice\",\"date\":\"2026-03-21\",\"company_name\":\"ACME Ltd\"}],\"key_field\":\"director_name\"}[/TOOL]",
+      "  When user uploads a Word template + Excel data: extract placeholders from template, map Excel columns to placeholders, call fill_template with the data array.",
       templateHint,
     ].join("\n");
   }

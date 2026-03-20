@@ -767,6 +767,58 @@
     #sel-menu button:active{background:var(--sb-active)}
     #sel-menu button svg{width:14px;height:14px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     #sel-menu .sel-sep{width:1px;background:var(--border);margin:4px 0;flex-shrink:0}
+
+    /* ── CANVAS / ARTIFACTS SIDE PANEL ──────────────────────────────── */
+    .canvas-panel{position:fixed;right:0;top:0;bottom:0;width:45%;min-width:420px;background:rgba(22,22,24,0.92);-webkit-backdrop-filter:blur(32px) saturate(170%);backdrop-filter:blur(32px) saturate(170%);border-left:1px solid rgba(255,255,255,0.08);transform:translateX(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);z-index:100;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.3)}
+    :root.light .canvas-panel{background:rgba(248,248,250,0.95);border-left-color:rgba(0,0,0,0.08);box-shadow:-8px 0 40px rgba(0,0,0,.1)}
+    .canvas-panel.open{transform:translateX(0)}
+    /* Shrink main area when canvas is open — desktop only */
+    @media(min-width:769px){
+      #main{transition:margin-right .32s cubic-bezier(.4,0,.2,1)}
+      #main.canvas-pushed{margin-right:45%}
+    }
+    .canvas-header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+    :root.light .canvas-header{border-bottom-color:rgba(0,0,0,0.07)}
+    .canvas-lang{font-size:11px;font-weight:600;color:var(--accent);background:rgba(16,163,127,0.12);padding:2px 8px;border-radius:var(--r1);text-transform:uppercase;letter-spacing:.04em;flex-shrink:0}
+    .canvas-title{flex:1;font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .canvas-actions{display:flex;gap:4px;flex-shrink:0}
+    .canvas-act{width:30px;height:30px;border:none;background:rgba(255,255,255,0.07);color:var(--t2);border-radius:var(--r1);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
+    :root.light .canvas-act{background:rgba(0,0,0,0.05)}
+    .canvas-act:hover{background:rgba(255,255,255,0.14);color:var(--t1)}
+    :root.light .canvas-act:hover{background:rgba(0,0,0,0.1)}
+    .canvas-act svg{width:15px;height:15px}
+    .canvas-body{flex:1;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0}
+    .canvas-body::-webkit-scrollbar{width:5px}
+    .canvas-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .canvas-body pre{margin:0;background:transparent;border:none;border-radius:0}
+    .canvas-body pre code{display:block;padding:16px;font-size:13px;line-height:1.6;font-family:'SF Mono','Fira Code','Cascadia Code','Consolas',ui-monospace,monospace;white-space:pre;overflow-x:auto;min-height:100%;outline:none;caret-color:var(--accent)}
+    .canvas-body pre code:focus{background:rgba(255,255,255,0.02)}
+    :root.light .canvas-body pre code:focus{background:rgba(0,0,0,0.01)}
+    .canvas-footer{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+    :root.light .canvas-footer{border-top-color:rgba(0,0,0,0.07)}
+    .canvas-edit-input{flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);border-radius:var(--r2);padding:9px 13px;color:var(--t1);font-size:13.5px;font-family:inherit;outline:none;transition:border .15s}
+    :root.light .canvas-edit-input{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.09)}
+    .canvas-edit-input:focus{border-color:var(--accent)}
+    .canvas-edit-input::placeholder{color:var(--t3)}
+    .canvas-send{width:32px;height:32px;border-radius:50%;background:var(--accent);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s}
+    .canvas-send:hover{background:#0d9268;transform:scale(1.06)}
+    .canvas-send:active{transform:scale(0.94)}
+    .canvas-send:disabled{opacity:.4;cursor:default;transform:none}
+    .canvas-send svg{width:14px;height:14px}
+    .canvas-edit-loading{display:none;align-items:center;gap:8px;padding:6px 0;font-size:12px;color:var(--t3)}
+    .canvas-edit-loading.active{display:flex}
+    .canvas-edit-spinner{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.15);border-top-color:var(--accent);animation:fchip-spin .8s linear infinite}
+    /* "Open in Canvas" button on code blocks */
+    .canvas-open-btn{position:absolute;top:6px;right:80px;display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r1);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:var(--t3);font-size:11px;cursor:pointer;opacity:0;transition:opacity .15s,background .15s,color .15s;font-family:inherit}
+    :root.light .canvas-open-btn{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.08)}
+    pre:hover .canvas-open-btn{opacity:1}
+    .canvas-open-btn:hover{background:rgba(16,163,127,0.12);border-color:rgba(16,163,127,0.25);color:var(--accent)}
+    .canvas-open-btn svg{width:12px;height:12px}
+    /* Mobile: full-width overlay */
+    @media(max-width:768px){
+      .canvas-panel{width:100%;min-width:0;border-left:none}
+      #main.canvas-pushed{margin-right:0}
+    }
   </style>
 </head>
 <body>
@@ -1284,6 +1336,38 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- CANVAS / ARTIFACTS SIDE PANEL — outside #app to avoid overflow clipping -->
+<div id="canvas-panel" class="canvas-panel">
+  <div class="canvas-header">
+    <span class="canvas-lang" id="canvas-lang">code</span>
+    <span class="canvas-title" id="canvas-title">Untitled</span>
+    <div class="canvas-actions">
+      <button class="canvas-act" id="canvas-copy-btn" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+      <button class="canvas-act" id="canvas-dl-btn" title="Download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="canvas-act" id="canvas-close-btn" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="canvas-body">
+    <pre><code id="canvas-content" contenteditable="true" spellcheck="false"></code></pre>
+  </div>
+  <div class="canvas-footer">
+    <div class="canvas-edit-loading" id="canvas-edit-loading">
+      <div class="canvas-edit-spinner"></div>
+      <span>Applying edit...</span>
+    </div>
+    <input class="canvas-edit-input" id="canvas-edit-input" placeholder="Ask AI to edit this code..." autocomplete="off">
+    <button class="canvas-send" id="canvas-send-btn" title="Send edit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+    </button>
+  </div>
+</div>
 
 <script nonce="{{NONCE}}">
 'use strict';
@@ -2549,6 +2633,8 @@ function renderMarkdown(el, text){
     chipsDiv.innerHTML=DOMPurify.sanitize(chipsHtml,{ADD_ATTR:['onerror'],FORCE_BODY:true});
     if(chipsDiv.firstElementChild) el.appendChild(chipsDiv.firstElementChild);
   }
+  // Add "Open in Canvas" buttons to code blocks
+  addCanvasButtons(el);
 }
 // Stream render: incremental full markdown parse for stable table/code rendering.
 function getStreamingRenderableMarkdown(text){
@@ -2579,7 +2665,151 @@ window.cpCode=function(btn){
 
 const COPY_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const EDIT_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+const CANVAS_EXPAND_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 const IS_LUMICHAT_TEST = window.location.pathname === "/lumichat/test";
+
+// ── CANVAS / ARTIFACTS SIDE PANEL ──────────────────────────────────────────
+let currentCanvasLanguage='';
+let canvasEditInFlight=false;
+const canvasPanel=document.getElementById('canvas-panel');
+const canvasContent=document.getElementById('canvas-content');
+const canvasTitle=document.getElementById('canvas-title');
+const canvasLang=document.getElementById('canvas-lang');
+const canvasEditInput=document.getElementById('canvas-edit-input');
+const canvasEditLoading=document.getElementById('canvas-edit-loading');
+const mainEl=document.getElementById('main');
+
+const LANG_EXTENSIONS={
+  javascript:'.js',typescript:'.ts',python:'.py',java:'.java',c:'.c',cpp:'.cpp',
+  csharp:'.cs',go:'.go',rust:'.rs',ruby:'.rb',php:'.php',swift:'.swift',
+  kotlin:'.kt',html:'.html',css:'.css',json:'.json',yaml:'.yaml',yml:'.yml',
+  xml:'.xml',sql:'.sql',bash:'.sh',shell:'.sh',sh:'.sh',markdown:'.md',
+  plaintext:'.txt',text:'.txt'
+};
+
+function openCanvas(code, langClass){
+  let lang='';
+  if(langClass){
+    const m=String(langClass).match(/language-(\S+)/);
+    if(m) lang=m[1];
+  }
+  currentCanvasLanguage=lang||'text';
+  canvasLang.textContent=currentCanvasLanguage;
+  canvasTitle.textContent=currentCanvasLanguage==='text'?'Untitled':('code'+( LANG_EXTENSIONS[currentCanvasLanguage.toLowerCase()]||'.txt'));
+  canvasContent.textContent=code||'';
+  canvasContent.className=lang?'language-'+lang:'';
+  if(lang && window.hljs){
+    try{ hljs.highlightElement(canvasContent); }catch{}
+  }
+  canvasPanel.classList.add('open');
+  mainEl.classList.add('canvas-pushed');
+  canvasEditInput.value='';
+  canvasEditInput.placeholder='Ask AI to edit this '+currentCanvasLanguage+'...';
+}
+
+function closeCanvas(){
+  canvasPanel.classList.remove('open');
+  mainEl.classList.remove('canvas-pushed');
+}
+
+function canvasCopy(){
+  const text=canvasContent.innerText||canvasContent.textContent||'';
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById('canvas-copy-btn');
+    const orig=btn.innerHTML;
+    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+    setTimeout(()=>{ btn.innerHTML=orig; },1200);
+  });
+}
+
+function canvasDownload(){
+  const text=canvasContent.innerText||canvasContent.textContent||'';
+  const ext=LANG_EXTENSIONS[currentCanvasLanguage.toLowerCase()]||'.txt';
+  const fname='canvas'+ext;
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=fname; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function canvasAskEdit(){
+  const instruction=canvasEditInput.value.trim();
+  if(!instruction||canvasEditInFlight) return;
+  const content=canvasContent.innerText||canvasContent.textContent||'';
+  const lang=currentCanvasLanguage||'code';
+  canvasEditInFlight=true;
+  canvasEditInput.disabled=true;
+  document.getElementById('canvas-send-btn').disabled=true;
+  canvasEditLoading.classList.add('active');
+  try{
+    const resp=await fetch('/v1/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      body:JSON.stringify({
+        provider:selectedProvider,
+        model:selectedModel,
+        messages:[
+          {role:'system',content:'You are editing '+lang+' code. Return ONLY the modified code — no markdown fences, no explanations, no commentary. Output the raw code only.'},
+          {role:'user',content:'Current code:\n```'+lang+'\n'+content+'\n```\n\nEdit instruction: '+instruction}
+        ],
+        stream:false,
+      }),
+    });
+    if(!resp.ok) throw new Error('Request failed: '+resp.status);
+    const data=await resp.json();
+    let newContent=data.choices?.[0]?.message?.content||'';
+    // Strip markdown fences if model wrapped them anyway
+    const fenceMatch=newContent.match(/^```[\w]*\n([\s\S]*?)\n?```\s*$/);
+    if(fenceMatch) newContent=fenceMatch[1];
+    canvasContent.textContent=newContent;
+    canvasContent.className=lang!=='text'?'language-'+lang:'';
+    if(lang!=='text'&&window.hljs){
+      try{ hljs.highlightElement(canvasContent); }catch{}
+    }
+    canvasEditInput.value='';
+  }catch(e){
+    console.error('Canvas edit error:',e);
+    if(window.toast) toast('Edit failed: '+(e.message||'Unknown error'),2500);
+  }finally{
+    canvasEditInFlight=false;
+    canvasEditInput.disabled=false;
+    document.getElementById('canvas-send-btn').disabled=false;
+    canvasEditLoading.classList.remove('active');
+    canvasEditInput.focus();
+  }
+}
+
+// Wire up canvas panel buttons
+document.getElementById('canvas-copy-btn').addEventListener('click',canvasCopy);
+document.getElementById('canvas-dl-btn').addEventListener('click',canvasDownload);
+document.getElementById('canvas-close-btn').addEventListener('click',closeCanvas);
+document.getElementById('canvas-send-btn').addEventListener('click',canvasAskEdit);
+canvasEditInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();canvasAskEdit();}
+  if(e.key==='Escape') closeCanvas();
+});
+// Close on Escape when canvas is open
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&canvasPanel.classList.contains('open')) closeCanvas();
+});
+
+// Inject "Open in Canvas" buttons into rendered code blocks
+function addCanvasButtons(container){
+  container.querySelectorAll('pre').forEach(pre=>{
+    if(pre.querySelector('.canvas-open-btn')) return; // already added
+    const codeEl=pre.querySelector('code');
+    if(!codeEl) return;
+    pre.style.position='relative';
+    const btn=document.createElement('button');
+    btn.className='canvas-open-btn';
+    btn.innerHTML=CANVAS_EXPAND_SVG+' Canvas';
+    btn.addEventListener('click',()=>openCanvas(codeEl.innerText||codeEl.textContent,codeEl.className));
+    pre.appendChild(btn);
+  });
+}
 
 function toolStatusIcon(icon){
   const k=String(icon||"").toLowerCase();
@@ -2834,6 +3064,10 @@ function renderMessages(){
 
 // ── SEND ───────────────────────────────────────────────────────────────────
 function updateSendBtn(){
+  // Defensive: if pendingFiles exist but chips are missing from DOM, re-render them
+  if(pendingFiles.length>0 && fileChips.children.length===0){
+    renderChips();
+  }
   if(isStreaming){
     sendBtn.disabled=false;
     sendBtn.innerHTML=PAUSE_ICON_SVG;
@@ -2842,7 +3076,9 @@ function updateSendBtn(){
     return;
   }
   if(pendingFileReads.size>0){
-    sendBtn.disabled=true;
+    // Show spinner but keep button enabled — sendMessage() awaits pending reads internally.
+    // Disabling the button would block both Enter key and click from triggering send.
+    sendBtn.disabled=false;
     sendBtn.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>';
     sendBtn.title='Reading files...';
     return;
@@ -3297,9 +3533,32 @@ async function sendMessage(){
             const card=document.createElement('div');
             card.className='dl-card';
             card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
+            // Determine if file is previewable in Canvas
+            const fnLower=fn.toLowerCase();
+            const canvasPreviewable=/\.(js|ts|py|java|c|cpp|cs|go|rs|rb|php|swift|kt|html|css|json|yaml|yml|xml|sql|sh|md|txt|log|csv)$/.test(fnLower);
             card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
+              ${canvasPreviewable?`<button class="canvas-open-dl-btn" style="padding:6px 12px;background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--t2);border-radius:var(--r1,8px);font-size:12px;font-weight:500;cursor:pointer;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:4px;transition:background .15s,color .15s"><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='13' height='13'><polyline points='15 3 21 3 21 9'/><polyline points='9 21 3 21 3 15'/><line x1='21' y1='3' x2='14' y2='10'/><line x1='3' y1='21' x2='10' y2='14'/></svg> Canvas</button>`:''}
               <a href="#" data-secure-dl="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+            // Wire up Canvas preview for file_download cards
+            if(canvasPreviewable){
+              const cvBtn=card.querySelector('.canvas-open-dl-btn');
+              if(cvBtn){
+                const extMatch=fnLower.match(/\.(\w+)$/);
+                const fileLang=extMatch?extMatch[1]:'text';
+                cvBtn.addEventListener('click',async ()=>{
+                  // Try to fetch file content from downloadUrl
+                  try{
+                    const href=await secureDownloadHref(dlUrl);
+                    const resp=await fetch(href);
+                    const fileText=await resp.text();
+                    openCanvas(fileText,fileLang?'language-'+fileLang:'');
+                  }catch(e){
+                    openCanvas('// Could not load file preview for: '+fn,'language-text');
+                  }
+                });
+              }
+            }
             const dlA=card.querySelector('a[data-secure-dl]');
             if(dlA){
               dlA.addEventListener('click', async (ev)=>{

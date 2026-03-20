@@ -19,6 +19,8 @@ const { unifiedRegistry } = require("./tools/unified-registry");
 const { mcpClient } = require("./tools/mcp-client");
 const { registerAuditTools } = require("./tools/audit-tools");
 registerAuditTools();
+const { registerTemplateFiller } = require("./tools/template-filler");
+registerTemplateFiller();
 const {
   LumigentRuntime,
   LumigentTraceStore,
@@ -3419,6 +3421,11 @@ app.use("/v1/audio", apiLimiter, platformAuth, audioRouter);
 app.use("/v1/vision", apiLimiter, platformAuth, visionRouter);
 app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ manager: knowledgeManager, log }));
+
+// Template filler REST endpoint
+const templateFillerRouter = require("./routes/template-filler");
+app.use("/platform/tools", apiLimiter, platformAuth, templateFillerRouter);
+app.use("/v1/tools", apiLimiter, platformAuth, templateFillerRouter);
 
 app.get("/v1/lumigent/tools", apiLimiter, platformAuth, async (_req, res) => {
   try {
