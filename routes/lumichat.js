@@ -5254,6 +5254,8 @@ router.use("/v1/chat", require("./chat")({
   mergeArraysUnique,
   fetchLcAttachmentContextsByIds,
   runFinancialAnalysisForAttachments,
+  LC_ENCRYPTED_UPLOAD_LIMIT_BYTES,
+  LC_MODEL_ATTACHMENT_FULL_CHARS,
   userMemory,
 }));
 

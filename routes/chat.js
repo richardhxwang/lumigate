@@ -58,6 +58,8 @@ module.exports = function createChatRouter(deps) {
     mergeArraysUnique,
     fetchLcAttachmentContextsByIds,
     runFinancialAnalysisForAttachments,
+    LC_ENCRYPTED_UPLOAD_LIMIT_BYTES,
+    LC_MODEL_ATTACHMENT_FULL_CHARS,
     shouldAutoContinueFinishReason,
     getContinuationPrompt,
     AUTO_CONTINUE_MAX_PASSES,
