@@ -1858,9 +1858,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                 data: { results: salvageResults, query: q },
                 duration: 0,
               }];
-              if (!res.writableEnded) {
-                res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(salvageResults.length), icon: "search", done: true })}\n\n`);
-              }
+              emitToolStatus({ text: L.searchDone(salvageResults.length), icon: "search", done: true });
             }
           }
         } catch (salvageErr) {
@@ -1869,8 +1867,8 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       }
 
       // If still no tool results, mark done and append a clear fallback (even when opening sentence exists).
-      if (toolResults.length === 0 && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel} done`, icon: detectedIcon, done: true })}\n\n`);
+      if (toolResults.length === 0) {
+        emitToolStatus({ text: `${detectedLabel} done`, icon: detectedIcon, done: true });
         // If the model triggered a non-search/non-URL tool by mistake (e.g., benford_analysis when unrelated),
         // don't show a confusing "URL extraction failed" message — just skip silently.
         const isNonUrlTool = detectedToolNameNorm && !['web_search','browse','search','fetch','url'].some(k => detectedToolNameNorm.includes(k));
@@ -1912,16 +1910,14 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       // Send file_download events
       for (const tr of toolResults) {
         if (tr.downloadUrl || tr.base64 || tr.filename) {
-          if (!res.writableEnded) {
-            res.write(`event: file_download\ndata: ${JSON.stringify({
-              filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
-              downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
-            })}\n\n`);
-          }
+          emitFileDownload({
+            filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
+            downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
+          });
           // Mark tool as done
           const icon = tr.tool?.includes("spread") ? "spreadsheet" : tr.tool?.includes("present") ? "presentation" : "file";
           const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
-          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(tr.filename, sizeStr), icon, done: true })}\n\n`);
+          emitToolStatus({ text: L.toolDone(tr.filename, sizeStr), icon, done: true });
         }
       }
 
@@ -2029,7 +2025,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       }
     } catch {}
 
-    if (!res.writableEnded) res.write("data: [DONE]\n\n");
+    // Emit final chunk with finish_reason and usage (OpenAI-compatible)
+    if (!res.writableEnded) {
+      const finalChunk = { model: modelId, choices: [{ delta: {}, finish_reason: finalFinishReason || "stop" }] };
+      if (streamUsage) finalChunk.usage = streamUsage;
+      res.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
+      res.write("data: [DONE]\n\n");
+    }
     res.end();
 
     // ── Long-term user memory ingest (fire-and-forget, after response) ──
