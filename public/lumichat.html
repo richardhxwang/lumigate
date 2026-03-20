@@ -753,7 +753,7 @@
     .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.07)}
     :root.light .slash-item:hover,:root.light .slash-item.sel{background:rgba(0,0,0,0.05)}
     .slash-cmd{font-size:12.5px;font-weight:500;color:var(--accent);font-family:inherit;min-width:0;flex-shrink:0}
-    .slash-desc{font-size:11.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:2px}
+    .slash-desc{font-size:11.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:8px}
     .slash-item.sel .slash-desc{color:var(--t2)}
     .slash-arrow{margin-left:auto;color:var(--t3);font-size:10px;flex-shrink:0;opacity:.5}
     .slash-back{font-size:11px;color:var(--t3);padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:3px;border-radius:6px;transition:background .1s;user-select:none}
@@ -3122,7 +3122,7 @@ async function speakMessage(btn){
   if(_ttsAudio && !_ttsAudio.paused){ stopTTS(); return; }
   btn.classList.add('speaking');
   try{
-    const voice=_lang==='zh'?'zh-female-xiaoxiao':'en-female-jenny';
+    const voice=_ttsVoice||(_lang==='zh'?'zh-female-xiaoxiao':'en-female-jenny');
     const res=await fetch('/platform/audio/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,5000),voice})});
     if(!res.ok){ throw new Error('TTS failed: '+res.status); }
     const blob=await res.blob();
@@ -6279,7 +6279,7 @@ const SLASH_COMMANDS = [
   { cmd:'/model',               descKey:'slash.model',               cat:SLASH_CAT_AI,       action:'immediate', fn:'slashModel' },
   { cmd:'/think',               descKey:'slash.think',               cat:SLASH_CAT_AI,       action:'immediate', fn:'slashThink' },
   { cmd:'/encrypt',             descKey:'slash.encrypt',             cat:SLASH_CAT_AI,       action:'immediate', fn:'slashEncrypt' },
-  { cmd:'/preset',              descKey:'slash.preset',              cat:SLASH_CAT_AI,       action:'immediate', fn:'slashPreset' },
+  { cmd:'/preset',              descKey:'slash.preset',              cat:SLASH_CAT_AI,       action:'submenu', subKey:'preset' },
   { cmd:'/memory',              descKey:'slash.memory',              cat:SLASH_CAT_AI,       action:'immediate', fn:'slashMemory' },
   { cmd:'/system',              descKey:'slash.system',              cat:SLASH_CAT_AI,       action:'keeptext' },
   // ── Session ──
@@ -6292,7 +6292,7 @@ const SLASH_COMMANDS = [
   { cmd:'/retry',               descKey:'slash.retry',               cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashRetry' },
   { cmd:'/history',             descKey:'slash.history',             cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashHistory' },
   // ── Settings ──
-  { cmd:'/voice',               descKey:'slash.voice',               cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashVoice' },
+  { cmd:'/voice',               descKey:'slash.voice',               cat:SLASH_CAT_SETTINGS, action:'submenu', subKey:'voice' },
   { cmd:'/theme',               descKey:'slash.theme',               cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashTheme' },
   { cmd:'/lang',                descKey:'slash.lang',                cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashLang' },
   { cmd:'/project',             descKey:'slash.project',             cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashProject' },
@@ -6316,6 +6316,26 @@ const SLASH_SUBMENUS = {
     { cmd:'/generate excel',        descKey:'slash.generate_excel',        action:'tool', toolId:'generate_spreadsheet',  toolCat:'generate' },
     { cmd:'/generate word',         descKey:'slash.generate_word',         action:'tool', toolId:'generate_document',     toolCat:'generate' },
     { cmd:'/generate ppt',          descKey:'slash.generate_ppt',          action:'tool', toolId:'generate_presentation', toolCat:'generate' },
+  ],
+  preset: [
+    { cmd:'/preset encourage',  desc:()=>t('preset.encourage'),  action:'immediate', fn(){ applyPresetByKey('encourage'); }},
+    { cmd:'/preset humor',      desc:()=>t('preset.humor'),      action:'immediate', fn(){ applyPresetByKey('humor'); }},
+    { cmd:'/preset professional',desc:()=>t('preset.pro'),       action:'immediate', fn(){ applyPresetByKey('pro'); }},
+    { cmd:'/preset coder',      desc:()=>t('preset.coding'),     action:'immediate', fn(){ applyPresetByKey('coding'); }},
+    { cmd:'/preset medical',    desc:()=>t('preset.medical'),    action:'immediate', fn(){ applyPresetByKey('medical'); }},
+    { cmd:'/preset translator', desc:()=>t('preset.translate'),  action:'immediate', fn(){ applyPresetByKey('translate'); }},
+    { cmd:'/preset tutor',      desc:()=>t('preset.tutor'),      action:'immediate', fn(){ applyPresetByKey('tutor'); }},
+    { cmd:'/preset concise',    desc:()=>t('preset.concise'),    action:'immediate', fn(){ applyPresetByKey('concise'); }},
+    { cmd:'/preset creative',   desc:()=>t('preset.creative'),   action:'immediate', fn(){ applyPresetByKey('creative'); }},
+    { cmd:'/preset devil',      desc:()=>t('preset.devil'),      action:'immediate', fn(){ applyPresetByKey('devil'); }},
+  ],
+  voice: [
+    { cmd:'/voice xiaoxiao',    desc:()=>'中文女声 — 晓晓 (Xiaoxiao)',     action:'immediate', fn(){ _ttsVoice='zh-female-xiaoxiao'; toast('Voice: 晓晓'); }},
+    { cmd:'/voice yunxi',       desc:()=>'中文男声 — 云希 (Yunxi)',         action:'immediate', fn(){ _ttsVoice='zh-male-yunxi'; toast('Voice: 云希'); }},
+    { cmd:'/voice jenny',       desc:()=>'English Female — Jenny',         action:'immediate', fn(){ _ttsVoice='en-female-jenny'; toast('Voice: Jenny'); }},
+    { cmd:'/voice guy',         desc:()=>'English Male — Guy',             action:'immediate', fn(){ _ttsVoice='en-male-guy'; toast('Voice: Guy'); }},
+    { cmd:'/voice sonia',       desc:()=>'British Female — Sonia',         action:'immediate', fn(){ _ttsVoice='en-gb-female'; toast('Voice: Sonia'); }},
+    { cmd:'/voice nanami',      desc:()=>'日本語 — Nanami',                action:'immediate', fn(){ _ttsVoice='ja-female'; toast('Voice: Nanami'); }},
   ],
 };
 
@@ -6382,7 +6402,7 @@ function _renderSlashItems(items, showBack){
 
     const descSpan = document.createElement('span');
     descSpan.className = 'slash-desc';
-    descSpan.textContent = t(c.descKey);
+    descSpan.textContent = typeof c.desc === 'function' ? c.desc() : (c.descKey ? t(c.descKey) : '');
     row.appendChild(descSpan);
 
     if(c.action === 'submenu'){
@@ -6455,6 +6475,23 @@ function slashEncrypt(){
   toast(encryptedUploadEnabled ? 'Encrypted upload: ON' : 'Encrypted upload: OFF', 1500, '#10a37f');
 }
 function slashPreset(){ openSettings(); setTimeout(()=>{ const tab = document.querySelector('.stg-tab[data-tab="presets"]'); if(tab) tab.click(); }, 100); }
+let _ttsVoice = null; // null = auto-detect
+function applyPresetByKey(key){
+  const p = BUILTIN_PRESETS.find(x=>x.key===key);
+  if(!p) return;
+  // Add to user presets if not already there
+  const s = _userSettings || {};
+  const presets = Array.isArray(s.presets) ? [...s.presets] : [];
+  if(!presets.find(x=>x.builtinKey===key)){
+    presets.push({ builtinKey:key, name:p.name, prompt:p.prompt });
+    patchUserSettings?.({ presets });
+  }
+  // Activate it
+  _activePresetIdx = presets.findIndex(x=>x.builtinKey===key);
+  if(_activePresetIdx < 0) _activePresetIdx = presets.length - 1;
+  toast(_lang==='zh'?`已启用预设: ${p.name}`:`Preset: ${p.name}`, 2000);
+  closeSlashPanel();
+}
 function slashMemory(){ openSettings(); setTimeout(()=>{ const tab = document.querySelector('.stg-tab[data-tab="chat"]'); if(tab) tab.click(); }, 100); }
 function slashCopy(){
   const rows = document.querySelectorAll('.msg-row.assistant');
