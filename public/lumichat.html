@@ -14,6 +14,9 @@
   <meta name="apple-mobile-web-app-title" content="LumiChat">
   <meta name="theme-color" content="#10a37f">
   <link rel="stylesheet" href="/lumichat-libs/highlight-github-dark.min.css" nonce="{{NONCE}}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" nonce="{{NONCE}}">
+  <script defer nonce="{{NONCE}}" src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+  <script defer nonce="{{NONCE}}" src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
   <script nonce="{{NONCE}}" src="/lumichat-libs/marked.min.js"></script>
   <script nonce="{{NONCE}}" src="/lumichat-libs/dompurify.min.js"></script>
   <script nonce="{{NONCE}}" src="/lumichat-libs/highlight.min.js"></script>
@@ -340,6 +343,14 @@
     /* No CSS cursor — typing dots handle all waiting states */
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+    .thinking-block{margin-bottom:12px;border-radius:var(--r2,12px);background:var(--inp);border:1px solid var(--border);overflow:hidden}
+    .thinking-block summary{list-style:none;cursor:pointer;padding:8px 12px;color:var(--t3);font-size:13px;display:flex;align-items:center;gap:6px;user-select:none;transition:background .15s}
+    .thinking-block summary::-webkit-details-summary-icon{display:none}
+    .thinking-block summary::marker{display:none;content:''}
+    .thinking-block summary:hover{background:var(--sb-hover)}
+    .thinking-block .think-chevron{width:14px;height:14px;transition:transform .2s ease;flex-shrink:0}
+    .thinking-block[open] .think-chevron{transform:rotate(90deg)}
+    .thinking-block .thinking-content{padding:4px 12px 10px;font-size:13px;color:var(--t2);white-space:pre-wrap;word-break:break-word;line-height:1.5;max-height:300px;overflow-y:auto;border-top:1px solid var(--border);opacity:.85}
     .st-text{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transform:translateY(4px);transition:opacity .24s ease,transform .24s ease}
     .st-text.show{opacity:1;transform:translateY(0)}
     .st-text.done{opacity:.72}
@@ -725,6 +736,9 @@
     /* CONTEXT USAGE BAR */
     #ctx-bar-wrap{height:3px;background:transparent;flex-shrink:0}
     #ctx-bar{height:3px;background:var(--accent);width:0%;transition:width .3s,background .3s}
+    /* KaTeX math rendering */
+    .katex{font-size:1.05em}
+    .katex-display{margin:0.8em 0;overflow-x:auto}
   </style>
 </head>
 <body>
@@ -2463,6 +2477,19 @@ function renderMarkdown(el, text){
   const withHdr=withCodeHeaders(raw);
   el.innerHTML=DOMPurify.sanitize(withHdr,{ADD_ATTR:['onclick'],FORCE_BODY:true});
   el.querySelectorAll('pre code').forEach(b=>{ if(!b.classList.contains('hljs')) hljs.highlightElement(b); });
+  // Render LaTeX math (skip code/pre elements)
+  if(window.renderMathInElement){
+    renderMathInElement(el,{
+      delimiters:[
+        {left:'$$',right:'$$',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\[',right:'\\]',display:true},
+        {left:'\\(',right:'\\)',display:false},
+      ],
+      ignoredTags:['script','noscript','style','textarea','pre','code'],
+      throwOnError:false,
+    });
+  }
   // Append source chips for external URLs
   const sources=extractSourceUrls(text||'');
   if(sources.length){
@@ -3124,8 +3151,9 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
-    // Client-side <think> tag stripping (defense-in-depth for MiniMax/DeepSeek-R1)
+    // Client-side <think> tag capture (defense-in-depth for MiniMax/DeepSeek-R1)
     let _clientInThink=false;
+    let _thinkingContent='', _thinkingStartTime=0, _thinkingEndTime=0;
     // Streaming render: plain-text first, markdown only when likely needed.
     let mdRaf=0;
     let mdLastTs=0;
@@ -3221,11 +3249,22 @@ async function sendMessage(){
         try{
           const j=JSON.parse(data);
           if(j.usage) streamUsage=j.usage;
+          // Capture reasoning_content (DeepSeek API sends this as separate field)
+          const rc=j.choices?.[0]?.delta?.reasoning_content||'';
+          if(rc){if(!_thinkingStartTime)_thinkingStartTime=Date.now();_thinkingContent+=rc;_thinkingEndTime=Date.now();}
           let delta=j.choices?.[0]?.delta?.content||'';
-          // Client-side <think> stripping (defense-in-depth)
+          // Client-side <think> capture (defense-in-depth)
           if(delta){
-            if(_clientInThink){const ei=delta.indexOf('</think>');if(ei!==-1){_clientInThink=false;delta=delta.slice(ei+8);}else delta='';}
-            if(delta.includes('<think>')){const si=delta.indexOf('<think>');const ei=delta.indexOf('</think>',si);if(ei!==-1)delta=delta.slice(0,si)+delta.slice(ei+8);else{delta=delta.slice(0,si);_clientInThink=true;}}
+            if(_clientInThink){
+              const ei=delta.indexOf('</think>');
+              if(ei!==-1){_thinkingContent+=delta.slice(0,ei);_clientInThink=false;_thinkingEndTime=Date.now();delta=delta.slice(ei+8);}
+              else{_thinkingContent+=delta;delta='';}
+            }
+            if(delta.includes('<think>')){
+              const si=delta.indexOf('<think>');const ei=delta.indexOf('</think>',si);
+              if(ei!==-1){_thinkingContent+=delta.slice(si+7,ei);if(!_thinkingStartTime)_thinkingStartTime=Date.now();_thinkingEndTime=Date.now();delta=delta.slice(0,si)+delta.slice(ei+8);}
+              else{_thinkingContent+=delta.slice(si+7);if(!_thinkingStartTime)_thinkingStartTime=Date.now();delta=delta.slice(0,si);_clientInThink=true;}
+            }
           }
           if(delta){
             streamText+=delta;
