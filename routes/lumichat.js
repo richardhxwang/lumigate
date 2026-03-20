@@ -4020,7 +4020,7 @@ router.get("/lc/search", requireLcAuth, async (req, res) => {
     const r = await fetch(url, { headers: { "Accept": "application/json" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`SearXNG ${r.status}`);
     const data = await r.json();
-    const results = (data.results || []).slice(0, 8).map(item => ({
+    const results = (data.results || []).slice(0, 15).map(item => ({
       title: item.title || "",
       url: item.url || "",
       content: (item.content || "").slice(0, 400),

@@ -308,9 +308,40 @@ async function executeWebSearchForChat(query, timeRange = "month") {
   const r = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error(`SearXNG ${r.status}`);
   const data = await r.json();
-  return (data.results || []).slice(0, 6).map(item => ({
+  let results = (data.results || []).slice(0, 15).map(item => ({
     title: item.title || "", url: item.url || "", content: (item.content || "").slice(0, 400),
   }));
+
+  // Adaptive re-fetch: if fewer than 3 results have titles containing query keywords, refine
+  const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const highRelevance = results.filter(r => {
+    const title = (r.title || "").toLowerCase();
+    return keywords.some(kw => title.includes(kw));
+  });
+  if (highRelevance.length < 3 && results.length >= 3) {
+    try {
+      // Retry with refined query (add quotes around key phrase) and no time range restriction
+      const refined = `"${query}"`;
+      const url2 = `${SEARXNG_URL}/search?q=${encodeURIComponent(refined)}&format=json&language=auto&safesearch=0`;
+      const r2 = await fetch(url2, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+      if (r2.ok) {
+        const data2 = await r2.json();
+        const extra = (data2.results || []).slice(0, 15).map(item => ({
+          title: item.title || "", url: item.url || "", content: (item.content || "").slice(0, 400),
+        }));
+        // Merge, dedup by URL
+        const seen = new Set(results.map(r => r.url));
+        for (const item of extra) {
+          if (!seen.has(item.url) && results.length < 30) {
+            seen.add(item.url);
+            results.push(item);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return results;
 }
 
 function formatSearchContext(results) {

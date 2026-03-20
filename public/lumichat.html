@@ -316,6 +316,12 @@
     .asst-content th{background:var(--inp);font-weight:600}
     .asst-content a{color:#6ea8fe;text-decoration:none}
     .asst-content a:hover{text-decoration:underline}
+    /* Source chips — ChatGPT-style reference pills at bottom of response */
+    .source-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+    .source-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 6px;border-radius:999px;font-size:12px;color:var(--t2);text-decoration:none;background:var(--inp);border:1px solid var(--border);backdrop-filter:blur(8px);transition:background .15s,border-color .15s;max-width:200px;overflow:hidden}
+    .source-chip:hover{background:var(--hover);border-color:var(--t3);text-decoration:none}
+    .source-chip img{width:14px;height:14px;border-radius:2px;flex-shrink:0}
+    .source-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .stream-tail{white-space:pre-wrap;word-break:break-word}
     .msg-acts{display:flex;gap:2px;margin-top:6px;opacity:0;transition:opacity .15s}
     .msg-row:hover .msg-acts{opacity:1}
@@ -337,7 +343,7 @@
     .st-text{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transform:translateY(4px);transition:opacity .24s ease,transform .24s ease}
     .st-text.show{opacity:1;transform:translateY(0)}
     .st-text.done{opacity:.72}
-    .st-ico{width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid var(--border);background:var(--inp);color:var(--t2);flex-shrink:0}
+    .st-ico{display:none}
     .st-msg{white-space:pre-wrap;word-break:break-word;line-height:1.35}
     .st-text.swap .st-msg{animation:stSwap .28s ease}
     @keyframes stSwap{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
@@ -2426,12 +2432,45 @@ function withCodeHeaders(raw){
     `<pre><div class="code-hdr"><span>${lang||'code'}</span><button class="copy-code" onclick="cpCode(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> ${t('misc.copy_code')}</button></div><code${lang?` class="language-${lang}"`:''}>`);
 }
 
-// Full render: injects code headers + hljs syntax highlighting
+// Extract unique external URLs from markdown text for source chips
+const GLOBE_FALLBACK_SVG='data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>');
+function extractSourceUrls(text){
+  const seen=new Set(), out=[];
+  // Match markdown links [text](url) and bare URLs
+  const mdLinkRe=/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+  const bareUrlRe=/(?:^|[\s(])((https?:\/\/)[^\s)<>]+)/gm;
+  let m;
+  while((m=mdLinkRe.exec(text))!==null){
+    const u=m[2].replace(/[).,;:!?]+$/,'');
+    try{ const host=new URL(u).hostname; if(!seen.has(host)){seen.add(host); out.push({url:u,domain:host.replace(/^www\./,'')});} }catch{}
+  }
+  while((m=bareUrlRe.exec(text))!==null){
+    const u=m[1].replace(/[).,;:!?]+$/,'');
+    try{ const host=new URL(u).hostname; if(!seen.has(host)){seen.add(host); out.push({url:u,domain:host.replace(/^www\./,'')});} }catch{}
+  }
+  return out;
+}
+function buildSourceChipsHtml(sources){
+  if(!sources.length) return '';
+  return '<div class="source-chips">'+sources.map(s=>
+    `<a href="${s.url.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" class="source-chip"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(s.domain)}&sz=16" width="14" height="14" onerror="this.src='${GLOBE_FALLBACK_SVG}'" loading="lazy"><span>${s.domain}</span></a>`
+  ).join('')+'</div>';
+}
+
+// Full render: injects code headers + hljs syntax highlighting + source chips
 function renderMarkdown(el, text){
   const raw=marked.parse(text||'');
   const withHdr=withCodeHeaders(raw);
   el.innerHTML=DOMPurify.sanitize(withHdr,{ADD_ATTR:['onclick'],FORCE_BODY:true});
   el.querySelectorAll('pre code').forEach(b=>{ if(!b.classList.contains('hljs')) hljs.highlightElement(b); });
+  // Append source chips for external URLs
+  const sources=extractSourceUrls(text||'');
+  if(sources.length){
+    const chipsHtml=buildSourceChipsHtml(sources);
+    const chipsDiv=document.createElement('div');
+    chipsDiv.innerHTML=DOMPurify.sanitize(chipsHtml,{ADD_ATTR:['onerror'],FORCE_BODY:true});
+    if(chipsDiv.firstElementChild) el.appendChild(chipsDiv.firstElementChild);
+  }
 }
 // Stream render: incremental full markdown parse for stable table/code rendering.
 function getStreamingRenderableMarkdown(text){
@@ -3085,6 +3124,8 @@ async function sendMessage(){
     let streamUsage=null;
     // Tool status indicator element (reused across events)
     let statusEl=null;
+    // Client-side <think> tag stripping (defense-in-depth for MiniMax/DeepSeek-R1)
+    let _clientInThink=false;
     // Streaming render: plain-text first, markdown only when likely needed.
     let mdRaf=0;
     let mdLastTs=0;
@@ -3180,7 +3221,12 @@ async function sendMessage(){
         try{
           const j=JSON.parse(data);
           if(j.usage) streamUsage=j.usage;
-          const delta=j.choices?.[0]?.delta?.content||'';
+          let delta=j.choices?.[0]?.delta?.content||'';
+          // Client-side <think> stripping (defense-in-depth)
+          if(delta){
+            if(_clientInThink){const ei=delta.indexOf('</think>');if(ei!==-1){_clientInThink=false;delta=delta.slice(ei+8);}else delta='';}
+            if(delta.includes('<think>')){const si=delta.indexOf('<think>');const ei=delta.indexOf('</think>',si);if(ei!==-1)delta=delta.slice(0,si)+delta.slice(ei+8);else{delta=delta.slice(0,si);_clientInThink=true;}}
+          }
           if(delta){
             streamText+=delta;
             // Fade out typing dots on first text (not abrupt remove)
@@ -5492,7 +5538,7 @@ async function collectorRelogin(provider){
     }
     if(d.status!=='waiting') return;
     // Open noVNC popup
-    const vncUrl=location.protocol+'//'+location.hostname+':7900/vnc.html?autoconnect=true&resize=scale';
+    const vncUrl=location.origin+'/vnc/vnc.html?autoconnect=true&resize=scale';
     const popup=window.open(vncUrl,'collector-login','width=800,height=600,scrollbars=no');
     // Poll login status
     const pollId=setInterval(async()=>{

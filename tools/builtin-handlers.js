@@ -186,9 +186,37 @@ async function executeToolCall(toolName, toolInput) {
         const res = await fetch(`${SEARXNG_URL}/search?${params}`, { signal: AbortSignal.timeout(10000) });
         if (!res.ok) throw new Error(`searxng returned ${res.status}`);
         const data = await res.json();
-        const results = (data.results || []).slice(0, 8).map(r => ({
+        let results = (data.results || []).slice(0, 15).map(r => ({
           title: r.title, url: r.url, content: r.content,
         }));
+
+        // Adaptive re-fetch: if fewer than 3 results have titles matching query keywords, try refined search
+        const keywords = q.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const highRelevance = results.filter(r => {
+          const title = (r.title || "").toLowerCase();
+          return keywords.some(kw => title.includes(kw));
+        });
+        if (highRelevance.length < 3 && results.length >= 3) {
+          try {
+            const refinedParams = new URLSearchParams({ q: `"${q}"`, format: "json" });
+            if (toolInput.language) refinedParams.set("language", toolInput.language);
+            const res2 = await fetch(`${SEARXNG_URL}/search?${refinedParams}`, { signal: AbortSignal.timeout(8000) });
+            if (res2.ok) {
+              const data2 = await res2.json();
+              const extra = (data2.results || []).slice(0, 15).map(r => ({
+                title: r.title, url: r.url, content: r.content,
+              }));
+              const seen = new Set(results.map(r => r.url));
+              for (const item of extra) {
+                if (!seen.has(item.url) && results.length < 30) {
+                  seen.add(item.url);
+                  results.push(item);
+                }
+              }
+            }
+          } catch {}
+        }
+
         return { ok: true, data: { results, query: q }, duration: Date.now() - startTime };
       }
       case "parse_file": {
