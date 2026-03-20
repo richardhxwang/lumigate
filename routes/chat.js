@@ -1547,6 +1547,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                 const delta = choice.delta;
                 if (!delta) continue;
 
+                // Reasoning content (DeepSeek Reasoner) — forward as <think> tags so client can display collapsible block
+                if (delta.reasoning_content) {
+                  const rc = delta.reasoning_content;
+                  res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: rc } }] })}\n\n`);
+                }
                 // Text content
                 if (delta.content) pipeContent(delta.content);
 
