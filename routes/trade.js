@@ -327,6 +327,45 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
+  // ── Mood tracking ──────────────────────────────────────────────────────
+
+  // GET /v1/trade/mood/analysis — mood-performance correlation
+  router.get("/mood/analysis", async (req, res) => {
+    try {
+      const r = await engineFetch("/journal/mood-analysis");
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // POST /v1/trade/mood/log — log a mood entry
+  router.post("/mood/log", async (req, res) => {
+    try {
+      const r = await tradePbFetch("/api/collections/trade_mood_logs/records", {
+        method: "POST",
+        body: JSON.stringify(req.body),
+      });
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Failed to log mood", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/mood/logs — list mood logs
+  router.get("/mood/logs", async (req, res) => {
+    try {
+      const qs = new URLSearchParams(req.query).toString();
+      const r = await tradePbFetch(`/api/collections/trade_mood_logs/records${qs ? `?${qs}` : ""}`);
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Failed to fetch mood logs", detail: err.message });
+    }
+  });
+
   // ── Reports / Analytics ─────────────────────────────────────────────────
 
   // GET /v1/trade/reports/performance — QuantStats performance metrics

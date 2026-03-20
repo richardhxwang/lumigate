@@ -285,6 +285,41 @@ const PB_COLLECTIONS = [
       { name: "opened_at", type: "text" },
       { name: "closed_at", type: "text" },
       { name: "user_id", type: "text" },
+      { name: "r_multiple", type: "number" },
+      { name: "risk_amount", type: "number" },
+      { name: "session", type: "text" },
+      { name: "setup_type", type: "text" },
+      { name: "notes", type: "text" },
+
+      // === Market Context at Entry ===
+      { name: "entry_candle_open", type: "number" },
+      { name: "entry_candle_high", type: "number" },
+      { name: "entry_candle_low", type: "number" },
+      { name: "entry_candle_close", type: "number" },
+      { name: "entry_candle_volume", type: "number" },
+      { name: "atr_at_entry", type: "number" },            // Average True Range
+      { name: "spread_at_entry", type: "number" },         // bid-ask spread
+      { name: "volume_ma_ratio", type: "number" },         // volume vs 20-period MA
+      { name: "volatility_percentile", type: "number" },   // current vol vs 30d range (0-100)
+      { name: "market_structure", type: "text" },          // bullish_trending / bearish_trending / ranging
+      { name: "higher_tf_bias", type: "text" },            // 4H/1D trend direction
+      { name: "dxy_at_entry", type: "number" },            // Dollar index (for forex/crypto context)
+
+      // === SMC Indicators at Entry ===
+      { name: "nearest_ob_distance", type: "number" },     // distance to nearest order block
+      { name: "nearest_fvg_distance", type: "number" },    // distance to nearest FVG
+      { name: "in_premium_zone", type: "bool" },           // is price in premium (above 50% of range)
+      { name: "in_discount_zone", type: "bool" },          // is price in discount
+      { name: "bos_count_recent", type: "number" },        // BOS count in last 50 candles
+      { name: "choch_count_recent", type: "number" },      // CHoCH count in last 50 candles
+      { name: "liquidity_swept_before", type: "bool" },    // was liquidity swept before entry?
+      { name: "smc_confluence_score", type: "number" },    // how many SMC factors aligned (0-10)
+
+      // === Portfolio Context at Entry ===
+      { name: "portfolio_value_at_entry", type: "number" },
+      { name: "position_size_pct", type: "number" },       // % of portfolio
+      { name: "open_positions_count", type: "number" },     // how many other positions open
+      { name: "news_sentiment_at_entry", type: "number" }, // -1 to 1
     ],
   },
   {
@@ -305,6 +340,84 @@ const PB_COLLECTIONS = [
       { name: "strategy", type: "text" },
       { name: "signal_id", type: "text" },
       { name: "user_id", type: "text" },
+      { name: "r_multiple", type: "number" },        // P&L in R (risk units)
+      { name: "risk_amount", type: "number" },        // USD risked on this trade
+      { name: "session", type: "text" },              // london, new_york, asian, overlap, off_hours
+      { name: "killzone", type: "text" },             // london_killzone, ny_am_killzone, etc.
+      { name: "setup_type", type: "text" },           // ob_fvg, bos_fvg, liquidity_sweep, manual
+      { name: "fees", type: "number" },
+      { name: "slippage", type: "number" },
+      { name: "mood_at_entry", type: "text" },        // calm, anxious, confident, fearful, greedy, excited
+      { name: "mood_score", type: "number" },         // -5 to +5
+      { name: "news_context", type: "text" },         // news summary at time of entry
+      { name: "tags", type: "json" },                 // ["reversal", "trend-follow", "breakout"]
+      { name: "notes", type: "text" },                // trader's notes on this trade
+      { name: "screenshots", type: "file" },          // chart screenshots
+      { name: "grade", type: "text" },                // A/B/C/D/F self-rating
+
+      // === Price Action Context ===
+      { name: "entry_candle_open", type: "number" },
+      { name: "entry_candle_high", type: "number" },
+      { name: "entry_candle_low", type: "number" },
+      { name: "entry_candle_close", type: "number" },
+      { name: "entry_candle_volume", type: "number" },
+      { name: "exit_candle_open", type: "number" },
+      { name: "exit_candle_high", type: "number" },
+      { name: "exit_candle_low", type: "number" },
+      { name: "exit_candle_close", type: "number" },
+      { name: "exit_candle_volume", type: "number" },
+      { name: "highest_price_during", type: "number" },   // max price while in trade
+      { name: "lowest_price_during", type: "number" },    // min price while in trade
+      { name: "max_favorable_excursion", type: "number" }, // MFE - best unrealized P&L
+      { name: "max_adverse_excursion", type: "number" },   // MAE - worst unrealized P&L
+      { name: "mfe_r", type: "number" },                   // MFE in R multiples
+      { name: "mae_r", type: "number" },                   // MAE in R multiples
+
+      // === Market Environment at Entry ===
+      { name: "atr_at_entry", type: "number" },            // Average True Range
+      { name: "spread_at_entry", type: "number" },         // bid-ask spread
+      { name: "volume_ma_ratio", type: "number" },         // volume vs 20-period MA
+      { name: "volatility_percentile", type: "number" },   // current vol vs 30d range (0-100)
+      { name: "market_structure", type: "text" },          // bullish_trending / bearish_trending / ranging
+      { name: "higher_tf_bias", type: "text" },            // 4H/1D trend direction
+      { name: "dxy_at_entry", type: "number" },            // Dollar index (for forex/crypto context)
+
+      // === SMC Indicators at Entry ===
+      { name: "nearest_ob_distance", type: "number" },     // distance to nearest order block
+      { name: "nearest_fvg_distance", type: "number" },    // distance to nearest FVG
+      { name: "in_premium_zone", type: "bool" },           // is price in premium (above 50% of range)
+      { name: "in_discount_zone", type: "bool" },          // is price in discount
+      { name: "bos_count_recent", type: "number" },        // BOS count in last 50 candles
+      { name: "choch_count_recent", type: "number" },      // CHoCH count in last 50 candles
+      { name: "liquidity_swept_before", type: "bool" },    // was liquidity swept before entry?
+      { name: "smc_confluence_score", type: "number" },    // how many SMC factors aligned (0-10)
+
+      // === Timing ===
+      { name: "day_of_week", type: "text" },               // Mon/Tue/Wed/Thu/Fri
+      { name: "hour_utc", type: "number" },                // 0-23
+      { name: "minutes_in_trade", type: "number" },        // actual duration
+      { name: "candles_in_trade", type: "number" },        // how many candles
+      { name: "time_to_tp_minutes", type: "number" },      // how long to reach TP (null if SL hit)
+      { name: "time_to_sl_minutes", type: "number" },      // how long to reach SL (null if TP hit)
+      { name: "exit_reason", type: "text" },               // tp_hit / sl_hit / trailing_stop / manual / choch_exit / roi
+
+      // === Portfolio Context ===
+      { name: "portfolio_value_at_entry", type: "number" },
+      { name: "position_size_pct", type: "number" },       // % of portfolio
+      { name: "open_positions_count", type: "number" },     // how many other positions open
+      { name: "daily_pnl_before_trade", type: "number" },  // P&L already made today before this trade
+      { name: "consecutive_wins_before", type: "number" },
+      { name: "consecutive_losses_before", type: "number" },
+
+      // === News/Sentiment Context ===
+      { name: "news_sentiment_at_entry", type: "number" }, // -1 to 1
+      { name: "major_news_within_1h", type: "bool" },      // was there major news nearby?
+      { name: "economic_event_within_30m", type: "bool" },  // Finnhub calendar
+      { name: "news_headline", type: "text" },             // most relevant headline
+
+      // === RAG Embedding ===
+      { name: "trade_summary_text", type: "text" },        // human-readable summary for embedding
+      { name: "embedding_id", type: "text" },              // Qdrant vector ID for this trade
     ],
   },
   {
@@ -320,6 +433,16 @@ const PB_COLLECTIONS = [
       { name: "portfolio_value", type: "number" },
       { name: "max_drawdown", type: "number" },
       { name: "user_id", type: "text" },
+      { name: "total_r", type: "number" },            // sum of R for the day
+      { name: "avg_r", type: "number" },              // average R per trade
+      { name: "largest_win_r", type: "number" },
+      { name: "largest_loss_r", type: "number" },
+      { name: "session_pnl", type: "json" },          // {london: {pnl, trades, wins}, ny: {...}}
+      { name: "killzone_pnl", type: "json" },         // {london_kz: {pnl, trades}, ny_am_kz: {...}}
+      { name: "streak", type: "number" },             // positive=win streak, negative=loss streak
+      { name: "avg_mood", type: "number" },           // average mood score for the day
+      { name: "best_setup", type: "text" },           // best performing setup type
+      { name: "worst_setup", type: "text" },
     ],
   },
   {
@@ -352,6 +475,25 @@ const PB_COLLECTIONS = [
       { name: "timeframes", type: "json" },
       { name: "backtest_results", type: "json" },
       { name: "user_id", type: "text" },
+    ],
+  },
+  {
+    name: "trade_mood_logs",
+    type: "base",
+    schema: [
+      { name: "timestamp", type: "text", required: true },
+      { name: "mood_label", type: "text" },           // anxious, calm, greedy, fearful, confident, excited, bored, frustrated, euphoric
+      { name: "mood_score", type: "number" },         // -5 to +5
+      { name: "energy_level", type: "number" },       // 1-10
+      { name: "context", type: "text" },              // before_trade, after_trade, during_session, general
+      { name: "trade_id", type: "text" },             // linked trade
+      { name: "session", type: "text" },              // which session
+      { name: "notes", type: "text" },                // what user said/felt
+      { name: "ai_extracted", type: "bool" },         // was this auto-extracted from chat?
+      { name: "source_message", type: "text" },       // original LumiChat message that triggered this
+      { name: "market_condition", type: "text" },     // trending, ranging, volatile, calm
+      { name: "user_id", type: "text" },
+      { name: "consecutive_result", type: "text" },        // "3W" or "2L" — streak at time of mood log
     ],
   },
   {

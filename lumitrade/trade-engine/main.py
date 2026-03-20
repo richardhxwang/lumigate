@@ -21,6 +21,7 @@ from connectors.freqtrade import FreqtradeConnector
 from risk.manager import RiskManager
 from analytics.sessions import SessionAnalyzer
 from analytics.reports import generate_performance_report, generate_html_report
+from analytics.mood_correlator import MoodCorrelator
 from strategies.smc_strategy import SMCAnalyzer
 
 logger = logging.getLogger("lumitrade")
@@ -28,6 +29,7 @@ logger = logging.getLogger("lumitrade")
 risk_manager = RiskManager(settings)
 smc_analyzer = SMCAnalyzer()
 session_analyzer = SessionAnalyzer()
+mood_correlator = MoodCorrelator()
 http_client: httpx.AsyncClient | None = None
 ibkr_connector: IBKRConnector | None = None
 ft_connector = FreqtradeConnector()
@@ -267,6 +269,27 @@ async def journal_analytics(days: int = 30):
         trades = data.get("items", [])
         result = session_analyzer.analyze_trades(trades)
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/journal/mood-analysis")
+async def mood_analysis():
+    """Analyze correlation between mood and trading performance."""
+    try:
+        trades_resp = await http_client.get(
+            f"{settings.pb_url}/api/collections/trade_history/records",
+            params={"sort": "-created", "perPage": 500},
+        )
+        trades = trades_resp.json().get("items", []) if trades_resp.is_success else []
+
+        mood_resp = await http_client.get(
+            f"{settings.pb_url}/api/collections/trade_mood_logs/records",
+            params={"sort": "-created", "perPage": 500},
+        )
+        mood_logs = mood_resp.json().get("items", []) if mood_resp.is_success else []
+
+        return mood_correlator.analyze(trades, mood_logs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

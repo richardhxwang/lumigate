@@ -7,3 +7,9 @@ watchdog.log
 .env-e
 data-test/
 docker-compose.test.yml
+
+# LumiTrade runtime
+lumitrade/freqtrade/user_data/tradesv3.sqlite*
+lumitrade/freqtrade/user_data/logs/
+lumitrade/freqtrade/user_data/backtest_results/
+lumitrade/freqtrade/user_data/data/

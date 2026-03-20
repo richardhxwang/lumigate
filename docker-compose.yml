@@ -83,6 +83,9 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - QDRANT_URL=http://lumigate-qdrant:6333
       - TRADE_ENGINE_URL=http://lumigate-trade-engine:3200
+      - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
+      - TRADE_FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-freqtrader}
+      - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-sUhbYlJqcGugmdxXTQvGUg}
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
