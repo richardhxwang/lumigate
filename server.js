@@ -1684,6 +1684,10 @@ function readPublicHtml(filename) {
 app.use("/logos", express.static(path.join(__dirname, "public", "logos")));
 app.use("/favicon.svg", express.static(path.join(__dirname, "public", "favicon.svg")));
 app.use("/lumichat-icon.svg", express.static(path.join(__dirname, "public", "lumichat-icon.svg")));
+app.use("/lumichat-apple-touch.png", express.static(path.join(__dirname, "public", "lumichat-apple-touch.png")));
+app.use("/lumichat-icon-192.png", express.static(path.join(__dirname, "public", "lumichat-icon-192.png")));
+app.use("/lumichat-icon-512.png", express.static(path.join(__dirname, "public", "lumichat-icon-512.png")));
+app.use("/manifest.json", express.static(path.join(__dirname, "public", "manifest.json")));
 app.use("/lumichat-libs", express.static(path.join(__dirname, "public", "lumichat-libs")));
 app.use("/lumichat-ext", express.static(path.join(__dirname, "public", "lumichat-ext")));
 
@@ -3427,34 +3431,24 @@ const templateFillerRouter = require("./routes/template-filler");
 app.use("/platform/tools", apiLimiter, platformAuth, templateFillerRouter);
 app.use("/v1/tools", apiLimiter, platformAuth, templateFillerRouter);
 
-app.get("/v1/lumigent/tools", apiLimiter, platformAuth, async (_req, res) => {
+const lumigentToolsHandler = async (_req, res) => {
   try {
     const tools = await unifiedRegistry.getSchemas();
-    res.json({
-      ok: true,
-      runtime: "lumigent",
-      tools,
-    });
+    res.json({ ok: true, runtime: "lumigent", tools });
   } catch (err) {
     log("error", "Lumigent tool listing failed", { error: err.message });
     res.status(500).json({ ok: false, error: "Lumigent tool listing failed" });
   }
-});
-
-app.get("/v1/lumigent/traces", apiLimiter, platformAuth, async (req, res) => {
+};
+const lumigentTracesHandler = async (req, res) => {
   try {
-    res.json({
-      ok: true,
-      runtime: "lumigent",
-      traces: lumigentTraceStore.list(req.query.limit || 50),
-    });
+    res.json({ ok: true, runtime: "lumigent", traces: lumigentTraceStore.list(req.query.limit || 50) });
   } catch (err) {
     log("error", "Lumigent trace listing failed", { error: err.message });
     res.status(500).json({ ok: false, error: "Lumigent trace listing failed" });
   }
-});
-
-app.post("/v1/lumigent/execute", apiLimiter, platformAuth, async (req, res) => {
+};
+const lumigentExecuteHandler = async (req, res) => {
   const { tool_name, tool_input } = req.body || {};
   if (!tool_name) return res.status(400).json({ ok: false, error: "Missing tool_name" });
   try {
@@ -3464,10 +3458,16 @@ app.post("/v1/lumigent/execute", apiLimiter, platformAuth, async (req, res) => {
     log("error", "Lumigent direct execute failed", { tool: tool_name, error: err.message });
     return res.status(500).json({ ok: false, error: "Lumigent execute failed" });
   }
-});
+};
+app.get("/v1/lumigent/tools", apiLimiter, platformAuth, lumigentToolsHandler);
+app.get("/v1/lumigent/traces", apiLimiter, platformAuth, lumigentTracesHandler);
+app.post("/v1/lumigent/execute", apiLimiter, platformAuth, lumigentExecuteHandler);
+app.get("/platform/lumigent/tools", apiLimiter, platformAuth, lumigentToolsHandler);
+app.get("/platform/lumigent/traces", apiLimiter, platformAuth, lumigentTracesHandler);
+app.post("/platform/lumigent/execute", apiLimiter, platformAuth, lumigentExecuteHandler);
 
 // Tool execution endpoint — called by LumiChat frontend when AI returns tool_use
-app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
+const toolExecuteHandler = async (req, res) => {
   const { tool_name, tool_input } = req.body;
   if (!tool_name) return res.status(400).json({ ok: false, error: "Missing tool_name" });
   try {
@@ -3488,27 +3488,38 @@ app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
     log("error", "Tool execution failed", { tool: tool_name, error: err.message });
     return res.status(500).json({ ok: false, error: "Tool execution failed" });
   }
-});
+};
+app.post("/v1/tools/execute", apiLimiter, platformAuth, toolExecuteHandler);
+app.post("/platform/tools/execute", apiLimiter, platformAuth, toolExecuteHandler);
 
 // ── Workflow routes ───────────────────────────────────────────────────────────
 const { createWorkflowRouter } = require("./routes/workflow");
-app.use("/v1/workflows", apiLimiter, platformAuth, createWorkflowRouter({ unifiedRegistry, lumigentRuntime, log }));
+const workflowRouter = createWorkflowRouter({ unifiedRegistry, lumigentRuntime, log });
+app.use("/v1/workflows", apiLimiter, platformAuth, workflowRouter);
+app.use("/platform/workflows", apiLimiter, platformAuth, workflowRouter);
 
 // ── Observability routes ──────────────────────────────────────────────────────
 const createObservabilityRouter = require("./routes/observability");
-app.use("/v1/traces", apiLimiter, platformAuth, createObservabilityRouter({ traceCollector: null, evaluator: null, getSessionRole, parseCookies, log }));
+const observabilityRouter = createObservabilityRouter({ traceCollector: null, evaluator: null, getSessionRole, parseCookies, log });
+app.use("/v1/traces", apiLimiter, platformAuth, observabilityRouter);
+app.use("/platform/traces", apiLimiter, platformAuth, observabilityRouter);
 
 // ── Version routes ────────────────────────────────────────────────────────────
 const versionsRouter = require("./routes/versions");
 app.use("/v1/versions", apiLimiter, platformAuth, versionsRouter);
+app.use("/platform/versions", apiLimiter, platformAuth, versionsRouter);
 
 // ── Sandbox routes ────────────────────────────────────────────────────────────
 const createSandboxRouter = require("./routes/sandbox");
-app.use("/v1/sandbox", apiLimiter, platformAuth, createSandboxRouter({ logger: log }));
+const sandboxRouter = createSandboxRouter({ logger: log });
+app.use("/v1/sandbox", apiLimiter, platformAuth, sandboxRouter);
+app.use("/platform/sandbox", apiLimiter, platformAuth, sandboxRouter);
 
 // ── HKEX filing download routes ───────────────────────────────────────────────
 const createHKEXRouter = require("./routes/hkex");
-app.use("/v1/hkex", apiLimiter, platformAuth, createHKEXRouter({ log }));
+const hkexRouter = createHKEXRouter({ log });
+app.use("/v1/hkex", apiLimiter, platformAuth, hkexRouter);
+app.use("/platform/hkex", apiLimiter, platformAuth, hkexRouter);
 
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
