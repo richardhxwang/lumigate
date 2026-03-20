@@ -1839,12 +1839,44 @@ const SEND_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
 
 // ── THINKING MODE ────────────────────────────────────────────────────────
+// Models that have thinking/reasoning capability (output <think> or reasoning_content)
+const MODELS_WITH_THINKING = new Set([
+  // OpenAI — most models have thinking except mini/nano
+  'gpt-5', 'gpt-5.4', 'o3', 'o4-mini',
+  // DeepSeek
+  'deepseek-reasoner',
+  // MiniMax
+  'MiniMax-M2.5', 'MiniMax-M2.7',
+  // Anthropic — extended thinking
+  'claude-sonnet-4-5', 'claude-sonnet-4-6', 'claude-opus-4-6',
+  // Gemini
+  'gemini-2.5-flash-thinking', 'gemini-2.5-pro',
+  // Kimi
+  'kimi-k2.5',
+  // Qwen
+  'qwen-plus', 'qwen-max', 'qwq-32b',
+  // Doubao
+  'doubao-seed-2.0-pro', 'doubao-seed-2.0-lite',
+]);
+// Models without thinking (fast/instant models)
+const MODELS_NO_THINKING = new Set([
+  'gpt-4.1-nano', 'gpt-4.1-mini', 'gpt-5-mini', 'gpt-5.4-mini', 'gpt-5.4-nano',
+  'deepseek-chat',
+  'MiniMax-M2', 'MiniMax-M1',
+  'claude-haiku-4-5',
+  'gemini-2.5-flash', 'gemini-2.5-flash-lite',
+  'doubao-seed-2.0-mini',
+]);
+// Per-provider think/fast variants for mode switching
 const THINKING_MODELS = {
   openai: { think: 'o3', fast: 'gpt-5.4-mini' },
   deepseek: { think: 'deepseek-reasoner', fast: 'deepseek-chat' },
   minimax: { think: 'MiniMax-M2.7', fast: 'MiniMax-M2.5' },
   anthropic: { think: 'claude-sonnet-4-6', fast: 'claude-haiku-4-5' },
-  gemini: { think: 'gemini-2.5-flash-thinking', fast: 'gemini-2.5-flash' },
+  gemini: { think: 'gemini-2.5-pro', fast: 'gemini-2.5-flash' },
+  kimi: { think: 'kimi-k2.5', fast: 'kimi-k2.5' },
+  qwen: { think: 'qwq-32b', fast: 'qwen-plus' },
+  doubao: { think: 'doubao-seed-2.0-pro', fast: 'doubao-seed-2.0-mini' },
 };
 const THINK_MODES = ['auto','think','fast'];
 const THINK_SVG = {
