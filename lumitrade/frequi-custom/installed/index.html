@@ -11,51 +11,102 @@
   <script type="module" crossorigin src="/assets/index-D3hXVh8R.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-CJA4txlp.css">
   <style>
-    /* LumiTrade Skin — accent green + Apple fonts, preserves FreqUI dark/light mode */
+    /* === LumiTrade Skin === LumiChat visual language for FreqUI === */
+
+    /* PrimeVue theme tokens — dark mode (default) */
     :root {
-      --bs-primary: #10a37f !important;
-      --bs-primary-rgb: 16,163,127 !important;
-      --bs-link-color: #10a37f !important;
-      --bs-link-hover-color: #0d9268 !important;
+      --p-primary-color: #10a37f !important;
+      --p-primary-contrast-color: #fff !important;
+      --p-primary-50: #ecfdf5 !important; --p-primary-100: #d1fae5 !important;
+      --p-primary-200: #a7f3d0 !important; --p-primary-300: #6ee7b7 !important;
+      --p-primary-400: #34d399 !important; --p-primary-500: #10a37f !important;
+      --p-primary-600: #0d9268 !important; --p-primary-700: #047857 !important;
+      --p-primary-800: #065f46 !important; --p-primary-900: #064e3b !important;
+      --p-surface-0: #212121 !important; --p-surface-50: #262626 !important;
+      --p-surface-100: #2a2a2a !important; --p-surface-200: #2f2f2f !important;
+      --p-surface-300: #3a3a3a !important; --p-surface-400: #505050 !important;
+      --p-surface-500: #6b6b6b !important; --p-surface-600: #8e8e8e !important;
+      --p-surface-700: #b0b0b0 !important; --p-surface-800: #d4d4d4 !important;
+      --p-surface-900: #ececec !important; --p-surface-950: #fafafa !important;
+      --p-content-background: #212121 !important;
+      --p-menu-background: #171717 !important;
+      --p-text-muted-color: #8e8e8e !important;
+      --p-datatable-row-background: transparent !important;
+      --color-profit: #22c55e !important;
+      --color-loss: #ef4444 !important;
+      --default-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
     }
+
+    /* Light mode overrides */
+    @media (prefers-color-scheme: light) {
+      :root {
+        --p-surface-0: #ffffff !important; --p-surface-50: #f7f7f8 !important;
+        --p-surface-100: #f4f4f5 !important; --p-surface-200: #e5e5e5 !important;
+        --p-surface-300: #d4d4d4 !important; --p-surface-400: #a3a3a3 !important;
+        --p-surface-500: #737373 !important; --p-surface-600: #555 !important;
+        --p-surface-700: #404040 !important; --p-surface-800: #262626 !important;
+        --p-surface-900: #171717 !important; --p-surface-950: #0d0d0d !important;
+        --p-content-background: #ffffff !important;
+        --p-menu-background: #f7f7f8 !important;
+        --p-text-muted-color: #555 !important;
+      }
+    }
+
+    /* Font override */
     * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important; }
+    body { background: var(--p-surface-0) !important; color: var(--p-surface-900) !important; }
 
-    /* Logo */
-    .navbar-brand img { display: none !important; }
-    .navbar-brand::before { content: "LumiTrade"; color: #10a37f; font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+    /* Navbar */
+    nav, .navbar, [class*="navbar"] {
+      background: var(--p-menu-background) !important;
+      border-bottom: 1px solid var(--p-surface-100) !important;
+      backdrop-filter: blur(16px) saturate(160%) !important;
+      -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+    }
 
-    /* Accent buttons */
-    .btn-primary, .btn-info { background-color: #10a37f !important; border-color: #10a37f !important; border-radius: 8px !important; }
-    .btn-primary:hover, .btn-info:hover { background-color: #0d9268 !important; border-color: #0d9268 !important; }
-    .btn-outline-primary { color: #10a37f !important; border-color: #10a37f !important; border-radius: 8px !important; }
-    .btn-outline-primary:hover { background-color: #10a37f !important; color: #fff !important; }
-    .btn { border-radius: 8px !important; }
+    /* Logo replacement */
+    .navbar-brand img, img[alt="Home"], a.navbar-brand > img { display: none !important; }
+    .navbar-brand::before, a.navbar-brand::before { content: "LumiTrade"; color: #10a37f; font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
 
-    /* Active nav */
-    .nav-link:hover, .nav-link.active, .nav-link.router-link-active { color: #10a37f !important; }
+    /* Cards — frosted glass */
+    .card, [class*="card"] {
+      border-radius: 12px !important;
+      border: 1px solid var(--p-surface-100) !important;
+      backdrop-filter: blur(12px) !important;
+    }
 
-    /* Badges */
-    .badge.bg-primary { background-color: #10a37f !important; }
-    .badge.bg-success { background-color: #22c55e !important; }
-    .badge.bg-danger { background-color: #ef4444 !important; }
+    /* Buttons */
+    button[class*="primary"], .btn-primary, [class*="p-button"]:not([class*="secondary"]):not([class*="text"]):not([class*="outlined"]) {
+      background-color: #10a37f !important; border-color: #10a37f !important; border-radius: 8px !important;
+    }
+    button:hover[class*="primary"], .btn-primary:hover { background-color: #0d9268 !important; }
+
+    /* Border radius */
+    .card { border-radius: 12px !important; }
+    button, .btn, [class*="p-button"] { border-radius: 8px !important; }
+    input, select, textarea, [class*="p-inputtext"], [class*="p-select"] { border-radius: 8px !important; }
+    [class*="dropdown"], [class*="p-menu"], [class*="p-popover"] { border-radius: 12px !important; }
+    [class*="p-dialog"] { border-radius: 16px !important; }
+
+    /* Focus */
+    input:focus, select:focus, textarea:focus, [class*="p-inputtext"]:focus {
+      border-color: #10a37f !important; box-shadow: 0 0 0 2px rgba(16,163,127,.25) !important;
+    }
+
+    /* Active tabs/links */
+    [class*="router-link-active"], .nav-link.active, [class*="p-tab"][aria-selected="true"] {
+      color: #10a37f !important; border-color: #10a37f !important;
+    }
 
     /* Profit/loss */
-    .text-success, .profit-positive { color: #22c55e !important; }
-    .text-danger, .profit-negative { color: #ef4444 !important; }
-
-    /* Focus rings */
-    .form-control:focus, .form-select:focus { border-color: #10a37f !important; box-shadow: 0 0 0 .2rem rgba(16,163,127,.25) !important; }
-
-    /* Border radius polish */
-    .card { border-radius: 12px !important; }
-    .card-header { border-radius: 12px 12px 0 0 !important; }
-    .form-control, .form-select, input, select, textarea { border-radius: 8px !important; }
-    .dropdown-menu { border-radius: 12px !important; }
-    .modal-content { border-radius: 16px !important; }
+    .text-success, [class*="profit"] { color: #22c55e !important; }
+    .text-danger, [class*="loss"] { color: #ef4444 !important; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--p-surface-300); border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
   </style>
 </head>
 
