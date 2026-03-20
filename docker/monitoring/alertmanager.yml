@@ -39,17 +39,22 @@ receivers:
         parse_mode: "HTML"
         send_resolved: true
         message: |
-          🔴 <b>[CRITICAL] {{ .CommonLabels.alertname }}</b>
-          service={{ .CommonLabels.compose_service }}
-          component={{ .CommonLabels.component }}
-          {{ .CommonAnnotations.summary }}
+          {{ if eq .Status "resolved" }}🟢 <b>已恢复: {{ .CommonLabels.alertname }}</b>
 
-          {{- if .CommonAnnotations.description }}
-          {{ .CommonAnnotations.description }}
+          <b>服务</b>: {{ .CommonLabels.compose_service }} ({{ .CommonLabels.component }})
+          告警已自动恢复，服务运行正常。
+
+          恢复时间: {{ .EndsAt }}
+          {{ else }}🔴 <b>严重告警: {{ .CommonAnnotations.summary }}</b>
+
+          <b>问题</b>: {{ .CommonAnnotations.description }}
+          <b>服务</b>: {{ .CommonLabels.compose_service }} ({{ .CommonLabels.component }})
+          {{- if .CommonAnnotations.suggested_fix }}
+          <b>建议</b>: {{ .CommonAnnotations.suggested_fix }}
           {{- end }}
 
-          StartsAt: {{ .StartsAt }}
-          Status: {{ .Status }}
+          触发时间: {{ .StartsAt }}
+          {{ end }}
 
   - name: "telegram-default"
     telegram_configs:
@@ -58,18 +63,22 @@ receivers:
         parse_mode: "HTML"
         send_resolved: true
         message: |
-          <b>[LumiGate Alert]</b>
-          <b>{{ .CommonLabels.alertname }}</b>
-          severity={{ .CommonLabels.severity }}
-          service={{ .CommonLabels.compose_service }}
-          {{ .CommonAnnotations.summary }}
+          {{ if eq .Status "resolved" }}🟢 <b>已恢复: {{ .CommonLabels.alertname }}</b>
 
-          {{- if .CommonAnnotations.description }}
-          {{ .CommonAnnotations.description }}
+          <b>服务</b>: {{ .CommonLabels.compose_service }} ({{ .CommonLabels.component }})
+          告警已自动恢复，服务运行正常。
+
+          恢复时间: {{ .EndsAt }}
+          {{ else }}🟡 <b>警告: {{ .CommonAnnotations.summary }}</b>
+
+          <b>问题</b>: {{ .CommonAnnotations.description }}
+          <b>服务</b>: {{ .CommonLabels.compose_service }} ({{ .CommonLabels.component }})
+          {{- if .CommonAnnotations.suggested_fix }}
+          <b>建议</b>: {{ .CommonAnnotations.suggested_fix }}
           {{- end }}
 
-          StartsAt: {{ .StartsAt }}
-          Status: {{ .Status }}
+          触发时间: {{ .StartsAt }}
+          {{ end }}
 
   - name: "webhook-critical"
     webhook_configs:

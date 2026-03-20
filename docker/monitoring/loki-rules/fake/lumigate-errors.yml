@@ -9,8 +9,9 @@ groups:
           severity: warning
           component: lumigate
         annotations:
-          summary: "Detected 'network error' in LumiGate logs"
-          description: "One or more network error events were logged by lumigate in the last 2 minutes."
+          summary: "网络连接异常"
+          description: "LumiGate 在过去 2 分钟内出现网络错误，可能影响 AI 请求转发。"
+          suggested_fix: "检查上游 AI 提供商连通性，确认 DNS 解析正常，查看是否有防火墙或代理拦截。"
 
       - alert: LumiGateBadRequestProvider
         expr: sum(count_over_time({compose_service="lumigate"} |= "Bad request to AI provider" [3m])) > 0
@@ -19,8 +20,9 @@ groups:
           severity: warning
           component: lumigate
         annotations:
-          summary: "Detected provider bad request errors"
-          description: "LumiGate logged provider bad request errors in the last 3 minutes."
+          summary: "AI 提供商请求失败"
+          description: "LumiGate 向上游 AI 提供商发送的请求被拒绝（Bad Request），过去 3 分钟内有错误记录。"
+          suggested_fix: "检查请求参数格式是否正确，确认 API Key 有效，查看提供商是否有 API 变更或限流。"
 
       - alert: LumiGateUrlExtractFallback
         expr: sum(count_over_time({compose_service="lumigate"} |= "\"msg\":\"Tool fallback emitted\"" |= "\"fallbackType\":\"url_extract_failed\"" [3m])) > 0
@@ -29,8 +31,9 @@ groups:
           severity: warning
           component: lumigate
         annotations:
-          summary: "Detected URL extraction fallback events"
-          description: "LumiGate emitted structured fallbackType=url_extract_failed events in the last 3 minutes."
+          summary: "URL 提取降级"
+          description: "网页内容提取工具触发了降级回退，过去 3 分钟内 URL 解析失败。"
+          suggested_fix: "检查 Collector (Chrome CDP) 是否正常运行，目标网页是否可访问，确认网络出口无限制。"
 
       - alert: LumiChatEncryptedPackFailed
         expr: sum(count_over_time({compose_service="lumigate"} |= "\"component\":\"lumichat-client\"" |= "\"msg\":\"encrypted_pack_failed\"" [3m])) > 0
@@ -39,8 +42,9 @@ groups:
           severity: warning
           component: lumichat
         annotations:
-          summary: "Detected encrypted upload packaging failures"
-          description: "LumiChat client reported encrypted_pack_failed in the last 3 minutes."
+          summary: "加密上传打包失败"
+          description: "LumiChat 客户端加密文件打包失败，用户上传功能受影响。"
+          suggested_fix: "检查客户端浏览器兼容性，确认 SubtleCrypto API 可用，查看文件大小是否超限。"
 
       - alert: LumiChatFileUploadFailed
         expr: sum(count_over_time({compose_service="lumigate"} |= "\"component\":\"lumichat-client\"" |= "\"msg\":\"file_upload_failed\"" [3m])) > 0
@@ -49,8 +53,9 @@ groups:
           severity: warning
           component: lumichat
         annotations:
-          summary: "Detected file upload failures"
-          description: "LumiChat client reported file_upload_failed in the last 3 minutes."
+          summary: "文件上传失败"
+          description: "LumiChat 客户端文件上传失败，用户无法发送附件。"
+          suggested_fix: "检查服务端 /platform/parse 接口是否正常，确认文件大小未超过 10MB 限制，查看 file-parser 服务状态。"
 
   - name: lumigate-infrastructure
     interval: 30s
@@ -63,8 +68,9 @@ groups:
           severity: critical
           component: lumigate
         annotations:
-          summary: "LumiGate container OOM risk detected"
-          description: "Memory-related errors detected in LumiGate logs, container may be at risk of OOM kill."
+          summary: "OOM 风险"
+          description: "LumiGate 服务内存使用过高，检测到内存相关错误，可能即将 OOM 崩溃。"
+          suggested_fix: "检查是否有内存泄漏，考虑重启服务或增加容器内存限制。运行 docker stats 查看实时内存占用。"
 
       # High latency: slow request warnings
       - alert: LumiGateHighLatency
@@ -74,8 +80,9 @@ groups:
           severity: warning
           component: lumigate
         annotations:
-          summary: "High request latency detected"
-          description: "Multiple slow request or timeout events logged in the last 5 minutes."
+          summary: "请求延迟过高"
+          description: "过去 5 分钟内出现多次慢请求或超时，用户体验可能受影响。"
+          suggested_fix: "检查上游 AI 提供商响应速度，确认服务器 CPU/内存负载正常，查看是否有大量并发请求。"
 
       # Collector down: collector health failures
       - alert: CollectorDown
@@ -85,8 +92,9 @@ groups:
           severity: critical
           component: collector
         annotations:
-          summary: "Collector (Chrome CDP) is down"
-          description: "Collector health check failures detected for 2+ minutes."
+          summary: "Collector 服务宕机"
+          description: "Chrome CDP (Collector) 健康检查连续失败超过 2 分钟，网页抓取和 URL 提取功能不可用。"
+          suggested_fix: "运行 docker compose restart collector 重启服务，检查 Chrome 进程是否僵死，确认内存是否充足。"
 
       # PocketBase unavailable
       - alert: PocketBaseUnavailable
@@ -96,8 +104,9 @@ groups:
           severity: critical
           component: pocketbase
         annotations:
-          summary: "PocketBase is unavailable"
-          description: "PocketBase connection errors detected for 1+ minute. Auth and data persistence are impacted."
+          summary: "PocketBase 数据库不可用"
+          description: "PocketBase 连接失败超过 1 分钟，用户认证和数据持久化功能完全中断。"
+          suggested_fix: "检查 PocketBase 容器是否运行中 (docker ps)，查看磁盘空间是否充足，尝试 docker compose restart pocketbase。"
 
       # Error rate spike: high volume of error-level log entries
       - alert: ErrorRateSpike
@@ -109,8 +118,9 @@ groups:
           severity: critical
           component: lumigate
         annotations:
-          summary: "Error rate spike: >5% of log entries are errors"
-          description: "More than 5% of LumiGate log entries in the last 3 minutes are at error level."
+          summary: "错误率飙升"
+          description: "LumiGate 过去 3 分钟内错误日志占比超过 5%，服务可能存在系统性故障。"
+          suggested_fix: "查看最近错误日志定位根因 (docker logs lumigate --tail 100)，检查是否有配置变更或上游故障。"
 
       # 5xx rate spike (via nginx access logs)
       - alert: Http5xxRateSpike
@@ -122,5 +132,6 @@ groups:
           severity: critical
           component: nginx
         annotations:
-          summary: "HTTP 5xx error rate >5%"
-          description: "More than 5% of nginx requests returned 5xx status codes in the last 3 minutes."
+          summary: "HTTP 5xx 错误率飙升"
+          description: "Nginx 过去 3 分钟内 5xx 响应占比超过 5%，用户请求大面积失败。"
+          suggested_fix: "检查 LumiGate 后端是否正常响应，查看 nginx 错误日志，确认上游服务健康状态。"
