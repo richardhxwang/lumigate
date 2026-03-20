@@ -509,3 +509,25 @@ CompressionStream API 在 Safari 和 Headless Chrome 中会 hang（永远不 res
 - Pattern-Key: per-model-not-per-provider-capability
 
 ---
+
+## [LRN-20260321-013] correction
+
+**Priority**: critical
+**Status**: pending
+**Area**: security
+
+### 内容
+CSP 的 style-src 里如果同时有 nonce 和 unsafe-inline，根据 CSP 规范 unsafe-inline 会被忽略。这导致页面所有内联 style="" 属性被拦截（46 处），造成严重 UI 回归：文件 input 暴露、颜色丢失、布局崩溃、动画失效。
+
+修了好几天的"各种 UI bug"其实都是一个根因：style-src 里加了 nonce。
+
+### 建议修复
+1. script-src 用 nonce（保护 JS），style-src 用 unsafe-inline（允许内联样式）——永远不要混用
+2. 改 CSP 后必须检查 console 有没有 CSP violation 报错
+3. 加入 CI 检查：`page.on('console')` 收集 CSP 违规数量，>0 就失败
+
+### 元数据
+- Source: correction (造成多天 UI 回归)
+- Pattern-Key: csp-nonce-kills-unsafe-inline
+
+---
