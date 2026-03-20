@@ -1344,7 +1344,8 @@ const MODELS = {
   minimax: [
     { id: "MiniMax-M2", tier: "economy", price: { in: 0.29, cacheIn: 0.029, out: 1.16 }, caps: ["text"], desc: "Free on Coding Plan — coding, agentic workflows, 196K context" },
     { id: "MiniMax-M2.1", tier: "standard", price: { in: 0.29, cacheIn: 0.029, out: 1.16 }, caps: ["text"], desc: "Coding Plan paid tier — optimized for coding and agentic workflows, 196K" },
-    { id: "MiniMax-M2.5", tier: "flagship", price: { in: 0.29, cacheIn: 0.029, out: 1.16 }, caps: ["text"], desc: "Coding Plan paid tier — SOTA coding (SWE-Bench 80.2%), agentic tool use, 200K context" },
+    { id: "MiniMax-M2.5", tier: "standard", price: { in: 0.29, cacheIn: 0.029, out: 1.16 }, caps: ["text"], desc: "Coding Plan paid tier — SOTA coding (SWE-Bench 80.2%), agentic tool use, 200K context" },
+    { id: "MiniMax-M2.7", tier: "flagship", price: { in: 0.50, cacheIn: 0.05, out: 2.00 }, caps: ["text", "thinking"], desc: "Self-evolving model — 30-50% of RL research workflow, advanced reasoning, 200K context" },
     { id: "MiniMax-M1", tier: "flagship", price: { in: 1.00, cacheIn: 0.10, out: 4.00 }, caps: ["text"], desc: "General flagship — requires balance, not included in Coding Plan free tier" },
   ],
 };
