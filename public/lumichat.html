@@ -3020,15 +3020,33 @@ function rateFeedback(btn, msgId, rating){
   }).catch(()=>{});
 }
 
-function speakMessage(btn){
+let _ttsAudio=null;
+async function speakMessage(btn){
   const text=btn.closest('.msg-row')?.querySelector('.asst-content')?.textContent;
   if(!text) return;
-  if(speechSynthesis.speaking){ speechSynthesis.cancel(); btn.classList.remove('speaking'); return; }
-  const utt=new SpeechSynthesisUtterance(text);
-  utt.lang=_lang==='zh'?'zh-CN':'en-US';
-  utt.onend=()=>btn.classList.remove('speaking');
+  // Stop if already playing
+  if(_ttsAudio && !_ttsAudio.paused){ _ttsAudio.pause(); _ttsAudio=null; btn.classList.remove('speaking'); return; }
   btn.classList.add('speaking');
-  speechSynthesis.speak(utt);
+  try{
+    const voice=_lang==='zh'?'zh-female-sisi':'en-female-sarah';
+    const res=await fetch('/platform/audio/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,5000),voice})});
+    if(!res.ok){ throw new Error('TTS failed'); }
+    const blob=await res.blob();
+    _ttsAudio=new Audio(URL.createObjectURL(blob));
+    _ttsAudio.onended=()=>{btn.classList.remove('speaking');_ttsAudio=null;};
+    _ttsAudio.onerror=()=>{btn.classList.remove('speaking');_ttsAudio=null;};
+    _ttsAudio.play();
+  }catch(e){
+    btn.classList.remove('speaking');
+    // Fallback to browser TTS
+    if(typeof speechSynthesis!=='undefined'){
+      const utt=new SpeechSynthesisUtterance(text);
+      utt.lang=_lang==='zh'?'zh-CN':'en-US';
+      utt.onend=()=>btn.classList.remove('speaking');
+      btn.classList.add('speaking');
+      speechSynthesis.speak(utt);
+    } else { toast('TTS unavailable'); }
+  }
 }
 
 function appendMsg(role, content, msgId, files=[]){
