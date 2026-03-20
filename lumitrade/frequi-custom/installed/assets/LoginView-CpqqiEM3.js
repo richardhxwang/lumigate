@@ -1,2 +1,0 @@
-import{_ as n}from"./DraggableContainer.vue_vue_type_script_setup_true_lang-CUbqtGp6.js";import{t as a,a as c,c as r,b as o,h as s,c5 as _}from"./index-sv4vdzqc.js";const i={},m={class:"border max-w-xl mx-auto p-4"};function f(l,d){const e=_,t=n;return c(),r("div",m,[o(t,{header:"LumiTrade Bot Login"},{default:s(()=>[o(e,{ref:"loginForm"},null,512)]),_:1})])}const x=a(i,[["render",f]]);export{x as default};
-//# sourceMappingURL=LoginView-CpqqiEM3.js.map
