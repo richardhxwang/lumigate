@@ -269,7 +269,7 @@
     .cap-icon{position:relative;width:26px;height:26px;border-radius:var(--r1);border:1px solid var(--border);background:var(--inp);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;color:var(--t2)}
     .cap-icon svg{width:13px;height:13px}
     .cap-icon:hover{background:var(--sb-active);color:var(--t1)}
-    .cap-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--border);border-radius:var(--r1);padding:5px 10px;font-size:12px;color:#fff;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:500}
+    .cap-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--border);border-radius:var(--r1);padding:5px 10px;font-size:12px;color:#fff;white-space:normal;max-width:200px;text-align:center;pointer-events:none;opacity:0;transition:opacity .15s;z-index:500}
     :root.light .cap-tip{background:#333}
     .cap-icon:hover .cap-tip{opacity:1}
     /* clamp tooltip to viewport */
