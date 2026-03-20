@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Workflow Editor — LumiGate</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script>(function(){try{var t=localStorage.getItem('wf_theme');var isLight=t==='light'||(t!=='dark'&&window.matchMedia('(prefers-color-scheme:light)').matches);if(isLight)document.documentElement.classList.add('light');}catch(e){}})()</script>
+<link href="https://unpkg.com/@xyflow/react@12/dist/style.css" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   CSS Variables — matches LumiChat theme system
+   ═══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sb: #000000; --sb-hover: #141414; --sb-active: #1e1e1e;
+  --bg: #0a0a0a; --bg2: #111111; --bg3: #181818;
+  --inp: #1a1a1a; --inp-b: #2e2e2e; --inp-bh: #484848;
+  --t1: #ececec; --t2: #8e8e8e; --t3: #505050;
+  --accent: #10a37f; --accent-h: #0d9268;
+  --border: #222222; --code-bg: #0d0d0d;
+  --node-bg: rgba(30,30,30,0.88); --node-border: rgba(255,255,255,0.08);
+  --glass: rgba(255,255,255,0.04); --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.08);
+  --overlay: rgba(0,0,0,0.55);
+  --danger: #ef4444; --warn: #f59e0b; --blue: #3b82f6; --purple: #a855f7;
+  --green: #10a37f; --orange: #f97316; --teal: #14b8a6; --grey: #6b7280; --red: #ef4444;
+  /* Apple macOS 26 continuous-corner radii */
+  --r1: 8px; --r2: 12px; --r3: 16px; --r4: 20px; --r5: 26px;
+  --top-h: 52px; --panel-w: 248px; --props-w: 310px;
+}
+:root.light {
+  --sb: #f7f7f8; --sb-hover: #ececec; --sb-active: #e2e2e2;
+  --bg: #ffffff; --bg2: #f8f8f8; --bg3: #f0f0f0;
+  --inp: #f4f4f5; --inp-b: #d9d9d9; --inp-bh: #a0a0a0;
+  --t1: #0d0d0d; --t2: #555; --t3: #999;
+  --accent: #10a37f; --accent-h: #0d9268;
+  --border: #e5e5e5; --code-bg: #f6f6f7;
+  --node-bg: rgba(255,255,255,0.92); --node-border: rgba(0,0,0,0.08);
+  --glass: rgba(0,0,0,0.03); --glass-border: rgba(0,0,0,0.08);
+  --glass-hover: rgba(0,0,0,0.06);
+  --overlay: rgba(255,255,255,0.55);
+}
+html, body { height: 100%; overflow: hidden; background: var(--bg); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: var(--t1); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════
+   Top Bar
+   ═══════════════════════════════════════════════ */
+.top-bar {
+  height: var(--top-h); display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  position: relative; z-index: 20;
+}
+.top-title {
+  font-size: 15px; font-weight: 600; color: var(--t1); letter-spacing: -0.3px;
+  white-space: nowrap; display: flex; align-items: center; gap: 8px;
+}
+.top-title svg { width: 18px; height: 18px; opacity: 0.7; flex-shrink: 0; }
+.wf-name-input {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r1); padding: 5px 10px; color: var(--t1);
+  font-size: 14px; font-weight: 500; font-family: inherit;
+  outline: none; width: 220px; transition: border-color 0.15s;
+}
+.wf-name-input:focus { border-color: var(--accent); }
+.wf-id-badge {
+  font-size: 11px; color: var(--t3); background: var(--glass);
+  border: 1px solid var(--glass-border); border-radius: var(--r1);
+  padding: 2px 8px; display: none; white-space: nowrap;
+}
+.wf-id-badge.show { display: inline-block; }
+.top-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+.top-spacer { flex: 1; }
+.top-btn {
+  height: 32px; padding: 0 14px; border-radius: var(--r1); border: 1px solid var(--glass-border);
+  background: var(--glass); color: var(--t1); font-size: 13px; font-weight: 500;
+  font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.top-btn:hover { background: var(--glass-hover); }
+.top-btn:active { transform: scale(0.97); }
+.top-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.top-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.top-btn.primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
+.top-btn.run { background: var(--blue); border-color: var(--blue); color: #fff; }
+.top-btn.run:hover { background: #2563eb; border-color: #2563eb; }
+.top-btn.danger-outline { border-color: rgba(239,68,68,0.4); color: var(--red); }
+.top-btn.danger-outline:hover { background: rgba(239,68,68,0.08); }
+.top-btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.theme-toggle {
+  width: 32px; height: 32px; border-radius: var(--r1); border: 1px solid var(--glass-border);
+  background: var(--glass); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; color: var(--t2); flex-shrink: 0;
+}
+.theme-toggle:hover { background: var(--glass-hover); }
+.theme-toggle svg { width: 16px; height: 16px; }
+
+/* ═══════════════════════════════════════════════
+   Main Layout — 3-column
+   ═══════════════════════════════════════════════ */
+.main-layout { display: flex; height: calc(100% - var(--top-h)); }
+
+/* ═══════════════════════════════════════════════
+   Left Panel — Node Palette
+   ═══════════════════════════════════════════════ */
+.left-panel {
+  width: var(--panel-w); min-width: var(--panel-w); border-right: 1px solid var(--border);
+  background: var(--bg2); overflow-y: auto; padding: 12px;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.panel-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--t3); margin-bottom: 4px; padding: 0 4px;
+}
+.palette-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r2);
+  border: 1px solid var(--glass-border); background: var(--glass);
+  cursor: grab; transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
+}
+.palette-card:hover { background: var(--glass-hover); border-color: var(--inp-b); transform: translateX(2px); }
+.palette-card:active { cursor: grabbing; transform: scale(0.98); }
+.palette-icon {
+  width: 34px; height: 34px; border-radius: var(--r1); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.palette-icon svg { width: 16px; height: 16px; }
+.palette-icon.llm { background: rgba(59,130,246,0.15); color: var(--blue); }
+.palette-icon.tool { background: rgba(16,163,127,0.15); color: var(--green); }
+.palette-icon.condition { background: rgba(249,115,22,0.15); color: var(--orange); }
+.palette-icon.parallel { background: rgba(168,85,247,0.15); color: var(--purple); }
+.palette-icon.code { background: rgba(107,114,128,0.15); color: var(--grey); }
+.palette-icon.approval { background: rgba(239,68,68,0.15); color: var(--red); }
+.palette-icon.template { background: rgba(20,184,166,0.15); color: var(--teal); }
+.palette-info h4 { font-size: 13px; font-weight: 600; color: var(--t1); }
+.palette-info p { font-size: 11px; color: var(--t2); line-height: 1.3; }
+
+/* Palette section divider */
+.palette-divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* Palette search */
+.palette-search {
+  width: 100%; padding: 6px 10px 6px 30px; border-radius: var(--r1);
+  border: 1px solid var(--glass-border); background: var(--glass);
+  color: var(--t1); font-size: 12px; font-family: inherit; outline: none;
+  transition: border-color 0.15s; margin-bottom: 8px;
+}
+.palette-search:focus { border-color: var(--accent); }
+.palette-search-wrap { position: relative; }
+.palette-search-wrap svg {
+  position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; color: var(--t3); pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════
+   Center Canvas
+   ═══════════════════════════════════════════════ */
+.canvas-wrap { flex: 1; position: relative; background: var(--bg); }
+.react-flow__node { font-family: inherit; }
+.react-flow__attribution { display: none !important; }
+.react-flow__background { opacity: 0.35; }
+.react-flow__minimap {
+  border-radius: var(--r2) !important; border: 1px solid var(--border) !important;
+  overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.react-flow__controls {
+  border-radius: var(--r2) !important; border: 1px solid var(--border) !important;
+  overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.react-flow__controls button {
+  background: var(--bg2) !important; border-bottom-color: var(--border) !important;
+  fill: var(--t2) !important; width: 28px; height: 28px;
+}
+.react-flow__controls button:hover { background: var(--glass-hover) !important; fill: var(--t1) !important; }
+.react-flow__edge-path { stroke: var(--t3); stroke-width: 2; }
+.react-flow__connection-line { stroke: var(--accent) !important; stroke-width: 2; }
+.react-flow__handle {
+  width: 10px; height: 10px; background: var(--accent); border: 2px solid var(--bg);
+  border-radius: 50%; transition: transform 0.15s;
+}
+.react-flow__handle:hover { transform: scale(1.3); }
+
+/* Canvas empty state hint */
+.canvas-hint {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; color: var(--t3); pointer-events: none; z-index: 1;
+  transition: opacity 0.3s;
+}
+.canvas-hint svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.25; }
+.canvas-hint p { font-size: 14px; font-weight: 500; }
+.canvas-hint .sub { font-size: 12px; margin-top: 4px; opacity: 0.7; }
+.canvas-hint.hidden { opacity: 0; }
+
+/* ═══════════════════════════════════════════════
+   Custom Workflow Nodes
+   ═══════════════════════════════════════════════ */
+.wf-node {
+  min-width: 190px; max-width: 250px; border-radius: var(--r2);
+  background: var(--node-bg); border: 1px solid var(--node-border);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  overflow: visible; transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.wf-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(16,163,127,0.3), 0 4px 20px rgba(0,0,0,0.25);
+}
+.wf-node-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--node-border);
+  font-size: 12px; font-weight: 600;
+}
+.wf-node-header .node-icon {
+  width: 24px; height: 24px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.wf-node-header .node-icon svg { width: 13px; height: 13px; }
+.wf-node-header .node-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-node-header .node-id { font-size: 9px; color: var(--t3); font-weight: 400; }
+.wf-node-body {
+  padding: 8px 12px; font-size: 11px; color: var(--t2); line-height: 1.4;
+  overflow: hidden;
+}
+.wf-node-body .preview {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word;
+}
+.wf-node-body .tag {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; background: var(--glass); border: 1px solid var(--glass-border);
+  letter-spacing: 0.2px;
+}
+.wf-node-body .empty-hint { font-style: italic; opacity: 0.6; }
+
+/* Node type left-border accent */
+.wf-node.llm-node { border-left: 3px solid var(--blue); }
+.wf-node.tool-node { border-left: 3px solid var(--green); }
+.wf-node.condition-node { border-left: 3px solid var(--orange); }
+.wf-node.parallel-node { border-left: 3px solid var(--purple); }
+.wf-node.code-node { border-left: 3px solid var(--grey); }
+.wf-node.approval-node { border-left: 3px solid var(--red); }
+.wf-node.template-node { border-left: 3px solid var(--teal); }
+
+/* Parallel node wider */
+.wf-node.parallel-node { min-width: 220px; }
+
+/* Execution status badges */
+.exec-badge {
+  position: absolute; top: -8px; right: -8px; width: 22px; height: 22px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  z-index: 5; border: 2px solid var(--bg);
+}
+.exec-badge svg { width: 11px; height: 11px; }
+.exec-badge.running { background: var(--accent); animation: pulse-exec 1.5s ease-in-out infinite; }
+.exec-badge.completed { background: var(--green); }
+.exec-badge.failed { background: var(--red); }
+.exec-badge.waiting { background: var(--warn); }
+@keyframes pulse-exec {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,163,127,0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(16,163,127,0); }
+}
+
+/* ═══════════════════════════════════════════════
+   Right Panel — Properties
+   ═══════════════════════════════════════════════ */
+.right-panel {
+  width: var(--props-w); min-width: var(--props-w); border-left: 1px solid var(--border);
+  background: var(--bg2); overflow-y: auto; padding: 0;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  display: flex; flex-direction: column;
+}
+.right-panel.collapsed { width: 0; min-width: 0; overflow: hidden; padding: 0; border: none; }
+.props-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--t1);
+  flex-shrink: 0;
+}
+.props-header svg { width: 16px; height: 16px; opacity: 0.6; }
+.props-header .node-type-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px;
+  border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.props-body { flex: 1; overflow-y: auto; padding: 16px; }
+.props-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--t3); text-align: center; padding: 24px;
+}
+.props-empty svg { width: 44px; height: 44px; margin-bottom: 14px; opacity: 0.2; }
+.props-empty p { font-size: 13px; line-height: 1.5; }
+.field-group { margin-bottom: 16px; }
+.field-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--t3); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+}
+.field-input {
+  width: 100%; padding: 8px 10px; border-radius: var(--r1);
+  border: 1px solid var(--glass-border); background: var(--glass);
+  color: var(--t1); font-size: 13px; font-family: inherit; outline: none;
+  transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--accent); }
+.field-textarea {
+  width: 100%; padding: 8px 10px; border-radius: var(--r1);
+  border: 1px solid var(--glass-border); background: var(--glass);
+  color: var(--t1); font-size: 12px; font-family: inherit;
+  outline: none; resize: vertical; min-height: 80px; line-height: 1.5;
+  transition: border-color 0.15s;
+}
+.field-textarea:focus { border-color: var(--accent); }
+.field-textarea.mono { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 12px; tab-size: 2; }
+.field-select {
+  width: 100%; padding: 8px 10px; border-radius: var(--r1);
+  border: 1px solid var(--glass-border); background: var(--inp);
+  color: var(--t1); font-size: 13px; font-family: inherit; outline: none;
+  cursor: pointer; transition: border-color 0.15s;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238e8e8e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 28px;
+}
+.field-select:focus { border-color: var(--accent); }
+.field-slider-wrap { display: flex; align-items: center; gap: 10px; }
+.field-slider {
+  flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px;
+  background: var(--inp-b); outline: none;
+}
+.field-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); cursor: pointer; border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.field-slider-val {
+  font-size: 12px; color: var(--t2); min-width: 32px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.field-hint { font-size: 11px; color: var(--t3); margin-top: 5px; line-height: 1.4; }
+.field-row { display: flex; gap: 8px; align-items: flex-start; }
+.field-row > .field-group { flex: 1; }
+.delete-node-btn {
+  width: 100%; padding: 9px; border-radius: var(--r1); border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.06); color: var(--red); font-size: 13px; font-weight: 500;
+  font-family: inherit; cursor: pointer; margin-top: 20px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+}
+.delete-node-btn:hover { background: rgba(239,68,68,0.12); }
+.delete-node-btn:active { transform: scale(0.98); }
+.delete-node-btn svg { width: 14px; height: 14px; }
+
+/* ═══════════════════════════════════════════════
+   Execution Log Panel (bottom drawer)
+   ═══════════════════════════════════════════════ */
+.exec-drawer {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 15;
+  background: var(--bg2); border-top: 1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: height 0.25s ease; overflow: hidden;
+}
+.exec-drawer.collapsed { height: 0; border: none; }
+.exec-drawer.open { height: 200px; }
+.exec-drawer-header {
+  display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+  border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--t1);
+  cursor: pointer; user-select: none;
+}
+.exec-drawer-header svg { width: 14px; height: 14px; color: var(--t2); }
+.exec-drawer-header .exec-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.exec-drawer-header .exec-status-dot.idle { background: var(--t3); }
+.exec-drawer-header .exec-status-dot.running { background: var(--accent); animation: pulse-dot 1s infinite; }
+.exec-drawer-header .exec-status-dot.done { background: var(--green); }
+.exec-drawer-header .exec-status-dot.err { background: var(--red); }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.exec-drawer-body {
+  height: calc(100% - 36px); overflow-y: auto; padding: 8px 16px; font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace; color: var(--t2); line-height: 1.6;
+}
+.exec-log-line { padding: 1px 0; }
+.exec-log-line .ts { color: var(--t3); margin-right: 8px; }
+.exec-log-line.error { color: var(--red); }
+.exec-log-line.success { color: var(--green); }
+
+/* ═══════════════════════════════════════════════
+   Workflow List Modal
+   ═══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; background: var(--overlay); z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
+  backdrop-filter: blur(6px);
+}
+.modal-overlay.show { opacity: 1; visibility: visible; }
+.modal-card {
+  width: 520px; max-width: 90vw; max-height: 70vh;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r5); box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  overflow: hidden; display: flex; flex-direction: column;
+  transform: translateY(12px) scale(0.97); transition: transform 0.25s cubic-bezier(.22,.68,0,1.1);
+}
+.modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
+.modal-header {
+  display: flex; align-items: center; gap: 10px; padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h2 { font-size: 16px; font-weight: 600; flex: 1; }
+.modal-close {
+  width: 28px; height: 28px; border-radius: var(--r1); border: none;
+  background: var(--glass); color: var(--t2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.modal-close:hover { background: var(--glass-hover); color: var(--t1); }
+.modal-close svg { width: 16px; height: 16px; }
+.modal-body { flex: 1; overflow-y: auto; padding: 12px; }
+.wf-list-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-radius: var(--r2); cursor: pointer; transition: background 0.15s;
+  border: 1px solid transparent;
+}
+.wf-list-item:hover { background: var(--glass-hover); border-color: var(--glass-border); }
+.wf-list-item .wf-list-icon {
+  width: 36px; height: 36px; border-radius: var(--r1);
+  background: rgba(16,163,127,0.1); color: var(--accent);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.wf-list-item .wf-list-icon svg { width: 18px; height: 18px; }
+.wf-list-item .wf-list-info { flex: 1; min-width: 0; }
+.wf-list-item .wf-list-info h4 { font-size: 14px; font-weight: 500; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-list-item .wf-list-info p { font-size: 11px; color: var(--t3); margin-top: 2px; }
+.wf-list-item .wf-list-nodes { font-size: 11px; color: var(--t3); white-space: nowrap; }
+.wf-list-empty { text-align: center; padding: 40px 20px; color: var(--t3); font-size: 13px; }
+.modal-footer {
+  padding: 12px 20px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════
+   Keyboard shortcut hint (bottom-left)
+   ═══════════════════════════════════════════════ */
+.shortcut-hints {
+  position: absolute; bottom: 12px; left: 12px; z-index: 5;
+  display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+}
+.shortcut-hint {
+  font-size: 10px; color: var(--t3); display: flex; align-items: center; gap: 6px;
+}
+.shortcut-hint kbd {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  border: 1px solid var(--glass-border); background: var(--glass);
+  font-family: 'SF Mono', monospace; font-size: 9px;
+}
+
+/* ═══════════════════════════════════════════════
+   Scrollbar
+   ═══════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--inp-b); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--inp-bh); }
+
+/* ═══════════════════════════════════════════════
+   Toast
+   ═══════════════════════════════════════════════ */
+.wf-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 10px 20px; border-radius: var(--r2); font-size: 13px; font-weight: 500;
+  font-family: inherit; z-index: 100; opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+}
+.wf-toast.show { opacity: 1; pointer-events: auto; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     Top Bar
+     ═══════════════════════════════════════════════ -->
+<div class="top-bar">
+  <div class="top-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    Workflow Editor
+  </div>
+  <div class="top-sep"></div>
+  <input class="wf-name-input" id="wf-name" type="text" value="Untitled Workflow" spellcheck="false" autocomplete="off">
+  <span class="wf-id-badge" id="wf-id-badge"></span>
+  <div class="top-spacer"></div>
+  <button class="top-btn" id="btn-new" title="New workflow">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New
+  </button>
+  <button class="top-btn" id="btn-load" title="Load workflow">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    Open
+  </button>
+  <button class="top-btn primary" id="btn-save" title="Save workflow (Ctrl+S)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save
+  </button>
+  <div class="top-sep"></div>
+  <button class="top-btn run" id="btn-run" title="Run workflow">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    Run
+  </button>
+  <button class="top-btn danger-outline" id="btn-stop" title="Stop execution" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+    Stop
+  </button>
+  <div class="top-sep"></div>
+  <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     Main Layout
+     ═══════════════════════════════════════════════ -->
+<div class="main-layout">
+
+  <!-- Left: Node Palette -->
+  <div class="left-panel" id="left-panel">
+    <div class="palette-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="palette-search" id="palette-search" type="text" placeholder="Search nodes..." spellcheck="false">
+    </div>
+    <div class="panel-label">Nodes</div>
+
+    <div class="palette-card" draggable="true" data-node-type="llm">
+      <div class="palette-icon llm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v2a2 2 0 01-2 2h-1v3a4 4 0 01-4 4h-2a4 4 0 01-4-4v-3H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/></svg>
+      </div>
+      <div class="palette-info"><h4>LLM</h4><p>Call AI model</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="tool">
+      <div class="palette-icon tool">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div class="palette-info"><h4>Tool</h4><p>Execute a tool</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="condition">
+      <div class="palette-icon condition">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+      </div>
+      <div class="palette-info"><h4>Condition</h4><p>If / else branch</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="parallel">
+      <div class="palette-icon parallel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="4" x2="6" y2="20"/><line x1="10" y1="4" x2="10" y2="20"/><line x1="14" y1="4" x2="14" y2="20"/><line x1="18" y1="4" x2="18" y2="20"/></svg>
+      </div>
+      <div class="palette-info"><h4>Parallel</h4><p>Run branches in parallel</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="code">
+      <div class="palette-icon code">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="palette-info"><h4>Code</h4><p>Execute code</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="approval">
+      <div class="palette-icon approval">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+      </div>
+      <div class="palette-info"><h4>Human Approval</h4><p>Pause for approval</p></div>
+    </div>
+
+    <div class="palette-card" draggable="true" data-node-type="template">
+      <div class="palette-icon template">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <div class="palette-info"><h4>Template</h4><p>String template</p></div>
+    </div>
+
+    <div class="palette-divider"></div>
+    <div class="panel-label">Info</div>
+    <div style="padding:4px 8px;font-size:11px;color:var(--t3);line-height:1.5">
+      Drag nodes onto the canvas to build your workflow. Connect outputs to inputs to define the execution order.
+    </div>
+  </div>
+
+  <!-- Center: React Flow Canvas -->
+  <div class="canvas-wrap" id="canvas-wrap">
+    <div id="react-flow-root" style="width:100%;height:100%"></div>
+    <div class="canvas-hint" id="canvas-hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="10" y1="6.5" x2="14" y2="6.5"/><line x1="10" y1="17.5" x2="14" y2="17.5"/><line x1="17.5" y1="10" x2="17.5" y2="14"/></svg>
+      <p>Drag nodes from the palette to get started</p>
+      <p class="sub">Connect nodes to define your workflow</p>
+    </div>
+    <!-- Execution log drawer -->
+    <div class="exec-drawer collapsed" id="exec-drawer">
+      <div class="exec-drawer-header" id="exec-drawer-toggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+        <span class="exec-status-dot idle" id="exec-status-dot"></span>
+        <span>Execution Log</span>
+      </div>
+      <div class="exec-drawer-body" id="exec-log"></div>
+    </div>
+  </div>
+
+  <!-- Right: Properties Panel -->
+  <div class="right-panel" id="props-panel">
+    <div class="props-header" id="props-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Properties
+    </div>
+    <div class="props-body" id="props-content"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     Workflow List Modal
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="wf-list-modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;opacity:0.6"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      <h2>Open Workflow</h2>
+      <button class="modal-close" id="wf-list-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="wf-list-body">
+      <div class="wf-list-empty">Loading workflows...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="wf-toast" id="wf-toast"></div>
+
+<!-- ═══════════════════════════════════════════════
+     CDN Scripts
+     ═══════════════════════════════════════════════ -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@xyflow/react@12/dist/index.umd.js"></script>
+
+<!-- ═══════════════════════════════════════════════
+     Application Script
+     ═══════════════════════════════════════════════ -->
+<script>
+(function() {
+'use strict';
+
+/* ═══════════════════════════════════════════
+   Constants & Configuration
+   ═══════════════════════════════════════════ */
+const NODE_TYPES_META = {
+  llm:       { label: 'LLM',            color: '#3b82f6', cssClass: 'llm-node',       bgTint: 'rgba(59,130,246,0.15)' },
+  tool:      { label: 'Tool',           color: '#10a37f', cssClass: 'tool-node',      bgTint: 'rgba(16,163,127,0.15)' },
+  condition: { label: 'Condition',      color: '#f97316', cssClass: 'condition-node', bgTint: 'rgba(249,115,22,0.15)' },
+  parallel:  { label: 'Parallel',       color: '#a855f7', cssClass: 'parallel-node',  bgTint: 'rgba(168,85,247,0.15)' },
+  code:      { label: 'Code',           color: '#6b7280', cssClass: 'code-node',      bgTint: 'rgba(107,114,128,0.15)' },
+  approval:  { label: 'Human Approval', color: '#ef4444', cssClass: 'approval-node',  bgTint: 'rgba(239,68,68,0.15)' },
+  template:  { label: 'Template',       color: '#14b8a6', cssClass: 'template-node',  bgTint: 'rgba(20,184,166,0.15)' },
+};
+
+const NODE_ICONS = {
+  llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v2a2 2 0 01-2 2h-1v3a4 4 0 01-4 4h-2a4 4 0 01-4-4v-3H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/></svg>',
+  tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
+  condition: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+  parallel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="4" x2="6" y2="20"/><line x1="10" y1="4" x2="10" y2="20"/><line x1="14" y1="4" x2="14" y2="20"/><line x1="18" y1="4" x2="18" y2="20"/></svg>',
+  code: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+  approval: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>',
+  template: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+};
+
+const DEFAULT_CONFIGS = {
+  llm:       { model: 'gpt-4o', systemPrompt: '', temperature: 0.7, maxTokens: 4096 },
+  tool:      { toolName: '', parameters: '{}', retryOnFail: false },
+  condition: { expression: '', trueLabel: 'Yes', falseLabel: 'No' },
+  parallel:  { branches: 2, waitForAll: true },
+  code:      { language: 'python', code: '', timeout: 30 },
+  approval:  { message: 'Please review and approve this step.', timeout: 3600, approvers: '' },
+  template:  { template: '', outputVar: 'text' },
+};
+
+const AVAILABLE_MODELS = [
+  'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo',
+  'claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022',
+  'gemini-2.0-flash', 'gemini-1.5-pro',
+  'deepseek-chat', 'deepseek-reasoner',
+  'qwen-plus', 'qwen-turbo',
+];
+
+/* ═══════════════════════════════════════════
+   Theme Toggle
+   ═══════════════════════════════════════════ */
+const themeBtn = document.getElementById('theme-toggle');
+function applyThemeIcons() {
+  const isLight = document.documentElement.classList.contains('light');
+  themeBtn.querySelector('.icon-sun').style.display = isLight ? 'none' : 'block';
+  themeBtn.querySelector('.icon-moon').style.display = isLight ? 'block' : 'none';
+}
+applyThemeIcons();
+themeBtn.addEventListener('click', () => {
+  document.documentElement.classList.toggle('light');
+  localStorage.setItem('wf_theme', document.documentElement.classList.contains('light') ? 'light' : 'dark');
+  applyThemeIcons();
+});
+
+/* ═══════════════════════════════════════════
+   State Management
+   ═══════════════════════════════════════════ */
+let nodeIdCounter = 1;
+let workflowId = null;
+let executionId = null;
+let executionPollTimer = null;
+let nodeConfigs = {};       // nodeId -> config object
+let execStatuses = {};      // nodeId -> status
+let selectedNodeId = null;
+let toolsList = [];
+let isDirty = false;        // unsaved changes flag
+let undoStack = [];
+let redoStack = [];
+const MAX_UNDO = 30;
+
+// Mark dirty on any change
+function markDirty() { isDirty = true; updateTitle(); }
+function markClean() { isDirty = false; updateTitle(); }
+function updateTitle() {
+  const name = document.getElementById('wf-name').value || 'Untitled Workflow';
+  document.title = (isDirty ? '* ' : '') + name + ' — Workflow Editor';
+}
+document.getElementById('wf-name').addEventListener('input', markDirty);
+
+// Show workflow ID badge
+function showIdBadge(id) {
+  const badge = document.getElementById('wf-id-badge');
+  if (id) { badge.textContent = id; badge.classList.add('show'); }
+  else { badge.classList.remove('show'); }
+}
+
+// Canvas hint visibility
+function updateCanvasHint() {
+  const nodes = window._nodesRef?.current || [];
+  const hint = document.getElementById('canvas-hint');
+  if (hint) hint.classList.toggle('hidden', nodes.length > 0);
+}
+
+// Fetch tools list for tool node dropdown
+fetch('/v1/lumigent/tools').then(r => r.json()).then(data => {
+  if (Array.isArray(data)) toolsList = data;
+  else if (data && Array.isArray(data.tools)) toolsList = data.tools;
+}).catch(() => {});
+
+function genNodeId() { return 'node_' + (nodeIdCounter++); }
+
+/* ═══════════════════════════════════════════
+   Palette Search
+   ═══════════════════════════════════════════ */
+document.getElementById('palette-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('.palette-card').forEach(card => {
+    const type = card.dataset.nodeType;
+    const meta = NODE_TYPES_META[type];
+    const text = (meta?.label || '') + ' ' + (card.querySelector('p')?.textContent || '');
+    card.style.display = (!q || text.toLowerCase().includes(q)) ? '' : 'none';
+  });
+});
+
+/* ═══════════════════════════════════════════
+   Undo / Redo helpers
+   ═══════════════════════════════════════════ */
+function pushUndo() {
+  const nodes = window._nodesRef?.current || [];
+  const edges = window._edgesRef?.current || [];
+  undoStack.push({
+    nodes: JSON.parse(JSON.stringify(nodes)),
+    edges: JSON.parse(JSON.stringify(edges)),
+    configs: JSON.parse(JSON.stringify(nodeConfigs)),
+  });
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+}
+
+function doUndo() {
+  if (!undoStack.length) return;
+  const nodes = window._nodesRef?.current || [];
+  const edges = window._edgesRef?.current || [];
+  redoStack.push({
+    nodes: JSON.parse(JSON.stringify(nodes)),
+    edges: JSON.parse(JSON.stringify(edges)),
+    configs: JSON.parse(JSON.stringify(nodeConfigs)),
+  });
+  const state = undoStack.pop();
+  restoreState(state);
+}
+
+function doRedo() {
+  if (!redoStack.length) return;
+  const nodes = window._nodesRef?.current || [];
+  const edges = window._edgesRef?.current || [];
+  undoStack.push({
+    nodes: JSON.parse(JSON.stringify(nodes)),
+    edges: JSON.parse(JSON.stringify(edges)),
+    configs: JSON.parse(JSON.stringify(nodeConfigs)),
+  });
+  const state = redoStack.pop();
+  restoreState(state);
+}
+
+function restoreState(state) {
+  nodeConfigs = state.configs;
+  if (window._setNodes) window._setNodes(state.nodes);
+  if (window._setEdges) window._setEdges(state.edges);
+  selectedNodeId = null;
+  renderProps(null, null);
+  markDirty();
+}
+
+/* ═══════════════════════════════════════════
+   Properties Panel (vanilla DOM rendering)
+   ═══════════════════════════════════════════ */
+const propsContent = document.getElementById('props-content');
+const propsHeader = document.getElementById('props-header');
+
+function renderProps(nodeId, nodeType) {
+  if (!nodeId || !nodeType) {
+    propsHeader.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;opacity:0.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Properties`;
+    propsContent.innerHTML = `
+      <div class="props-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v4l3 3"/></svg>
+        <p>Select a node on the canvas to view and edit its properties</p>
+      </div>`;
+    return;
+  }
+
+  const cfg = nodeConfigs[nodeId] || { ...DEFAULT_CONFIGS[nodeType] };
+  nodeConfigs[nodeId] = cfg;
+  const meta = NODE_TYPES_META[nodeType];
+
+  propsHeader.innerHTML = `
+    <span class="node-type-badge" style="background:${meta.bgTint};color:${meta.color}">${meta.label}</span>
+    <span style="font-size:12px;color:var(--t3)">${nodeId}</span>`;
+
+  let html = '';
+
+  // Node label (common to all)
+  const currentLabel = cfg._label || meta.label;
+  html += `
+    <div class="field-group">
+      <div class="field-label">Label</div>
+      <input class="field-input" data-cfg="_label" type="text" value="${esc(currentLabel)}" placeholder="${meta.label}">
+    </div>`;
+
+  switch (nodeType) {
+    case 'llm':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Model</div>
+          <select class="field-select" data-cfg="model">
+            ${AVAILABLE_MODELS.map(m => `<option value="${m}" ${cfg.model===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">System Prompt</div>
+          <textarea class="field-textarea" data-cfg="systemPrompt" rows="5" placeholder="You are a helpful assistant...">${esc(cfg.systemPrompt||'')}</textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Temperature</div>
+            <div class="field-slider-wrap">
+              <input type="range" class="field-slider" data-cfg="temperature" min="0" max="2" step="0.1" value="${cfg.temperature??0.7}">
+              <span class="field-slider-val">${cfg.temperature??0.7}</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Max Tokens</div>
+            <input type="number" class="field-input" data-cfg="maxTokens" min="1" max="128000" value="${cfg.maxTokens||4096}">
+          </div>
+        </div>
+        <div class="field-hint">The LLM node receives all upstream outputs as context and generates a response.</div>`;
+      break;
+
+    case 'tool':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Tool Name</div>
+          <select class="field-select" data-cfg="toolName">
+            <option value="">-- Select tool --</option>
+            ${toolsList.map(t => {
+              const name = typeof t === 'string' ? t : (t.name || t.id || '');
+              return `<option value="${name}" ${cfg.toolName===name?'selected':''}>${name}</option>`;
+            }).join('')}
+          </select>
+          <div class="field-hint">Fetched from /v1/lumigent/tools</div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Parameters (JSON)</div>
+          <textarea class="field-textarea mono" data-cfg="parameters" rows="6" placeholder='{"key": "value"}'>${esc(cfg.parameters||'{}')}</textarea>
+        </div>
+        <div class="field-group">
+          <div class="field-label" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" data-cfg="retryOnFail" ${cfg.retryOnFail?'checked':''} style="width:auto;margin:0">
+            <span style="text-transform:none;font-weight:500;letter-spacing:0">Retry on failure</span>
+          </div>
+        </div>`;
+      break;
+
+    case 'condition':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Expression</div>
+          <textarea class="field-textarea mono" data-cfg="expression" rows="3" placeholder='{{nodes.llm_1.output.text}}.includes("yes")'>${esc(cfg.expression||'')}</textarea>
+          <div class="field-hint">JavaScript expression. Evaluated at runtime. True uses the top output handle, False uses the bottom.</div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">True Label</div>
+            <input class="field-input" data-cfg="trueLabel" type="text" value="${esc(cfg.trueLabel||'Yes')}">
+          </div>
+          <div class="field-group">
+            <div class="field-label">False Label</div>
+            <input class="field-input" data-cfg="falseLabel" type="text" value="${esc(cfg.falseLabel||'No')}">
+          </div>
+        </div>`;
+      break;
+
+    case 'parallel':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Number of Branches</div>
+          <input type="number" class="field-input" data-cfg="branches" min="2" max="10" value="${cfg.branches||2}">
+        </div>
+        <div class="field-group">
+          <div class="field-label" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" data-cfg="waitForAll" ${cfg.waitForAll!==false?'checked':''} style="width:auto;margin:0">
+            <span style="text-transform:none;font-weight:500;letter-spacing:0">Wait for all branches to complete</span>
+          </div>
+          <div class="field-hint">If unchecked, continues as soon as any branch finishes.</div>
+        </div>`;
+      break;
+
+    case 'code':
+      html += `
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Language</div>
+            <select class="field-select" data-cfg="language">
+              <option value="python" ${cfg.language==='python'?'selected':''}>Python</option>
+              <option value="javascript" ${cfg.language==='javascript'?'selected':''}>JavaScript</option>
+              <option value="shell" ${cfg.language==='shell'?'selected':''}>Shell</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Timeout (s)</div>
+            <input type="number" class="field-input" data-cfg="timeout" min="1" max="300" value="${cfg.timeout||30}">
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Code</div>
+          <textarea class="field-textarea mono" data-cfg="code" rows="12" placeholder="print('hello world')">${esc(cfg.code||'')}</textarea>
+          <div class="field-hint">Executed via POST /platform/code/run in a Docker sandbox. Access upstream outputs via the <code>inputs</code> variable.</div>
+        </div>`;
+      break;
+
+    case 'approval':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Approval Message</div>
+          <textarea class="field-textarea" data-cfg="message" rows="4" placeholder="Please review and approve...">${esc(cfg.message||'')}</textarea>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Timeout (seconds)</div>
+          <input type="number" class="field-input" data-cfg="timeout" min="60" max="604800" value="${cfg.timeout||3600}">
+          <div class="field-hint">Auto-reject after timeout. Max: 7 days (604800s).</div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Approvers (optional)</div>
+          <input class="field-input" data-cfg="approvers" type="text" value="${esc(cfg.approvers||'')}" placeholder="email1@example.com, email2@...">
+          <div class="field-hint">Comma-separated emails. If empty, any user can approve.</div>
+        </div>`;
+      break;
+
+    case 'template':
+      html += `
+        <div class="field-group">
+          <div class="field-label">Template</div>
+          <textarea class="field-textarea mono" data-cfg="template" rows="8" placeholder="Hello {{nodes.llm_1.output.text}}!">${esc(cfg.template||'')}</textarea>
+          <div class="field-hint">Use <code>{{nodes.nodeId.output.field}}</code> to reference upstream outputs. Supports Mustache-style interpolation.</div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Output Variable Name</div>
+          <input class="field-input" data-cfg="outputVar" type="text" value="${esc(cfg.outputVar||'text')}">
+        </div>`;
+      break;
+  }
+
+  html += `
+    <button class="delete-node-btn" id="delete-selected-node">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      Delete Node
+    </button>`;
+
+  propsContent.innerHTML = html;
+  bindPropsInputs(nodeId, cfg);
+}
+
+function bindPropsInputs(nodeId, cfg) {
+  const container = document.getElementById('props-content');
+
+  container.querySelectorAll('[data-cfg]').forEach(el => {
+    const key = el.dataset.cfg;
+    const evtType = (el.type === 'checkbox') ? 'change' : 'input';
+
+    el.addEventListener(evtType, () => {
+      let val;
+      if (el.type === 'checkbox') val = el.checked;
+      else if (el.type === 'range' || el.type === 'number') val = parseFloat(el.value);
+      else val = el.value;
+
+      cfg[key] = val;
+      nodeConfigs[nodeId] = cfg;
+      markDirty();
+
+      if (el.type === 'range') {
+        const valDisplay = el.parentElement.querySelector('.field-slider-val');
+        if (valDisplay) valDisplay.textContent = val;
+      }
+
+      // Re-render the node to update preview
+      if (window._setNodes) {
+        window._setNodes(nds => nds.map(n => {
+          if (n.id === nodeId) {
+            const label = cfg._label || NODE_TYPES_META[n.data.nodeType]?.label || n.data.label;
+            return { ...n, data: { ...n.data, label, config: { ...cfg } } };
+          }
+          return n;
+        }));
+      }
+    });
+  });
+
+  // Tab key in textareas inserts tab
+  container.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Tab') {
+        ev.preventDefault();
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + 2;
+        ta.dispatchEvent(new Event('input'));
+      }
+    });
+  });
+
+  // Delete button
+  const delBtn = document.getElementById('delete-selected-node');
+  if (delBtn) {
+    delBtn.addEventListener('click', () => {
+      pushUndo();
+      if (window._setNodes) window._setNodes(nds => nds.filter(n => n.id !== nodeId));
+      if (window._setEdges) window._setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+      delete nodeConfigs[nodeId];
+      selectedNodeId = null;
+      renderProps(null, null);
+      markDirty();
+      updateCanvasHint();
+    });
+  }
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Initial empty state
+renderProps(null, null);
+
+/* ═══════════════════════════════════════════
+   Execution Log
+   ═══════════════════════════════════════════ */
+const execDrawer = document.getElementById('exec-drawer');
+const execLog = document.getElementById('exec-log');
+const execStatusDot = document.getElementById('exec-status-dot');
+
+document.getElementById('exec-drawer-toggle').addEventListener('click', () => {
+  execDrawer.classList.toggle('open');
+  execDrawer.classList.toggle('collapsed');
+});
+
+function appendLog(msg, type) {
+  const line = document.createElement('div');
+  line.className = 'exec-log-line' + (type ? ' ' + type : '');
+  const now = new Date();
+  const ts = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  line.innerHTML = `<span class="ts">[${ts}]</span>${esc(msg)}`;
+  execLog.appendChild(line);
+  execLog.scrollTop = execLog.scrollHeight;
+}
+
+function clearLog() { execLog.innerHTML = ''; }
+
+function setExecDot(cls) {
+  execStatusDot.className = 'exec-status-dot ' + cls;
+}
+
+/* ═══════════════════════════════════════════
+   React Flow Application
+   ═══════════════════════════════════════════ */
+const e = React.createElement;
+const { useState, useCallback, useRef, useMemo, useEffect } = React;
+const RF = window.xyflowReact || window['@xyflow/react'];
+
+const {
+  ReactFlow: ReactFlowComponent,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Handle,
+  Position,
+  MarkerType,
+} = RF;
+
+/* ── Custom Node Component ── */
+function CustomNode({ id, data, selected }) {
+  const meta = NODE_TYPES_META[data.nodeType] || { label: 'Unknown', color: '#666', cssClass: '', bgTint: 'rgba(102,102,102,0.15)' };
+  const cfg = data.config || {};
+  const execStatus = data.execStatus || null;
+
+  // Build body content
+  let bodyContent = null;
+  switch (data.nodeType) {
+    case 'llm':
+      bodyContent = e('div', null,
+        e('span', { className: 'tag' }, cfg.model || 'gpt-4o'),
+        cfg.systemPrompt ? e('div', { className: 'preview', style: { marginTop: 5 } }, cfg.systemPrompt) : null
+      );
+      break;
+    case 'tool':
+      bodyContent = e('div', null,
+        e('span', { className: 'tag' }, cfg.toolName || 'No tool selected')
+      );
+      break;
+    case 'condition':
+      bodyContent = cfg.expression
+        ? e('div', null,
+            e('div', { className: 'preview', style: { fontFamily: "'SF Mono',monospace", fontSize: 10 } }, cfg.expression),
+            e('div', { style: { display: 'flex', gap: 6, marginTop: 4 } },
+              e('span', { className: 'tag', style: { color: '#10a37f' } }, cfg.trueLabel || 'Yes'),
+              e('span', { className: 'tag', style: { color: '#ef4444' } }, cfg.falseLabel || 'No')
+            )
+          )
+        : e('div', { className: 'empty-hint' }, 'No expression set');
+      break;
+    case 'parallel':
+      bodyContent = e('div', null,
+        (cfg.branches || 2) + ' parallel branches',
+        cfg.waitForAll === false ? e('div', { style: { fontSize: 10, marginTop: 2, opacity: 0.7 } }, 'First-to-finish mode') : null
+      );
+      break;
+    case 'code':
+      bodyContent = e('div', null,
+        e('span', { className: 'tag' }, cfg.language || 'python'),
+        cfg.code ? e('div', { className: 'preview', style: { marginTop: 5, fontFamily: "'SF Mono',monospace", fontSize: 10 } }, cfg.code.split('\n')[0]) : null
+      );
+      break;
+    case 'approval':
+      bodyContent = cfg.message
+        ? e('div', { className: 'preview' }, cfg.message)
+        : e('div', { className: 'empty-hint' }, 'Waiting for approval');
+      break;
+    case 'template':
+      bodyContent = cfg.template
+        ? e('div', { className: 'preview', style: { fontFamily: "'SF Mono',monospace", fontSize: 10 } }, cfg.template)
+        : e('div', { className: 'empty-hint' }, 'Empty template');
+      break;
+  }
+
+  // Execution status badge
+  let badge = null;
+  if (execStatus) {
+    const icons = {
+      running: '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>',
+      completed: '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>',
+      failed: '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+      waiting: '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><circle cx="12" cy="12" r="8"/><polyline points="12 7 12 12 15 14"/></svg>',
+    };
+    badge = e('div', {
+      className: 'exec-badge ' + execStatus,
+      dangerouslySetInnerHTML: { __html: icons[execStatus] || '' }
+    });
+  }
+
+  // Handles — condition gets two source handles
+  const sourceHandles = data.nodeType === 'condition'
+    ? [
+        e(Handle, { key: 'true', type: 'source', position: Position.Right, id: 'true', style: { top: '35%', background: '#10a37f' } }),
+        e(Handle, { key: 'false', type: 'source', position: Position.Right, id: 'false', style: { top: '65%', background: '#ef4444' } }),
+      ]
+    : [e(Handle, { key: 'out', type: 'source', position: Position.Right, id: 'output' })];
+
+  return e('div', { className: `wf-node ${meta.cssClass}${selected ? ' selected' : ''}` },
+    badge,
+    e(Handle, { type: 'target', position: Position.Left, id: 'input' }),
+    e('div', { className: 'wf-node-header' },
+      e('div', {
+        className: 'node-icon',
+        style: { background: meta.bgTint, color: meta.color },
+        dangerouslySetInnerHTML: { __html: NODE_ICONS[data.nodeType] || '' }
+      }),
+      e('span', { className: 'node-label' }, data.label || meta.label),
+      e('span', { className: 'node-id' }, id)
+    ),
+    e('div', { className: 'wf-node-body' }, bodyContent),
+    ...sourceHandles
+  );
+}
+
+const nodeTypes = {
+  llm: CustomNode, tool: CustomNode, condition: CustomNode,
+  parallel: CustomNode, code: CustomNode, approval: CustomNode, template: CustomNode,
+};
+
+/* ── Main Flow App ── */
+function FlowApp() {
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [rfInstance, setRfInstance] = useState(null);
+
+  // Expose to vanilla JS
+  useEffect(() => {
+    window._setNodes = setNodes;
+    window._setEdges = setEdges;
+  });
+
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  useEffect(() => { nodesRef.current = nodes; updateCanvasHint(); }, [nodes]);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
+  window._nodesRef = nodesRef;
+  window._edgesRef = edgesRef;
+
+  const onConnect = useCallback((params) => {
+    pushUndo();
+    setEdges(eds => addEdge({
+      ...params,
+      type: 'smoothstep',
+      animated: true,
+      style: { stroke: 'var(--t3)', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--t3)', width: 16, height: 16 },
+    }, eds));
+    markDirty();
+  }, [setEdges]);
+
+  const onDragOver = useCallback((ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback((ev) => {
+    ev.preventDefault();
+    const nodeType = ev.dataTransfer.getData('application/reactflow-type');
+    if (!nodeType || !NODE_TYPES_META[nodeType]) return;
+    if (!rfInstance) return;
+
+    pushUndo();
+    const position = rfInstance.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+    const newId = genNodeId();
+    const config = { ...DEFAULT_CONFIGS[nodeType] };
+    nodeConfigs[newId] = config;
+
+    setNodes(nds => nds.concat({
+      id: newId,
+      type: nodeType,
+      position,
+      data: { label: NODE_TYPES_META[nodeType].label, nodeType, config },
+    }));
+    markDirty();
+  }, [rfInstance, setNodes]);
+
+  const onNodeClick = useCallback((_, node) => {
+    selectedNodeId = node.id;
+    renderProps(node.id, node.data.nodeType);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    selectedNodeId = null;
+    renderProps(null, null);
+  }, []);
+
+  const onNodesDelete = useCallback((deleted) => {
+    pushUndo();
+    deleted.forEach(n => {
+      delete nodeConfigs[n.id];
+      if (selectedNodeId === n.id) {
+        selectedNodeId = null;
+        renderProps(null, null);
+      }
+    });
+    markDirty();
+  }, []);
+
+  const onEdgesDelete = useCallback(() => {
+    pushUndo();
+    markDirty();
+  }, []);
+
+  // Wrap onNodesChange to track position moves for undo
+  const wrappedOnNodesChange = useCallback((changes) => {
+    const hasPositionChange = changes.some(c => c.type === 'position' && c.dragging === true);
+    if (hasPositionChange && !window._dragging) {
+      window._dragging = true;
+      pushUndo();
+    }
+    if (changes.some(c => c.type === 'position' && c.dragging === false)) {
+      window._dragging = false;
+      markDirty();
+    }
+    onNodesChange(changes);
+  }, [onNodesChange]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKeyDown(ev) {
+      // Ignore if typing in an input
+      if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA' || ev.target.tagName === 'SELECT') {
+        // But still allow Ctrl+S
+        if ((ev.ctrlKey || ev.metaKey) && ev.key === 's') {
+          ev.preventDefault();
+          saveWorkflow();
+        }
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 's') { ev.preventDefault(); saveWorkflow(); }
+      else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'z' && !ev.shiftKey) { ev.preventDefault(); doUndo(); }
+      else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || (ev.key === 'z' && ev.shiftKey))) { ev.preventDefault(); doRedo(); }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const defaultEdgeOptions = useMemo(() => ({
+    type: 'smoothstep',
+    animated: true,
+    style: { stroke: 'var(--t3)', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--t3)', width: 16, height: 16 },
+  }), []);
+
+  return e(ReactFlowComponent, {
+    nodes,
+    edges,
+    onNodesChange: wrappedOnNodesChange,
+    onEdgesChange,
+    onConnect,
+    onDragOver,
+    onDrop,
+    onInit: setRfInstance,
+    onNodeClick,
+    onPaneClick,
+    onNodesDelete,
+    onEdgesDelete,
+    nodeTypes,
+    defaultEdgeOptions,
+    fitView: false,
+    snapToGrid: true,
+    snapGrid: [16, 16],
+    deleteKeyCode: ['Backspace', 'Delete'],
+    style: { background: 'var(--bg)' },
+    proOptions: { hideAttribution: true },
+    connectionLineStyle: { stroke: 'var(--accent)', strokeWidth: 2 },
+  },
+    e(Background, { variant: 'dots', gap: 20, size: 1, color: 'var(--t3)' }),
+    e(Controls, { showInteractive: false, position: 'bottom-left' }),
+    e(MiniMap, {
+      position: 'bottom-right',
+      style: { background: 'var(--bg2)' },
+      maskColor: 'rgba(0,0,0,0.25)',
+      nodeColor: (n) => {
+        const meta = NODE_TYPES_META[n.data?.nodeType];
+        return meta ? meta.color : '#666';
+      },
+    })
+  );
+}
+
+/* ── Mount React App ── */
+const root = ReactDOM.createRoot(document.getElementById('react-flow-root'));
+root.render(e(FlowApp));
+
+/* ═══════════════════════════════════════════
+   Drag from Palette
+   ═══════════════════════════════════════════ */
+document.querySelectorAll('.palette-card').forEach(card => {
+  card.addEventListener('dragstart', (ev) => {
+    ev.dataTransfer.setData('application/reactflow-type', card.dataset.nodeType);
+    ev.dataTransfer.effectAllowed = 'move';
+  });
+});
+
+/* ═══════════════════════════════════════════
+   Workflow API — Save / Load / Run / New
+   ═══════════════════════════════════════════ */
+async function saveWorkflow() {
+  const name = document.getElementById('wf-name').value.trim() || 'Untitled Workflow';
+  const nodes = window._nodesRef?.current || [];
+  const edges = window._edgesRef?.current || [];
+
+  const payload = {
+    name,
+    nodes: nodes.map(n => ({
+      id: n.id, type: n.type,
+      position: n.position,
+      data: { label: n.data.label, nodeType: n.data.nodeType },
+    })),
+    edges: edges.map(ed => ({
+      id: ed.id, source: ed.source, sourceHandle: ed.sourceHandle,
+      target: ed.target, targetHandle: ed.targetHandle,
+    })),
+    configs: { ...nodeConfigs },
+  };
+
+  try {
+    const url = workflowId ? `/v1/workflows/${workflowId}` : '/v1/workflows';
+    const method = workflowId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.id) { workflowId = data.id; showIdBadge(workflowId); }
+      markClean();
+      showToast('Workflow saved');
+    } else {
+      showToast('Save failed: HTTP ' + res.status, true);
+    }
+  } catch (err) {
+    showToast('Save error: ' + err.message, true);
+  }
+}
+
+async function loadWorkflowById(id) {
+  try {
+    const res = await fetch(`/v1/workflows/${id}`);
+    if (!res.ok) { showToast('Load failed: HTTP ' + res.status, true); return; }
+    const data = await res.json();
+    applyWorkflowData(data, id);
+    showToast('Workflow loaded');
+  } catch (err) {
+    showToast('Load error: ' + err.message, true);
+  }
+}
+
+function applyWorkflowData(data, id) {
+  workflowId = data.id || id;
+  showIdBadge(workflowId);
+  document.getElementById('wf-name').value = data.name || 'Untitled';
+  nodeConfigs = data.configs || {};
+
+  const restoredNodes = (data.nodes || []).map(n => ({
+    id: n.id,
+    type: n.type || n.data?.nodeType || 'llm',
+    position: n.position,
+    data: {
+      label: n.data?.label || NODE_TYPES_META[n.type]?.label || 'Node',
+      nodeType: n.data?.nodeType || n.type || 'llm',
+      config: nodeConfigs[n.id] || { ...DEFAULT_CONFIGS[n.type || 'llm'] },
+    },
+  }));
+
+  // Restore ID counter
+  let maxId = 0;
+  restoredNodes.forEach(n => {
+    const num = parseInt(n.id.replace('node_', ''), 10);
+    if (!isNaN(num) && num > maxId) maxId = num;
+  });
+  nodeIdCounter = maxId + 1;
+
+  const restoredEdges = (data.edges || []).map(ed => ({
+    id: ed.id, source: ed.source, sourceHandle: ed.sourceHandle,
+    target: ed.target, targetHandle: ed.targetHandle,
+    type: 'smoothstep', animated: true,
+    style: { stroke: 'var(--t3)', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--t3)', width: 16, height: 16 },
+  }));
+
+  if (window._setNodes) window._setNodes(restoredNodes);
+  if (window._setEdges) window._setEdges(restoredEdges);
+  selectedNodeId = null;
+  renderProps(null, null);
+  undoStack = [];
+  redoStack = [];
+  markClean();
+}
+
+function newWorkflow() {
+  if (isDirty && !confirm('You have unsaved changes. Discard and create a new workflow?')) return;
+  workflowId = null;
+  showIdBadge(null);
+  document.getElementById('wf-name').value = 'Untitled Workflow';
+  nodeConfigs = {};
+  nodeIdCounter = 1;
+  if (window._setNodes) window._setNodes([]);
+  if (window._setEdges) window._setEdges([]);
+  selectedNodeId = null;
+  renderProps(null, null);
+  undoStack = [];
+  redoStack = [];
+  execStatuses = {};
+  executionId = null;
+  if (executionPollTimer) { clearInterval(executionPollTimer); executionPollTimer = null; }
+  clearLog();
+  setExecDot('idle');
+  markClean();
+  showToast('New workflow created');
+}
+
+/* ═══════════════════════════════════════════
+   Workflow List Modal
+   ═══════════════════════════════════════════ */
+const wfListModal = document.getElementById('wf-list-modal');
+const wfListBody = document.getElementById('wf-list-body');
+
+function openWorkflowList() {
+  wfListModal.classList.add('show');
+  wfListBody.innerHTML = '<div class="wf-list-empty">Loading workflows...</div>';
+
+  fetch('/v1/workflows').then(r => r.json()).then(data => {
+    const workflows = Array.isArray(data) ? data : (data.workflows || []);
+    if (!workflows.length) {
+      wfListBody.innerHTML = '<div class="wf-list-empty">No saved workflows found. Create one and save it first.</div>';
+      return;
+    }
+    wfListBody.innerHTML = workflows.map(wf => `
+      <div class="wf-list-item" data-wf-id="${esc(wf.id)}">
+        <div class="wf-list-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <div class="wf-list-info">
+          <h4>${esc(wf.name || 'Untitled')}</h4>
+          <p>${wf.id}${wf.updatedAt ? ' &middot; ' + new Date(wf.updatedAt).toLocaleDateString() : ''}</p>
+        </div>
+        <div class="wf-list-nodes">${wf.nodes ? wf.nodes.length + ' nodes' : ''}</div>
+      </div>
+    `).join('');
+
+    wfListBody.querySelectorAll('.wf-list-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const id = item.dataset.wfId;
+        wfListModal.classList.remove('show');
+        loadWorkflowById(id);
+      });
+    });
+  }).catch(err => {
+    wfListBody.innerHTML = `<div class="wf-list-empty">Failed to fetch workflows: ${esc(err.message)}</div>`;
+  });
+}
+
+function closeWorkflowList() { wfListModal.classList.remove('show'); }
+
+document.getElementById('wf-list-close').addEventListener('click', closeWorkflowList);
+wfListModal.addEventListener('click', (ev) => { if (ev.target === wfListModal) closeWorkflowList(); });
+
+/* ═══════════════════════════════════════════
+   Run / Stop Execution
+   ═══════════════════════════════════════════ */
+const btnRun = document.getElementById('btn-run');
+const btnStop = document.getElementById('btn-stop');
+
+async function runWorkflow() {
+  if (!workflowId) {
+    await saveWorkflow();
+    if (!workflowId) { showToast('Save workflow first', true); return; }
+  }
+
+  try {
+    btnRun.disabled = true;
+    btnStop.style.display = '';
+
+    // Open execution drawer
+    execDrawer.classList.remove('collapsed');
+    execDrawer.classList.add('open');
+    clearLog();
+    setExecDot('running');
+    appendLog('Starting workflow execution...', '');
+
+    const res = await fetch(`/v1/workflows/${workflowId}/execute`, { method: 'POST' });
+    if (!res.ok) {
+      showToast('Run failed: HTTP ' + res.status, true);
+      appendLog('Execution request failed: HTTP ' + res.status, 'error');
+      setExecDot('err');
+      btnRun.disabled = false;
+      btnStop.style.display = 'none';
+      return;
+    }
+    const data = await res.json();
+    executionId = data.executionId || data.id;
+    appendLog('Execution started: ' + executionId, 'success');
+    showToast('Workflow started');
+    startExecutionPolling();
+  } catch (err) {
+    showToast('Run error: ' + err.message, true);
+    appendLog('Execution error: ' + err.message, 'error');
+    setExecDot('err');
+    btnRun.disabled = false;
+    btnStop.style.display = 'none';
+  }
+}
+
+function stopExecution() {
+  if (executionPollTimer) { clearInterval(executionPollTimer); executionPollTimer = null; }
+  // Attempt to stop via API
+  if (workflowId && executionId) {
+    fetch(`/v1/workflows/${workflowId}/executions/${executionId}/stop`, { method: 'POST' }).catch(() => {});
+  }
+  appendLog('Execution stopped by user', 'error');
+  setExecDot('err');
+  btnRun.disabled = false;
+  btnStop.style.display = 'none';
+  // Clear exec badges
+  execStatuses = {};
+  if (window._setNodes) {
+    window._setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, execStatus: null } })));
+  }
+}
+
+function startExecutionPolling() {
+  if (executionPollTimer) clearInterval(executionPollTimer);
+  if (!workflowId || !executionId) return;
+
+  let lastLogCount = 0;
+
+  executionPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/v1/workflows/${workflowId}/executions/${executionId}`);
+      if (!res.ok) {
+        clearInterval(executionPollTimer);
+        executionPollTimer = null;
+        appendLog('Failed to poll execution status', 'error');
+        setExecDot('err');
+        btnRun.disabled = false;
+        btnStop.style.display = 'none';
+        return;
+      }
+      const data = await res.json();
+
+      // Update node execution statuses
+      execStatuses = {};
+      if (data.nodeStatuses) {
+        Object.entries(data.nodeStatuses).forEach(([nid, status]) => {
+          execStatuses[nid] = status;
+        });
+      }
+
+      // Update nodes visually
+      if (window._setNodes) {
+        window._setNodes(nds => nds.map(n => ({
+          ...n,
+          data: { ...n.data, execStatus: execStatuses[n.id] || null },
+        })));
+      }
+
+      // Append new log entries
+      if (data.logs && data.logs.length > lastLogCount) {
+        for (let i = lastLogCount; i < data.logs.length; i++) {
+          const log = data.logs[i];
+          const type = log.level === 'error' ? 'error' : (log.level === 'success' ? 'success' : '');
+          appendLog(log.message || JSON.stringify(log), type);
+        }
+        lastLogCount = data.logs.length;
+      }
+
+      // Check terminal state
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
+        clearInterval(executionPollTimer);
+        executionPollTimer = null;
+        const isSuccess = data.status === 'completed';
+        setExecDot(isSuccess ? 'done' : 'err');
+        appendLog('Execution ' + data.status, isSuccess ? 'success' : 'error');
+        showToast('Workflow ' + data.status, !isSuccess);
+        btnRun.disabled = false;
+        btnStop.style.display = 'none';
+      }
+    } catch (err) {
+      clearInterval(executionPollTimer);
+      executionPollTimer = null;
+      appendLog('Poll error: ' + err.message, 'error');
+      setExecDot('err');
+      btnRun.disabled = false;
+      btnStop.style.display = 'none';
+    }
+  }, 2000);
+}
+
+/* ═══════════════════════════════════════════
+   Toast Notification
+   ═══════════════════════════════════════════ */
+const toastEl = document.getElementById('wf-toast');
+let toastTimer = null;
+
+function showToast(msg, isError) {
+  toastEl.textContent = msg;
+  toastEl.style.background = isError ? 'rgba(239,68,68,0.92)' : 'rgba(16,163,127,0.92)';
+  toastEl.style.color = '#fff';
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+/* ═══════════════════════════════════════════
+   Button Bindings
+   ═══════════════════════════════════════════ */
+document.getElementById('btn-save').addEventListener('click', saveWorkflow);
+document.getElementById('btn-load').addEventListener('click', openWorkflowList);
+document.getElementById('btn-run').addEventListener('click', runWorkflow);
+document.getElementById('btn-stop').addEventListener('click', stopExecution);
+document.getElementById('btn-new').addEventListener('click', newWorkflow);
+
+/* ═══════════════════════════════════════════
+   Warn before closing with unsaved changes
+   ═══════════════════════════════════════════ */
+window.addEventListener('beforeunload', (ev) => {
+  if (isDirty) { ev.preventDefault(); ev.returnValue = ''; }
+});
+
+/* ═══════════════════════════════════════════
+   Auto-save to localStorage (draft recovery)
+   ═══════════════════════════════════════════ */
+const DRAFT_KEY = 'wf_editor_draft';
+
+function saveDraft() {
+  try {
+    const nodes = window._nodesRef?.current || [];
+    const edges = window._edgesRef?.current || [];
+    if (!nodes.length) { localStorage.removeItem(DRAFT_KEY); return; }
+    const draft = {
+      name: document.getElementById('wf-name').value,
+      workflowId,
+      nodes: nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: { label: n.data.label, nodeType: n.data.nodeType } })),
+      edges: edges.map(ed => ({ id: ed.id, source: ed.source, sourceHandle: ed.sourceHandle, target: ed.target, targetHandle: ed.targetHandle })),
+      configs: nodeConfigs,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (e) { /* quota exceeded, ignore */ }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+    const draft = JSON.parse(raw);
+    // Only restore if recent (< 24h)
+    if (Date.now() - draft.savedAt > 86400000) { localStorage.removeItem(DRAFT_KEY); return false; }
+    if (!draft.nodes?.length) return false;
+    applyWorkflowData(draft, draft.workflowId);
+    if (draft.workflowId) workflowId = draft.workflowId;
+    else { workflowId = null; showIdBadge(null); }
+    markDirty(); // draft = unsaved
+    return true;
+  } catch (e) { return false; }
+}
+
+// Auto-save draft every 10s
+setInterval(saveDraft, 10000);
+
+// On load, try to restore draft
+setTimeout(() => {
+  if (loadDraft()) {
+    showToast('Restored unsaved draft');
+  }
+}, 500);
+
+})();
+</script>
+</body>
+</html>
