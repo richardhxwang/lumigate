@@ -9,6 +9,7 @@
   <script nonce="{{NONCE}}">(function(){try{var t=localStorage.getItem('lc_theme');var isLight=t==='light'||(t!=='dark'&&window.matchMedia('(prefers-color-scheme:light)').matches);if(isLight)document.documentElement.classList.add('light');}catch(e){}})()</script>
   <link rel="icon" type="image/svg+xml" href="/lumichat-icon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="/lumichat-apple-touch.png">
+  <link rel="manifest" href="/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="LumiChat">
@@ -405,6 +406,7 @@
         max-height:min(62vh,420px);
         overflow-y:auto;
         overflow-x:hidden;
+        -webkit-overflow-scrolling:touch;
       }
       .pro-grid{grid-template-columns:1fr}
     }
@@ -818,6 +820,12 @@
     @media(max-width:768px){
       .canvas-panel{width:100%;min-width:0;border-left:none}
       #main.canvas-pushed{margin-right:0}
+      /* Settings modal: full-width on mobile */
+      #stg-overlay{padding:8px;padding-top:max(8px, env(safe-area-inset-top, 8px));padding-bottom:max(8px, env(safe-area-inset-bottom, 8px))}
+      #stg-modal{max-height:92vh;border-radius:var(--r3)}
+      .stg-body{padding:16px}
+      /* Selection menu: constrain to viewport */
+      #sel-menu{max-width:calc(100vw - 24px)}
     }
   </style>
 </head>
@@ -1662,7 +1670,8 @@ const STRINGS = {
   'voice.listening':          { en:'Listening...',           zh:'正在听…' },
   'voice.tap_finish':         { en:'Tap to finish',          zh:'点击完成' },
   'voice.transcribing':       { en:'Transcribing…',          zh:'正在转录…' },
-  'voice.mic_denied':         { en:'Microphone permission denied', zh:'麦克风权限被拒绝' },
+  'voice.mic_denied':         { en:'Microphone permission denied. Please allow in browser settings.', zh:'麦克风权限被拒绝，请在浏览器设置中允许' },
+  'voice.no_mic':             { en:'No microphone detected', zh:'未检测到麦克风' },
 
   // Input
   'input.attach':             { en:'Attach file',            zh:'附加文件' },
@@ -5119,8 +5128,12 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
     if(isVoice) return;
     try{
       micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-    }catch{
-      toast(t('voice.mic_denied'), 2500, '#f59e0b');
+    }catch(e){
+      if(e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError'){
+        toast(t('voice.no_mic'), 2500, '#f59e0b');
+      } else {
+        toast(t('voice.mic_denied'), 2500, '#f59e0b');
+      }
       return;
     }
     isVoice = true;
