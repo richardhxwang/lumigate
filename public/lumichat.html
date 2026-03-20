@@ -1744,9 +1744,9 @@ const STRINGS = {
 
 
   // Voice
-  'voice.listening':          { en:'Listening...',           zh:'请说…' },
+  'voice.listening':          { en:'Listening...',           zh:'正在聆听…' },
   'voice.tap_finish':         { en:'Tap to finish',          zh:'点击完成' },
-  'voice.transcribing':       { en:'Transcribing…',          zh:'正在转录…' },
+  'voice.transcribing':       { en:'Transcribing…',          zh:'识别中…' },
   'voice.mic_denied':         { en:'Microphone permission denied. Please allow in browser settings.', zh:'麦克风权限被拒绝，请在浏览器设置中允许' },
   'voice.no_mic':             { en:'No microphone detected', zh:'未检测到麦克风' },
 
@@ -3970,7 +3970,7 @@ async function sendMessage(){
       const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
       const details=document.createElement('details');
       details.className='thinking-block';
-      details.open=true; // Start OPEN — user closes manually if they want
+      details.open=false; // Start COLLAPSED — user clicks to expand
       details.style.opacity='0';
       details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
       details.querySelector('.thinking-content').textContent=_thinkingContent.trim();

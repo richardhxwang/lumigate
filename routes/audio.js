@@ -51,6 +51,12 @@ function buildMultipartBody({ fieldName, buffer, filename, contentType, language
       `Content-Disposition: form-data; name="language"\r\n\r\n` +
       language
     ));
+    // initial_prompt biases Whisper toward simplified Chinese characters
+    parts.push(Buffer.from(
+      `\r\n--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="initial_prompt"\r\n\r\n` +
+      `以下是普通话的句子，请使用简体中文输出。`
+    ));
   }
   parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
   return { boundary, body: Buffer.concat(parts) };
