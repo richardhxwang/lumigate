@@ -851,6 +851,50 @@
       /* Selection menu: constrain to viewport */
       #sel-menu{max-width:calc(100vw - 24px)}
     }
+
+    /* ── Download Card — macOS Finder-style file card ── */
+    .dl-card{
+      margin:12px 0;padding:14px 16px;display:flex;align-items:center;gap:14px;
+      background:var(--glass-bg, rgba(255,255,255,0.06));
+      backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+      border:1px solid var(--glass-border, rgba(255,255,255,0.1));
+      border-radius:var(--r2,12px);
+      box-shadow:0 2px 8px rgba(0,0,0,0.08),0 0 0 0.5px rgba(255,255,255,0.05) inset;
+      animation:dlCardIn .35s cubic-bezier(.4,0,.2,1) both;
+      transition:box-shadow .2s,transform .15s;
+    }
+    .dl-card:hover{box-shadow:0 4px 16px rgba(0,0,0,0.12);transform:translateY(-1px)}
+    html[data-theme="light"] .dl-card{
+      --glass-bg:rgba(255,255,255,0.55);--glass-border:rgba(0,0,0,0.08);
+      box-shadow:0 2px 8px rgba(0,0,0,0.06),0 0 0 0.5px rgba(0,0,0,0.04) inset;
+    }
+    @keyframes dlCardIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .dl-card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .dl-card-icon.pdf{background:rgba(239,68,68,0.12);color:#ef4444}
+    .dl-card-icon.excel{background:rgba(34,197,94,0.12);color:#22c55e}
+    .dl-card-icon.word{background:rgba(59,130,246,0.12);color:#3b82f6}
+    .dl-card-icon.pptx{background:rgba(249,115,22,0.12);color:#f97316}
+    .dl-card-icon.zip{background:rgba(168,85,247,0.12);color:#a855f7}
+    .dl-card-icon.code{background:rgba(14,165,233,0.12);color:#0ea5e9}
+    .dl-card-icon.generic{background:rgba(156,163,175,0.12);color:#9ca3af}
+    .dl-card-meta{flex:1;min-width:0}
+    .dl-card-name{font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dl-card-size{font-size:12px;color:var(--t3);margin-top:1px}
+    .dl-card .canvas-open-dl-btn{
+      padding:6px 12px;background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--t2);
+      border-radius:var(--r1,8px);font-size:12px;font-weight:500;cursor:pointer;flex-shrink:0;
+      white-space:nowrap;display:flex;align-items:center;gap:4px;transition:background .15s,color .15s;
+    }
+    .dl-card .canvas-open-dl-btn:hover{background:rgba(255,255,255,0.12);color:var(--t1)}
+    html[data-theme="light"] .dl-card .canvas-open-dl-btn{background:rgba(0,0,0,0.04)}
+    html[data-theme="light"] .dl-card .canvas-open-dl-btn:hover{background:rgba(0,0,0,0.08)}
+    .dl-card-dl{
+      padding:7px 16px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);
+      font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap;
+      transition:background .15s,transform .1s;display:inline-flex;align-items:center;gap:5px;
+    }
+    .dl-card-dl:hover{background:var(--accent-h,#0d9268)}
+    .dl-card-dl:active{transform:scale(.96)}
   </style>
 </head>
 <body>
@@ -3736,14 +3780,26 @@ async function sendMessage(){
             }
             const card=document.createElement('div');
             card.className='dl-card';
-            card.style.cssText='margin:12px 0;padding:12px 16px;background:var(--inp);border:1px solid var(--border);border-radius:var(--r2,12px);display:flex;align-items:center;gap:12px';
-            // Determine if file is previewable in Canvas
+            // Determine file type for icon
             const fnLower=fn.toLowerCase();
             const canvasPreviewable=/\.(js|ts|py|java|c|cpp|cs|go|rs|rb|php|swift|kt|html|css|json|yaml|yml|xml|sql|sh|md|txt|log|csv)$/.test(fnLower);
-            card.innerHTML=`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fn)}</div><div style="font-size:12px;color:var(--t3)">${esc(size)}</div></div>
-              ${canvasPreviewable?`<button class="canvas-open-dl-btn" style="padding:6px 12px;background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--t2);border-radius:var(--r1,8px);font-size:12px;font-weight:500;cursor:pointer;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:4px;transition:background .15s,color .15s"><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='13' height='13'><polyline points='15 3 21 3 21 9'/><polyline points='9 21 3 21 3 15'/><line x1='21' y1='3' x2='14' y2='10'/><line x1='3' y1='21' x2='10' y2='14'/></svg> Canvas</button>`:''}
-              <a href="#" data-secure-dl="${esc(dlUrl)}" download="${esc(fn)}" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:var(--r1,8px);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0;white-space:nowrap">Download</a>`;
+            const ftIcons={
+              pdf:{cls:'pdf',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h2a1 1 0 000-2H9v4m5-4h1.5a1.5 1.5 0 010 3H14v-4"/>'},
+              xlsx:{cls:'excel',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="12" y1="9" x2="12" y2="21"/>'},
+              xls:{cls:'excel',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="12" y1="9" x2="12" y2="21"/>'},
+              docx:{cls:'word',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/>'},
+              doc:{cls:'word',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/>'},
+              pptx:{cls:'pptx',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="12" cy="15" r="3"/>'},
+              zip:{cls:'zip',svg:'<path d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-3"/><rect x="9" y="9" width="6" height="6" rx="1"/><line x1="12" y1="3" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="21"/>'},
+            };
+            const extMatch=fnLower.match(/\.(\w+)$/);
+            const ext=extMatch?extMatch[1]:'';
+            const ftIcon=ftIcons[ext]||(canvasPreviewable?{cls:'code',svg:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'}:{cls:'generic',svg:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>'});
+            const extLabel=ext?ext.toUpperCase():'FILE';
+            card.innerHTML=`<div class="dl-card-icon ${ftIcon.cls}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ftIcon.svg}</svg></div>
+              <div class="dl-card-meta"><div class="dl-card-name" title="${esc(fn)}">${esc(fn)}</div><div class="dl-card-size">${esc(extLabel)}${size?' \u00B7 '+esc(size):''}</div></div>
+              ${canvasPreviewable?`<button class="canvas-open-dl-btn"><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='13' height='13'><polyline points='15 3 21 3 21 9'/><polyline points='9 21 3 21 3 15'/><line x1='21' y1='3' x2='14' y2='10'/><line x1='3' y1='21' x2='10' y2='14'/></svg> Canvas</button>`:''}
+              <a href="#" data-secure-dl="${esc(dlUrl)}" download="${esc(fn)}" class="dl-card-dl"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>`;
             // Wire up Canvas preview for file_download cards
             if(canvasPreviewable){
               const cvBtn=card.querySelector('.canvas-open-dl-btn');

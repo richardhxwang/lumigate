@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps curl ca-certificates \
     python3 python3-pip \
     gnupg \
-    git jq ripgrep \
+    git jq ripgrep zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Edge TTS (Microsoft free high-quality TTS, no API key needed)

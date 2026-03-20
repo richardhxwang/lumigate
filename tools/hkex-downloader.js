@@ -93,26 +93,17 @@ async function downloadFile(url, destPath) {
 
 /**
  * Create a ZIP archive from a directory of files.
- * Uses the system `zip` command (available in Docker containers).
+ * Uses the system `zip` command (-j strips directory paths, just filenames in the zip).
+ * Requires `zip` package installed (apt-get install -y zip).
  */
 async function createZip(sourceDir, zipPath) {
   const files = fs.readdirSync(sourceDir).filter((f) => !f.endsWith(".zip"));
   if (files.length === 0) throw new Error("No files to archive");
 
-  try {
-    await execFileAsync("zip", ["-j", zipPath, ...files.map((f) => path.join(sourceDir, f))], {
-      timeout: 30_000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-  } catch (e) {
-    // Fallback: if zip is not available, create a tar.gz
-    const tarPath = zipPath.replace(/\.zip$/, ".tar.gz");
-    await execFileAsync("tar", ["-czf", tarPath, "-C", sourceDir, ...files], {
-      timeout: 30_000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return tarPath;
-  }
+  await execFileAsync("zip", ["-j", zipPath, ...files.map((f) => path.join(sourceDir, f))], {
+    timeout: 30_000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
   return zipPath;
 }
 
@@ -270,7 +261,6 @@ async function downloadHKEXFilings(input) {
 
     try {
       zipPath = await createZip(outputDir, zipPath);
-      const ext = path.extname(zipPath);
       const actualFilename = path.basename(zipPath);
       zipUrl = `/v1/hkex/download/${actualFilename}`;
       console.log(`[hkex-downloader] Created archive: ${actualFilename}`);
@@ -338,9 +328,7 @@ function registerHKEXTool(registry) {
         return {
           file: zipBuffer,
           filename: path.basename(result.zip_path),
-          mimeType: result.zip_path.endsWith(".tar.gz")
-            ? "application/gzip"
-            : "application/zip",
+          mimeType: "application/zip",
           size: zipBuffer.length,
           downloadUrl: result.zip_url,
           data: {
