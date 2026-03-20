@@ -618,9 +618,11 @@ class UserMemory {
 
     try {
       // Fetch recent facts from PB
+      // Sort by -id (PB auto-IDs are time-ordered, so -id ≈ newest first).
+      // Note: "-created" only works if the collection has an autodate field named "created".
       const result = await this.pbStore.getList(PB_MEMORIES_COLLECTION, {
         filter: `user_id='${pbEscape(userId)}'`,
-        sort: "-created",
+        sort: "-id",
         perPage: 100,
       });
 

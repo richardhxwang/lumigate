@@ -154,6 +154,8 @@ const PB_COLLECTIONS = [
       { name: "entity_type", type: "text" },    // 'pet', 'person', 'place', etc.
       { name: "metadata", type: "json" },
       { name: "embedding_id", type: "text" },   // Qdrant point ID
+      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
+      { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
     ],
   },
   {
@@ -164,6 +166,8 @@ const PB_COLLECTIONS = [
       { name: "profile", type: "json" },        // structured profile summary
       { name: "pet_profiles", type: "json" },   // { petId: { name, breed, age, ... } }
       { name: "last_updated", type: "text" },
+      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
+      { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
     ],
   },
   // Tool calls (logged from server.js tool execution pipeline)
@@ -575,11 +579,16 @@ async function ensureCollections(pbUrl, adminToken, log) {
       const body = {
         name: collection.name,
         type: collection.type || "base",
-        fields: collection.schema.map((field) => ({
-          name: field.name,
-          type: field.type,
-          required: field.required || false,
-        })),
+        fields: collection.schema.map((field) => {
+          const f = { name: field.name, type: field.type, required: field.required || false };
+          // autodate fields need onCreate/onUpdate
+          if (field.type === "autodate") {
+            f.onCreate = field.onCreate !== false;
+            f.onUpdate = !!field.onUpdate;
+            delete f.required;
+          }
+          return f;
+        }),
       };
 
       const res = await fetch(`${pbUrl}/api/collections`, {
