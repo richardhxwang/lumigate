@@ -1208,6 +1208,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       }
       try {
         let _cInThink = false;
+        let _cThinkBuf = "";
         let _cFullText = ""; // accumulate for tool tag detection
         for await (const chunk of collector.sendMessage(providerName.toLowerCase(), modelId, collectorMsgs, credentials)) {
           if (res.writableEnded) break;
@@ -1219,9 +1220,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                 const j = JSON.parse(m[1]);
                 let c = j.choices?.[0]?.delta?.content || "";
                 if (c) {
-                  // Strip <think> tags
-                  if (_cInThink) { const end = c.indexOf("</think>"); if (end !== -1) { _cInThink = false; c = c.slice(end + 8); } else c = ""; }
-                  if (c.includes("<think>")) { const s = c.indexOf("<think>"); const e = c.indexOf("</think>", s); if (e !== -1) c = c.slice(0, s) + c.slice(e + 8); else { c = c.slice(0, s); _cInThink = true; } }
+                  // Strip <think> tags (with cross-chunk buffer)
+                  if (_cInThink) { _cThinkBuf += c; const end = _cThinkBuf.indexOf("</think>"); if (end !== -1) { _cInThink = false; c = _cThinkBuf.slice(end + 8); _cThinkBuf = ""; } else { if (_cThinkBuf.length > 100) _cThinkBuf = _cThinkBuf.slice(-8); c = ""; } }
+                  if (c.includes("<think>")) { const s = c.indexOf("<think>"); const e = c.indexOf("</think>", s); if (e !== -1) c = c.slice(0, s) + c.slice(e + 8); else { c = c.slice(0, s); _cInThink = true; _cThinkBuf = ""; } }
                   if (!c) continue;
                   _cFullText += c;
                   j.choices[0].delta.content = c;
@@ -1442,17 +1443,26 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
     }
 
+    let _thinkBuf = ""; // buffer for cross-chunk </think> detection
     function pipeContent(delta) {
       if (inThink) {
-        const end = delta.indexOf("</think>");
-        if (end !== -1) { inThink = false; delta = delta.slice(end + 8); }
-        else return;
+        _thinkBuf += delta;
+        const end = _thinkBuf.indexOf("</think>");
+        if (end !== -1) {
+          inThink = false;
+          delta = _thinkBuf.slice(end + 8);
+          _thinkBuf = "";
+        } else {
+          // Keep last 8 chars in buffer in case </think> spans chunks
+          if (_thinkBuf.length > 100) _thinkBuf = _thinkBuf.slice(-8);
+          return;
+        }
       }
       if (delta.includes("<think>")) {
         const start = delta.indexOf("<think>");
         const end = delta.indexOf("</think>", start);
         if (end !== -1) { delta = delta.slice(0, start) + delta.slice(end + 8); }
-        else { delta = delta.slice(0, start); inThink = true; }
+        else { delta = delta.slice(0, start); inThink = true; _thinkBuf = ""; }
         if (!delta) return;
       }
       fullText += delta;
