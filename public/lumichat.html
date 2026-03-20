@@ -2239,9 +2239,9 @@ function runSplashToAuthTransition(){
       `font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.3px;`+
       `font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;`+
       `display:flex;align-items:center;justify-content:center;white-space:nowrap;`;
-    // Reset "Chat" to text color so it can transition to green during flight
+    // Keep "Chat" green throughout the entire animation
     const accentSpan = splashTitleEl.querySelector('#splash-accent');
-    if(accentSpan){ accentSpan.style.transition = 'none'; accentSpan.style.color = 'var(--t1)'; }
+    if(accentSpan){ accentSpan.style.color = '#10a37f'; }
     document.body.appendChild(splashTitleEl);
   }
 
