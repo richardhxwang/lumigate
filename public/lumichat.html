@@ -3440,7 +3440,7 @@ async function sendMessage(){
       // Add "Queued" label
       const qLabel=document.createElement('div');
       qLabel.className='queued-label';
-      qLabel.style.cssText='font-size:11px;color:var(--t3);text-align:right;margin-top:2px;font-style:italic';
+      qLabel.style.cssText='font-size:11px;color:var(--t3);text-align:left;margin-top:4px;font-style:italic;display:block;width:100%';
       qLabel.textContent=_lang==='zh'?'排队中 · 再按回车立即发送':'Queued · press Enter to send now';
       qRow.appendChild(qLabel);
       scrollBot(false);
