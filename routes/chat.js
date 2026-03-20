@@ -1449,20 +1449,40 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         _thinkBuf += delta;
         const end = _thinkBuf.indexOf("</think>");
         if (end !== -1) {
+          // Forward accumulated thinking content as reasoning_content
+          const thinkContent = _thinkBuf.slice(0, end);
+          if (thinkContent && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
+          }
           inThink = false;
           delta = _thinkBuf.slice(end + 8);
           _thinkBuf = "";
         } else {
-          // Keep last 8 chars in buffer in case </think> spans chunks
-          if (_thinkBuf.length > 100) _thinkBuf = _thinkBuf.slice(-8);
+          // Forward thinking chunks in real-time as reasoning_content
+          if (_thinkBuf.length > 8 && !res.writableEnded) {
+            const toSend = _thinkBuf.slice(0, -8); // keep last 8 for cross-chunk </think> detection
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: toSend } }] })}\n\n`);
+            _thinkBuf = _thinkBuf.slice(-8);
+          }
           return;
         }
       }
       if (delta.includes("<think>")) {
         const start = delta.indexOf("<think>");
         const end = delta.indexOf("</think>", start);
-        if (end !== -1) { delta = delta.slice(0, start) + delta.slice(end + 8); }
-        else { delta = delta.slice(0, start); inThink = true; _thinkBuf = ""; }
+        if (end !== -1) {
+          // Complete <think>...</think> in one chunk — forward as reasoning_content
+          const thinkContent = delta.slice(start + 7, end);
+          if (thinkContent && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
+          }
+          delta = delta.slice(0, start) + delta.slice(end + 8);
+        }
+        else {
+          const before = delta.slice(0, start);
+          inThink = true; _thinkBuf = "";
+          delta = before;
+        }
         if (!delta) return;
       }
       fullText += delta;

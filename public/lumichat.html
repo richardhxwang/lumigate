@@ -3527,9 +3527,11 @@ async function sendMessage(){
     tipIdx=(tipIdx+1)%tips.length;
     const tip=tips[tipIdx];
     let tipEl=tr.querySelector('.tip-line');
+    let isNew=false;
     if(!tipEl){
+      isNew=true;
       tipEl=document.createElement('div'); tipEl.className='tip-line';
-      tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transition:opacity .4s ease';
+      tipEl.style.cssText='color:var(--t3);font-size:12px;margin-top:8px;opacity:0;transform:translateY(6px);transition:opacity .4s ease,transform .4s ease';
       const typing=tr.querySelector('.typing');
       const stEl=typing?.querySelector('.st-text');
       if(typing){
@@ -3537,11 +3539,14 @@ async function sendMessage(){
         else typing.appendChild(tipEl);
       }
     }
-    // Fade out → swap → fade in
+    // Fade out → swap → fade in (force reflow for first-time animation)
     tipEl.style.opacity='0';
+    tipEl.style.transform='translateY(6px)';
+    if(isNew) tipEl.getBoundingClientRect(); // force reflow so transition works on first render
     setTimeout(()=>{
       tipEl.innerHTML='<i><svg width="8" height="14" viewBox="0 0 8 14" style="vertical-align:-1px;margin-right:3px;transform:skewX(-12deg)"><path d="M2 0v10q0 2 2 2h4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>'+esc(tip)+'</i>';
       tipEl.style.opacity='1';
+      tipEl.style.transform='translateY(0)';
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
         if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
       }));
