@@ -92,7 +92,7 @@ async function sendToDoclingParser(buffer, filename) {
       method: "POST",
       headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
       body,
-      signal: AbortSignal.timeout(120000), // docling can be slow on large PDFs
+      signal: AbortSignal.timeout(600000), // 10 min — 81-page annual report takes ~7 min on CPU
     });
 
     if (!res.ok) return null;

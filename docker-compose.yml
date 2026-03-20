@@ -235,7 +235,7 @@ services:
     build: services/docling-parser
     container_name: lumigate-docling
     restart: unless-stopped
-    profiles: ["enhanced"]
+    # No profile — always on (required for Casting / financial analysis)
     ports:
       - "127.0.0.1:18786:3102"
     expose:
