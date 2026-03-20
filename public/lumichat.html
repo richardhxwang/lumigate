@@ -359,14 +359,18 @@
     /* No CSS cursor — typing dots handle all waiting states */
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
-    .thinking-block{margin-bottom:12px;border-radius:var(--r2,12px);background:var(--inp);border:1px solid var(--border);overflow:hidden}
-    .thinking-block summary{list-style:none;cursor:pointer;padding:8px 12px;color:var(--t3);font-size:13px;display:flex;align-items:center;gap:6px;user-select:none;transition:background .15s}
+    .thinking-block{margin-bottom:8px;border-radius:var(--r1);overflow:hidden}
+    .thinking-block summary{list-style:none;cursor:pointer;padding:4px 0;color:var(--t3);font-size:12px;display:flex;align-items:center;gap:5px;user-select:none}
     .thinking-block summary::-webkit-details-summary-icon{display:none}
     .thinking-block summary::marker{display:none;content:''}
-    .thinking-block summary:hover{background:var(--sb-hover)}
-    .thinking-block .think-chevron{width:14px;height:14px;transition:transform .2s ease;flex-shrink:0}
+    .thinking-block summary:hover{color:var(--t2)}
+    .thinking-block .think-chevron{width:12px;height:12px;transition:transform .2s ease;flex-shrink:0}
     .thinking-block[open] .think-chevron{transform:rotate(90deg)}
-    .thinking-block .thinking-content{padding:4px 12px 10px;font-size:13px;color:var(--t2);white-space:pre-wrap;word-break:break-word;line-height:1.5;max-height:300px;overflow-y:auto;border-top:1px solid var(--border);opacity:.85}
+    .thinking-block .thinking-content{padding:4px 0 8px 17px;font-size:12px;color:var(--t3);white-space:pre-wrap;word-break:break-word;line-height:1.5;max-height:300px;overflow-y:auto;opacity:.7}
+    .think-live-label{display:flex;align-items:center;gap:5px;color:var(--t3);font-size:12px;margin-bottom:4px}
+    .think-live-label svg{animation:spin 1.5s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .think-live-text{font-size:11px;color:var(--t3);opacity:.6;max-height:60px;overflow:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.4}
     .st-text{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transform:translateY(4px);transition:opacity .24s ease,transform .24s ease}
     .st-text.show{opacity:1;transform:translateY(0)}
     .st-text.done{opacity:.72}
@@ -3819,7 +3823,23 @@ async function sendMessage(){
           if(j.usage) streamUsage=j.usage;
           // Capture reasoning_content (DeepSeek API sends this as separate field)
           const rc=j.choices?.[0]?.delta?.reasoning_content||'';
-          if(rc){if(!_thinkingStartTime)_thinkingStartTime=Date.now();_thinkingContent+=rc;_thinkingEndTime=Date.now();}
+          if(rc){
+            if(!_thinkingStartTime)_thinkingStartTime=Date.now();
+            _thinkingContent+=rc;_thinkingEndTime=Date.now();
+            // Show thinking block in real-time during streaming
+            if(streamEl){
+              let tb=streamEl.parentElement?.querySelector('.thinking-block-live');
+              if(!tb){
+                tb=document.createElement('div');tb.className='thinking-block-live';
+                tb.innerHTML='<div class="think-live-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Thinking...</span></div><div class="think-live-text"></div>';
+                streamEl.parentElement.insertBefore(tb,streamEl);
+              }
+              const sec=Math.round((_thinkingEndTime-_thinkingStartTime)/1000);
+              tb.querySelector('.think-live-label span').textContent=_lang==='zh'?`思考中 ${sec}s...`:`Thinking ${sec}s...`;
+              tb.querySelector('.think-live-text').textContent=_thinkingContent.slice(-200);
+              if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
+            }
+          }
           let delta=j.choices?.[0]?.delta?.content||'';
           // Client-side <think> capture (defense-in-depth)
           if(delta){
@@ -3886,11 +3906,13 @@ async function sendMessage(){
     }
     // Collapsible thinking block (if thinking content was captured)
     if(streamEl&&_thinkingContent.trim()){
+      // Remove live thinking block
+      streamEl.parentElement?.querySelector('.thinking-block-live')?.remove();
       if(!_thinkingEndTime) _thinkingEndTime=Date.now();
       const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
       const details=document.createElement('details');
       details.className='thinking-block';
-      details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="10" y1="24" x2="14" y2="24"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
+      details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
       const tc=details.querySelector('.thinking-content');
       tc.textContent=_thinkingContent.trim();
       streamEl.parentNode.insertBefore(details,streamEl);
