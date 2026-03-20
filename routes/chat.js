@@ -1855,6 +1855,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       // If still no tool results, mark done and append a clear fallback (even when opening sentence exists).
       if (toolResults.length === 0 && !res.writableEnded) {
         res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${detectedLabel} done`, icon: detectedIcon, done: true })}\n\n`);
+        // If the model triggered a non-search/non-URL tool by mistake (e.g., benford_analysis when unrelated),
+        // don't show a confusing "URL extraction failed" message — just skip silently.
+        const isNonUrlTool = detectedToolNameNorm && !['web_search','browse','search','fetch','url'].some(k => detectedToolNameNorm.includes(k));
+        if (isNonUrlTool) {
+          log("info", "Non-URL tool triggered but no results — skipping fallback message", { tool: detectedToolNameNorm, provider: providerName });
+          // Don't send any fallback error text — let the clean assistant text stand on its own
+        } else {
         const sourceHint = directUrls?.[0] ? ` ${String(directUrls[0]).slice(0, 180)}` : "";
         const shouldUseSearchFallback = isSearchLikeTool || (forceOfficialSearch && !hasDirectUrl) || (!hasDirectUrl && explicitSearchIntent) || (chatIntent.kind === "web_lookup" && !hasDirectUrl);
         const fallback = shouldUseSearchFallback
@@ -1883,6 +1890,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           const policyLinks = buildRequiredLinkLines(getOfficialFormFallbackResults(userText), lang);
           if (policyLinks) sendDelta(`\n\n${policyLinks}\n`);
         }
+        } // close else (non-URL tool check)
       }
 
       // Send file_download events
