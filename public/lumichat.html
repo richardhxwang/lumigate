@@ -411,41 +411,15 @@
     .tb:hover{background:var(--sb-hover);color:var(--t1)}
     .tb.tb-active{color:var(--accent);background:rgba(16,163,127,0.1)}
     .tb.tb-mode-active{color:var(--accent);background:rgba(16,163,127,0.12)}
-    .pro-wrap{position:relative}
-    #pro-menu{position:absolute;left:0;bottom:44px;min-width:280px;max-width:min(92vw,420px);background:rgba(var(--bg-rgb,33,33,33),0.85);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);opacity:1;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.26),0 1px 0 rgba(255,255,255,.04) inset;padding:10px;display:none;z-index:60}
-    :root.light #pro-menu{background:rgba(245,245,245,0.88)}
-    #pro-menu.open{display:block;animation:pro-menu-in .2s ease}
-    @keyframes pro-menu-in{from{opacity:0;transform:translateY(8px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .pro-grid{display:grid;grid-template-columns:130px 1fr;gap:10px}
-    .pro-col-title{font-size:11px;color:var(--t3);letter-spacing:.02em;text-transform:uppercase;margin:0 0 6px}
-    .pro-list{display:flex;flex-direction:column;gap:6px}
-    .pro-item{border:1px solid var(--border);background:var(--inp);color:var(--t1);border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.3;text-align:left;cursor:pointer}
-    .pro-item:hover{border-color:var(--accent)}
-    .pro-item.active{border-color:var(--accent);background:rgba(16,163,127,.12)}
-    .pro-item.disabled{opacity:.55;cursor:not-allowed}
-    .pro-hint{margin-top:8px;font-size:11px;color:var(--t3)}
-    .pro-category{max-height:0;overflow:hidden;transition:max-height .3s ease,opacity .2s;opacity:0}
-    .pro-category.open{max-height:500px;opacity:1}
-    .pro-tool-item{opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease}
-    .pro-category.open .pro-tool-item{opacity:1;transform:translateY(0)}
-    .pro-category.open .pro-tool-item:nth-child(2){transition-delay:.05s}
-    .pro-category.open .pro-tool-item:nth-child(3){transition-delay:.1s}
-    .pro-category.open .pro-tool-item:nth-child(4){transition-delay:.15s}
-    @media (max-width: 640px){
-      #pro-menu{
-        position:fixed;
-        left:12px;
-        right:12px;
-        bottom:calc(84px + env(safe-area-inset-bottom, 0px));
-        min-width:0;
-        max-width:none;
-        max-height:min(62vh,420px);
-        overflow-y:auto;
-        overflow-x:hidden;
-        -webkit-overflow-scrolling:touch;
-      }
-      .pro-grid{grid-template-columns:1fr}
-    }
+    /* SLASH TOOL TAG (above input) */
+    #slash-tool-tag{display:none;padding:8px 12px 0;max-width:768px;margin:0 auto}
+    #slash-tool-tag.visible{display:block}
+    .slash-tag-inner{display:inline-flex;align-items:center;gap:6px;background:rgba(16,163,127,0.10);border:1px solid rgba(16,163,127,0.25);border-radius:var(--r1);padding:4px 10px;font-size:12.5px;color:var(--accent);font-weight:500;max-width:100%}
+    .slash-tag-icon{width:14px;height:14px;flex-shrink:0;opacity:.8}
+    .slash-tag-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .slash-tag-close{width:18px;height:18px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;padding:0;flex-shrink:0;transition:color .1s,background .1s}
+    .slash-tag-close:hover{color:var(--t1);background:rgba(255,255,255,0.08)}
+    :root.light .slash-tag-close:hover{background:rgba(0,0,0,0.06)}
     .tb svg{width:16px;height:16px}
     #send-btn{width:34px;height:34px;background:rgba(255,255,255,0.15);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);border:1.5px solid rgba(255,255,255,0.22);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,opacity .15s,transform .1s;flex-shrink:0}
     #send-btn:hover:not(:disabled){background:rgba(255,255,255,0.26);border-color:rgba(255,255,255,0.38);transform:scale(1.06)}
@@ -767,14 +741,26 @@
     #voice-overlay.voice-mode-cancel .vwave{transform:scale(.92);opacity:.75}
 
     /* SLASH COMMAND PANEL */
-    #slash-panel{position:absolute;bottom:calc(100% + 8px);left:12px;right:12px;background:rgba(30,30,32,0.88);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:6px;z-index:200;display:none;box-shadow:0 -8px 32px rgba(0,0,0,.5)}
-    :root.light #slash-panel{background:rgba(242,242,247,0.95);border-color:rgba(0,0,0,0.08)}
-    #slash-panel.open{display:block}
-    .slash-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r2);cursor:pointer;transition:background .1s}
+    #slash-panel{position:absolute;bottom:calc(100% + 8px);left:12px;right:12px;background:rgba(30,30,32,0.92);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.10);border-radius:var(--r3);padding:6px;z-index:200;display:none;box-shadow:0 -8px 32px rgba(0,0,0,.5);max-height:min(420px,50vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
+    #slash-panel::-webkit-scrollbar{width:5px}
+    #slash-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
+    :root.light #slash-panel{background:rgba(242,242,247,0.96);border-color:rgba(0,0,0,0.08);scrollbar-color:rgba(0,0,0,.12) transparent}
+    :root.light #slash-panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
+    #slash-panel.open{display:block;animation:slash-in .15s ease}
+    @keyframes slash-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .slash-divider{font-size:10px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding:8px 10px 4px;user-select:none;pointer-events:none;display:flex;align-items:center;gap:8px}
+    .slash-divider::before,.slash-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
+    :root.light .slash-divider::before,:root.light .slash-divider::after{background:rgba(0,0,0,.06)}
+    .slash-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r1);cursor:pointer;transition:background .1s}
     .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.08)}
     :root.light .slash-item:hover,:root.light .slash-item.sel{background:rgba(0,0,0,0.06)}
-    .slash-cmd{font-size:13.5px;font-weight:600;color:var(--accent);font-family:monospace;min-width:80px}
-    .slash-desc{font-size:12.5px;color:var(--t2)}
+    .slash-cmd{font-size:13px;font-weight:600;color:var(--accent);font-family:'SF Mono',SFMono-Regular,ui-monospace,Menlo,monospace;min-width:160px;flex-shrink:0}
+    .slash-desc{font-size:12px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .slash-item.sel .slash-desc{color:var(--t2)}
+    .slash-arrow{margin-left:auto;color:var(--t3);font-size:11px;flex-shrink:0;opacity:.6}
+    .slash-back{font-size:11px;color:var(--t3);padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;border-radius:var(--r1);transition:background .1s;user-select:none}
+    .slash-back:hover{background:rgba(255,255,255,0.06)}
+    :root.light .slash-back:hover{background:rgba(0,0,0,0.04)}
 
     /* CONTEXT USAGE BAR */
     #ctx-bar-wrap{height:3px;background:transparent;flex-shrink:0}
@@ -1058,6 +1044,7 @@
           <div id="voice-interim" data-t="voice.listening">Listening...</div>
           <div id="voice-hint" data-t="voice.tap_finish">Tap to finish</div>
         </div>
+        <div id="slash-tool-tag"></div>
         <textarea id="msg-in" data-t-placeholder="chat.placeholder" placeholder="Message LumiChat" rows="1" autocorrect="off" autocomplete="off" spellcheck="false"></textarea>
         <div id="file-chips"></div>
         <div class="inp-bar">
@@ -1073,27 +1060,6 @@
                 <path d="M12 3a14 14 0 0 0 0 18"/>
               </svg>
             </button>
-            <div class="pro-wrap">
-              <button class="tb" id="pro-btn" data-t-title="input.pro_tools" title="Professional Tools" aria-haspopup="menu" aria-expanded="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 4h12l2 4-8 12L4 8z"/>
-                  <path d="M9 8h6"/>
-                </svg>
-              </button>
-              <div id="pro-menu" role="menu">
-                <div class="pro-grid">
-                  <div>
-                    <div class="pro-col-title" data-t="pro.category">Category</div>
-                    <div class="pro-list" id="pro-cat-list"></div>
-                  </div>
-                  <div>
-                    <div class="pro-col-title" data-t="pro.tool">Tool</div>
-                    <div class="pro-list" id="pro-tool-list"></div>
-                  </div>
-                </div>
-                <div class="pro-hint" id="pro-hint"></div>
-              </div>
-            </div>
           </div>
           <button id="mic-btn" data-t-title="input.voice" title="Voice input">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
@@ -1552,17 +1518,48 @@ const STRINGS = {
   'chat.searching':           { en:'Searching',              zh:'Searching' },
   'chat.uploading':           { en:'Uploading...',           zh:'正在上传…' },
   'chat.in_out':              { en:'in',                     zh:'in' },
-  'input.pro_tools':          { en:'Professional Tools',     zh:'专业工具' },
-  'pro.category':             { en:'Category',               zh:'分类' },
-  'pro.tool':                 { en:'Tool',                   zh:'工具' },
-  'pro.cat_finance':          { en:'Finance',                zh:'金融' },
-  'pro.cat_lumihooks':        { en:'LumiHooks',              zh:'LumiHooks' },
-  'pro.tool_fs_analysis':     { en:'Financial Statement Analysis', zh:'财务报表分析' },
-  'pro.tool_fin_modeling':    { en:'Financial Modeling',     zh:'财务建模' },
-  'pro.tool_coming_soon':     { en:'Coming soon',            zh:'即将上线' },
-  'pro.mode_off':             { en:'Professional mode: off', zh:'专业模式：关闭' },
-  'pro.mode_on':              { en:'Professional mode',      zh:'专业模式' },
-  'pro.mode_hint':            { en:'Selected tools route messages to specialist workflow.', zh:'已选工具会将消息路由到专用流程。' },
+  // Slash commands
+  'slash.financial_statement':{ en:'Analyze financial statements with 15 cross-checks', zh:'15项交叉核验的财务报表分析' },
+  'slash.financial_review':   { en:'Year-over-year FAR comparison with variance analysis', zh:'逐年FAR对比与差异分析' },
+  'slash.audit':              { en:'Audit tools (JET, MUS, Benford...)', zh:'审计工具（JET、MUS、Benford…）' },
+  'slash.generate':           { en:'Generate files (Excel, Word, PPT)', zh:'生成文件（Excel、Word、PPT）' },
+  'slash.hkex':               { en:'Download HKEX announcements by stock code', zh:'按股票代码下载港交所公告' },
+  'slash.search':             { en:'Force web search for current query', zh:'强制搜索当前问题' },
+  'slash.fetch':              { en:'Fetch and summarize a URL', zh:'抓取并总结网页' },
+  'slash.template':           { en:'Fill Word/Excel template from data', zh:'用数据填充 Word/Excel 模板' },
+  'slash.model':              { en:'Switch AI provider and model', zh:'切换 AI 模型' },
+  'slash.think':              { en:'Toggle thinking mode (Auto/Think/Fast)', zh:'切换思考模式' },
+  'slash.encrypt':            { en:'Toggle encrypted upload mode', zh:'切换加密上传模式' },
+  'slash.preset':             { en:'Apply a system preset', zh:'应用系统预设' },
+  'slash.memory':             { en:'Edit conversation memory', zh:'编辑对话记忆' },
+  'slash.compact':            { en:'Summarize long conversation to save context', zh:'压缩长对话以节省上下文' },
+  'slash.copy':               { en:'Copy last response to clipboard', zh:'复制上一条回复' },
+  'slash.export':             { en:'Export conversation as Markdown', zh:'导出对话为 Markdown' },
+  'slash.voice':              { en:'Change TTS voice', zh:'更换语音' },
+  'slash.theme':              { en:'Toggle dark/light mode', zh:'切换深色/浅色模式' },
+  'slash.lang':               { en:'Switch language (中文/English)', zh:'切换语言（中文/English）' },
+  'slash.project':            { en:'Switch or create project', zh:'切换或创建项目' },
+  'slash.new':                { en:'Start new conversation', zh:'开始新对话' },
+  'slash.clear':              { en:'Clear current conversation', zh:'清空当前对话' },
+  'slash.diff':               { en:'Show changes in this conversation', zh:'显示对话中的变更' },
+  'slash.retry':              { en:'Retry last message with different model', zh:'用不同模型重试上一条' },
+  'slash.history':            { en:'Search conversation history', zh:'搜索对话历史' },
+  'slash.system':             { en:'Set one-time system message', zh:'设置一次性系统消息' },
+  'slash.audit_jet':          { en:'15 Journal Entry Tests on GL', zh:'总账15项日记账测试' },
+  'slash.audit_mus':          { en:'Monetary Unit Sampling (AICPA)', zh:'货币单位抽样（AICPA）' },
+  'slash.audit_benford':      { en:'First-digit fraud detection', zh:'首位数字舞弊检测' },
+  'slash.audit_materiality':  { en:'ISA 320 materiality levels', zh:'ISA 320 重要性水平' },
+  'slash.audit_reconciliation':{ en:'Auto-reconcile two datasets', zh:'自动核对两组数据' },
+  'slash.audit_going_concern':{ en:'ISA 570 going concern check', zh:'ISA 570 持续经营检查' },
+  'slash.audit_gl_extract':   { en:'Extract sub-ledger by account code', zh:'按科目代码提取明细账' },
+  'slash.audit_data_clean':   { en:'Clean and normalize financial data', zh:'清洗并标准化财务数据' },
+  'slash.audit_ppe':          { en:'PPE rollforward + depreciation rates', zh:'固定资产变动表+折旧率' },
+  'slash.audit_far':          { en:'Financial Analytics Review (YoY)', zh:'财务分析审阅（同比）' },
+  'slash.generate_excel':     { en:'Excel with formulas and charts', zh:'带公式和图表的 Excel' },
+  'slash.generate_word':      { en:'Word document with formatting', zh:'带格式的 Word 文档' },
+  'slash.generate_ppt':       { en:'PowerPoint presentation', zh:'PowerPoint 演示文稿' },
+  'slash.tool_active':        { en:'Active tool', zh:'当前工具' },
+  'slash.tool_cleared':       { en:'Tool mode cleared', zh:'工具模式已清除' },
 
   // Sidebar
   'sidebar.new_chat':         { en:'New Chat',               zh:'新对话' },
@@ -1703,12 +1700,6 @@ const STRINGS = {
   'tier.not_in_plan':         { en:'Not included',           zh:'未包含' },
   'tier.upgrade_btn':         { en:'Upgrade to Premium',     zh:'升级到 Premium' },
 
-  // Slash
-  'slash.new':                { en:'Start a new chat',       zh:'开始新对话' },
-  'slash.clear':              { en:'Clear current messages',  zh:'清空当前消息' },
-  'slash.model':              { en:'Open model selector',    zh:'打开模型选择器' },
-  'slash.system':             { en:'Set one-time system message (/system <content>)', zh:'设置一次性系统消息 (/system <内容>)' },
-  'slash.copy':               { en:'Copy last assistant message', zh:'复制上一条助手消息' },
 
   // Voice
   'voice.listening':          { en:'Listening...',           zh:'正在听…' },
@@ -1811,8 +1802,6 @@ function applyLang(){
   // Refresh suggestions if on empty screen
   if(emptyEl && emptyEl.style.display !== 'none' && typeof renderSuggestions === 'function') renderSuggestions();
   if(typeof renderWebSearchToggle === 'function') renderWebSearchToggle();
-  if(typeof renderProfessionalToolsMenu === 'function') renderProfessionalToolsMenu();
-  if(typeof renderProfessionalToolsButton === 'function') renderProfessionalToolsButton();
   // SLASH_COMMANDS, BUILTIN_PRESETS, CAP_META, SENS_DESCS all use getters — auto-update on lang change
 }
 
@@ -1830,25 +1819,17 @@ let autoFollowStream = true;
 let forceWebSearch = false;
 let encryptedUploadEnabled = false;
 let encryptedUploadExt = null;
-let proMenuOpen = false;
-let selectedProCategory = "finance";
+let selectedProCategory = "";
 let selectedProTool = "";
 const sessionSyncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('lumichat-sync') : null;
 let sessionRefreshTimer = null;
-const PRO_TOOL_TREE = {
-  finance: [
-    { id: "financial_statement_analysis", labelKey: "pro.tool_fs_analysis", enabled: true },
-    { id: "financial_modeling", labelKey: "pro.tool_fin_modeling", enabled: false },
-  ],
-  lumihooks: [],
-};
 
 // DOM
 const $ = id => document.getElementById(id);
 const authEl = $('auth'), appEl = $('app'), chatEl = $('chat'), emptyEl = $('empty');
 const sbList = $('sb-list'), mdlLabel = $('mdl-label'), mdlDrop = $('mdl-drop');
 const msgIn = $('msg-in'), sendBtn = $('send-btn'), webBtn = $('web-btn');
-const proBtn = $('pro-btn'), proMenu = $('pro-menu'), proCatList = $('pro-cat-list'), proToolList = $('pro-tool-list'), proHint = $('pro-hint');
+const slashToolTag = $('slash-tool-tag');
 const fileIn = $('file-in'), fileChips = $('file-chips'), suggGrid = $('sugg-grid');
 const sidebar = $('sidebar');
 const encModeBtn = $('enc-mode-btn');
@@ -3316,70 +3297,52 @@ function renderWebSearchToggle(){
   webBtn.title = forceWebSearch ? `${t('input.search')} (Always)` : `${t('input.search')} (Assistants decide)`;
 }
 
-function proCategoryLabel(categoryId){
-  if(categoryId === "finance") return t("pro.cat_finance");
-  if(categoryId === "lumihooks") return t("pro.cat_lumihooks");
-  return categoryId;
-}
-
-function renderProfessionalToolsMenu(){
-  if(!proCatList || !proToolList || !proHint) return;
-  const categoryOrder = ["finance", "lumihooks"];
-  proCatList.replaceChildren(...categoryOrder.map((cat)=>{
-    const btn=document.createElement("button");
-    btn.className=`pro-item ${selectedProCategory===cat?"active":""}`;
-    btn.type="button";
-    btn.textContent=proCategoryLabel(cat);
-    btn.addEventListener("click", ()=>{
-      selectedProCategory=cat;
-      const tools=PRO_TOOL_TREE[cat]||[];
-      if(!tools.find((x)=>x.id===selectedProTool)) selectedProTool="";
-      renderProfessionalToolsMenu();
-      renderProfessionalToolsButton();
-    });
-    return btn;
-  }));
-  const tools=PRO_TOOL_TREE[selectedProCategory]||[];
-  const nodes=tools.map((tool)=>{
-    const btn=document.createElement("button");
-    const enabled=tool.enabled!==false;
-    btn.className=`pro-item pro-tool-item ${selectedProTool===tool.id?"active":""} ${enabled?"":"disabled"}`;
-    btn.type="button";
-    btn.textContent=t(tool.labelKey);
-    if(!enabled){
-      btn.title=t("pro.tool_coming_soon");
-      return btn;
-    }
-    btn.addEventListener("click", ()=>{
-      selectedProTool = selectedProTool===tool.id ? "" : tool.id;
-      proMenuOpen=false;
-      if(proMenu) proMenu.classList.remove("open");
-      renderProfessionalToolsMenu();
-      renderProfessionalToolsButton();
-    });
-    return btn;
-  });
-  if(!nodes.length){
-    const empty=document.createElement("div");
-    empty.className="pro-item pro-tool-item disabled";
-    empty.textContent=t("pro.tool_coming_soon");
-    nodes.push(empty);
+// ── SLASH TOOL TAG (above input bar) ──────────────────────────────────────
+function showSlashToolTag(toolId, label, category){
+  selectedProTool = toolId;
+  selectedProCategory = category || '';
+  if(!slashToolTag) return;
+  slashToolTag.innerHTML = '';
+  const inner = document.createElement('div');
+  inner.className = 'slash-tag-inner';
+  // Icon
+  const icon = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  icon.setAttribute('viewBox','0 0 24 24');
+  icon.setAttribute('fill','none');
+  icon.setAttribute('stroke','currentColor');
+  icon.setAttribute('stroke-width','2');
+  icon.classList.add('slash-tag-icon');
+  if(category === 'audit'){
+    icon.innerHTML = '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/>';
+  } else if(category === 'generate'){
+    icon.innerHTML = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
   }
-  // Wrap in animated category container
-  const catWrap = document.createElement("div");
-  catWrap.className = "pro-category";
-  nodes.forEach(n => catWrap.appendChild(n));
-  proToolList.replaceChildren(catWrap);
-  // Trigger tools animation after a slight delay (category shows first, then tools expand)
-  setTimeout(() => catWrap.classList.add("open"), 120);
-  proHint.textContent = selectedProTool ? `${t("pro.mode_on")}: ${t((tools.find((x)=>x.id===selectedProTool)||{}).labelKey || "pro.tool_fs_analysis")}` : t("pro.mode_hint");
+  inner.appendChild(icon);
+  const labelEl = document.createElement('span');
+  labelEl.className = 'slash-tag-label';
+  labelEl.textContent = label;
+  inner.appendChild(labelEl);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'slash-tag-close';
+  closeBtn.type = 'button';
+  closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  closeBtn.addEventListener('click', clearSlashToolTag);
+  inner.appendChild(closeBtn);
+  slashToolTag.appendChild(inner);
+  slashToolTag.classList.add('visible');
+  msgIn.focus();
 }
 
-function renderProfessionalToolsButton(){
-  if(!proBtn) return;
-  proBtn.classList.toggle("tb-mode-active", !!selectedProTool);
-  proBtn.setAttribute("aria-expanded", proMenuOpen ? "true" : "false");
-  proBtn.title = selectedProTool ? `${t("pro.mode_on")}: ${selectedProTool}` : t("input.pro_tools");
+function clearSlashToolTag(){
+  selectedProTool = '';
+  selectedProCategory = '';
+  if(slashToolTag){
+    slashToolTag.classList.remove('visible');
+    slashToolTag.innerHTML = '';
+  }
+  toast(t('slash.tool_cleared'), 1500, '#10a37f');
 }
 
 async function sendMessage(){
@@ -5191,23 +5154,6 @@ if(webBtn){
   });
   renderWebSearchToggle();
 }
-if(proBtn && proMenu){
-  proBtn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    proMenuOpen=!proMenuOpen;
-    proMenu.classList.toggle('open', proMenuOpen);
-    renderProfessionalToolsButton();
-  });
-  proMenu.addEventListener('click', (e)=>{ e.stopPropagation(); });
-  document.addEventListener('click', ()=>{
-    if(!proMenuOpen) return;
-    proMenuOpen=false;
-    proMenu.classList.remove('open');
-    renderProfessionalToolsButton();
-  });
-  renderProfessionalToolsMenu();
-  renderProfessionalToolsButton();
-}
 fileIn.addEventListener('change',()=>{ Array.from(fileIn.files).forEach(addFile); fileIn.value=''; });
 fileChips.addEventListener('click',e=>{ const b=e.target.closest('.fchip-rm'); if(!b) return; pendingFiles.splice(+b.dataset.i,1); renderChips(); updateSendBtn(); });
 sessionSyncChannel?.addEventListener('message',e=>{
@@ -6313,86 +6259,380 @@ function updateCtxBar(overrideTokens){
 }
 
 // ── SLASH COMMAND PANEL ───────────────────────────────────────────────────
+// Categories for dividers
+const SLASH_CAT_ANALYSIS = 'analysis';
+const SLASH_CAT_FILES    = 'files';
+const SLASH_CAT_AI       = 'ai';
+const SLASH_CAT_SESSION  = 'session';
+const SLASH_CAT_SETTINGS = 'settings';
+
 const SLASH_COMMANDS = [
-  { cmd:'/new',    get desc(){ return t('slash.new'); } },
-  { cmd:'/clear',  get desc(){ return t('slash.clear'); } },
-  { cmd:'/model',  get desc(){ return t('slash.model'); } },
-  { cmd:'/system', get desc(){ return t('slash.system'); } },
-  { cmd:'/copy',   get desc(){ return t('slash.copy'); } },
+  // ── Analysis ──
+  { cmd:'/financial-statement', descKey:'slash.financial_statement', cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'financial_statement_analysis', toolCat:'finance' },
+  { cmd:'/financial-review',    descKey:'slash.financial_review',    cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'financial_analytics_review', toolCat:'finance' },
+  { cmd:'/audit',               descKey:'slash.audit',               cat:SLASH_CAT_ANALYSIS, action:'submenu', subKey:'audit' },
+  { cmd:'/hkex',                descKey:'slash.hkex',                cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'hkex_announcement', toolCat:'finance' },
+  // ── Files ──
+  { cmd:'/generate',            descKey:'slash.generate',            cat:SLASH_CAT_FILES,    action:'submenu', subKey:'generate' },
+  { cmd:'/search',              descKey:'slash.search',              cat:SLASH_CAT_FILES,    action:'immediate', fn:'slashSearch' },
+  { cmd:'/fetch',               descKey:'slash.fetch',               cat:SLASH_CAT_FILES,    action:'tool', toolId:'web_fetch', toolCat:'web' },
+  { cmd:'/template',            descKey:'slash.template',            cat:SLASH_CAT_FILES,    action:'tool', toolId:'template_fill', toolCat:'generate' },
+  // ── AI ──
+  { cmd:'/model',               descKey:'slash.model',               cat:SLASH_CAT_AI,       action:'immediate', fn:'slashModel' },
+  { cmd:'/think',               descKey:'slash.think',               cat:SLASH_CAT_AI,       action:'immediate', fn:'slashThink' },
+  { cmd:'/encrypt',             descKey:'slash.encrypt',             cat:SLASH_CAT_AI,       action:'immediate', fn:'slashEncrypt' },
+  { cmd:'/preset',              descKey:'slash.preset',              cat:SLASH_CAT_AI,       action:'immediate', fn:'slashPreset' },
+  { cmd:'/memory',              descKey:'slash.memory',              cat:SLASH_CAT_AI,       action:'immediate', fn:'slashMemory' },
+  { cmd:'/system',              descKey:'slash.system',              cat:SLASH_CAT_AI,       action:'keeptext' },
+  // ── Session ──
+  { cmd:'/new',                 descKey:'slash.new',                 cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashNew' },
+  { cmd:'/clear',               descKey:'slash.clear',               cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashClear' },
+  { cmd:'/compact',             descKey:'slash.compact',             cat:SLASH_CAT_SESSION,  action:'tool', toolId:'compact_conversation', toolCat:'session' },
+  { cmd:'/copy',                descKey:'slash.copy',                cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashCopy' },
+  { cmd:'/export',              descKey:'slash.export',              cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashExport' },
+  { cmd:'/diff',                descKey:'slash.diff',                cat:SLASH_CAT_SESSION,  action:'tool', toolId:'diff_conversation', toolCat:'session' },
+  { cmd:'/retry',               descKey:'slash.retry',               cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashRetry' },
+  { cmd:'/history',             descKey:'slash.history',             cat:SLASH_CAT_SESSION,  action:'immediate', fn:'slashHistory' },
+  // ── Settings ──
+  { cmd:'/voice',               descKey:'slash.voice',               cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashVoice' },
+  { cmd:'/theme',               descKey:'slash.theme',               cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashTheme' },
+  { cmd:'/lang',                descKey:'slash.lang',                cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashLang' },
+  { cmd:'/project',             descKey:'slash.project',             cat:SLASH_CAT_SETTINGS, action:'immediate', fn:'slashProject' },
 ];
+
+// Sub-menus for two-level commands
+const SLASH_SUBMENUS = {
+  audit: [
+    { cmd:'/audit jet',             descKey:'slash.audit_jet',             action:'tool', toolId:'audit_jet',             toolCat:'audit' },
+    { cmd:'/audit mus',             descKey:'slash.audit_mus',             action:'tool', toolId:'audit_mus',             toolCat:'audit' },
+    { cmd:'/audit benford',         descKey:'slash.audit_benford',         action:'tool', toolId:'audit_benford',         toolCat:'audit' },
+    { cmd:'/audit materiality',     descKey:'slash.audit_materiality',     action:'tool', toolId:'audit_materiality',     toolCat:'audit' },
+    { cmd:'/audit reconciliation',  descKey:'slash.audit_reconciliation',  action:'tool', toolId:'audit_reconciliation',  toolCat:'audit' },
+    { cmd:'/audit going-concern',   descKey:'slash.audit_going_concern',   action:'tool', toolId:'audit_going_concern',   toolCat:'audit' },
+    { cmd:'/audit gl-extract',      descKey:'slash.audit_gl_extract',      action:'tool', toolId:'audit_gl_extract',      toolCat:'audit' },
+    { cmd:'/audit data-clean',      descKey:'slash.audit_data_clean',      action:'tool', toolId:'audit_data_clean',      toolCat:'audit' },
+    { cmd:'/audit ppe',             descKey:'slash.audit_ppe',             action:'tool', toolId:'audit_ppe',             toolCat:'audit' },
+    { cmd:'/audit far',             descKey:'slash.audit_far',             action:'tool', toolId:'audit_far',             toolCat:'audit' },
+  ],
+  generate: [
+    { cmd:'/generate excel',        descKey:'slash.generate_excel',        action:'tool', toolId:'generate_spreadsheet',  toolCat:'generate' },
+    { cmd:'/generate word',         descKey:'slash.generate_word',         action:'tool', toolId:'generate_document',     toolCat:'generate' },
+    { cmd:'/generate ppt',          descKey:'slash.generate_ppt',          action:'tool', toolId:'generate_presentation', toolCat:'generate' },
+  ],
+};
+
+const SLASH_CAT_LABELS = {
+  [SLASH_CAT_ANALYSIS]: { en:'Analysis', zh:'分析' },
+  [SLASH_CAT_FILES]:    { en:'Files & Web', zh:'文件与网络' },
+  [SLASH_CAT_AI]:       { en:'AI & Mode', zh:'AI 与模式' },
+  [SLASH_CAT_SESSION]:  { en:'Session', zh:'会话' },
+  [SLASH_CAT_SETTINGS]: { en:'Settings', zh:'设置' },
+};
 
 let slashSel = 0;
 let _slashVisible = false;
+let _slashSubMenu = null; // null = top level, 'audit' | 'generate' = sub-menu
 
 function getSlashPanel(){ return $('slash-panel'); }
 
-function showSlashPanel(filtered){
+function _slashCatLabel(cat){
+  const obj = SLASH_CAT_LABELS[cat];
+  return obj ? (obj[_lang] || obj.en) : cat;
+}
+
+function _renderSlashItems(items, showBack){
   const panel = getSlashPanel();
   if(!panel) return;
   slashSel = 0;
-  const items = filtered || SLASH_COMMANDS;
   if(!items.length){ hideSlashPanel(); return; }
-  panel.innerHTML = items.map((c,i)=>
-    `<div class="slash-item${i===0?' sel':''}" data-cmd="${esc(c.cmd)}">
-      <span class="slash-cmd">${esc(c.cmd)}</span>
-      <span class="slash-desc">${esc(c.desc)}</span>
-    </div>`
-  ).join('');
+
+  panel.innerHTML = '';
+  // Back button for sub-menus
+  if(showBack){
+    const back = document.createElement('div');
+    back.className = 'slash-back';
+    back.dataset.action = 'back';
+    back.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> ' + (_lang==='zh'?'返回':'Back');
+    panel.appendChild(back);
+  }
+
+  let lastCat = null;
+  let selIdx = 0;
+  items.forEach((c, i) => {
+    // Category dividers (only for top-level)
+    if(!showBack && c.cat && c.cat !== lastCat){
+      lastCat = c.cat;
+      const div = document.createElement('div');
+      div.className = 'slash-divider';
+      div.textContent = _slashCatLabel(c.cat);
+      panel.appendChild(div);
+    }
+    const row = document.createElement('div');
+    row.className = 'slash-item' + (i === 0 ? ' sel' : '');
+    row.dataset.idx = String(i);
+    row.dataset.cmd = c.cmd;
+    if(c.action) row.dataset.action = c.action;
+    if(c.subKey) row.dataset.subkey = c.subKey;
+    if(c.fn) row.dataset.fn = c.fn;
+    if(c.toolId) row.dataset.toolid = c.toolId;
+    if(c.toolCat) row.dataset.toolcat = c.toolCat;
+
+    const cmdSpan = document.createElement('span');
+    cmdSpan.className = 'slash-cmd';
+    cmdSpan.textContent = c.cmd;
+    row.appendChild(cmdSpan);
+
+    const descSpan = document.createElement('span');
+    descSpan.className = 'slash-desc';
+    descSpan.textContent = t(c.descKey);
+    row.appendChild(descSpan);
+
+    if(c.action === 'submenu'){
+      const arrow = document.createElement('span');
+      arrow.className = 'slash-arrow';
+      arrow.textContent = '\u203A'; // single right-pointing angle quotation mark
+      row.appendChild(arrow);
+    }
+    panel.appendChild(row);
+  });
+
   panel.classList.add('open');
   _slashVisible = true;
+  // Ensure selected item is visible
+  const firstSel = panel.querySelector('.slash-item.sel');
+  if(firstSel) firstSel.scrollIntoView({block:'nearest'});
+}
+
+function showSlashPanel(filtered, subMenu){
+  _slashSubMenu = subMenu || null;
+  if(subMenu && SLASH_SUBMENUS[subMenu]){
+    let items = SLASH_SUBMENUS[subMenu];
+    if(filtered){
+      items = items.filter(c => c.cmd.includes(filtered));
+    }
+    _renderSlashItems(items, true);
+  } else {
+    _renderSlashItems(filtered || SLASH_COMMANDS, false);
+  }
 }
 
 function hideSlashPanel(){
   const panel = getSlashPanel();
   if(panel){ panel.classList.remove('open'); panel.innerHTML=''; }
   _slashVisible = false;
+  _slashSubMenu = null;
   slashSel = 0;
 }
 
 function updateSlashSel(dir){
-  const items = getSlashPanel()?.querySelectorAll('.slash-item');
+  const panel = getSlashPanel();
+  if(!panel) return;
+  const items = panel.querySelectorAll('.slash-item');
   if(!items||!items.length) return;
   items[slashSel]?.classList.remove('sel');
   slashSel = (slashSel + dir + items.length) % items.length;
   items[slashSel]?.classList.add('sel');
+  items[slashSel]?.scrollIntoView({block:'nearest'});
 }
 
-function execSlashCommand(cmdStr){
-  const trimmed = cmdStr.trim();
-  if(trimmed === '/new'){ newChat(); return; }
-  if(trimmed === '/clear'){
-    document.querySelectorAll('.msg-row').forEach(r=>r.remove());
-    messages = [];
-    emptyEl.style.display='flex';
-    return;
+// ── Slash action functions ───────────────────────────────────────────────
+function slashNew(){ newChat(); }
+function slashClear(){
+  document.querySelectorAll('.msg-row').forEach(r=>r.remove());
+  messages = [];
+  emptyEl.style.display='flex';
+}
+function slashModel(){ $('mdl-btn')?.click(); }
+function slashThink(){
+  cycleThinkMode();
+  const labels = {auto:'Auto',think:'Think',fast:'Fast'};
+  toast(`Thinking: ${labels[thinkingMode]||thinkingMode}`, 1500, '#10a37f');
+}
+function slashEncrypt(){
+  encryptedUploadEnabled = !encryptedUploadEnabled;
+  if(encModeBtn){
+    encModeBtn.classList.toggle('active', !!encryptedUploadEnabled);
+    encModeBtn.title = encryptedUploadEnabled ? 'Encrypted Upload Mode: ON' : 'Encrypted Upload Mode: OFF';
   }
-  if(trimmed === '/model'){ $('mdl-btn')?.click(); return; }
-  if(trimmed.startsWith('/system')){
-    const txt = trimmed.slice('/system'.length).trim();
-    window._oneTimeSystem = txt || '';
-    if(txt) toast(t('misc.one_time_system'),2000,'#10a37f');
-    return;
+  toast(encryptedUploadEnabled ? 'Encrypted upload: ON' : 'Encrypted upload: OFF', 1500, '#10a37f');
+}
+function slashPreset(){ openSettings(); setTimeout(()=>{ const tab = document.querySelector('.stg-tab[data-tab="presets"]'); if(tab) tab.click(); }, 100); }
+function slashMemory(){ openSettings(); setTimeout(()=>{ const tab = document.querySelector('.stg-tab[data-tab="chat"]'); if(tab) tab.click(); }, 100); }
+function slashCopy(){
+  const rows = document.querySelectorAll('.msg-row.assistant');
+  if(!rows.length){ toast(t('misc.no_assistant_copy'),2000,'#f59e0b'); return; }
+  const lastRow = rows[rows.length-1];
+  const content = lastRow.querySelector('.asst-content');
+  if(content) navigator.clipboard.writeText(content.innerText).then(()=>toast(t('chat.copied'),1500,'#10a37f'));
+}
+function slashExport(){
+  if(!messages.length){ toast(_lang==='zh'?'没有消息可导出':'No messages to export',2000,'#f59e0b'); return; }
+  const lines = messages.map(m=>{
+    const role = m.role === 'user' ? '**You**' : m.role === 'assistant' ? '**Assistant**' : `**${m.role}**`;
+    const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+    return `### ${role}\n\n${content}`;
+  });
+  const md = lines.join('\n\n---\n\n');
+  const blob = new Blob([md], {type:'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `chat-export-${Date.now()}.md`; a.click();
+  URL.revokeObjectURL(url);
+  toast(_lang==='zh'?'已导出为 Markdown':'Exported as Markdown',1500,'#10a37f');
+}
+function slashVoice(){ openSettings(); setTimeout(()=>{ const tab = document.querySelector('.stg-tab[data-tab="chat"]'); if(tab) tab.click(); }, 100); }
+function slashTheme(){
+  const cur = localStorage.getItem('lc_theme');
+  const next = (cur === 'light') ? 'dark' : 'light';
+  applyTheme(next);
+  localStorage.setItem('lc_theme_explicit','1');
+  try{ patchUserSettings?.({theme: next}); }catch{}
+  toast(`Theme: ${next}`, 1500, '#10a37f');
+}
+function slashLang(){
+  const next = _lang === 'zh' ? 'en' : 'zh';
+  setLang(next);
+  toast(next === 'zh' ? '已切换到中文' : 'Switched to English', 1500, '#10a37f');
+}
+function slashProject(){ if(typeof openMobileSidebar==='function' && typeof isMobile==='function' && isMobile()) openMobileSidebar(); }
+function slashSearch(){
+  forceWebSearch = true;
+  if(webBtn){
+    webBtn.classList.add('tb-active');
+    webBtn.setAttribute('aria-pressed','true');
   }
-  if(trimmed === '/copy'){
+  toast(_lang==='zh'?'网络搜索已开启':'Web search enabled',1500,'#10a37f');
+}
+function slashRetry(){
+  // Find last user message and re-send with current model
+  if(!messages.length){ toast(_lang==='zh'?'没有可重试的消息':'No message to retry',2000,'#f59e0b'); return; }
+  const lastUserIdx = messages.map((m,i)=>m.role==='user'?i:-1).filter(i=>i>=0).pop();
+  if(lastUserIdx===undefined){ toast(_lang==='zh'?'没有用户消息':'No user message found',2000,'#f59e0b'); return; }
+  // Remove last assistant response if present
+  if(messages.length > lastUserIdx+1 && messages[lastUserIdx+1].role==='assistant'){
+    messages.splice(lastUserIdx+1,1);
     const rows = document.querySelectorAll('.msg-row.assistant');
-    if(!rows.length){ toast(t('misc.no_assistant_copy'),2000,'#f59e0b'); return; }
-    const lastRow = rows[rows.length-1];
-    const content = lastRow.querySelector('.asst-content');
-    if(content) navigator.clipboard.writeText(content.innerText).then(()=>toast(t('chat.copied'),1500,'#10a37f'));
-    return;
+    if(rows.length) rows[rows.length-1].remove();
   }
+  // Re-set input and trigger send
+  const lastUserText = typeof messages[lastUserIdx].content === 'string' ? messages[lastUserIdx].content : '';
+  messages.splice(lastUserIdx,1);
+  const userRows = document.querySelectorAll('.msg-row.user');
+  if(userRows.length) userRows[userRows.length-1].remove();
+  msgIn.value = lastUserText;
+  updateSendBtn();
+  sendMessage();
+}
+function slashHistory(){
+  if(typeof openMobileSidebar==='function' && typeof isMobile==='function' && isMobile()) openMobileSidebar();
+  setTimeout(()=>{
+    const searchBtn = $('sb-search-btn');
+    if(searchBtn) searchBtn.click();
+    setTimeout(()=>{
+      const searchInput = document.querySelector('.sb-search-inp');
+      if(searchInput){ searchInput.focus(); searchInput.select(); }
+    }, 150);
+  }, 200);
 }
 
-// Slash panel input wiring
+function execSlashCommand(cmdStr, itemEl){
+  const trimmed = cmdStr.trim();
+  const action = itemEl?.dataset?.action || '';
+  const fn = itemEl?.dataset?.fn || '';
+  const toolId = itemEl?.dataset?.toolid || '';
+  const toolCat = itemEl?.dataset?.toolcat || '';
+  const subKey = itemEl?.dataset?.subkey || '';
+
+  // Sub-menu navigation
+  if(action === 'submenu' && subKey){
+    msgIn.value = '/' + subKey + ' ';
+    showSlashPanel(null, subKey);
+    return 'keep'; // don't clear input
+  }
+
+  // Back button
+  if(action === 'back'){
+    _slashSubMenu = null;
+    msgIn.value = '/';
+    showSlashPanel(SLASH_COMMANDS);
+    return 'keep';
+  }
+
+  // Tool commands — set tag and let user type
+  if(action === 'tool' && toolId){
+    const label = itemEl ? (itemEl.querySelector('.slash-desc')?.textContent || trimmed) : trimmed;
+    showSlashToolTag(toolId, label, toolCat);
+    return;
+  }
+
+  // Keep-text commands (like /system)
+  if(action === 'keeptext' || trimmed.startsWith('/system')){
+    const systemText = trimmed.startsWith('/system') ? trimmed.slice('/system'.length).trim() : '';
+    window._oneTimeSystem = systemText || '';
+    if(systemText) toast(t('misc.one_time_system'),2000,'#10a37f');
+    return;
+  }
+
+  // Immediate action commands
+  if(fn && typeof window[fn] === 'function'){
+    // Call via lookup to avoid eval
+    ({slashNew,slashClear,slashModel,slashThink,slashEncrypt,slashPreset,slashMemory,slashCopy,slashExport,slashVoice,slashTheme,slashLang,slashProject,slashSearch,slashRetry,slashHistory})[fn]?.();
+    return;
+  }
+
+  // Fallback: try legacy matching
+  if(trimmed === '/new'){ slashNew(); return; }
+  if(trimmed === '/clear'){ slashClear(); return; }
+  if(trimmed === '/model'){ slashModel(); return; }
+  if(trimmed === '/copy'){ slashCopy(); return; }
+}
+
+// ── Slash panel input wiring ─────────────────────────────────────────────
+function _fuzzySlashMatch(typed, cmd){
+  // Match if typed chars appear in order in cmd
+  const t2 = typed.toLowerCase();
+  const c2 = cmd.toLowerCase();
+  if(c2.startsWith(t2)) return 2; // prefix match (highest)
+  // Check if all typed chars appear in order
+  let ci = 0;
+  for(let i=0; i<t2.length && ci<c2.length; i++){
+    const idx = c2.indexOf(t2[i], ci);
+    if(idx === -1) return 0;
+    ci = idx + 1;
+  }
+  return 1; // fuzzy match
+}
+
 msgIn.addEventListener('input',()=>{
   const val = msgIn.value;
-  if(val.startsWith('/')){
-    const typed = val.split('\n')[0]; // only first line for slash matching
-    const filtered = SLASH_COMMANDS.filter(c=>c.cmd.startsWith(typed.split(' ')[0]));
-    showSlashPanel(filtered.length ? filtered : SLASH_COMMANDS);
-  } else {
-    hideSlashPanel();
+  if(!val.startsWith('/')){ hideSlashPanel(); return; }
+
+  const typed = val.split('\n')[0].trim();
+
+  // Check if we're in a sub-menu context
+  for(const [key, items] of Object.entries(SLASH_SUBMENUS)){
+    const prefix = '/' + key + ' ';
+    if(typed.startsWith(prefix) || typed === '/' + key){
+      const subTyped = typed.startsWith(prefix) ? typed : '';
+      const filtered = subTyped ? items.filter(c => {
+        const afterPrefix = c.cmd.slice(prefix.length - 1); // include space
+        return _fuzzySlashMatch(subTyped.slice(prefix.length - 1), afterPrefix) > 0 || c.cmd.includes(subTyped.slice(1));
+      }) : items;
+      showSlashPanel(filtered.length ? null : null, key);
+      if(filtered.length && subTyped){
+        _renderSlashItems(filtered, true);
+      }
+      return;
+    }
   }
+
+  // Top-level filtering
+  const typedCmd = typed.split(' ')[0];
+  const scored = SLASH_COMMANDS.map(c => ({c, score: _fuzzySlashMatch(typedCmd, c.cmd)})).filter(x => x.score > 0);
+  scored.sort((a,b) => b.score - a.score);
+  const filtered = scored.map(x => x.c);
+  _slashSubMenu = null;
+  showSlashPanel(filtered.length ? filtered : SLASH_COMMANDS);
 });
 
 // Slash panel keyboard nav — intercept before the existing keydown handler
@@ -6401,21 +6641,53 @@ msgIn.addEventListener('keydown', e=>{
   if(e.key==='ArrowDown'){ e.preventDefault(); updateSlashSel(1); return; }
   if(e.key==='ArrowUp'){ e.preventDefault(); updateSlashSel(-1); return; }
   if(e.key==='Escape'){ e.preventDefault(); hideSlashPanel(); return; }
+  if(e.key==='Tab'){
+    // Tab completes the selected command
+    e.preventDefault();
+    const selItem = getSlashPanel()?.querySelector('.slash-item.sel');
+    if(selItem){
+      const cmd = selItem.dataset.cmd;
+      const action = selItem.dataset.action;
+      if(action === 'submenu'){
+        msgIn.value = cmd.replace(/^\//, '/') + ' ';
+        msgIn.dispatchEvent(new Event('input'));
+      } else {
+        msgIn.value = cmd + ' ';
+        updateSendBtn();
+      }
+    }
+    return;
+  }
   if(e.key==='Enter'&&!e.shiftKey){
     e.preventDefault();
     const selItem = getSlashPanel()?.querySelector('.slash-item.sel');
+    if(!selItem){
+      // Could be back button
+      const back = getSlashPanel()?.querySelector('.slash-back');
+      if(back){ execSlashCommand('', back); return; }
+    }
     const cmdFull = selItem?.dataset.cmd || '';
+    const action = selItem?.dataset?.action || '';
+
     // For /system, keep typed text after /system
     if(cmdFull==='/system'){
       const typed = msgIn.value.trim();
       const afterSystem = typed.startsWith('/system') ? typed.slice('/system'.length).trim() : '';
-      execSlashCommand('/system '+afterSystem);
-    } else {
-      execSlashCommand(cmdFull);
+      window._oneTimeSystem = afterSystem || '';
+      if(afterSystem) toast(t('misc.one_time_system'),2000,'#10a37f');
+      msgIn.value = '';
+      msgIn.style.height = 'auto';
+      updateSendBtn();
+      hideSlashPanel();
+      return;
     }
-    msgIn.value = '';
-    msgIn.style.height = 'auto';
-    updateSendBtn();
+
+    const result = execSlashCommand(cmdFull, selItem);
+    if(result !== 'keep'){
+      msgIn.value = '';
+      msgIn.style.height = 'auto';
+      updateSendBtn();
+    }
     hideSlashPanel();
   }
 }, true); // capture phase so it runs before existing keydown
@@ -6425,13 +6697,29 @@ document.addEventListener('click', e=>{
   if(_slashVisible && !e.target.closest('.inp-box')) hideSlashPanel();
 });
 
-// Slash panel item click
-// Use event delegation since panel is re-rendered; attach to parent
+// Slash panel item click (event delegation)
 $('input-wrap').addEventListener('click', e=>{
+  const back = e.target.closest('#slash-panel .slash-back');
+  if(back){
+    execSlashCommand('', back);
+    return;
+  }
   const item = e.target.closest('#slash-panel .slash-item');
   if(!item) return;
-  execSlashCommand(item.dataset.cmd);
-  msgIn.value=''; msgIn.style.height='auto'; updateSendBtn(); hideSlashPanel();
+  const cmdFull = item.dataset.cmd || '';
+  if(cmdFull === '/system'){
+    const typed = msgIn.value.trim();
+    const afterSystem = typed.startsWith('/system') ? typed.slice('/system'.length).trim() : '';
+    window._oneTimeSystem = afterSystem || '';
+    if(afterSystem) toast(t('misc.one_time_system'),2000,'#10a37f');
+    msgIn.value=''; msgIn.style.height='auto'; updateSendBtn(); hideSlashPanel();
+    return;
+  }
+  const result = execSlashCommand(cmdFull, item);
+  if(result !== 'keep'){
+    msgIn.value=''; msgIn.style.height='auto'; updateSendBtn();
+  }
+  hideSlashPanel();
 });
 
 // Patch getActiveSystemPrompt to include one-time system message
