@@ -359,18 +359,21 @@
     /* No CSS cursor — typing dots handle all waiting states */
     .thinking-label{font-size:12px;color:var(--t3);animation:think-pulse 2s ease-in-out infinite}
     @keyframes think-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
-    .thinking-block{margin-bottom:8px;border-radius:var(--r1);overflow:hidden}
-    .thinking-block summary{list-style:none;cursor:pointer;padding:4px 0;color:var(--t3);font-size:12px;display:flex;align-items:center;gap:5px;user-select:none}
+    .thinking-block{margin:2px 0 4px;overflow:hidden}
+    .thinking-block summary{list-style:none;cursor:pointer;padding:2px 0;color:var(--t3);font-size:12px;display:flex;align-items:center;gap:4px;user-select:none;transition:color .15s}
     .thinking-block summary::-webkit-details-summary-icon{display:none}
     .thinking-block summary::marker{display:none;content:''}
     .thinking-block summary:hover{color:var(--t2)}
-    .thinking-block .think-chevron{width:12px;height:12px;transition:transform .2s ease;flex-shrink:0}
+    .thinking-block summary svg{width:12px;height:12px;flex-shrink:0}
+    .thinking-block .think-chevron{transition:transform .2s ease}
     .thinking-block[open] .think-chevron{transform:rotate(90deg)}
-    .thinking-block .thinking-content{padding:4px 0 8px 17px;font-size:12px;color:var(--t3);white-space:pre-wrap;word-break:break-word;line-height:1.5;max-height:300px;overflow-y:auto;opacity:.7}
-    .think-live-label{display:flex;align-items:center;gap:5px;color:var(--t3);font-size:12px;margin-bottom:4px}
-    .think-live-label svg{animation:spin 1.5s linear infinite}
+    .thinking-block .thinking-content{padding:2px 0 6px 16px;font-size:11px;color:var(--t3);white-space:pre-wrap;word-break:break-word;line-height:1.3;max-height:300px;overflow-y:auto;opacity:.6}
+    .thinking-block-live{margin:2px 0 4px}
+    .think-live-label{display:flex;align-items:center;gap:4px;color:var(--t3);font-size:12px;cursor:pointer;user-select:none}
+    .think-live-label svg{width:12px;height:12px;animation:spin 1.2s linear infinite;flex-shrink:0}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .think-live-text{font-size:11px;color:var(--t3);opacity:.6;max-height:60px;overflow:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.4}
+    .think-live-text{font-size:11px;color:var(--t3);opacity:.6;line-height:1.3;white-space:pre-wrap;word-break:break-word;overflow:hidden;max-height:0;transition:max-height .2s ease;padding-left:16px}
+    .thinking-block-live.open .think-live-text{max-height:300px;overflow-y:auto}
     .st-text{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:13px;margin-top:6px;opacity:0;transform:translateY(4px);transition:opacity .24s ease,transform .24s ease}
     .st-text.show{opacity:1;transform:translateY(0)}
     .st-text.done{opacity:.72}
@@ -3831,12 +3834,22 @@ async function sendMessage(){
               let tb=streamEl.parentElement?.querySelector('.thinking-block-live');
               if(!tb){
                 tb=document.createElement('div');tb.className='thinking-block-live';
-                tb.innerHTML='<div class="think-live-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Thinking...</span></div><div class="think-live-text"></div>';
+                tb.style.opacity='0';tb.style.transform='translateY(4px)';
+                tb.innerHTML='<div class="think-live-label" onclick="this.parentElement.classList.toggle(\'open\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span></span><svg class="think-chevron" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .2s"><polyline points="9 18 15 12 9 6"/></svg></div><div class="think-live-text"></div>';
                 streamEl.parentElement.insertBefore(tb,streamEl);
+                // Hide tips during thinking
+                const tipEl=streamEl.parentElement?.querySelector('.tip-line');
+                if(tipEl){tipEl.style.transition='opacity .3s';tipEl.style.opacity='0';}
+                // Fade in
+                requestAnimationFrame(()=>{tb.style.transition='opacity .3s ease,transform .3s ease';tb.style.opacity='1';tb.style.transform='translateY(0)';});
               }
               const sec=Math.round((_thinkingEndTime-_thinkingStartTime)/1000);
               tb.querySelector('.think-live-label span').textContent=_lang==='zh'?`思考中 ${sec}s...`:`Thinking ${sec}s...`;
-              tb.querySelector('.think-live-text').textContent=_thinkingContent.slice(-200);
+              tb.querySelector('.think-live-text').textContent=_thinkingContent.slice(-300);
+              // Auto-expand chevron when open
+              const chev=tb.querySelector('.think-chevron');
+              if(chev&&tb.classList.contains('open'))chev.style.transform='rotate(90deg)';
+              else if(chev)chev.style.transform='rotate(0)';
               if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
             }
           }
@@ -3906,16 +3919,20 @@ async function sendMessage(){
     }
     // Collapsible thinking block (if thinking content was captured)
     if(streamEl&&_thinkingContent.trim()){
-      // Remove live thinking block
-      streamEl.parentElement?.querySelector('.thinking-block-live')?.remove();
+      // Smoothly transition live block → final collapsible block
+      const liveBlock=streamEl.parentElement?.querySelector('.thinking-block-live');
+      if(liveBlock){liveBlock.style.transition='opacity .2s';liveBlock.style.opacity='0';setTimeout(()=>liveBlock.remove(),200);}
       if(!_thinkingEndTime) _thinkingEndTime=Date.now();
       const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
       const details=document.createElement('details');
       details.className='thinking-block';
+      details.open=true; // Start OPEN — user closes manually if they want
+      details.style.opacity='0';
       details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
-      const tc=details.querySelector('.thinking-content');
-      tc.textContent=_thinkingContent.trim();
+      details.querySelector('.thinking-content').textContent=_thinkingContent.trim();
       streamEl.parentNode.insertBefore(details,streamEl);
+      // Fade in after live block fades out
+      setTimeout(()=>{details.style.transition='opacity .3s ease';details.style.opacity='1';},liveBlock?220:0);
     }
     // Token/cost footer
     if(streamEl&&streamUsage){
