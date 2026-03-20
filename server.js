@@ -1331,9 +1331,9 @@ const MODELS = {
     { id: "kimi-k2.5", tier: "flagship", price: { in: 0.60, cacheIn: 0.10, out: 3.00 }, caps: ["text", "image"], desc: "Latest flagship — native multimodal, agent swarm, 256K context" },
   ],
   doubao: [
-    { id: "doubao-seed-2.0-mini", tier: "economy", price: { in: 0.028, cacheIn: 0.006, out: 0.28 }, caps: ["text", "image"], desc: "Low latency, 256K context, 4-level thinking" },
-    { id: "doubao-seed-2.0-lite", tier: "standard", price: { in: 0.083, cacheIn: 0.017, out: 0.50 }, caps: ["text", "image"], desc: "General production, 256K context, surpasses Seed 1.8" },
-    { id: "doubao-seed-2.0-pro", tier: "flagship", price: { in: 0.44, cacheIn: 0.089, out: 2.22 }, caps: ["text", "image"], desc: "Frontier reasoning, 256K context, video understanding" },
+    { id: "doubao-seed-2-0-mini-260215", tier: "economy", price: { in: 0.03, cacheIn: 0.006, out: 0.31 }, caps: ["text", "image"], desc: "Low latency, 256K context, high-concurrency & cost-sensitive" },
+    { id: "doubao-seed-2-0-lite-260215", tier: "standard", price: { in: 0.09, cacheIn: 0.017, out: 0.53 }, caps: ["text", "image"], desc: "General production, 256K context, balanced quality & speed" },
+    { id: "doubao-seed-2-0-pro-260215", tier: "flagship", price: { in: 0.47, cacheIn: 0.089, out: 2.37 }, caps: ["text", "image"], desc: "Frontier reasoning, 256K context, complex agents & research" },
   ],
   qwen: [
     { id: "qwen-flash", tier: "economy", price: { in: 0.021, cacheIn: 0.004, out: 0.207 }, caps: ["text"], desc: "Fastest & cheapest Qwen — replaces qwen-turbo, 1M context" },
@@ -1745,12 +1745,28 @@ app.get("/lumichat", (req, res) => {
   }
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader("Content-Security-Policy",
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'`
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'self'`
   );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
   // Inject nonce into all <script nonce="{{NONCE}}"> and <style nonce="{{NONCE}}"> placeholders
   const html = lumichatHtml.replace(/\{\{NONCE\}\}/g, nonce);
+  res.send(html);
+});
+
+// Serve LumiTrade interface (nonce injected into HTML for CSP)
+app.get("/lumitrade", (req, res) => {
+  const lumitradeHtml = readPublicHtml("lumitrade.html");
+  if (!lumitradeHtml) {
+    return res.status(503).send("LumiTrade not yet deployed");
+  }
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader("Content-Security-Policy",
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://www.google.com; media-src 'self' blob:; connect-src 'self' wss: ws:; frame-src 'self'; frame-ancestors 'none'`
+  );
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  const html = lumitradeHtml.replace(/\{\{NONCE\}\}/g, nonce);
   res.send(html);
 });
 
@@ -3440,8 +3456,9 @@ app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ manager: knowledgeManager, log }));
 
 // ── LumiTrade API routes ──────────────────────────────────────────────────────
+let _tradeResult = null;
 try {
-  const _tradeResult = require("./routes/trade")({ PB_URL, ADMIN_SECRET, DATA_DIR });
+  _tradeResult = require("./routes/trade")({ PB_URL, getPbAdminToken });
   app.use("/v1/trade", apiLimiter, platformAuth, _tradeResult.router);
   log("info", "LumiTrade routes mounted at /v1/trade/*");
 } catch (e) {
@@ -3626,6 +3643,12 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 
   audit("system", "startup", null, { port: PORT, mode: DEPLOY_MODE, modules: [...modules], providers: available });
 });
+
+// Wire up LumiTrade WebSocket proxy
+if (_tradeResult && _tradeResult.setupTradeWebSocket) {
+  _tradeResult.setupTradeWebSocket(server);
+  log("info", "LumiTrade WebSocket proxy active at /v1/trade/ws/*");
+}
 
 // Track raw TCP connections for graceful shutdown
 const connections = new Set();
