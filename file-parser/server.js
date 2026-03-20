@@ -47,7 +47,60 @@ async function parsePDF(buffer) {
 }
 
 function extractionScore(text) {
-  return String(text || "").replace(/\s+/g, "").length;
+  const s = String(text || "");
+  const contentLen = s.replace(/\s+/g, "").length;
+  // Bonus for structured table content: lines with multiple space-separated columns
+  // indicate layout preservation (pdftotext -layout excels at this)
+  const lines = s.split("\n").filter((l) => l.trim());
+  let structuredLines = 0;
+  for (const line of lines) {
+    // A "structured" line has 2+ runs of multiple spaces separating tokens
+    if ((line.match(/  {2,}/g) || []).length >= 2) structuredLines++;
+  }
+  const structureBonus = Math.min(structuredLines * 5, contentLen * 0.2);
+  return contentLen + structureBonus;
+}
+
+/**
+ * Join sorted row items with gap-aware separators.
+ * Small gap (< COLUMN_GAP_THRESHOLD) between end of one item and start of next → space.
+ * Large gap (>= COLUMN_GAP_THRESHOLD) → pipe separator (table column boundary).
+ * No gap (items touch or overlap) → concatenate directly.
+ */
+const COLUMN_GAP_THRESHOLD = 15; // px — typical column gap in PDF tables
+const WORD_GAP_THRESHOLD = 2;    // px — small gap between adjacent text items
+
+function joinRowItems(items) {
+  if (!items.length) return "";
+  let result = items[0].str;
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const curr = items[i];
+    const gap = curr.x - prev.endX;
+    if (gap >= COLUMN_GAP_THRESHOLD) {
+      result += " | " + curr.str;
+    } else if (gap >= WORD_GAP_THRESHOLD) {
+      result += " " + curr.str;
+    } else {
+      // Items touch or overlap — still insert space if prev doesn't end with
+      // whitespace and curr doesn't start with it (prevents "Turnover637,985")
+      const prevEnds = /\s$/.test(prev.str);
+      const currStarts = /^\s/.test(curr.str);
+      const hasWidthInfo = prev.endX > prev.x; // width was non-zero
+      if (!prevEnds && !currStarts) {
+        // If we have width info and items truly overlap/touch, insert space.
+        // If no width info, use x-position gap as fallback.
+        if (hasWidthInfo || (curr.x - prev.x) > 1) {
+          result += " " + curr.str;
+        } else {
+          result += curr.str;
+        }
+      } else {
+        result += curr.str;
+      }
+    }
+  }
+  return result;
 }
 
 async function parsePDFWithPdfParse(buffer) {
@@ -55,7 +108,7 @@ async function parsePDFWithPdfParse(buffer) {
   const customPagerender = async (pageData) => {
     const textContent = await pageData.getTextContent({
       normalizeWhitespace: false,
-      disableCombineTextItems: false,
+      disableCombineTextItems: true,
     });
     const rows = [];
     for (const item of textContent.items || []) {
@@ -63,8 +116,9 @@ async function parsePDFWithPdfParse(buffer) {
       if (!str) continue;
       const x = Number(item.transform?.[4] || 0);
       const y = Number(item.transform?.[5] || 0);
+      const w = Number(item.width || 0);
       const bucketY = Math.round(y * 2) / 2;
-      rows.push({ x, y: bucketY, str });
+      rows.push({ x, y: bucketY, str, endX: x + w });
     }
     rows.sort((a, b) => (b.y - a.y) || (a.x - b.x));
     const lines = [];
@@ -76,14 +130,14 @@ async function parsePDFWithPdfParse(buffer) {
         cur.push(it);
       } else {
         cur.sort((a, b) => a.x - b.x);
-        lines.push(cur.map((x) => x.str).join(" | "));
+        lines.push(joinRowItems(cur));
         curY = it.y;
         cur = [it];
       }
     }
     if (cur.length) {
       cur.sort((a, b) => a.x - b.x);
-      lines.push(cur.map((x) => x.str).join(" | "));
+      lines.push(joinRowItems(cur));
     }
     return lines.join("\n");
   };
@@ -108,7 +162,7 @@ async function parsePDFWithPdfJs(buffer) {
     const page = await pdf.getPage(pageNo);
     const textContent = await page.getTextContent({
       normalizeWhitespace: false,
-      disableCombineTextItems: false,
+      disableCombineTextItems: true,
     });
     const rows = [];
     for (const item of textContent.items || []) {
@@ -116,7 +170,8 @@ async function parsePDFWithPdfJs(buffer) {
       if (!str) continue;
       const x = Number(item.transform?.[4] || 0);
       const y = Number(item.transform?.[5] || 0);
-      rows.push({ x, y: Math.round(y * 2) / 2, str });
+      const w = Number(item.width || 0);
+      rows.push({ x, y: Math.round(y * 2) / 2, str, endX: x + w });
     }
     rows.sort((a, b) => (b.y - a.y) || (a.x - b.x));
     const lines = [];
@@ -128,14 +183,14 @@ async function parsePDFWithPdfJs(buffer) {
         currentRow.push(it);
       } else {
         currentRow.sort((a, b) => a.x - b.x);
-        lines.push(currentRow.map((x) => x.str).join(" | "));
+        lines.push(joinRowItems(currentRow));
         currentY = it.y;
         currentRow = [it];
       }
     }
     if (currentRow.length) {
       currentRow.sort((a, b) => a.x - b.x);
-      lines.push(currentRow.map((x) => x.str).join(" | "));
+      lines.push(joinRowItems(currentRow));
     }
     pages.push(lines.join("\n"));
   }
@@ -150,7 +205,9 @@ async function parsePDFWithPdftotext(buffer) {
     await fs.writeFile(inFile, buffer);
     await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", inFile, outFile], { timeout: 20000 });
     const text = await fs.readFile(outFile, "utf-8");
-    return { text, pages: 0, info: { engine: "pdftotext" } };
+    // Count pages via form-feed characters (pdftotext inserts \f between pages)
+    const pageCount = text ? (text.split("\f").length) : 0;
+    return { text, pages: pageCount, info: { engine: "pdftotext" } };
   } finally {
     await Promise.allSettled([fs.unlink(inFile), fs.unlink(outFile), fs.rm(tempDir, { recursive: true, force: true })]);
   }

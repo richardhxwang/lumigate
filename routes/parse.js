@@ -14,6 +14,7 @@ function sanitizeFilename(name) {
 // --- Config ---
 
 const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
+const DOCLING_PARSER_URL = process.env.DOCLING_PARSER_URL || "http://lumigate-docling:3102";
 const GOTENBERG_URL = process.env.GOTENBERG_URL || "http://lumigate-gotenberg:3000";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
@@ -72,6 +73,46 @@ async function sendToFileParser(buffer, filename) {
     throw new Error(`file-parser returned ${res.status}: ${text}`);
   }
   return res.json();
+}
+
+/**
+ * Try the docling enhanced parser for PDFs. Returns null if service unavailable.
+ */
+async function sendToDoclingParser(buffer, filename) {
+  try {
+    const boundary = "----LumiDocling" + crypto.randomBytes(8).toString("hex");
+    const safeName = sanitizeFilename(filename);
+    const header = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+    );
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const body = Buffer.concat([header, buffer, footer]);
+
+    const res = await fetch(`${DOCLING_PARSER_URL}/parse`, {
+      method: "POST",
+      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+      body,
+      signal: AbortSignal.timeout(120000), // docling can be slow on large PDFs
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.ok || !data.text) return null;
+
+    // Append CSV tables inline if present
+    let text = data.text;
+    if (Array.isArray(data.tables) && data.tables.length) {
+      text += "\n\n--- Extracted Tables (CSV) ---\n";
+      for (let i = 0; i < data.tables.length; i++) {
+        text += `\n[Table ${i + 1}]\n${data.tables[i]}`;
+      }
+    }
+
+    return { text, pages: data.pages || null, engine: "docling" };
+  } catch {
+    // Service unavailable or timeout — fall through to standard parser
+    return null;
+  }
 }
 
 /**
@@ -145,15 +186,35 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     // --- Route by file type ---
 
-    if (
-      mime === "application/pdf" ||
+    if (mime === "application/pdf") {
+      // PDF: try docling (enhanced) first, fall back to standard file-parser
+      const doclingResult = await sendToDoclingParser(buffer, filename);
+      if (doclingResult) {
+        result = {
+          text: doclingResult.text,
+          pages: doclingResult.pages,
+          mimeType: mime,
+          engine: "docling",
+        };
+      } else {
+        const parsed = await sendToFileParser(buffer, filename);
+        if (!parsed.ok) {
+          return res.status(502).json({ ok: false, error: parsed.error || "file-parser error" });
+        }
+        result = {
+          text: parsed.text,
+          pages: parsed.pages || null,
+          mimeType: parsed.mimeType || mime,
+        };
+      }
+    } else if (
       mime.includes("spreadsheetml") ||
       mime.includes("ms-excel") ||
       mime === "text/csv" ||
       mime.includes("wordprocessingml") ||
       mime === "application/msword"
     ) {
-      // PDF, XLSX, XLS, CSV, DOCX, DOC -> file-parser microservice
+      // XLSX, XLS, CSV, DOCX, DOC -> file-parser microservice
       const parsed = await sendToFileParser(buffer, filename);
       if (!parsed.ok) {
         return res.status(502).json({ ok: false, error: parsed.error || "file-parser error" });
@@ -204,6 +265,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       filename,
       pages: result.pages,
       mimeType: result.mimeType,
+      ...(result.engine && { engine: result.engine }),
     });
   } catch (err) {
     console.error("[parse] Error:", err);

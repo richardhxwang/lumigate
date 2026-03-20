@@ -224,6 +224,25 @@ services:
       start_period: 60s
     logging: *logging-default
 
+  docling-parser:
+    build: services/docling-parser
+    container_name: lumigate-docling
+    restart: unless-stopped
+    profiles: ["enhanced"]
+    ports:
+      - "127.0.0.1:18786:3102"
+    expose:
+      - "3102"
+    environment:
+      - PORT=3102
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3102/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging: *logging-default
+
   loki:
     image: grafana/loki:latest
     container_name: lumigate-loki
