@@ -1840,10 +1840,11 @@ const PAUSE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6"
 
 // ── THINKING MODE ────────────────────────────────────────────────────────
 const THINKING_MODELS = {
-  openai: { think: 'gpt-5.4', fast: 'gpt-5.4-mini' },
+  openai: { think: 'o3', fast: 'gpt-5.4-mini' },
   deepseek: { think: 'deepseek-reasoner', fast: 'deepseek-chat' },
   minimax: { think: 'MiniMax-M2.7', fast: 'MiniMax-M2.5' },
   anthropic: { think: 'claude-sonnet-4-6', fast: 'claude-haiku-4-5' },
+  gemini: { think: 'gemini-2.5-flash-thinking', fast: 'gemini-2.5-flash' },
 };
 const THINK_MODES = ['auto','think','fast'];
 const THINK_SVG = {
