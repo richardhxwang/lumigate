@@ -3255,7 +3255,7 @@ const _lcResult = require('./routes/lumichat')({
   getLcUserTier,
   lcTierCache,
   TIER_RPM,
-  getLcFileSandboxPolicy: () => settings.lcFileSandboxPolicy || "parse",
+  getLcFileSandboxPolicy: () => settings.lcFileSandboxPolicy || { trustedUsers: [], uploadEnabled: false, uploadTrustedBypass: false },
   touchLcSession,
   getPbAdminToken,
   selectApiKey,

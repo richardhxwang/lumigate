@@ -5104,6 +5104,8 @@ router.use("/v1/chat", require("./chat")({
   clampPbMessageContent,
   getPbAdminToken,
   PB_URL,
+  extractMessagePlainText,
+  stripAttachmentContextBlocks,
 }));
 
 // --- LumiChat: User tier & BYOK API key management ---

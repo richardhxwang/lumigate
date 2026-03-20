@@ -38,6 +38,8 @@ module.exports = function createChatRouter(deps) {
     lcSupportsField,
     validPbId,
     normalizeAttachmentContextItems,
+    extractMessagePlainText,
+    stripAttachmentContextBlocks,
     shouldAutoContinueFinishReason,
     getContinuationPrompt,
     AUTO_CONTINUE_MAX_PASSES,
