@@ -1136,6 +1136,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   if (isSmallModel) {
     injectedSystemPrompt += "\nYou are a lightweight model. If the user asks to generate files (Excel, Word, PPT), politely tell them to switch to a more capable model such as DeepSeek, GPT-4.1, or Claude Sonnet. Do NOT attempt to generate files yourself.\n";
   }
+  // ── Planning prompt for complex multi-step requests ──
+  if (!isSmallModel && isComplexRequest(userText)) {
+    injectedSystemPrompt += "\n" + buildPlanningPrompt(lang) + "\n";
+  }
+
   // ── Tool mode: native function calling vs prompt injection ──
   const toolsEnabled = req.body.tools !== false && !isSmallModel;
   const useNativeTools = toolsEnabled && NATIVE_TOOL_PROVIDERS.has(pnLower) && !useCollector;
@@ -1647,142 +1652,141 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     nativeToolCalls = nativeToolCalls.filter(tc => tc && tc.name);
     const hasNativeToolCalls = nativeToolCalls.length > 0;
 
-    // ── Native tool call execution (OpenAI/DeepSeek/Anthropic/Gemini) ──
+    // ── Helper: consume a follow-up streaming response, extract text + native tool calls, stream deltas to client ──
+    async function consumeFollowUpStream(streamRes) {
+      if (!streamRes.ok || !streamRes.body) return { text: "", finishReason: "error", nativeToolCalls: [] };
+      const fReader = streamRes.body.getReader();
+      const fDec = new TextDecoder();
+      let fBuf = "";
+      let fText = "";
+      let fFinish = "stop";
+      const fNativeTools = [];
+      const fAnthBlocks = new Map();
+      try {
+        while (true) {
+          const { done: fDone, value: fVal } = await fReader.read();
+          if (fDone) break;
+          fBuf += fDec.decode(fVal, { stream: true });
+          const fLines = fBuf.split("\n");
+          fBuf = fLines.pop() || "";
+          for (const fl of fLines) {
+            if (!fl.startsWith("data: ")) continue;
+            const fd = fl.slice(6).trim();
+            if (fd === "[DONE]") continue;
+            try {
+              const fj = JSON.parse(fd);
+              if (isAnthropic) {
+                if (fj.type === "content_block_start" && fj.content_block?.type === "tool_use") {
+                  fAnthBlocks.set(fj.index, { id: fj.content_block.id, name: fj.content_block.name, arguments: "" });
+                } else if (fj.type === "content_block_delta" && fj.delta?.type === "input_json_delta") {
+                  const tb = fAnthBlocks.get(fj.index);
+                  if (tb) tb.arguments += (fj.delta.partial_json || "");
+                } else if (fj.type === "content_block_stop") {
+                  const tb = fAnthBlocks.get(fj.index);
+                  if (tb) { fNativeTools.push({ id: tb.id, name: tb.name, arguments: tb.arguments }); fAnthBlocks.delete(fj.index); }
+                } else if (fj.type === "content_block_delta" && fj.delta?.type === "text_delta") {
+                  const c = fj.delta.text || ""; fText += c; sendDelta(c);
+                } else if (fj.type === "message_delta" && fj.delta?.stop_reason) {
+                  fFinish = ({ end_turn: "stop", max_tokens: "length", tool_use: "tool_calls" }[fj.delta.stop_reason] || fj.delta.stop_reason);
+                }
+              } else {
+                const choice = fj.choices?.[0]; if (!choice) continue;
+                const delta = choice.delta;
+                if (delta?.content) { fText += delta.content; sendDelta(delta.content); }
+                if (Array.isArray(delta?.tool_calls)) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index ?? 0;
+                    if (!fNativeTools[idx]) fNativeTools[idx] = { id: tc.id || "", name: "", arguments: "" };
+                    if (tc.id) fNativeTools[idx].id = tc.id;
+                    if (tc.function?.name) fNativeTools[idx].name = tc.function.name;
+                    if (tc.function?.arguments) fNativeTools[idx].arguments += tc.function.arguments;
+                  }
+                }
+                if (choice.finish_reason) fFinish = choice.finish_reason;
+              }
+            } catch {}
+          }
+        }
+      } catch (e) { log("warn", "Follow-up stream read error", { error: e.message }); }
+      return { text: fText, finishReason: fFinish, nativeToolCalls: fNativeTools.filter(tc => tc && tc.name) };
+    }
+
+    // ── Helper: fetchAI callback factory for the agent loop ──
+    function makeAgentFetchAI(includeTools) {
+      return async function agentFetchAI(loopMessages) {
+        const reqBody = buildChatBody(pnLower, modelId, loopMessages, "", true, includeTools ? nativeToolsParam : undefined);
+        const streamRes = await fetch(chatUrl, { method: "POST", headers, body: JSON.stringify(reqBody), signal: AbortSignal.timeout(90000) });
+        return consumeFollowUpStream(streamRes);
+      };
+    }
+
+    // ── Shared agent loop event handlers ──
+    const agentOnToolStatus = (status) => {
+      if (res.writableEnded) return;
+      const icon = status.tool?.includes("search") ? "search" : status.tool?.includes("spread") ? "spreadsheet" : status.tool?.includes("present") ? "presentation" : "file";
+      emitToolStatus({ text: status.message, icon, done: status.state !== "running" });
+    };
+    const agentOnFileDownload = (fileInfo) => {
+      emitFileDownload({ filename: fileInfo.filename, size: fileInfo.size, mimeType: fileInfo.mimeType, downloadUrl: fileInfo.downloadUrl || "", base64: fileInfo.base64 || undefined });
+    };
+    const agentOnIteration = (info) => {
+      log("info", "Agent loop iteration", { ...info, provider: providerName, model: modelId });
+    };
+
+    // ── Multi-step Agent Loop: Plan -> Execute -> Observe -> Reflect -> Repeat ──
     if (hasNativeToolCalls && !res.writableEnded) {
-      // Flush any remaining text content before tool execution
+      // Flush any remaining text content before entering agent loop
       if (sentLength < fullText.length) { sendDelta(fullText.slice(sentLength)); sentLength = fullText.length; }
 
-      log("info", "Native tool calls detected", {
+      log("info", "Agent loop: native tool calls detected", {
         provider: providerName, model: modelId,
         tools: nativeToolCalls.map(tc => tc.name),
         count: nativeToolCalls.length,
       });
 
-      const nativeToolResults = [];
-      for (const tc of nativeToolCalls) {
-        let toolInput = {};
-        try { toolInput = JSON.parse(tc.arguments || "{}"); } catch {
-          log("warn", "Failed to parse native tool arguments", { tool: tc.name, args: (tc.arguments || "").slice(0, 200) });
-        }
+      // Build agent loop messages starting from the conversation so far
+      const agentMessages = [...messages, { role: "assistant", content: fullText || "I'm executing the requested tools." }];
 
-        try {
-          const result = await lumigentRuntime.executeToolCall(tc.name, {
-            ...toolInput,
-            _caller_user_id: lcUserId || projectName || "api",
-          });
-          if (!result?.ok) {
-            log("warn", "Native tool execution returned not-ok", {
-              tool: tc.name, error: result?.error,
-              attempts: result?._retryInfo?.attempts,
-              fallbackTool: result?._retryInfo?.fallbackTool,
-            });
-            nativeToolResults.push({
-              id: tc.id, name: tc.name, ok: false,
-              error: result?._errorContext?.message || result?.error || "Tool failed",
-              suggestions: result?._errorContext?.suggestions,
-            });
-            continue;
-          }
-
-          if (result.file) {
-            let downloadUrl = "";
-            try {
-              downloadUrl = await lumigentRuntime.persistFile({
-                userId: lcUserId || projectName || "api",
-                toolName: tc.name,
-                filename: result.filename,
-                mimeType: result.mimeType,
-                file: result.file,
-              });
-            } catch {}
-            emitFileDownload({
-              filename: result.filename, size: result.file.length, mimeType: result.mimeType,
-              downloadUrl: downloadUrl || "", base64: !downloadUrl ? result.file.toString("base64") : undefined,
-            });
-            const icon = tc.name.includes("spread") ? "spreadsheet" : tc.name.includes("present") ? "presentation" : "file";
-            const sizeStr = result.file.length > 1048576 ? `${(result.file.length / 1048576).toFixed(1)} MB` : `${(result.file.length / 1024).toFixed(1)} KB`;
-            emitToolStatus({ text: L.toolDone(result.filename, sizeStr), icon, done: true });
-            nativeToolResults.push({
-              id: tc.id, name: tc.name, ok: true,
-              summary: `[File generated: ${result.filename} (${result.file.length} bytes)]`,
-            });
-          } else if (result.data) {
-            const formatted = lumigentRuntime.formatToolResult(tc.name, result.data);
-            // For search results, emit link lines to client
-            if (result.data.results && Array.isArray(result.data.results)) {
-              emitToolStatus({ text: L.searchDone(result.data.results.length), icon: "search", done: true });
-            } else {
-              emitToolStatus({ text: `${L.toolLabel(tc.name)} done`, icon: "file", done: true });
-            }
-            nativeToolResults.push({
-              id: tc.id, name: tc.name, ok: true,
-              summary: formatted?.html ? formatted.html.replace(/<[^>]*>/g, "").slice(0, 500) :
-                result.data.results ? result.data.results.slice(0, 5).map((r, i) => `${i+1}. ${r.title || ""}\nURL: ${r.url || ""}\n${(r.content || "").slice(0, 150)}`).join("\n\n") :
-                JSON.stringify(result.data).slice(0, 500),
-              data: result.data,
-            });
-          }
-        } catch (e) {
-          log("error", "Native tool execution threw", { tool: tc.name, error: e.message });
-          nativeToolResults.push({ id: tc.id, name: tc.name, ok: false, error: e.message });
-        }
+      // Inject planning prompt for complex requests
+      if (isComplexRequest(userText)) {
+        const planPrompt = buildPlanningPrompt(lang);
+        const sysMsg = agentMessages.find(m => m.role === "system");
+        if (sysMsg) sysMsg.content = (sysMsg.content || "") + "\n\n" + planPrompt;
       }
 
-      // ── Follow-up AI call to summarize native tool results ──
-      if (nativeToolResults.length > 0 && !res.writableEnded) {
-        try {
-          const toolSummaries = nativeToolResults.map(tr => {
-            if (!tr.ok) {
-              const suggestionsText = tr.suggestions?.length
-                ? `\nSuggested actions:\n${tr.suggestions.map(s => `- ${s}`).join("\n")}`
-                : "";
-              return `[${tr.name} failed: ${tr.error}]${suggestionsText}\nIMPORTANT: Do NOT just say "the tool failed". Instead, try an alternative approach or provide a helpful answer using your own knowledge.`;
-            }
-            return tr.summary || `[${tr.name} completed]`;
-          }).join("\n\n");
-
-          // Build follow-up messages with tool results
-          const followUpMessages = [
-            ...messages,
-            { role: "assistant", content: fullText || "I'm executing the requested tools." },
-            { role: "user", content: `Tool execution results:\n${toolSummaries}\n\nPlease summarize the results for the user in a helpful way. If files were generated, briefly describe what's in them. If search results were returned, output 3-5 concrete clickable source links (full URLs) first, then a short summary. Respond naturally in the same language as the user's original question.` },
-          ];
-          // Follow-up does NOT include tools (avoid infinite tool loop)
-          const followUpBody = buildChatBody(pnLower, modelId, followUpMessages, "", true);
-          const followUpRes = await fetch(chatUrl, {
-            method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000),
-          });
-
-          if (followUpRes.ok && followUpRes.body) {
-            const fReader = followUpRes.body.getReader();
-            const fDec = new TextDecoder();
-            let fBuf = "";
-            while (true) {
-              const { done: fDone, value: fVal } = await fReader.read();
-              if (fDone) break;
-              fBuf += fDec.decode(fVal, { stream: true });
-              const fLines = fBuf.split("\n");
-              fBuf = fLines.pop() || "";
-              for (const fl of fLines) {
-                if (!fl.startsWith("data: ")) continue;
-                const fd = fl.slice(6).trim();
-                if (fd === "[DONE]") continue;
-                try {
-                  const fj = JSON.parse(fd);
-                  if (isAnthropic) {
-                    if (fj.type === "content_block_delta" && fj.delta?.type === "text_delta") sendDelta(fj.delta.text || "");
-                  } else {
-                    const c = fj.choices?.[0]?.delta?.content;
-                    if (c) sendDelta(c);
-                  }
-                } catch {}
-              }
-            }
-          }
-        } catch (e) {
-          log("warn", "Follow-up AI call after native tool exec failed", { error: e.message });
+      // First iteration: tool calls are already parsed from the initial stream — return them without an AI call
+      let _nativeFirstCallDone = false;
+      const nativeAgentFetchAI = async (loopMessages) => {
+        if (!_nativeFirstCallDone) {
+          _nativeFirstCallDone = true;
+          return { text: "", finishReason: "tool_calls", nativeToolCalls };
         }
-      }
+        return makeAgentFetchAI(true)(loopMessages);
+      };
+
+      const agentResult = await lumigentRuntime.executeAgentLoop({
+        messages: agentMessages,
+        fetchAI: nativeAgentFetchAI,
+        onDelta: () => {}, // deltas streamed by consumeFollowUpStream inside makeAgentFetchAI
+        onToolStatus: agentOnToolStatus,
+        onFileDownload: agentOnFileDownload,
+        onIteration: agentOnIteration,
+        maxIterations: 8,
+        userId: lcUserId || projectName || "api",
+        planningEnabled: isComplexRequest(userText),
+        lang,
+      }).catch(e => {
+        log("error", "Agent loop (native) failed", { error: e.message, provider: providerName });
+        return { text: "", toolResults: [], iterations: 0, plan: null };
+      });
+
+      log("info", "Agent loop (native) completed", {
+        provider: providerName, model: modelId,
+        iterations: agentResult.iterations,
+        toolResultCount: (agentResult.toolResults || []).length,
+        hasPlan: !!agentResult.plan,
+      });
+
     } else if (toolTagStart >= 0) {
       // Tool tags detected — send updated status with actual tool name, then execute
       const tagContent = fullText.slice(toolTagStart);
@@ -1816,48 +1820,61 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       const statusText = detectedQuery ? `${detectedLabel}: ${detectedQuery}` : `${detectedLabel}...`;
       emitToolStatus({ text: statusText, icon: detectedIcon });
 
-      log("info", "Clean pipe: tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
-      let toolResults = await lumigentRuntime.executeTextToolCalls(fullText, lcUserId || projectName || "api").catch(e => {
-        log("error", "Tool execution failed in clean pipe", { error: e.message });
-        return [];
-      });
+      log("info", "Agent loop: text tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
 
       const cleanAssistantText = fullText.slice(0, toolTagStart).trim();
 
-      // If parser couldn't execute a detected search-like tool (e.g. malformed tag),
-      // salvage with a server-side search so the response doesn't stop at opening sentence.
+      // Build agent loop messages
+      const textAgentMessages = [...messages, { role: "assistant", content: fullText }];
+
+      // First iteration: return the already-received text so the loop parses tool tags from it
+      let _textFirstCallDone = false;
+      const textAgentFetchAI = async (loopMessages) => {
+        if (!_textFirstCallDone) {
+          _textFirstCallDone = true;
+          return { text: fullText, finishReason: "stop", nativeToolCalls: [] };
+        }
+        // Subsequent iterations: call AI with tools enabled for multi-step
+        return makeAgentFetchAI(!!nativeToolsParam)(loopMessages);
+      };
+
+      const textAgentResult = await lumigentRuntime.executeAgentLoop({
+        messages: textAgentMessages,
+        fetchAI: textAgentFetchAI,
+        onDelta: () => {}, // deltas streamed by consumeFollowUpStream
+        onToolStatus: agentOnToolStatus,
+        onFileDownload: agentOnFileDownload,
+        onIteration: agentOnIteration,
+        maxIterations: 8,
+        userId: lcUserId || projectName || "api",
+        planningEnabled: isComplexRequest(userText),
+        lang,
+      }).catch(e => {
+        log("error", "Agent loop (text) failed", { error: e.message, provider: providerName });
+        return { text: "", toolResults: [], iterations: 0, plan: null };
+      });
+
+      let toolResults = textAgentResult.toolResults || [];
+
+      log("info", "Agent loop (text) completed", {
+        provider: providerName, model: modelId,
+        iterations: textAgentResult.iterations,
+        toolResultCount: toolResults.length,
+        hasPlan: !!textAgentResult.plan,
+      });
+
+      // ── Post-loop UX: search salvage, file_download, search links, official form ──
       const shouldSearchSalvage = isSearchLikeTool || (forceOfficialSearch && !hasDirectUrl) || (chatIntent.kind === "web_lookup" && !hasDirectUrl);
       if (toolResults.length === 0 && shouldSearchSalvage) {
         try {
           const q = String(detectedQuery || extractSearchQuery(userText || "") || "").trim();
-          log("info", "Search salvage attempt", {
-            provider: providerName,
-            model: modelId,
-            tool: detectedToolNameNorm,
-            query: q.slice(0, 160),
-            traceId: req.traceId,
-          });
+          log("info", "Search salvage attempt", { provider: providerName, model: modelId, tool: detectedToolNameNorm, query: q.slice(0, 160), traceId: req.traceId });
           if (q) {
             let salvageResults = await executeWebSearchForChat(q, "month").catch(() => []);
-            if (!salvageResults.length) {
-              salvageResults = await executeWebSearchForChat(q, "").catch(() => []);
-            }
-            if (!salvageResults.length && chatIntent.officialFormLookup) {
-              salvageResults = getOfficialFormFallbackResults(userText);
-            }
-            log("info", "Search salvage result", {
-              provider: providerName,
-              model: modelId,
-              tool: detectedToolNameNorm,
-              count: salvageResults.length,
-              traceId: req.traceId,
-            });
+            if (!salvageResults.length) salvageResults = await executeWebSearchForChat(q, "").catch(() => []);
+            if (!salvageResults.length && chatIntent.officialFormLookup) salvageResults = getOfficialFormFallbackResults(userText);
             if (salvageResults.length) {
-              toolResults = [{
-                tool: "web_search",
-                data: { results: salvageResults, query: q },
-                duration: 0,
-              }];
+              toolResults.push({ tool: "web_search", data: { results: salvageResults, query: q }, duration: 0 });
               emitToolStatus({ text: L.searchDone(salvageResults.length), icon: "search", done: true });
             }
           }
@@ -1866,70 +1883,47 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         }
       }
 
-      // If still no tool results, mark done and append a clear fallback (even when opening sentence exists).
+      // Fallback message if still no tool results
       if (toolResults.length === 0) {
         emitToolStatus({ text: `${detectedLabel} done`, icon: detectedIcon, done: true });
-        // If the model triggered a non-search/non-URL tool by mistake (e.g., benford_analysis when unrelated),
-        // don't show a confusing "URL extraction failed" message — just skip silently.
         const isNonUrlTool = detectedToolNameNorm && !['web_search','browse','search','fetch','url'].some(k => detectedToolNameNorm.includes(k));
         if (isNonUrlTool) {
           log("info", "Non-URL tool triggered but no results — skipping fallback message", { tool: detectedToolNameNorm, provider: providerName });
-          // Don't send any fallback error text — let the clean assistant text stand on its own
         } else {
-        const sourceHint = directUrls?.[0] ? ` ${String(directUrls[0]).slice(0, 180)}` : "";
-        const shouldUseSearchFallback = isSearchLikeTool || (forceOfficialSearch && !hasDirectUrl) || (!hasDirectUrl && explicitSearchIntent) || (chatIntent.kind === "web_lookup" && !hasDirectUrl);
-        const fallback = shouldUseSearchFallback
-          ? (lang === "zh"
-              ? `未获取到有效搜索结果，请稍后重试或提供更具体关键词。`
-              : `No usable search results were returned. Please retry or provide more specific keywords.`)
-          : (lang === "zh"
-              ? (sourceHint
-                  ? `未能从当前链接提取可读内容：${sourceHint}`
-                  : `未能提取可读内容，请提供可访问链接后重试。`)
-              : (sourceHint
-                  ? `Could not extract readable content from the current link:${sourceHint}`
-                  : `Could not extract readable content. Please provide an accessible URL and retry.`));
-        log("warn", "Tool fallback emitted", {
-          provider: providerName,
-          model: modelId,
-          traceId: req.traceId,
-          detectedToolNameNorm,
-          hasSearchIntentInUserText,
-          isSearchLikeTool,
-          hasDirectUrl: !!(directUrls && directUrls.length),
-          fallbackType: shouldUseSearchFallback ? "search_no_result" : "url_extract_failed",
-        });
-        sendDelta((cleanAssistantText ? "\n\n" : "") + fallback);
-        if (chatIntent.officialFormLookup && !hasDirectUrl) {
-          const policyLinks = buildRequiredLinkLines(getOfficialFormFallbackResults(userText), lang);
-          if (policyLinks) sendDelta(`\n\n${policyLinks}\n`);
+          const sourceHint = directUrls?.[0] ? ` ${String(directUrls[0]).slice(0, 180)}` : "";
+          const shouldUseSearchFallback = isSearchLikeTool || (forceOfficialSearch && !hasDirectUrl) || (!hasDirectUrl && explicitSearchIntent) || (chatIntent.kind === "web_lookup" && !hasDirectUrl);
+          const fallback = shouldUseSearchFallback
+            ? (lang === "zh" ? `未获取到有效搜索结果，请稍后重试或提供更具体关键词。` : `No usable search results were returned. Please retry or provide more specific keywords.`)
+            : (lang === "zh"
+                ? (sourceHint ? `未能从当前链接提取可读内容：${sourceHint}` : `未能提取可读内容，请提供可访问链接后重试。`)
+                : (sourceHint ? `Could not extract readable content from the current link:${sourceHint}` : `Could not extract readable content. Please provide an accessible URL and retry.`));
+          log("warn", "Tool fallback emitted", { provider: providerName, model: modelId, traceId: req.traceId, detectedToolNameNorm, hasSearchIntentInUserText, isSearchLikeTool, hasDirectUrl: !!(directUrls && directUrls.length), fallbackType: shouldUseSearchFallback ? "search_no_result" : "url_extract_failed" });
+          sendDelta((cleanAssistantText ? "\n\n" : "") + fallback);
+          if (chatIntent.officialFormLookup && !hasDirectUrl) {
+            const policyLinks = buildRequiredLinkLines(getOfficialFormFallbackResults(userText), lang);
+            if (policyLinks) sendDelta(`\n\n${policyLinks}\n`);
+          }
         }
-        } // close else (non-URL tool check)
       }
 
-      // Send file_download events
+      // Emit file_download for results not already emitted by the agent loop
       for (const tr of toolResults) {
-        if (tr.downloadUrl || tr.base64 || tr.filename) {
-          emitFileDownload({
-            filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
-            downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
-          });
-          // Mark tool as done
+        if ((tr.downloadUrl || tr.base64 || tr.filename) && !tr._fileEmitted) {
+          emitFileDownload({ filename: tr.filename, size: tr.size, mimeType: tr.mimeType, downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined });
           const icon = tr.tool?.includes("spread") ? "spreadsheet" : tr.tool?.includes("present") ? "presentation" : "file";
           const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
           emitToolStatus({ text: L.toolDone(tr.filename, sizeStr), icon, done: true });
         }
       }
 
-      // Ensure search links are always returned as clickable URLs even if follow-up model underperforms.
+      // Ensure search links are always returned as clickable URLs
       const searchLinkRows = [];
       for (const tr of toolResults) {
         if (!tr?.data?.results || !Array.isArray(tr.data.results)) continue;
         for (const r of tr.data.results.slice(0, 5)) {
           const url = String(r?.url || "").trim();
           if (!url) continue;
-          const title = String(r?.title || "Source").trim();
-          searchLinkRows.push({ title, url });
+          searchLinkRows.push({ title: String(r?.title || "Source").trim(), url });
         }
       }
       if (searchLinkRows.length && !res.writableEnded) {
@@ -1937,8 +1931,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           searchLinkRows.map((x, i) => `${i + 1}. ${x.title}\n${x.url}`).join("\n\n");
         sendDelta((cleanAssistantText ? "\n\n" : "") + lines + "\n\n");
       }
-      // Deterministic policy for official-form lookups:
-      // always provide concrete links directly and avoid model-only one-liner outputs.
+      // Deterministic policy for official-form lookups
       if (chatIntent.officialFormLookup && !res.writableEnded) {
         const deterministicLinks = searchLinkRows.length
           ? searchLinkRows
@@ -1947,61 +1940,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           const lines = (lang === "zh" ? "可直接打开以下官方链接：\n" : "Open these official links directly:\n")
             + deterministicLinks.slice(0, 3).map((x, i) => `${i + 1}. ${x.title}\n${x.url}`).join("\n\n");
           sendDelta(`\n\n${lines}\n`);
-        }
-      }
-
-      // Second-round AI call: summarize tool results
-      if (toolResults.length > 0 && !res.writableEnded && !chatIntent.officialFormLookup) {
-        try {
-          const toolSummaries = toolResults.map(tr => {
-            if (tr.filename) return `[File generated: ${tr.filename} (${tr.size} bytes)]`;
-            if (tr.html) return tr.html.replace(/<[^>]*>/g, "").slice(0, 500);
-            if (tr.data?.results) {
-              return tr.data.results.slice(0, 5).map((r, idx) =>
-                `${idx + 1}. ${r.title || "Untitled"}\nURL: ${r.url || ""}\nSummary: ${r.content || ""}`
-              ).join("\n\n");
-            }
-            return JSON.stringify(tr.data || {}).slice(0, 300);
-          }).join("\n\n");
-
-          const followUpMessages = [
-            ...messages,
-            { role: "assistant", content: cleanAssistantText || "I executed the requested tools." },
-            { role: "user", content: `Tool execution results:\n${toolSummaries}\n\nPlease summarize the results for the user in a helpful way. If files were generated, briefly describe what's in them. If search results were returned, output 3-5 concrete clickable source links (full URLs) first, then a short summary. Do not say you cannot provide links when URLs are present in the tool results. Respond naturally in the same language as the user's original question.` },
-          ];
-          const followUpBody = buildChatBody(providerName.toLowerCase(), modelId, followUpMessages, "", true);
-          const followUpRes = await fetch(chatUrl, {
-            method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000),
-          });
-
-          if (followUpRes.ok && followUpRes.body) {
-            const fReader = followUpRes.body.getReader();
-            const fDec = new TextDecoder();
-            let fBuf = "";
-            while (true) {
-              const { done: fDone, value: fVal } = await fReader.read();
-              if (fDone) break;
-              fBuf += fDec.decode(fVal, { stream: true });
-              const fLines = fBuf.split("\n");
-              fBuf = fLines.pop() || "";
-              for (const fl of fLines) {
-                if (!fl.startsWith("data: ")) continue;
-                const fd = fl.slice(6).trim();
-                if (fd === "[DONE]") continue;
-                try {
-                  const fj = JSON.parse(fd);
-                  if (isAnthropic) {
-                    if (fj.type === "content_block_delta" && fj.delta?.type === "text_delta") sendDelta(fj.delta.text || "");
-                  } else {
-                    const c = fj.choices?.[0]?.delta?.content;
-                    if (c) sendDelta(c);
-                  }
-                } catch {}
-              }
-            }
-          }
-        } catch (e) {
-          log("warn", "Follow-up AI call failed in clean pipe", { error: e.message });
         }
       }
     } else {

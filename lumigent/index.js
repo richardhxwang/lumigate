@@ -1,6 +1,6 @@
 "use strict";
 
-const { LumigentRuntime, repairJSON, defaultFormatToolResult } = require("./runtime");
+const { LumigentRuntime, repairJSON, defaultFormatToolResult, isComplexRequest, buildPlanningPrompt } = require("./runtime");
 const { LumigentTraceStore } = require("./trace-store");
 const { registerBuiltinLumigentTools } = require("./registry");
 const { createInternalHttpBridge } = require("./bridges/internal-http");
@@ -18,4 +18,6 @@ module.exports = {
   createGeneratedFilePersister,
   repairJSON,
   defaultFormatToolResult,
+  isComplexRequest,
+  buildPlanningPrompt,
 };
