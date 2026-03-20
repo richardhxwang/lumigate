@@ -1523,10 +1523,12 @@ const LC_REQUIRED_FIELDS = {
   sessions: [
     { name: "created_at", type: "text", max: 0 },
     { name: "updated_at", type: "text", max: 0 },
+    { name: "share_token", type: "text", max: 64 },
   ],
   messages: [
     { name: "created_at", type: "text", max: 0 },
     { name: "updated_at", type: "text", max: 0 },
+    { name: "feedback", type: "text", max: 16 },
   ],
   files: [
     { name: "original_name", type: "text", max: 0 },
@@ -1703,17 +1705,17 @@ const LC_COLLECTION_CONFIG = {
     name: "lc_sessions",
     ownerField: "user",
     defaultPerPage: 100,
-    filterableFields: ["id", "user", "title", "provider", "model", "project", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    filterableFields: ["id", "user", "title", "provider", "model", "project", "share_token", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
     sortableFields: ["id", "title", "provider", "model", "project", "created_at", "updated_at", "deleted_at"],
-    writableFields: ["title", "provider", "model", "project", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    writableFields: ["title", "provider", "model", "project", "share_token", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
   messages: {
     name: "lc_messages",
     ownerField: null,
     defaultPerPage: 200,
-    filterableFields: ["id", "session", "role", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    filterableFields: ["id", "session", "role", "feedback", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
     sortableFields: ["id", "session", "role", "created_at", "updated_at", "deleted_at"],
-    writableFields: ["session", "role", "content", "file_ids", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
+    writableFields: ["session", "role", "content", "file_ids", "feedback", "created_at", "updated_at", "deleted_at", "deleted_by", "delete_reason"],
   },
   files: {
     name: "lc_files",
@@ -4677,6 +4679,133 @@ router.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
     res.status(status).json({ error: message });
   }
 });
+
+// POST /lc/messages/:id/feedback → rate a message (up/down/clear)
+router.post("/lc/messages/:id/feedback", requireLcAuth, async (req, res) => {
+  const msgId = req.params.id;
+  if (!validPbId(msgId)) return res.status(400).json({ error: "Invalid message ID" });
+  const { rating } = req.body || {};
+  if (rating && !["up", "down"].includes(rating)) return res.status(400).json({ error: "Invalid rating" });
+
+  try {
+    await assertRecordOwned("messages", { id: msgId, ownerId: req.lcUser.id, token: req.lcToken });
+    const body = { feedback: rating || "" };
+    if (lcSupportsField("messages", "updated_at")) body.updated_at = lcNowIso();
+
+    const r = await lcPbFetch(`/api/collections/lc_messages/records/${msgId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      log("warn", "lc message feedback failed", { status: r.status, messageId: msgId, error: pbErrorSummary(data) });
+      return res.status(r.status).json({ ...data, error: pbErrorSummary(data, "Feedback update failed") });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    const status = Number(e?.status) || 502;
+    log("error", "lc message feedback exception", { error: e.message, status, messageId: msgId });
+    res.status(status).json({ error: e.message || "PocketBase unavailable" });
+  }
+});
+
+// POST /lc/sessions/:id/share → generate a share link for a session
+router.post("/lc/sessions/:id/share", requireLcAuth, async (req, res) => {
+  const sid = req.params.id;
+  if (!validPbId(sid)) return res.status(400).json({ error: "Invalid session ID" });
+
+  try {
+    // Verify ownership
+    const session = await assertLcSessionOwned(sid, { ownerId: req.lcUser.id, token: req.lcToken });
+
+    // Re-use existing share token if present, otherwise generate new one
+    let shareToken = session.share_token;
+    if (!shareToken) {
+      shareToken = crypto.randomBytes(16).toString("hex");
+      const body = { share_token: shareToken };
+      if (lcSupportsField("sessions", "updated_at")) body.updated_at = lcNowIso();
+
+      const r = await lcPbFetch(`/api/collections/lc_sessions/records/${sid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        log("warn", "lc session share failed", { status: r.status, sessionId: sid, error: pbErrorSummary(data) });
+        return res.status(r.status).json({ error: pbErrorSummary(data, "Share link creation failed") });
+      }
+    }
+
+    res.json({ ok: true, shareUrl: `/shared/${shareToken}` });
+  } catch (e) {
+    const status = Number(e?.status) || 502;
+    log("error", "lc session share exception", { error: e.message, status, sessionId: sid });
+    res.status(status).json({ error: e.message || "PocketBase unavailable" });
+  }
+});
+
+// GET /shared/:token → view a shared conversation (no auth required)
+router.get("/shared/:token", async (req, res) => {
+  const token = req.params.token;
+  if (!token || !/^[0-9a-f]{32}$/.test(token)) return res.status(404).send("Not found");
+
+  try {
+    const adminToken = await getPbAdminToken();
+    if (!adminToken) return res.status(503).send("Service unavailable");
+
+    // Find session by share_token
+    const filter = encodeURIComponent(`share_token='${token}'`);
+    const listRes = await lcPbFetch(`/api/collections/lc_sessions/records?filter=${filter}&perPage=1`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const list = await listRes.json();
+    if (!list.items?.length) return res.status(404).send("Not found");
+
+    const session = list.items[0];
+
+    // Get messages (sorted chronologically)
+    const msgFilter = encodeURIComponent(`session='${session.id}'`);
+    const msgsRes = await lcPbFetch(`/api/collections/lc_messages/records?filter=${msgFilter}&sort=created&perPage=200`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const msgs = await msgsRes.json();
+
+    res.send(renderSharedPage(session, msgs.items || []));
+  } catch (e) {
+    log("error", "shared conversation load error", { error: e.message, token });
+    res.status(500).send("Error loading shared conversation");
+  }
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderSharedPage(session, messages) {
+  const title = escapeHtml(session.title || "Shared Conversation");
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} — LumiChat</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#212121;color:#e0e0e0;padding:20px;max-width:800px;margin:0 auto}
+  h1{font-size:18px;margin-bottom:20px;color:#10a37f}
+  .msg{margin-bottom:16px;padding:12px 16px;border-radius:12px}
+  .user{background:#2f2f2f}
+  .assistant{background:#1a1a1a;border:1px solid #333}
+  .role{font-size:12px;color:#888;margin-bottom:4px}
+  .content{white-space:pre-wrap;line-height:1.6}
+  .meta{color:#666;font-size:12px;margin-top:20px;text-align:center}
+</style>
+</head><body>
+<h1>${title}</h1>
+${messages.map((m) => `<div class="msg ${escapeHtml(m.role)}"><div class="role">${m.role === "user" ? "You" : "Assistant"}</div><div class="content">${escapeHtml(m.content || "")}</div></div>`).join("")}
+<div class="meta">Shared from LumiChat</div>
+</body></html>`;
+}
 
 // POST /lc/files → upload file to PB
 router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) => {
