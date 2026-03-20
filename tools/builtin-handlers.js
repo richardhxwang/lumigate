@@ -18,6 +18,13 @@ const DOC_GEN_URL = process.env.DOC_GEN_URL || "http://lumigate-doc-gen:3101";
 const FILE_PARSER_URL = process.env.FILE_PARSER_URL || "http://lumigate-file-parser:3100";
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://lumigate-searxng:8080";
 const WHISPER_URL = process.env.WHISPER_URL || "http://host.docker.internal:17863";
+const SANDBOX_URL = process.env.SANDBOX_URL || "http://lumigate-sandbox:3101";
+
+// DOC_GEN_MODE controls how document generation is routed:
+//   "dedicated" — always use the dedicated doc-gen container (default, backward compat)
+//   "sandbox"   — always route to the sandbox container
+//   "auto"      — try doc-gen first, fall back to sandbox on ECONNREFUSED
+const DOC_GEN_MODE = (process.env.DOC_GEN_MODE || "auto").toLowerCase();
 
 // Extra tool schemas not served by doc-gen /tools
 const EXTRA_TOOL_SCHEMAS = [
@@ -116,6 +123,41 @@ async function downloadExternalBuffer(url, timeoutMs = 30000) {
 }
 
 /**
+ * Fetch from a doc-gen endpoint with optional sandbox fallback.
+ * - "dedicated": only try DOC_GEN_URL
+ * - "sandbox": only try SANDBOX_URL
+ * - "auto": try DOC_GEN_URL first, fall back to SANDBOX_URL on connection error
+ * @param {string} path - e.g. "/generate/docx"
+ * @param {object} body - JSON body
+ * @returns {Promise<Response>}
+ */
+async function docGenFetch(path, body, headers = { "Content-Type": "application/json" }) {
+  const jsonBody = typeof body === "string" ? body : JSON.stringify(body);
+  const opts = { method: "POST", headers, body: jsonBody, signal: AbortSignal.timeout(60000) };
+
+  if (DOC_GEN_MODE === "sandbox") {
+    return fetch(`${SANDBOX_URL}${path}`, opts);
+  }
+
+  if (DOC_GEN_MODE === "dedicated") {
+    return fetch(`${DOC_GEN_URL}${path}`, opts);
+  }
+
+  // "auto" mode: try dedicated first, fall back to sandbox
+  try {
+    const res = await fetch(`${DOC_GEN_URL}${path}`, opts);
+    return res;
+  } catch (err) {
+    const msg = String(err?.cause?.code || err?.code || err?.message || "").toLowerCase();
+    if (msg.includes("econnrefused") || msg.includes("enotfound") || msg.includes("fetch failed") || msg.includes("networkerror")) {
+      console.log(`[builtin-handlers] doc-gen unavailable (${msg}), falling back to sandbox`);
+      return fetch(`${SANDBOX_URL}${path}`, { ...opts, signal: AbortSignal.timeout(60000) });
+    }
+    throw err;
+  }
+}
+
+/**
  * Execute a built-in tool call by routing to the appropriate microservice.
  * Returns { ok, data?, file?, filename?, mimeType?, error?, duration? }
  */
@@ -124,54 +166,34 @@ async function executeToolCall(toolName, toolInput) {
   try {
     switch (toolName) {
       case "generate_document": {
-        const res = await fetch(`${DOC_GEN_URL}/generate/docx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toolInput),
-        });
+        const res = await docGenFetch("/generate/docx", toolInput);
         if (!res.ok) throw new Error(`doc-gen returned ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         const filename = (toolInput.title || "document").replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_") + ".docx";
         return { ok: true, file: buffer, filename, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", duration: Date.now() - startTime };
       }
       case "generate_presentation": {
-        const res = await fetch(`${DOC_GEN_URL}/generate/pptx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toolInput),
-        });
+        const res = await docGenFetch("/generate/pptx", toolInput);
         if (!res.ok) throw new Error(`doc-gen returned ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         const filename = (toolInput.title || "presentation").replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_") + ".pptx";
         return { ok: true, file: buffer, filename, mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", duration: Date.now() - startTime };
       }
       case "generate_spreadsheet": {
-        const res = await fetch(`${DOC_GEN_URL}/generate/xlsx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toolInput),
-        });
+        const res = await docGenFetch("/generate/xlsx", toolInput);
         if (!res.ok) throw new Error(`doc-gen returned ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         const filename = (toolInput.title || "spreadsheet").replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, "_") + ".xlsx";
         return { ok: true, file: buffer, filename, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", duration: Date.now() - startTime };
       }
       case "convert_xlsx_to_pptx": {
-        const res = await fetch(`${DOC_GEN_URL}/convert/xlsx-to-pptx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toolInput),
-        });
+        const res = await docGenFetch("/convert/xlsx-to-pptx", toolInput);
         if (!res.ok) throw new Error(`doc-gen returned ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         return { ok: true, file: buffer, filename: "converted.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", duration: Date.now() - startTime };
       }
       case "convert_xlsx_to_docx": {
-        const res = await fetch(`${DOC_GEN_URL}/convert/xlsx-to-docx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toolInput),
-        });
+        const res = await docGenFetch("/convert/xlsx-to-docx", toolInput);
         if (!res.ok) throw new Error(`doc-gen returned ${res.status}`);
         const buffer = Buffer.from(await res.arrayBuffer());
         return { ok: true, file: buffer, filename: "converted.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", duration: Date.now() - startTime };
@@ -272,6 +294,8 @@ module.exports = {
   executeToolCall,
   EXTRA_TOOL_SCHEMAS,
   DOC_GEN_URL,
+  DOC_GEN_MODE,
+  SANDBOX_URL,
   FILE_PARSER_URL,
   SEARXNG_URL,
   WHISPER_URL,

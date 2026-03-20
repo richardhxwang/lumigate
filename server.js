@@ -2523,6 +2523,14 @@ registerBuiltinLumigentTools(unifiedRegistry, {
   mcp: lumigentMcpBridge,
 });
 
+// Register HKEX filing download tool
+try {
+  const { registerHKEXTool } = require("./tools/hkex-downloader");
+  registerHKEXTool(unifiedRegistry);
+} catch (e) {
+  log("warn", "HKEX tool registration skipped", { error: e.message });
+}
+
 const lumigentRuntime = new LumigentRuntime({
   registry: unifiedRegistry,
   logger: log,
@@ -3490,6 +3498,10 @@ app.use("/v1/versions", apiLimiter, platformAuth, versionsRouter);
 // ── Sandbox routes ────────────────────────────────────────────────────────────
 const createSandboxRouter = require("./routes/sandbox");
 app.use("/v1/sandbox", apiLimiter, platformAuth, createSandboxRouter({ logger: log }));
+
+// ── HKEX filing download routes ───────────────────────────────────────────────
+const createHKEXRouter = require("./routes/hkex");
+app.use("/v1/hkex", apiLimiter, platformAuth, createHKEXRouter({ log }));
 
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
