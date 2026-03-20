@@ -76,13 +76,11 @@ async function readFileBytes(fileObj) {
 }
 
 async function gzipCompressBytes(bytes) {
-  if (typeof CompressionStream !== "function") return { bytes, algorithm: "none" };
-  const cs = new CompressionStream("gzip");
-  const writer = cs.writable.getWriter();
-  await writer.write(bytes);
-  await writer.close();
-  const ab = await new Response(cs.readable).arrayBuffer();
-  return { bytes: new Uint8Array(ab), algorithm: "gzip" };
+  // Skip browser gzip — CompressionStream hangs in Safari and some Headless Chrome.
+  // The payload is already encrypted (AES-GCM), so compression adds minimal benefit
+  // on already-compressed files (PDF, XLSX, DOCX are all ZIP-based internally).
+  // Server handles both compressed and uncompressed payloads (checks envelope.zip field).
+  return { bytes, algorithm: "none" };
 }
 
 function packBundleV2(records) {
