@@ -90,6 +90,26 @@ module.exports = function createLumiChatRouter(deps) {
     _collector,
   } = deps;
 
+// FurNote auth middleware — analogous to requireLcAuth but reads fn_token cookie
+// Defined here because it was not wired from server.js (passed as undefined)
+const _requireFnAuth = (typeof requireFnAuth === "function") ? requireFnAuth : function requireFnAuthFallback(req, res, next) {
+  const cookies = parseCookies(req);
+  const token = cookies.fn_token;
+  if (!token) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    if (!token || token.split(".").length !== 3) return res.status(401).json({ error: "Session expired" });
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    if (!payload.id || !payload.collectionId) return res.status(401).json({ error: "Session expired" });
+    if (payload.exp * 1000 < Date.now()) return res.status(401).json({ error: "Session expired" });
+    req.fnUser = payload;
+    req.fnToken = token;
+    next();
+  } catch { return res.status(401).json({ error: "Session expired" }); }
+};
+
+// Safe fallback for saveCollectorCookies (may be undefined if not wired from server.js)
+const _saveCollectorCookies = (typeof saveCollectorCookies === "function") ? saveCollectorCookies : () => {};
+
 // Helper: forward request to PocketBase with optional auth
 async function pbFetch(path, options = {}) {
   const url = `${PB_URL}${path}`;
@@ -2122,7 +2142,7 @@ const DOMAIN_AUTH_ADAPTERS = {
     getContext: (req) => ({ ownerId: req.lcUser?.id, token: req.lcToken }),
   },
   fn: {
-    middleware: requireFnAuth,
+    middleware: _requireFnAuth,
     getContext: (req) => ({ ownerId: req.fnUser?.id, token: req.fnToken }),
   },
 };
@@ -2617,7 +2637,7 @@ router.post("/fn/auth/login", async (req, res) => {
 });
 
 // POST /fn/auth/refresh → refresh token
-router.post("/fn/auth/refresh", requireFnAuth, async (req, res) => {
+router.post("/fn/auth/refresh", _requireFnAuth, async (req, res) => {
   try {
     const r = await fnPbFetch("/api/collections/fn_owners/auth-refresh", {
       method: "POST",
@@ -2642,7 +2662,7 @@ router.post("/fn/auth/refresh", requireFnAuth, async (req, res) => {
 });
 
 // GET /fn/auth/me → get owner profile
-router.get("/fn/auth/me", requireFnAuth, async (req, res) => {
+router.get("/fn/auth/me", _requireFnAuth, async (req, res) => {
   try {
     const uid = req.fnUser?.id;
     if (!uid || !validPbId(uid)) return res.status(401).json({ error: "Not authenticated" });
@@ -2971,7 +2991,7 @@ function summarizeFnHealthSignals({ records = [], reminders = [], measurements =
 }
 
 // POST /api/fn/extractions/confirm → persist confirmed extraction into fn health records
-router.post("/api/fn/extractions/confirm", requireFnAuth, async (req, res) => {
+router.post("/api/fn/extractions/confirm", _requireFnAuth, async (req, res) => {
   try {
     const ownerId = req.fnUser?.id;
     const token = req.fnToken;
@@ -3160,7 +3180,7 @@ async function retrieveFnDualLayerRag({ ownerId, token, query, petLocalId = "", 
 }
 
 // POST /api/fn/rag/trace → save retrieval trace when rag_sessions collection is available
-router.post("/api/fn/rag/trace", requireFnAuth, async (req, res) => {
+router.post("/api/fn/rag/trace", _requireFnAuth, async (req, res) => {
   try {
     const ownerId = req.fnUser?.id;
     const token = req.fnToken;
@@ -3192,7 +3212,7 @@ router.post("/api/fn/rag/trace", requireFnAuth, async (req, res) => {
 });
 
 // POST /api/fn/rag/search → lightweight retrieval over owner-scoped FurNote records
-router.post("/api/fn/rag/search", requireFnAuth, async (req, res) => {
+router.post("/api/fn/rag/search", _requireFnAuth, async (req, res) => {
   try {
     const ownerId = req.fnUser?.id;
     const token = req.fnToken;
@@ -3230,7 +3250,7 @@ router.post("/api/fn/rag/search", requireFnAuth, async (req, res) => {
 });
 
 // POST /api/fn/reports/generate → generate weekly/monthly report snapshot
-router.post("/api/fn/reports/generate", requireFnAuth, async (req, res) => {
+router.post("/api/fn/reports/generate", _requireFnAuth, async (req, res) => {
   try {
     const ownerId = req.fnUser?.id;
     const token = req.fnToken;
@@ -3303,7 +3323,7 @@ router.post("/api/fn/reports/generate", requireFnAuth, async (req, res) => {
 });
 
 // GET /api/fn/reports/snapshots?pet_local_id=&period_type=&perPage=
-router.get("/api/fn/reports/snapshots", requireFnAuth, async (req, res) => {
+router.get("/api/fn/reports/snapshots", _requireFnAuth, async (req, res) => {
   try {
     const ownerId = req.fnUser?.id;
     const token = req.fnToken;
@@ -3927,7 +3947,7 @@ router.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => 
         const cookies = await ctx.cookies([site.url]).catch(() => []);
         if (cookies.find(c => c.name === site.cookie && c.value.length > 5)) {
           const allCookies = await ctx.cookies([site.url]).catch(() => []);
-          saveCollectorCookies(name, allCookies);
+          _saveCollectorCookies(name, allCookies);
           await page.close().catch(() => {});
           // Update existing account or create one (avoid duplicates)
           if (!Array.isArray(collectorTokens[name])) collectorTokens[name] = [];
