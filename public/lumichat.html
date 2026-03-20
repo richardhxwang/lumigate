@@ -3261,7 +3261,7 @@ async function sendMessage(){
   if(encryptedUploadEnabled && files.length){
     try{
       const ext = await ensureEncryptedUploadExt();
-      const ENCRYPTED_PACK_TIMEOUT_MS = 25000;
+      const ENCRYPTED_PACK_TIMEOUT_MS = 60000; // 60s for large files over slow connections
       const packed = await Promise.race([
         ext.packFiles(files),
         new Promise((_, reject)=>setTimeout(()=>reject(new Error(_lang==='zh' ? '加密打包超时，请重试' : 'Encrypted packaging timed out, please retry')), ENCRYPTED_PACK_TIMEOUT_MS)),

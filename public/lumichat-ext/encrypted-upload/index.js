@@ -215,8 +215,9 @@ export function createEncryptedUploadExtension() {
     const compressed = await gzipCompressBytes(packed);
     const compressionRatio = packed.length ? Number((compressed.bytes.length / packed.length).toFixed(4)) : 1;
 
-    // Always refresh public key before packing to avoid stale-key failures after server restart.
-    const keyInfo = await ensureKey(true);
+    // Use cached key if available; only refresh if no key cached yet.
+    // Stale keys will fail at server decryption → user retries → activate() refreshes.
+    const keyInfo = await ensureKey(false);
     const encryptedText = await encryptPayloadBytes(compressed.bytes, keyInfo, {
       format: "lcpack2",
       zip: compressed.algorithm,
