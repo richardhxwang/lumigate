@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import tempfile
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Tuple
 
 # ── Optional: docling for structured PDF table extraction ──
@@ -1660,6 +1661,599 @@ def _check(
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Full Casting Engine (铸表)
+#
+# Instead of checking only hardcoded items, this parses ALL line items from the
+# financial statement text, auto-detects parent-child relationships via
+# indentation, and verifies every total against its sub-items.  It also
+# cross-matches items across statements via fuzzy label matching.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Section identification ──
+
+_SECTION_PATTERNS: List[Tuple[str, str]] = [
+    # (section_id, regex pattern)
+    # These are matched against individual lines (not whole text) to find
+    # standalone section headers and avoid picking up auditor's report references.
+    ("income_statement", (
+        r"^(?:\s*(?:consolidated\s*)?(?:statement\s*of\s*profit\s*(?:and|or)\s*loss(?:\s*account)?"
+        r"|income\s*statement|profit\s*(?:and|&)\s*loss(?:\s*account)?)"
+        r"|綜合損益(?:及其他全面收益)?表|综合损益表|利润表|利潤表|損益表)\s*$"
+    )),
+    ("comprehensive_income", (
+        r"^(?:\s*(?:consolidated\s*)?(?:statement\s*of\s*comprehensive\s*income)"
+        r"|綜合全面收益表|综合全面收益表)\s*$"
+    )),
+    ("balance_sheet", (
+        r"^(?:\s*(?:consolidated\s*)?(?:statement\s*of\s*financial\s*position|balance\s*sheet)"
+        r"|綜合財務狀況表|综合财务状况表|綜合資產負債表|综合资产负债表|资产负债表|資產負債表)\s*$"
+    )),
+    ("cash_flow", (
+        r"^(?:\s*(?:consolidated\s*)?(?:(?:statement\s*of\s*)?cash\s*flows?(?:\s*statement)?)"
+        r"|綜合現金流量表|综合现金流量表|現金流量表|现金流量表)\s*$"
+    )),
+    ("equity_changes", (
+        r"^(?:\s*(?:consolidated\s*)?(?:statement\s*of\s*changes\s*in\s*equity)"
+        r"|綜合權益變動表|综合权益变动表|權益變動表|股东权益变动表|股東權益變動表)\s*$"
+    )),
+]
+
+# Number pattern that captures financial numbers (with commas, parens, decimals)
+_CAST_NUM_RE = re.compile(
+    r"\(?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?"  # comma-formatted
+    r"|\(\d+(?:\.\d+)?\)"                    # parenthesized
+    r"|\d+\.\d+"                              # decimal
+    r"|(?<!\d)(?!(?:19|20)\d{2}(?:\D|$))\d{4,}"  # 4+ digits, not year-like
+, re.VERBOSE)
+
+# Lines that are headers/noise, not real line items
+_SKIP_LINE_RE = re.compile(
+    r"^\s*(?:note(?:s)?|HK\$|RMB|USD|'000|million|千|百万|百萬|千元|人民幣|港幣|美元)\s*$"
+    r"|^\s*[-=_]{3,}\s*$"                    # separator lines
+    r"|^\s*\d{1,2}\.\s"                      # footnote numbering (e.g. "6. Revenue")
+    r"|^\s*$"                                 # blank
+, re.IGNORECASE)
+
+# Likely "total" / "subtotal" labels
+_TOTAL_LABEL_RE = re.compile(
+    r"\btotal\b|\bsubtotal\b|\bnet\b.*\b(?:assets?|liabilities|equity|income|profit|loss|cash)\b"
+    r"|合[计計]|总[计計]|總[計计]|小[计計]|淨額|净额"
+, re.IGNORECASE)
+
+
+def _identify_sections(text: str) -> List[Dict[str, Any]]:
+    """Identify financial statement sections by scanning each line as a potential
+    standalone section header.  This avoids picking up references in the
+    auditor's report or notes which mention statement names in prose.
+
+    Returns list of {id, title, start, end} dicts, ordered by position.
+    """
+    lines = text.split('\n')
+    # Build cumulative character offsets for each line
+    offsets: List[int] = []
+    pos = 0
+    for line in lines:
+        offsets.append(pos)
+        pos += len(line) + 1  # +1 for the '\n'
+
+    hits: List[Tuple[int, str, str]] = []  # (char_offset, section_id, title)
+    for line_idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or len(stripped) > 120:
+            # Skip blank lines and lines too long to be headers
+            continue
+        for sec_id, pat in _SECTION_PATTERNS:
+            if re.match(pat, stripped, re.IGNORECASE):
+                hits.append((offsets[line_idx], sec_id, stripped))
+                break
+
+    if not hits:
+        return []
+
+    # Sort by position, keep first occurrence of each section type
+    hits.sort(key=lambda h: h[0])
+    sections: List[Dict[str, Any]] = []
+    seen_ids: Dict[str, int] = {}  # sec_id -> index in sections list
+    for i, (char_pos, sec_id, title) in enumerate(hits):
+        next_pos = hits[i + 1][0] if i + 1 < len(hits) else len(text)
+        if sec_id in seen_ids:
+            # Only extend for "(continued)" / "(續)" pages that are close
+            # to the original section (within 20000 chars ~ a few pages)
+            existing = sections[seen_ids[sec_id]]
+            gap = char_pos - existing["end"]
+            is_continued = bool(re.search(r'continued|續|续', title, re.IGNORECASE))
+            if is_continued or gap < 3000:
+                existing["end"] = next_pos
+            continue
+        seen_ids[sec_id] = len(sections)
+        sections.append({
+            "id": sec_id,
+            "title": title,
+            "start": char_pos,
+            "end": next_pos,
+        })
+
+    return sections
+
+
+def _extract_line_items(section_text: str) -> List[Dict[str, Any]]:
+    """Extract ALL line items with numbers from a section of financial text.
+
+    Each item has: label, values (list of floats found on the line),
+    indent_level (number of leading spaces), line_number.
+
+    Handles pdftotext -layout format where:
+      - Labels are left-aligned with leading spaces indicating hierarchy
+      - Chinese label + English translation appear together
+      - Note references (small integers) appear between label and values
+      - Values are right-aligned with wide spacing
+      - Parenthesized numbers are negative: (21,625) = -21,625
+    """
+    items: List[Dict[str, Any]] = []
+    lines = section_text.split('\n')
+
+    # Skip header lines (year labels, column headers, "Notes", "RMB million", etc.)
+    _header_re = re.compile(
+        r"^\s*(?:附註|Notes?\s*$|RMB\s*million|HK\$|人民幣百萬元|二零|截至|For\s*the\s*year|As\s*at\s)"
+        r"|^\s*\d{4}\s*$"  # bare year
+        r"|^\s*[-=_]{3,}\s*$"
+    , re.IGNORECASE)
+
+    for line_idx, raw_line in enumerate(lines):
+        if not raw_line.strip():
+            continue
+        if _header_re.match(raw_line):
+            continue
+        if _SKIP_LINE_RE.match(raw_line):
+            continue
+
+        # Find all financial numbers on this line.
+        # In pdftotext layout, values are in the right portion of the line.
+        # We look for "obviously financial" numbers (comma-formatted, parenthesized, decimal)
+        # and also bare numbers that are column-aligned (preceded by 2+ spaces).
+        numbers: List[float] = []
+        num_positions: List[int] = []  # character position of each number
+
+        for m in _CAST_NUM_RE.finditer(raw_line):
+            tok = m.group(0)
+            v = _to_float(tok)
+            if v is not None:
+                numbers.append(v)
+                num_positions.append(m.start())
+
+        # Also pick up column-aligned bare numbers (3+ digits preceded by 2+ spaces)
+        # that _CAST_NUM_RE might miss (e.g., small amounts without commas)
+        for m in re.finditer(r'\s{2,}(\(?\d{3,}(?:\.\d+)?\)?)', raw_line):
+            tok = m.group(1)
+            v = _to_float(tok)
+            if v is not None and v not in numbers:
+                # Skip if this looks like a year (1900-2099)
+                if 1900 <= abs(v) <= 2099 and ',' not in tok and '.' not in tok:
+                    continue
+                numbers.append(v)
+                num_positions.append(m.start(1))
+
+        if not numbers:
+            continue
+
+        # Determine label: text before the first number's column position.
+        # In pdftotext layout the label ends where the first big gap begins.
+        first_num_pos = min(num_positions) if num_positions else len(raw_line)
+
+        # Extract everything before the first number position as potential label
+        label_region = raw_line[:first_num_pos]
+
+        # Split on 3+ spaces to separate Chinese label from English translation
+        # and from note reference numbers. Take the leftmost non-empty segment(s).
+        segments = re.split(r'\s{3,}', label_region)
+        # Merge Chinese + English parts (typically first 2 non-empty segments)
+        label_parts: List[str] = []
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            # Skip if segment is just a note reference number (1-2 digits)
+            if re.match(r'^\d{1,2}$', seg):
+                continue
+            label_parts.append(seg)
+            if len(label_parts) >= 2:
+                break
+
+        label = ' '.join(label_parts).strip() if label_parts else ''
+
+        # Clean label: remove trailing note reference and stray numbers
+        label = re.sub(r'\s+\d{1,2}\s*$', '', label).strip()
+
+        if not label or len(label) < 2:
+            continue
+
+        # Skip if label is just numbers or punctuation
+        if re.match(r'^[\d,.()\s\-]+$', label):
+            continue
+        # Skip if label looks like a page number line
+        if re.match(r'^\d{1,3}$', label):
+            continue
+
+        # Determine indent level (leading whitespace of the raw line)
+        stripped = raw_line.lstrip()
+        indent = len(raw_line) - len(stripped)
+
+        is_total = bool(_TOTAL_LABEL_RE.search(label))
+
+        items.append({
+            "label": label,
+            "values": numbers,
+            "current_year": numbers[0] if len(numbers) >= 1 else None,
+            "prior_year": numbers[1] if len(numbers) >= 2 else None,
+            "indent": indent,
+            "line": line_idx,
+            "is_total": is_total,
+        })
+
+    return items
+
+
+def _build_hierarchy(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Auto-detect parent-child relationships using multiple strategies:
+
+    1. Total-detection: lines with "total"/"subtotal"/"合计" labels are parents
+       of the preceding consecutive items (up to the previous total).
+    2. Indent-based: items with deeper indent under shallower-indent items.
+    3. Unlabeled summary lines (lines that are just numbers at a certain column
+       position) are treated as subtotals of preceding items.
+
+    For pdftotext -layout format, indent-based hierarchy is unreliable because
+    Chinese + English labels create varying indentation.  The total-detection
+    approach is more robust for financial statements.
+
+    Returns items annotated with 'children_indices' and 'parent_index'.
+    """
+    n = len(items)
+    for it in items:
+        it["children_indices"] = []
+        it["parent_index"] = None
+
+    if n == 0:
+        return items
+
+    # Strategy 1: total-detection (primary for financial statements)
+    # For each "total" item, scan backward to find its children.
+    # Children are items between the previous total/subtotal and this one.
+    assigned: set = set()  # indices already assigned as children
+
+    for i in range(n):
+        if not items[i]["is_total"]:
+            continue
+
+        # Scan backward from i-1 to find children
+        children: List[int] = []
+        for j in range(i - 1, -1, -1):
+            if j in assigned:
+                break
+            if items[j]["is_total"]:
+                break  # Stop at previous total
+            children.append(j)
+
+        if children:
+            children.reverse()
+            items[i]["children_indices"] = children
+            for ci in children:
+                items[ci]["parent_index"] = i
+                assigned.add(ci)
+
+    # Strategy 2: indent-based fallback for items not yet assigned
+    # Only apply to items that weren't handled by total-detection
+    # Use a simple rule: if an item has MORE indent than the preceding item,
+    # it's a child of that preceding item.
+    for i in range(1, n):
+        if items[i]["parent_index"] is not None:
+            continue  # Already assigned
+        if i in assigned:
+            continue
+        # Look for a parent with less indent
+        for j in range(i - 1, -1, -1):
+            if items[j]["indent"] < items[i]["indent"] and items[j]["parent_index"] is None:
+                items[i]["parent_index"] = j
+                items[j]["children_indices"].append(i)
+                assigned.add(i)
+                break
+
+    return items
+
+
+def _verify_item(item: Dict[str, Any], all_items: List[Dict[str, Any]],
+                 tolerance: float = 1.0) -> Dict[str, Any]:
+    """Verify a single line item.
+
+    If it has children, check that children's current_year values sum to
+    this item's current_year (addition check).
+
+    Returns a casting entry dict.
+    """
+    cur = item.get("current_year")
+    pri = item.get("prior_year")
+
+    # Variance
+    variance_amt = None
+    variance_pct = None
+    if cur is not None and pri is not None:
+        variance_amt = round(cur - pri, 2)
+        if pri != 0:
+            variance_pct = round((cur - pri) / abs(pri) * 100, 2)
+
+    entry: Dict[str, Any] = {
+        "label": item["label"],
+        "current_year": cur,
+        "prior_year": pri,
+        "variance_amount": variance_amt,
+        "variance_percent": variance_pct,
+        "source": item.get("_section_id", "unknown"),
+        "indent": item["indent"],
+    }
+
+    # Addition check: if this item has children, sum them
+    children_idx = item.get("children_indices", [])
+    if children_idx and cur is not None:
+        child_sum = 0.0
+        child_labels: List[str] = []
+        child_values: List[Optional[float]] = []
+        all_have_values = True
+        for ci in children_idx:
+            child = all_items[ci]
+            cv = child.get("current_year")
+            child_labels.append(child["label"])
+            child_values.append(cv)
+            if cv is not None:
+                child_sum += cv
+            else:
+                all_have_values = False
+
+        if all_have_values and len(children_idx) >= 2:
+            diff = cur - child_sum
+            if abs(diff) <= tolerance:
+                entry["addition_check"] = "pass"
+            else:
+                entry["addition_check"] = "fail"
+            entry["addition_expected"] = round(child_sum, 2)
+            entry["addition_diff"] = round(diff, 2)
+            entry["addition_children"] = child_labels
+        else:
+            entry["addition_check"] = "not_applicable"
+    else:
+        entry["addition_check"] = "not_applicable"
+
+    return entry
+
+
+def _fuzzy_match_score(a: str, b: str) -> float:
+    """Return similarity score (0-1) between two labels, case-insensitive."""
+    a_lower = a.lower().strip()
+    b_lower = b.lower().strip()
+    if a_lower == b_lower:
+        return 1.0
+    return SequenceMatcher(None, a_lower, b_lower).ratio()
+
+
+# Known cross-statement label equivalences (label fragment -> canonical)
+_LABEL_EQUIVALENCES: List[Tuple[str, List[str]]] = [
+    ("net_profit", [
+        "net income", "net profit", "profit for the year", "profit for the period",
+        "profit attributable", "本年度溢利", "净利润", "淨利潤", "纯利", "純利",
+        "年度溢利", "本期利润", "本期利潤",
+    ]),
+    ("total_equity", [
+        "total equity", "total shareholders' equity", "權益總額", "权益总额",
+        "總權益", "总权益", "股东权益合计", "股東權益合計",
+    ]),
+    ("cash_closing", [
+        "cash and cash equivalents", "closing cash", "期末现金", "期末現金",
+        "年末现金", "年末現金", "cash at end", "cash at 31 december",
+        "於十二月三十一日之現金", "于十二月三十一日之现金",
+    ]),
+    ("cash_opening", [
+        "cash at beginning", "opening cash", "期初现金", "期初現金",
+        "cash at 1 january", "於一月一日之現金", "于一月一日之现金",
+    ]),
+    ("revenue", [
+        "revenue", "turnover", "营业收入", "營業收入", "营业额", "營業額",
+        "销售收入", "銷售收入", "total revenue",
+    ]),
+    ("dividends", [
+        "dividends declared", "dividends paid", "已宣派股息", "已派发股息",
+        "已派發股息", "股息", "股利", "分红", "分紅",
+    ]),
+    ("depreciation", [
+        "depreciation", "depreciation and amortisation", "depreciation and amortization",
+        "折旧", "折舊", "折旧及摊销", "折舊及攤銷",
+    ]),
+]
+
+
+def _canonicalize_label(label: str) -> Optional[str]:
+    """Map a line item label to its canonical cross-statement id, or None.
+
+    Uses strict matching to avoid false positives: the variant must match
+    as a whole word/phrase, not as a substring of a longer unrelated label.
+    """
+    label_lower = label.lower().strip()
+    # Skip very short labels (too ambiguous) and very long labels (notes text)
+    if len(label_lower) < 3 or len(label_lower) > 80:
+        return None
+
+    for canon_id, variants in _LABEL_EQUIVALENCES:
+        for v in variants:
+            v_lower = v.lower()
+            # Exact match or label starts with the variant
+            if label_lower == v_lower:
+                return canon_id
+            # The variant is the primary part of the label (appears at start or after Chinese)
+            # Use word-boundary check for English, direct containment for Chinese
+            if len(v_lower) >= 4:
+                # For Chinese characters (len >= 2 chars but short byte-wise is fine)
+                if any('\u4e00' <= ch <= '\u9fff' for ch in v_lower):
+                    # Chinese: exact containment with label being short
+                    if v_lower in label_lower and len(label_lower) < len(v_lower) * 3:
+                        return canon_id
+                else:
+                    # English: word boundary match
+                    if re.search(r'\b' + re.escape(v_lower) + r'\b', label_lower):
+                        return canon_id
+            # Fuzzy match only for very similar labels
+            if _fuzzy_match_score(label_lower, v_lower) > 0.88:
+                return canon_id
+    return None
+
+
+def _cross_statement_checks(
+    section_items: Dict[str, List[Dict[str, Any]]],
+    tolerance: float = 1.0,
+) -> List[Dict[str, Any]]:
+    """Auto-discover cross-statement matches by label similarity.
+
+    For items that appear in multiple statements, verify their values match.
+    """
+    # Build a map: canonical_id -> list of (section_id, label, current_year)
+    canonical_map: Dict[str, List[Tuple[str, str, Optional[float]]]] = {}
+    for sec_id, items in section_items.items():
+        for item in items:
+            canon = _canonicalize_label(item["label"])
+            if canon is None:
+                continue
+            canonical_map.setdefault(canon, []).append(
+                (sec_id, item["label"], item.get("current_year"))
+            )
+
+    # Primary statement sections (for cross-statement, prefer matching across these)
+    _primary_sections = {"income_statement", "comprehensive_income", "balance_sheet",
+                         "cash_flow", "equity_changes"}
+
+    results: List[Dict[str, Any]] = []
+    for canon_id, entries in canonical_map.items():
+        # Only check if item appears in 2+ different sections
+        sections_seen = set(e[0] for e in entries)
+        if len(sections_seen) < 2:
+            continue
+
+        # Compare values across sections — only use first occurrence per section
+        by_section: Dict[str, Tuple[str, str, Optional[float]]] = {}
+        for s, l, v in entries:
+            if s not in by_section and v is not None:
+                by_section[s] = (s, l, v)
+
+        valued = list(by_section.values())
+        if len(valued) < 2:
+            continue
+
+        # Use first occurrence as reference
+        ref_sec, ref_label, ref_val = valued[0]
+        for other_sec, other_label, other_val in valued[1:]:
+            if other_sec == ref_sec:
+                continue
+            diff = abs(ref_val - other_val) if ref_val is not None and other_val is not None else None
+            status = "not_applicable"
+            if diff is not None:
+                status = "pass" if diff <= tolerance else "fail"
+
+            results.append({
+                "canonical_id": canon_id,
+                "label_a": ref_label,
+                "section_a": ref_sec,
+                "value_a": ref_val,
+                "label_b": other_label,
+                "section_b": other_sec,
+                "value_b": other_val,
+                "difference": round(diff, 2) if diff is not None else None,
+                "status": status,
+            })
+
+    return results
+
+
+def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, Any]:
+    """Full casting (铸表): parse all line items, verify every total, cross-match
+    across statements.
+
+    Returns {
+        casting_sheet: [...],         # every line item with verification
+        cross_statement_matches: [...], # auto-discovered cross-statement checks
+        section_summaries: {...},     # per-section stats
+        stats: {...},                 # overall pass/fail/na counts
+    }
+    """
+    sections = _identify_sections(text)
+
+    # If no sections identified, treat entire text as a single section
+    if not sections:
+        sections = [{"id": "unidentified", "title": "Full Document", "start": 0, "end": len(text)}]
+
+    casting_sheet: List[Dict[str, Any]] = []
+    section_items_map: Dict[str, List[Dict[str, Any]]] = {}
+    section_summaries: Dict[str, Dict[str, Any]] = {}
+
+    for sec in sections:
+        sec_text = text[sec["start"]:sec["end"]]
+        items = _extract_line_items(sec_text)
+
+        # Tag each item with section info
+        for item in items:
+            item["_section_id"] = sec["id"]
+
+        # Build hierarchy
+        items = _build_hierarchy(items)
+
+        # Store for cross-statement checks
+        section_items_map[sec["id"]] = items
+
+        # Verify each item
+        sec_entries: List[Dict[str, Any]] = []
+        for item in items:
+            entry = _verify_item(item, items, tolerance=tolerance)
+            entry["source"] = sec["id"]
+            entry["source_title"] = sec["title"]
+            sec_entries.append(entry)
+
+        casting_sheet.extend(sec_entries)
+
+        # Section summary
+        pass_c = sum(1 for e in sec_entries if e.get("addition_check") == "pass")
+        fail_c = sum(1 for e in sec_entries if e.get("addition_check") == "fail")
+        na_c = sum(1 for e in sec_entries if e.get("addition_check") == "not_applicable")
+        section_summaries[sec["id"]] = {
+            "title": sec["title"],
+            "line_items": len(sec_entries),
+            "addition_pass": pass_c,
+            "addition_fail": fail_c,
+            "addition_na": na_c,
+        }
+
+    # Cross-statement checks
+    cross_matches = _cross_statement_checks(section_items_map, tolerance=tolerance)
+
+    # Overall stats
+    total_pass = sum(1 for e in casting_sheet if e.get("addition_check") == "pass")
+    total_fail = sum(1 for e in casting_sheet if e.get("addition_check") == "fail")
+    total_na = sum(1 for e in casting_sheet if e.get("addition_check") == "not_applicable")
+    xstmt_pass = sum(1 for m in cross_matches if m.get("status") == "pass")
+    xstmt_fail = sum(1 for m in cross_matches if m.get("status") == "fail")
+
+    return {
+        "casting_sheet": casting_sheet,
+        "cross_statement_matches": cross_matches,
+        "section_summaries": section_summaries,
+        "stats": {
+            "total_line_items": len(casting_sheet),
+            "sections_found": len(sections),
+            "addition_pass": total_pass,
+            "addition_fail": total_fail,
+            "addition_na": total_na,
+            "cross_statement_pass": xstmt_pass,
+            "cross_statement_fail": xstmt_fail,
+            "cross_statement_total": len(cross_matches),
+        },
+    }
+
+
 def _validate_with_pandera(checks: List[Dict[str, Any]]) -> Dict[str, Any]:
     try:
         import pandas as pd  # type: ignore
@@ -1806,6 +2400,9 @@ def main() -> None:
     # ── New: Programmatic cross-checks with detail breakdown ──
     cross_checks = _build_cross_checks(fields)
 
+    # ── Full Casting (铸表): parse ALL line items, verify every total ──
+    casting_result = cast_financial_statements(merged)
+
     missing_fields = sorted({m for c in checks for m in c.get("missing_fields", [])})
     pass_count = len([c for c in checks if c.get("status") == "tie"])
     fail_count = len([c for c in checks if c.get("status") == "not_tie"])
@@ -1816,6 +2413,7 @@ def main() -> None:
     xc_fail = len([c for c in cross_checks if c.get("status") == "fail"])
     xc_insufficient = len([c for c in cross_checks if c.get("status") == "insufficient"])
 
+    cast_stats = casting_result.get("stats", {})
     meta = {
         "query": query,
         "documents_count": len(text_chunks),
@@ -1825,6 +2423,12 @@ def main() -> None:
         "cross_check_pass": xc_pass,
         "cross_check_fail": xc_fail,
         "cross_check_insufficient": xc_insufficient,
+        "casting_line_items": cast_stats.get("total_line_items", 0),
+        "casting_sections": cast_stats.get("sections_found", 0),
+        "casting_addition_pass": cast_stats.get("addition_pass", 0),
+        "casting_addition_fail": cast_stats.get("addition_fail", 0),
+        "casting_cross_stmt_pass": cast_stats.get("cross_statement_pass", 0),
+        "casting_cross_stmt_fail": cast_stats.get("cross_statement_fail", 0),
         "docling_available": _DOCLING_AVAILABLE,
         "docling_used": docling_used,
     }
@@ -1835,6 +2439,9 @@ def main() -> None:
     else:
         summary = f"Financial checks completed: tie={pass_count}, not_tie={fail_count}, insufficient={insufficient_count}."
         summary += f" Cross-checks: pass={xc_pass}, fail={xc_fail}, insufficient={xc_insufficient}."
+        summary += f" Full casting: {cast_stats.get('total_line_items', 0)} line items across {cast_stats.get('sections_found', 0)} sections,"
+        summary += f" addition checks pass={cast_stats.get('addition_pass', 0)} fail={cast_stats.get('addition_fail', 0)},"
+        summary += f" cross-statement matches={cast_stats.get('cross_statement_total', 0)} (pass={cast_stats.get('cross_statement_pass', 0)}, fail={cast_stats.get('cross_statement_fail', 0)})."
         if docling_used:
             summary += " (docling structured extraction used)"
 
@@ -1843,6 +2450,10 @@ def main() -> None:
         "summary": summary,
         "checks": checks,
         "cross_checks": cross_checks,
+        "casting_sheet": casting_result.get("casting_sheet", []),
+        "casting_cross_statement": casting_result.get("cross_statement_matches", []),
+        "casting_section_summaries": casting_result.get("section_summaries", {}),
+        "casting_stats": cast_stats,
         "extracted_fields": {k: v for k, v in fields.items() if v is not None},
         "missing_fields": missing_fields,
         "evidence": evidence[:20],

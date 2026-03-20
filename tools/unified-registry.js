@@ -565,7 +565,7 @@ class UnifiedRegistry {
       "=== FINANCIAL ANALYSIS ===",
       "When user uploads financial statements and asks for tie-out checks, verification, or analysis:",
       "  Use [TOOL:financial_statement_analyze]{\"query\":\"...\",\"documents\":[{\"text\":\"...\",\"name\":\"...\"}]}[/TOOL]",
-      "  This runs deterministic arithmetic checks (balance sheet equation, gross profit bridge, cash flow bridge, etc).",
+      "  This runs full casting: parses ALL line items from every statement, auto-verifies every total against sub-items, cross-matches across statements, plus 15+ targeted cross-checks (balance sheet equation, gross profit bridge, cash flow bridge, PPE rollforward, equity changes, etc).",
       "  Use the returned structured results as ground truth. You may explain naturally but do not contradict computed checks.",
       "",
       "=== AUDIT TOOLS ===",
