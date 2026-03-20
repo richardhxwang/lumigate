@@ -3154,14 +3154,7 @@ async function speakMessage(btn){
     await _ttsAudio.play();
   }catch(e){
     btn.classList.remove('speaking');
-    // Fallback to browser TTS
-    if(typeof speechSynthesis!=='undefined'){
-      const utt=new SpeechSynthesisUtterance(text);
-      utt.lang=_lang==='zh'?'zh-CN':'en-US';
-      utt.onend=()=>btn.classList.remove('speaking');
-      btn.classList.add('speaking');
-      speechSynthesis.speak(utt);
-    } else { toast('TTS unavailable'); }
+    toast(_lang==='zh'?'语音合成失败，请重试':'TTS failed, please retry');
   }
 }
 
