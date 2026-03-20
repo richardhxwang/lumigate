@@ -1966,6 +1966,54 @@ async function getPbAdminToken() {
 const lcTierCache = new Map(); // userId → { tier, byokKeys[], updatedAt }
 const LC_TIER_CACHE_TTL = 5 * 60 * 1000;
 const TIER_RPM = { basic: 30, premium: 120, selfservice: 60 };
+// Token-based daily limits per tier (total input+output tokens per UTC day)
+const TIER_DAILY_TOKENS = {
+  basic: envPositiveInt("TIER_DAILY_TOKENS_BASIC", 100_000),
+  premium: envPositiveInt("TIER_DAILY_TOKENS_PREMIUM", 0),       // 0 = unlimited
+  selfservice: envPositiveInt("TIER_DAILY_TOKENS_SELFSERVICE", 0), // 0 = unlimited (BYOK)
+};
+// In-memory daily token counters: userId → { date: "YYYY-MM-DD", tokens: number }
+const dailyTokenUsage = new Map();
+
+/**
+ * Record token consumption for a user's daily quota.
+ * Call this after every successful AI response with the extracted token counts.
+ * @returns {{ allowed: boolean, used: number, limit: number }}
+ */
+function recordUserDailyTokens(userId, tokenCount) {
+  if (!userId || !tokenCount) return { allowed: true, used: 0, limit: 0 };
+  const today = new Date().toISOString().slice(0, 10);
+  let entry = dailyTokenUsage.get(userId);
+  if (!entry || entry.date !== today) {
+    entry = { date: today, tokens: 0 };
+    dailyTokenUsage.set(userId, entry);
+  }
+  entry.tokens += tokenCount;
+  return { allowed: true, used: entry.tokens, limit: 0 };
+}
+
+/**
+ * Check if a user has exceeded their daily token quota.
+ * @returns {{ allowed: boolean, used: number, limit: number, remaining: number }}
+ */
+function checkUserDailyTokenLimit(userId, tier) {
+  const limit = TIER_DAILY_TOKENS[tier] || 0;
+  if (!limit) return { allowed: true, used: 0, limit: 0, remaining: Infinity }; // 0 = unlimited
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = dailyTokenUsage.get(userId);
+  const used = (entry && entry.date === today) ? entry.tokens : 0;
+  const remaining = Math.max(0, limit - used);
+  return { allowed: used < limit, used, limit, remaining };
+}
+
+// Prune stale entries daily (avoids unbounded memory growth)
+setInterval(() => {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [uid, entry] of dailyTokenUsage) {
+    if (entry.date !== today) dailyTokenUsage.delete(uid);
+  }
+}, 60 * 60 * 1000); // hourly cleanup
+
 const COLLECTOR_PROVIDERS = ["doubao", "kimi", "qwen"];
 
 async function getLcUserTier(userId, lcToken) {
@@ -2818,6 +2866,8 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
         tokens = extractTokens(providerName, tail);
       }
       if (!req._proxyProject?.privacyMode) recordUsage(projectName, providerName, req._isSubscriptionKey ? `${modelId}:subscription` : modelId, tokens);
+      // Track daily token usage for per-user quota enforcement
+      if (req._lcUserId && tokens) recordUserDailyTokens(req._lcUserId, (tokens.input || 0) + (tokens.output || 0));
       if ((!req._isSubscriptionKey || req._proxyProject?.subscriptionCountsSpending) && (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin)) {
         const cost = calcRequestCost(providerName, modelId, tokens);
         if (req._proxyProject.maxBudgetUsd != null) { req._proxyProject.budgetUsedUsd = (req._proxyProject.budgetUsedUsd || 0) + cost; markProjectsDirty(); }
@@ -3084,6 +3134,8 @@ const proxyMiddleware = createProxyMiddleware({
           }
           sli.proxy.total++; sli.proxy.success++;
           if (!req._proxyProject?.privacyMode) recordUsage(projectName, providerName, req._isSubscriptionKey ? `${modelId}:subscription` : modelId, tokens);
+          // Track daily token usage for per-user quota enforcement
+          if (req._lcUserId && tokens) recordUserDailyTokens(req._lcUserId, (tokens.input || 0) + (tokens.output || 0));
           // Phase 1a: Track budget spend (skip for subscription keys — cost not real)
           if (req._proxyProject && (!req._isSubscriptionKey || req._proxyProject?.subscriptionCountsSpending) && (req._proxyProject?.maxBudgetUsd != null || req._proxyProject?.maxCostPerMin)) {
             const cost = calcRequestCost(providerName, modelId, tokens);
@@ -3392,6 +3444,9 @@ const _lcResult = require('./routes/lumichat')({
   getLcUserTier,
   lcTierCache,
   TIER_RPM,
+  TIER_DAILY_TOKENS,
+  recordUserDailyTokens,
+  checkUserDailyTokenLimit,
   getLcFileSandboxPolicy: () => settings.lcFileSandboxPolicy || { trustedUsers: [], uploadEnabled: false, uploadTrustedBypass: false },
   touchLcSession,
   getPbAdminToken,
@@ -3579,6 +3634,11 @@ const hkexRouter = createHKEXRouter({ log });
 app.use("/v1/hkex", apiLimiter, platformAuth, hkexRouter);
 app.use("/platform/hkex", apiLimiter, platformAuth, hkexRouter);
 
+// ── RBAC / Organization routes ────────────────────────────────────────────────
+const rbacRouter = require("./routes/rbac");
+app.use("/v1/orgs", apiLimiter, platformAuth, rbacRouter);
+app.use("/platform/orgs", apiLimiter, platformAuth, rbacRouter);
+
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
 // ============================================================
@@ -3617,6 +3677,9 @@ app.use("/v1/:provider", require('./routes/proxy')({
   decryptValue,
   ADMIN_SECRET,
   TIER_RPM,
+  TIER_DAILY_TOKENS,
+  recordUserDailyTokens,
+  checkUserDailyTokenLimit,
   projectRateBuckets,
   lumigentRuntime,
   settings,

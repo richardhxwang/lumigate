@@ -48,6 +48,9 @@ module.exports = function createProxyRouter(deps) {
     decryptValue,
     ADMIN_SECRET,
     TIER_RPM,
+    TIER_DAILY_TOKENS,
+    recordUserDailyTokens,
+    checkUserDailyTokenLimit,
     projectRateBuckets,
     // Tool injection
     lumigentRuntime,
@@ -237,6 +240,20 @@ module.exports = function createProxyRouter(deps) {
       bucket.count++;
       if (bucket.count > tierRpm) {
         return res.status(429).json({ error: "Rate limit exceeded for your subscription tier", tier, limit: tierRpm });
+      }
+
+      // Per-tier daily token limiting
+      if (typeof checkUserDailyTokenLimit === "function") {
+        const tokenCheck = checkUserDailyTokenLimit(req._lcUserId, tier);
+        if (!tokenCheck.allowed) {
+          return res.status(429).json({
+            error: "Daily token quota exceeded for your subscription tier",
+            tier,
+            used: tokenCheck.used,
+            limit: tokenCheck.limit,
+            resetsAt: new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z").getTime() + 86400000,
+          });
+        }
       }
     }
 
