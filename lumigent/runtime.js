@@ -195,7 +195,30 @@ class LumigentRuntime {
         ? { ...toolInput, _caller_user_id: userId }
         : toolInput;
       const result = await this.executeToolCall(toolName, enrichedInput);
-      if (!result?.ok) return;
+
+      // Log retry info if available
+      if (result?._retryInfo) {
+        this.logger("info", `${parseLabel} tool retry info`, {
+          tool: toolName,
+          attempts: result._retryInfo.attempts,
+          succeeded: result._retryInfo.succeeded,
+          fallbackTool: result._retryInfo.fallbackTool || undefined,
+        });
+      }
+
+      if (!result?.ok) {
+        // Push structured error so follow-up AI call gets actionable context
+        if (result?._errorContext) {
+          results.push({
+            tool: toolName,
+            ok: false,
+            error: result._errorContext.message,
+            suggestions: result._errorContext.suggestions,
+            duration: result.duration,
+          });
+        }
+        return;
+      }
       if (result.file) {
         let downloadUrl = "";
         try {
@@ -295,99 +318,264 @@ class LumigentRuntime {
   }
 
   /**
-   * Full agent loop: send messages to AI, parse tool calls, execute, re-send.
+   * Full multi-step agent loop: Plan -> Execute -> Observe -> Reflect -> Repeat.
    * Provider-agnostic — caller supplies fetchAI callback for the actual LLM request.
+   *
+   * Supports both text-based tool tags and native function calling (via nativeToolCalls).
    *
    * @param {object} opts
    * @param {Array} opts.messages - Conversation messages array (mutated in-place with tool results)
-   * @param {function} opts.fetchAI - async (messages) => { text, finishReason }  — makes one AI call
+   * @param {function} opts.fetchAI - async (messages, opts?) => { text, finishReason, nativeToolCalls?, usage? }
    * @param {function} [opts.onDelta] - (deltaText: string) => void — streaming text callback
-   * @param {function} [opts.onToolStatus] - (status: { tool, state, message }) => void
-   * @param {function} [opts.onFileDownload] - (fileInfo: { tool, filename, mimeType, size, downloadUrl }) => void
-   * @param {number} [opts.maxIterations=12] - Safety cap on loop iterations
+   * @param {function} [opts.onToolStatus] - (status: { tool, state, message, iteration? }) => void
+   * @param {function} [opts.onFileDownload] - (fileInfo: { tool, filename, mimeType, size, downloadUrl, base64? }) => void
+   * @param {function} [opts.onIteration] - (info: { iteration, phase, toolCount }) => void — progress callback
+   * @param {number} [opts.maxIterations=8] - Safety cap on loop iterations
    * @param {string} [opts.userId] - Caller user ID for tool execution context
-   * @returns {Promise<{ text: string, toolResults: Array, iterations: number }>}
+   * @param {boolean} [opts.planningEnabled=true] - Inject planning prompt on first iteration for complex requests
+   * @param {string} [opts.lang="en"] - Language for status messages ("en" or "zh")
+   * @returns {Promise<{ text: string, toolResults: Array, iterations: number, plan: string|null }>}
    */
-  async executeAgentLoop({ messages, fetchAI, onDelta, onToolStatus, onFileDownload, maxIterations = 12, userId } = {}) {
+  async executeAgentLoop({
+    messages, fetchAI, onDelta, onToolStatus, onFileDownload, onIteration,
+    maxIterations = 8, userId, planningEnabled = true, lang = "en",
+  } = {}) {
     if (typeof fetchAI !== "function") throw new Error("fetchAI callback is required");
 
-    let fullText = "";
     const allToolResults = [];
     let iterations = 0;
+    let plan = null;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3;
+    const zh = lang === "zh";
+
+    const emitStatus = (info) => { if (typeof onToolStatus === "function") try { onToolStatus(info); } catch {} };
+    const emitFile = (info) => { if (typeof onFileDownload === "function") try { onFileDownload(info); } catch {} };
+    const emitDelta = (text) => { if (text && typeof onDelta === "function") try { onDelta(text); } catch {} };
+    const emitIter = (info) => { if (typeof onIteration === "function") try { onIteration(info); } catch {} };
 
     while (iterations < maxIterations) {
       iterations++;
+      emitIter({ iteration: iterations, phase: "call_ai", toolCount: allToolResults.length });
 
-      // 1. Call AI provider
-      const aiResponse = await fetchAI(messages);
+      // ── Phase 1: Call AI provider ──
+      let aiResponse;
+      try {
+        aiResponse = await fetchAI(messages);
+      } catch (err) {
+        this.logger("error", "Agent loop fetchAI failed", { iteration: iterations, error: err.message });
+        consecutiveErrors++;
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) break;
+        // Retry with a nudge
+        messages.push({ role: "user", content: "The previous request encountered an error. Please try again or take a different approach." });
+        continue;
+      }
+
       const responseText = aiResponse.text || "";
       const finishReason = aiResponse.finishReason || "stop";
+      const nativeToolCalls = aiResponse.nativeToolCalls || [];
 
-      // Emit delta for the AI response text
-      if (responseText && typeof onDelta === "function") {
-        try { onDelta(responseText); } catch {}
+      // Emit text delta to the client
+      emitDelta(responseText);
+
+      // ── Phase 2: Extract plan from first iteration (if present) ──
+      if (iterations === 1 && planningEnabled && !plan) {
+        plan = this._extractPlan(responseText);
+        if (plan) {
+          this.logger("info", "Agent plan detected", { planLength: plan.length });
+        }
       }
 
-      fullText += responseText;
+      // ── Phase 3: Execute tools ──
+      // Collect results from both native function calls and text-based tool tags
+      const iterToolResults = [];
+      const iterErrors = [];
 
-      // 2. Parse and execute any tool calls in the response
-      const toolResults = await this.executeTextToolCalls(responseText, userId);
+      // 3a. Native function calling (OpenAI/Anthropic/DeepSeek/Gemini)
+      if (nativeToolCalls.length > 0) {
+        emitIter({ iteration: iterations, phase: "execute_tools", toolCount: nativeToolCalls.length });
+        for (const tc of nativeToolCalls) {
+          const toolName = tc.name;
+          let toolInput = {};
+          try { toolInput = typeof tc.arguments === "string" ? JSON.parse(tc.arguments || "{}") : (tc.arguments || {}); } catch {}
 
-      if (toolResults.length > 0) {
-        // Notify about each tool result
-        for (const tr of toolResults) {
-          allToolResults.push(tr);
+          emitStatus({ tool: toolName, state: "running", message: zh ? `${toolName} 执行中...` : `Running ${toolName}...`, iteration: iterations });
 
-          if (tr.downloadUrl && typeof onFileDownload === "function") {
-            try {
-              onFileDownload({
-                tool: tr.tool,
-                filename: tr.filename,
-                mimeType: tr.mimeType,
-                size: tr.size,
-                downloadUrl: tr.downloadUrl,
-              });
-            } catch {}
-          }
+          try {
+            const result = await this.executeToolCall(toolName, { ...toolInput, _caller_user_id: userId });
+            if (!result?.ok) {
+              const errMsg = result?.error || "Tool returned not-ok";
+              iterErrors.push({ tool: toolName, error: errMsg, id: tc.id });
+              emitStatus({ tool: toolName, state: "error", message: zh ? `${toolName} 失败: ${errMsg}` : `${toolName} failed: ${errMsg}`, iteration: iterations });
+              continue;
+            }
+            consecutiveErrors = 0; // Reset on success
 
-          if (typeof onToolStatus === "function") {
-            try {
-              onToolStatus({
-                tool: tr.tool,
-                state: "done",
-                message: tr.downloadUrl
-                  ? `Generated ${tr.filename}`
-                  : tr.html ? "Search complete" : `${tr.tool} complete`,
-              });
-            } catch {}
+            const processed = await this._processToolResult(toolName, result, userId);
+            processed.id = tc.id;
+            iterToolResults.push(processed);
+
+            // Emit file_download and tool_status events
+            if (processed.downloadUrl || processed.base64) {
+              emitFile({ tool: toolName, filename: processed.filename, mimeType: processed.mimeType, size: processed.size, downloadUrl: processed.downloadUrl || "", base64: processed.base64 });
+            }
+            emitStatus({ tool: toolName, state: "done", message: processed.filename ? (zh ? `${processed.filename} 已生成` : `Generated ${processed.filename}`) : processed.html ? (zh ? "搜索完成" : "Search complete") : (zh ? `${toolName} 完成` : `${toolName} complete`), iteration: iterations });
+          } catch (e) {
+            iterErrors.push({ tool: toolName, error: e.message, id: tc.id });
+            emitStatus({ tool: toolName, state: "error", message: zh ? `${toolName} 出错: ${e.message}` : `${toolName} error: ${e.message}`, iteration: iterations });
+            this.logger("warn", "Agent loop native tool exec failed", { tool: toolName, error: e.message, iteration: iterations });
           }
         }
-
-        // 3. Append assistant + tool results to messages, then loop
-        const toolSummary = toolResults.map(tr => {
-          if (tr.downloadUrl) return `[File generated: ${tr.filename} (${tr.size} bytes)]`;
-          if (tr.data) return JSON.stringify(tr.data);
-          if (tr.html) return `[Search results rendered]`;
-          return `[${tr.tool} completed]`;
-        }).join("\n");
-
-        messages.push({ role: "assistant", content: responseText });
-        messages.push({ role: "user", content: `Tool results:\n${toolSummary}\n\nPlease continue based on these results.` });
-        continue;
       }
 
-      // 4. No tool calls — check if we should auto-continue (finish_reason=length)
+      // 3b. Text-based tool tags (DSML, [TOOL:], XML)
+      const textToolResults = await this.executeTextToolCalls(responseText, userId);
+      for (const tr of textToolResults) {
+        iterToolResults.push(tr);
+        if (tr.downloadUrl || tr.base64) {
+          emitFile({ tool: tr.tool, filename: tr.filename, mimeType: tr.mimeType, size: tr.size, downloadUrl: tr.downloadUrl || "", base64: tr.base64 });
+        }
+        emitStatus({ tool: tr.tool, state: "done", message: tr.filename ? (zh ? `${tr.filename} 已生成` : `Generated ${tr.filename}`) : tr.html ? (zh ? "搜索完成" : "Search complete") : (zh ? `${tr.tool} 完成` : `${tr.tool} complete`), iteration: iterations });
+      }
+
+      // Accumulate all results
+      for (const tr of iterToolResults) allToolResults.push(tr);
+
+      // ── Phase 4: Reflect — decide whether to continue ──
+      const hasResults = iterToolResults.length > 0;
+      const hasErrors = iterErrors.length > 0;
+
+      if (hasResults || hasErrors) {
+        // Build a summary of what happened this iteration
+        const resultSummaries = iterToolResults.map(tr => {
+          if (tr.filename) return `[File generated: ${tr.filename} (${tr.size} bytes) - SUCCESS]`;
+          if (tr.data?.results) {
+            const items = tr.data.results.slice(0, 5);
+            return `[Search results (${tr.data.results.length} total):\n${items.map((r, i) => `  ${i + 1}. ${r.title || "Untitled"} - ${r.url || ""}`).join("\n")}]`;
+          }
+          if (tr.data) return `[${tr.tool} result: ${JSON.stringify(tr.data).slice(0, 400)}]`;
+          if (tr.html) return `[${tr.tool}: rendered HTML content]`;
+          return `[${tr.tool} completed]`;
+        });
+
+        const errorSummaries = iterErrors.map(e => `[${e.tool} FAILED: ${e.error}]`);
+
+        // Construct the reflection prompt
+        const allSummaries = [...resultSummaries, ...errorSummaries].join("\n\n");
+        const reflectPrompt = this._buildReflectPrompt(allSummaries, hasErrors, iterations, maxIterations, lang);
+
+        messages.push({ role: "assistant", content: responseText });
+        messages.push({ role: "user", content: reflectPrompt });
+
+        // Track consecutive errors for bail-out
+        if (hasErrors && !hasResults) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            this.logger("warn", "Agent loop: max consecutive errors reached, stopping", { iterations, errors: iterErrors.length });
+            break;
+          }
+        } else {
+          consecutiveErrors = 0;
+        }
+
+        continue; // Next iteration: AI reflects on results and decides next action
+      }
+
+      // ── Phase 5: No tools invoked — check if we should auto-continue (truncated) ──
       if (finishReason === "length" && iterations < maxIterations) {
         messages.push({ role: "assistant", content: responseText });
-        messages.push({ role: "user", content: "Continue from where you left off." });
+        messages.push({ role: "user", content: zh ? "请从中断处继续。" : "Continue from where you left off." });
         continue;
       }
 
-      // 5. Done — no tools, not truncated
+      // ── Phase 6: Done — no tools, not truncated ──
       break;
     }
 
-    return { text: fullText, toolResults: allToolResults, iterations };
+    // Collect all text from the conversation for the caller
+    const fullText = messages
+      .filter(m => m.role === "assistant")
+      .map(m => m.content || "")
+      .join("");
+
+    return { text: fullText, toolResults: allToolResults, iterations, plan };
+  }
+
+  /**
+   * Process a raw tool execution result into a standardized result object.
+   * Handles file persistence, formatting, etc.
+   */
+  async _processToolResult(toolName, result, userId) {
+    if (result.file) {
+      let downloadUrl = "";
+      try {
+        downloadUrl = await this.persistFile({
+          userId,
+          toolName,
+          filename: result.filename,
+          mimeType: result.mimeType,
+          file: result.file,
+        });
+      } catch {}
+      return {
+        tool: toolName,
+        filename: result.filename,
+        mimeType: result.mimeType,
+        size: result.file.length,
+        downloadUrl,
+        base64: !downloadUrl ? result.file.toString("base64") : undefined,
+        duration: result.duration,
+      };
+    }
+
+    if (result.data) {
+      const formatted = this.formatToolResult(toolName, result.data);
+      return { tool: toolName, ...formatted, duration: result.duration };
+    }
+
+    return { tool: toolName, duration: result.duration };
+  }
+
+  /**
+   * Extract a plan block from the AI's first response.
+   * Looks for numbered steps, "Plan:", "Approach:", etc.
+   */
+  _extractPlan(text) {
+    if (!text) return null;
+    // Look for explicit plan markers
+    const planPatterns = [
+      /(?:^|\n)\s*(?:Plan|Approach|Strategy|My plan|Steps|Here's my (?:plan|approach)):?\s*\n((?:\s*(?:\d+[\.\):]|\-|\*)\s+.+\n?){2,})/i,
+      /(?:^|\n)\s*(?:计划|方案|步骤|思路):?\s*\n((?:\s*(?:\d+[\.\):]|\-|\*)\s+.+\n?){2,})/,
+    ];
+    for (const re of planPatterns) {
+      const m = text.match(re);
+      if (m && m[1]) return m[1].trim();
+    }
+    return null;
+  }
+
+  /**
+   * Build the reflection prompt sent to AI after tool execution.
+   * Encourages the AI to evaluate results and decide next steps.
+   */
+  _buildReflectPrompt(toolSummary, hasErrors, iteration, maxIterations, lang) {
+    const zh = lang === "zh";
+    const remaining = maxIterations - iteration;
+    let prompt = zh
+      ? `工具执行结果 (第 ${iteration} 轮):\n${toolSummary}\n\n`
+      : `Tool execution results (iteration ${iteration}):\n${toolSummary}\n\n`;
+
+    if (hasErrors) {
+      prompt += zh
+        ? `部分工具执行失败。你可以：\n- 尝试使用其他工具或不同参数\n- 根据已有结果直接回答\n- 告知用户哪些部分无法完成\n\n`
+        : `Some tools failed. You may:\n- Try alternative tools or different parameters\n- Answer based on available results\n- Inform the user what could not be completed\n\n`;
+    }
+
+    prompt += zh
+      ? `请基于以上结果决定下一步：\n- 如果结果已足够回答用户问题，请直接给出最终回答。\n- 如果还需要更多信息，请调用更多工具。\n- 剩余可用轮次: ${remaining}。`
+      : `Based on these results, decide your next step:\n- If results are sufficient to answer the user's question, provide a final answer.\n- If you need more information, call additional tools.\n- Remaining iterations: ${remaining}.`;
+
+    return prompt;
   }
 
   _trace(entry) {
@@ -395,8 +583,49 @@ class LumigentRuntime {
   }
 }
 
+/**
+ * Detect if a user message is "complex" enough to benefit from a planning prompt.
+ * Heuristics: multiple questions, multi-step keywords, long messages, conjunctions implying sequence.
+ */
+function isComplexRequest(text) {
+  if (!text) return false;
+  const s = String(text).trim();
+  // Long messages often indicate complex tasks
+  if (s.length > 300) return true;
+  // Multiple question marks
+  if ((s.match(/\?/g) || []).length >= 2) return true;
+  // Multi-step keywords
+  if (/(?:then|after that|next|finally|step\s*\d|第[一二三四五六七八九十]步|然后|接着|最后|首先.*然后|first.*then)/i.test(s)) return true;
+  // Multiple tool-like requests in one message
+  const toolWords = ["search", "generate", "create", "analyze", "find", "compare", "搜索", "生成", "创建", "分析", "查找", "比较", "对比"];
+  let toolHits = 0;
+  for (const w of toolWords) { if (s.toLowerCase().includes(w)) toolHits++; }
+  if (toolHits >= 2) return true;
+  return false;
+}
+
+/**
+ * Build a planning prompt to inject before the first AI call for complex requests.
+ */
+function buildPlanningPrompt(lang) {
+  if (lang === "zh") {
+    return `在执行之前，请先简要规划你的方法：
+1. 我需要什么信息？
+2. 应该使用哪些工具，按什么顺序？
+3. 预期的输出是什么？
+然后按计划逐步执行。注意：如果任务简单，可以直接执行不需要规划。`;
+  }
+  return `Before executing, briefly plan your approach:
+1. What information do I need?
+2. Which tools should I use and in what order?
+3. What is my expected output?
+Then execute the plan step by step. Note: if the task is simple, proceed directly without planning.`;
+}
+
 module.exports = {
   LumigentRuntime,
   repairJSON,
   defaultFormatToolResult,
+  isComplexRequest,
+  buildPlanningPrompt,
 };

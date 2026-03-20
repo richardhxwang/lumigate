@@ -7,6 +7,7 @@
  */
 const express = require("express");
 const path = require("path");
+const { isComplexRequest, buildPlanningPrompt } = require("../lumigent/runtime");
 
 module.exports = function createChatRouter(deps) {
   const {
@@ -887,9 +888,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       const fetched = [];
       for (let i = 0; i < directUrls.length; i++) {
         const u = directUrls[i];
-        if (wantStream && !res.writableEnded) {
-          res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.fetchingUrl(u), icon: "file" })}\n\n`);
-        }
+        if (wantStream) emitToolStatus({ text: L.fetchingUrl(u), icon: "file" });
         try {
           const parsed = await lumigentRuntime.executeToolCall("parse_file", {
             file_url: u,
@@ -905,9 +904,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       if (chatSessionId && fetched.length) {
         rememberUrlFetchContexts(urlFetchOwner, chatSessionId, fetched);
       }
-      if (wantStream && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.fetchDone(fetched.length), icon: "file", done: true })}\n\n`);
-      }
+      if (wantStream) emitToolStatus({ text: L.fetchDone(fetched.length), icon: "file", done: true });
     } catch (e) {
       log("warn", "Direct URL fetch flow failed", { error: e.message, traceId: req.traceId });
     }
@@ -982,9 +979,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       for (let i = 0; i < queries.length; i++) {
         const q = queries[i].trim();
         if (!q) continue;
-        if (wantStream && !res.writableEnded) {
-          res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searching(q), icon: "search" })}\n\n`);
-        }
+        if (wantStream) emitToolStatus({ text: L.searching(q), icon: "search" });
         try {
           const results = await executeWebSearchForChat(q, "month");
           allResults.push(...results);
@@ -1039,9 +1034,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         ].join("\n");
         searchContext = [searchContext, officialShortcut].filter(Boolean).join("\n\n");
       }
-      if (wantStream && !res.writableEnded) {
-        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(allResults.length), icon: "search", done: true })}\n\n`);
-      }
+      if (wantStream) emitToolStatus({ text: L.searchDone(allResults.length), icon: "search", done: true });
     } catch (e) {
       log("warn", "Pre-search failed", { error: e.message });
     }
@@ -1245,13 +1238,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           });
           for (const tr of toolResults) {
             if ((tr.downloadUrl || tr.base64 || tr.filename) && !res.writableEnded) {
-              res.write(`event: file_download\ndata: ${JSON.stringify({
+              emitFileDownload({
                 filename: tr.filename, size: tr.size, mimeType: tr.mimeType,
                 downloadUrl: tr.downloadUrl || "", base64: !tr.downloadUrl ? tr.base64 : undefined,
-              })}\n\n`);
+              });
               const icon = tr.tool?.includes("spread") ? "spreadsheet" : "file";
               const sizeStr = tr.size > 1048576 ? `${(tr.size / 1048576).toFixed(1)} MB` : `${(tr.size / 1024).toFixed(1)} KB`;
-              res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(tr.filename, sizeStr), icon, done: true })}\n\n`);
+              emitToolStatus({ text: L.toolDone(tr.filename, sizeStr), icon, done: true });
             }
           }
         }
@@ -1350,6 +1343,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
               } else if (result.data) {
                 toolResults.push({ tool: tc.name, data: result.data });
               }
+            } else if (result?._errorContext) {
+              // Include structured error in non-streaming response so client can display it
+              toolResults.push({ tool: tc.name, ok: false, error: result._errorContext.message, suggestions: result._errorContext.suggestions });
             }
           } catch (e) { log("warn", "Non-stream native tool execution failed", { tool: tc.name, error: e.message }); }
         }
@@ -1444,7 +1440,20 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
     function sendDelta(text) {
       if (!text || res.writableEnded) return;
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: text } }] })}\n\n`);
+    }
+
+    // Dual-format helpers: emit custom SSE event (for LumiChat) + OpenAI-compatible data line (for third-party clients)
+    function emitToolStatus(payload) {
+      if (res.writableEnded) return;
+      res.write(`event: tool_status\ndata: ${JSON.stringify(payload)}\n\n`);
+      res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, tool_status: payload }] })}\n\n`);
+    }
+
+    function emitFileDownload(payload) {
+      if (res.writableEnded) return;
+      res.write(`event: file_download\ndata: ${JSON.stringify(payload)}\n\n`);
+      res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, file_download: payload }] })}\n\n`);
     }
 
     let _thinkBuf = ""; // buffer for cross-chunk </think> detection
@@ -1456,7 +1465,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           // Forward accumulated thinking content as reasoning_content
           const thinkContent = _thinkBuf.slice(0, end);
           if (thinkContent && !res.writableEnded) {
-            res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
+            res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
           }
           inThink = false;
           delta = _thinkBuf.slice(end + 8);
@@ -1478,7 +1487,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           // Complete <think>...</think> in one chunk — forward as reasoning_content
           const thinkContent = delta.slice(start + 7, end);
           if (thinkContent && !res.writableEnded) {
-            res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
+            res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { reasoning_content: thinkContent } }] })}\n\n`);
           }
           delta = delta.slice(0, start) + delta.slice(end + 8);
         }
@@ -1499,7 +1508,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         if (idx !== -1) {
           toolTagStart = idx;
           if (idx > sentLength) { sendDelta(fullText.slice(sentLength, idx)); sentLength = idx; }
-          if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.processing, icon: "file" })}\n\n`);
+          emitToolStatus({ text: L.processing, icon: "file" });
           return;
         }
       }
@@ -1543,9 +1552,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                   // A new tool_use block begins
                   const block = j.content_block;
                   anthropicToolBlocks.set(j.index, { id: block.id, name: block.name, arguments: "" });
-                  if (!res.writableEnded) {
-                    res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(block.name)}...`, icon: block.name.includes("search") ? "search" : "file" })}\n\n`);
-                  }
+                  emitToolStatus({ text: `${L.toolLabel(block.name)}...`, icon: block.name.includes("search") ? "search" : "file" });
                 } else if (j.type === "content_block_delta" && j.delta?.type === "input_json_delta") {
                   // Accumulate JSON argument fragments for the tool_use block
                   const tb = anthropicToolBlocks.get(j.index);
@@ -1590,9 +1597,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                     if (tc.id) nativeToolCalls[idx].id = tc.id;
                     if (tc.function?.name) {
                       nativeToolCalls[idx].name = tc.function.name;
-                      if (!res.writableEnded) {
-                        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(tc.function.name)}...`, icon: tc.function.name.includes("search") ? "search" : "file" })}\n\n`);
-                      }
+                      emitToolStatus({ text: `${L.toolLabel(tc.function.name)}...`, icon: tc.function.name.includes("search") ? "search" : "file" });
                     }
                     if (tc.function?.arguments) nativeToolCalls[idx].arguments += tc.function.arguments;
                   }
@@ -1666,8 +1671,16 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             _caller_user_id: lcUserId || projectName || "api",
           });
           if (!result?.ok) {
-            log("warn", "Native tool execution returned not-ok", { tool: tc.name, error: result?.error });
-            nativeToolResults.push({ id: tc.id, name: tc.name, ok: false, error: result?.error || "Tool failed" });
+            log("warn", "Native tool execution returned not-ok", {
+              tool: tc.name, error: result?.error,
+              attempts: result?._retryInfo?.attempts,
+              fallbackTool: result?._retryInfo?.fallbackTool,
+            });
+            nativeToolResults.push({
+              id: tc.id, name: tc.name, ok: false,
+              error: result?._errorContext?.message || result?.error || "Tool failed",
+              suggestions: result?._errorContext?.suggestions,
+            });
             continue;
           }
 
@@ -1682,15 +1695,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                 file: result.file,
               });
             } catch {}
-            if (!res.writableEnded) {
-              res.write(`event: file_download\ndata: ${JSON.stringify({
-                filename: result.filename, size: result.file.length, mimeType: result.mimeType,
-                downloadUrl: downloadUrl || "", base64: !downloadUrl ? result.file.toString("base64") : undefined,
-              })}\n\n`);
-              const icon = tc.name.includes("spread") ? "spreadsheet" : tc.name.includes("present") ? "presentation" : "file";
-              const sizeStr = result.file.length > 1048576 ? `${(result.file.length / 1048576).toFixed(1)} MB` : `${(result.file.length / 1024).toFixed(1)} KB`;
-              res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(result.filename, sizeStr), icon, done: true })}\n\n`);
-            }
+            emitFileDownload({
+              filename: result.filename, size: result.file.length, mimeType: result.mimeType,
+              downloadUrl: downloadUrl || "", base64: !downloadUrl ? result.file.toString("base64") : undefined,
+            });
+            const icon = tc.name.includes("spread") ? "spreadsheet" : tc.name.includes("present") ? "presentation" : "file";
+            const sizeStr = result.file.length > 1048576 ? `${(result.file.length / 1048576).toFixed(1)} MB` : `${(result.file.length / 1024).toFixed(1)} KB`;
+            emitToolStatus({ text: L.toolDone(result.filename, sizeStr), icon, done: true });
             nativeToolResults.push({
               id: tc.id, name: tc.name, ok: true,
               summary: `[File generated: ${result.filename} (${result.file.length} bytes)]`,
@@ -1699,13 +1710,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             const formatted = lumigentRuntime.formatToolResult(tc.name, result.data);
             // For search results, emit link lines to client
             if (result.data.results && Array.isArray(result.data.results)) {
-              if (!res.writableEnded) {
-                res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(result.data.results.length), icon: "search", done: true })}\n\n`);
-              }
+              emitToolStatus({ text: L.searchDone(result.data.results.length), icon: "search", done: true });
             } else {
-              if (!res.writableEnded) {
-                res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(tc.name)} done`, icon: "file", done: true })}\n\n`);
-              }
+              emitToolStatus({ text: `${L.toolLabel(tc.name)} done`, icon: "file", done: true });
             }
             nativeToolResults.push({
               id: tc.id, name: tc.name, ok: true,
@@ -1725,7 +1732,12 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       if (nativeToolResults.length > 0 && !res.writableEnded) {
         try {
           const toolSummaries = nativeToolResults.map(tr => {
-            if (!tr.ok) return `[${tr.name} failed: ${tr.error}]`;
+            if (!tr.ok) {
+              const suggestionsText = tr.suggestions?.length
+                ? `\nSuggested actions:\n${tr.suggestions.map(s => `- ${s}`).join("\n")}`
+                : "";
+              return `[${tr.name} failed: ${tr.error}]${suggestionsText}\nIMPORTANT: Do NOT just say "the tool failed". Instead, try an alternative approach or provide a helpful answer using your own knowledge.`;
+            }
             return tr.summary || `[${tr.name} completed]`;
           }).join("\n\n");
 
@@ -1802,7 +1814,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       if (dqMatch) detectedQuery = dqMatch[1];
       const detectedIcon = isSearchLikeTool ? "search" : detectedToolName.includes("spread") ? "spreadsheet" : "file";
       const statusText = detectedQuery ? `${detectedLabel}: ${detectedQuery}` : `${detectedLabel}...`;
-      if (!res.writableEnded) res.write(`event: tool_status\ndata: ${JSON.stringify({ text: statusText, icon: detectedIcon })}\n\n`);
+      emitToolStatus({ text: statusText, icon: detectedIcon });
 
       log("info", "Clean pipe: tool tags detected", { provider: providerName, tool: detectedToolName, textLen: fullText.length });
       let toolResults = await lumigentRuntime.executeTextToolCalls(fullText, lcUserId || projectName || "api").catch(e => {

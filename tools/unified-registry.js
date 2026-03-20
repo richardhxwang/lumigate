@@ -50,6 +50,129 @@ function loadSchemaFiles() {
   return schemas;
 }
 
+/**
+ * Validate tool execution result for correctness and completeness.
+ * Returns { valid: true } or { valid: false, reason: string }.
+ */
+function validateToolResult(toolName, result) {
+  if (!result) return { valid: false, reason: "null result" };
+  if (result.error) return { valid: false, reason: result.error };
+  if (result.ok === false) return { valid: false, reason: result.error || "tool returned ok:false" };
+
+  // Tool-specific validation
+  const name = (toolName || "").toLowerCase();
+  if (name === "web_search" && (!result.data?.results?.length)) {
+    return { valid: false, reason: "no search results returned" };
+  }
+  if (name.startsWith("generate_") && !result.file && !result.data?.downloadUrl) {
+    return { valid: false, reason: "no file generated" };
+  }
+  if (name === "parse_file" && !result.data?.text && !result.data?.content) {
+    return { valid: false, reason: "no content extracted from file" };
+  }
+  if (name === "vision_analyze" && !result.data?.description && !result.data?.text) {
+    return { valid: false, reason: "no description returned from vision analysis" };
+  }
+  if (name === "code_run" && result.data?.exitCode !== 0 && result.data?.exitCode !== undefined) {
+    return { valid: false, reason: `code exited with non-zero status: ${result.data.exitCode}` };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Retry strategies per tool type.
+ * Returns modified input for retry, or null if no retry strategy exists.
+ */
+function getRetryInput(toolName, toolInput, attempt) {
+  const name = (toolName || "").toLowerCase();
+
+  if (name === "web_search") {
+    const q = toolInput.query || toolInput.q || "";
+    if (attempt === 1) {
+      // Broaden: append "latest" or simplify
+      return { ...toolInput, query: q + " latest", q: undefined };
+    }
+    if (attempt === 2) {
+      // Simplify: take first 5 words
+      const simplified = q.split(/\s+/).slice(0, 5).join(" ");
+      return { ...toolInput, query: simplified, q: undefined, freshness: "" };
+    }
+  }
+
+  if (name === "code_run" && attempt === 1) {
+    // Retry once — transient sandbox issues
+    return { ...toolInput };
+  }
+
+  return null; // no retry strategy
+}
+
+/**
+ * Fallback tool mapping: when tool X fails, try tool Y.
+ * Returns { toolName, toolInput } or null.
+ */
+function getFallbackTool(toolName, toolInput) {
+  const name = (toolName || "").toLowerCase();
+
+  if (name === "parse_file" && toolInput.file) {
+    // If text extraction fails, try vision analysis for image-like content
+    const ext = (toolInput.filename || toolInput.file || "").split(".").pop().toLowerCase();
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff"].includes(ext)) {
+      return { toolName: "vision_analyze", toolInput: { image: toolInput.file, filename: toolInput.filename } };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build a structured error message that helps the AI decide what to do next.
+ */
+function buildToolErrorContext(toolName, reason, attempts) {
+  const suggestions = [];
+  const name = (toolName || "").toLowerCase();
+
+  if (name === "web_search") {
+    suggestions.push(
+      "Try rephrasing the search with different keywords",
+      "Ask the user for more specific information",
+      "Provide an answer based on your training data with a disclaimer that it may not be current",
+    );
+  } else if (name.startsWith("generate_")) {
+    suggestions.push(
+      "Verify the input data format is correct (numbers not strings, valid sheet structure)",
+      "Try generating with simpler/fewer sheets first",
+      "Ask the user to clarify the desired file structure",
+    );
+  } else if (name === "parse_file") {
+    suggestions.push(
+      "The file format may not be supported — inform the user",
+      "Ask the user to provide the content in a different format (e.g., paste as text)",
+    );
+  } else if (name === "code_run") {
+    suggestions.push(
+      "Check the code for syntax errors or missing dependencies",
+      "Try a simpler version of the code",
+      "Ask the user to review the code logic",
+    );
+  } else {
+    suggestions.push(
+      "Try an alternative approach to fulfill the user's request",
+      "Ask the user for more information or clarification",
+    );
+  }
+
+  return {
+    error: true,
+    tool: toolName,
+    reason,
+    attempts,
+    suggestions,
+    message: `Tool "${toolName}" failed after ${attempts} attempt(s): ${reason}.\nSuggestions:\n${suggestions.map(s => `- ${s}`).join("\n")}`,
+  };
+}
+
 class UnifiedRegistry {
   constructor() {
     /** @type {Map<string, { schema: object, handler: function|null }>} */
@@ -114,13 +237,83 @@ class UnifiedRegistry {
   /**
    * Execute a tool call by routing to the appropriate handler.
    * Priority: custom handler > built-in handler > MCP client.
+   * Includes result validation, automatic retry, and fallback logic.
    * @param {string} toolName
    * @param {object} toolInput
-   * @returns {Promise<{ ok: boolean, data?: any, file?: Buffer, error?: string, duration?: number }>}
+   * @returns {Promise<{ ok: boolean, data?: any, file?: Buffer, error?: string, duration?: number, _retryInfo?: object }>}
    */
   async executeToolCall(toolName, toolInput) {
     const startTime = Date.now();
+    const maxRetries = 2;
+    let lastResult = null;
+    let lastReason = "";
+    let attempts = 0;
 
+    // Try up to maxRetries+1 times (initial + retries)
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const currentInput = attempt === 0 ? toolInput : (getRetryInput(toolName, toolInput, attempt) || toolInput);
+      // If retry strategy returned same input as previous, skip
+      if (attempt > 0 && currentInput === toolInput && attempt > 1) break;
+
+      lastResult = await this._executeToolCallOnce(toolName, currentInput, startTime);
+      attempts = attempt + 1;
+
+      const validation = validateToolResult(toolName, lastResult);
+      if (validation.valid) {
+        if (attempt > 0) {
+          lastResult._retryInfo = { attempts, retriedFrom: "retry", succeeded: true };
+          console.log(`[unified-registry] Tool "${toolName}" succeeded on attempt ${attempts}`);
+        }
+        return lastResult;
+      }
+
+      lastReason = validation.reason;
+
+      // Don't retry unknown tools or auth errors
+      if (lastResult?.error?.includes("Unknown tool:") || lastResult?.error?.includes("auth")) {
+        break;
+      }
+
+      // Only retry if we have a retry strategy for this tool
+      if (attempt < maxRetries && !getRetryInput(toolName, toolInput, attempt + 1)) {
+        break;
+      }
+
+      if (attempt < maxRetries) {
+        console.log(`[unified-registry] Tool "${toolName}" failed (attempt ${attempts}): ${lastReason}. Retrying...`);
+      }
+    }
+
+    // All retries exhausted — try fallback tool
+    const fallback = getFallbackTool(toolName, toolInput);
+    if (fallback) {
+      console.log(`[unified-registry] Tool "${toolName}" failed after ${attempts} attempts. Trying fallback: ${fallback.toolName}`);
+      const fallbackResult = await this._executeToolCallOnce(fallback.toolName, fallback.toolInput, startTime);
+      const fallbackValidation = validateToolResult(fallback.toolName, fallbackResult);
+      if (fallbackValidation.valid) {
+        fallbackResult._retryInfo = { attempts: attempts + 1, retriedFrom: "fallback", originalTool: toolName, fallbackTool: fallback.toolName, succeeded: true };
+        console.log(`[unified-registry] Fallback tool "${fallback.toolName}" succeeded for "${toolName}"`);
+        return fallbackResult;
+      }
+      attempts++;
+    }
+
+    // All attempts failed — return structured error context
+    const errorCtx = buildToolErrorContext(toolName, lastReason, attempts);
+    return {
+      ok: false,
+      error: errorCtx.message,
+      _errorContext: errorCtx,
+      _retryInfo: { attempts, succeeded: false },
+      duration: Date.now() - startTime,
+    };
+  }
+
+  /**
+   * Single-attempt tool execution (no retry logic).
+   * @private
+   */
+  async _executeToolCallOnce(toolName, toolInput, startTime) {
     // 1. Check custom tools first (runtime-registered with handler)
     const custom = this._customTools.get(toolName);
     if (custom && typeof custom.handler === "function") {
@@ -143,7 +336,7 @@ class UnifiedRegistry {
       return builtinResult;
     }
 
-    // 3. Try MCP client
+    // 4. Try MCP client
     if (mcpClient && typeof mcpClient.executeTool === "function") {
       try {
         const mcpResult = await mcpClient.executeTool(toolName, toolInput);
@@ -526,4 +719,4 @@ class UnifiedRegistry {
 
 const unifiedRegistry = new UnifiedRegistry();
 
-module.exports = { UnifiedRegistry, unifiedRegistry };
+module.exports = { UnifiedRegistry, unifiedRegistry, validateToolResult, buildToolErrorContext };
