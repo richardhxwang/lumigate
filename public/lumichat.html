@@ -4964,6 +4964,11 @@ suggGrid.addEventListener('click',e=>{ const c=e.target.closest('.sugg-card'); i
 
 msgIn.addEventListener('paste',e=>{ for(const item of e.clipboardData?.items||[]) if(item.kind==='file'&&item.type.startsWith('image/')) addFile(item.getAsFile()); });
 
+// ── DRAG-AND-DROP FILE UPLOAD ────────────────────────────────────────────
+chatEl.addEventListener('dragover',e=>{ e.preventDefault(); chatEl.classList.add('drag-over'); });
+chatEl.addEventListener('dragleave',e=>{ if(!chatEl.contains(e.relatedTarget)) chatEl.classList.remove('drag-over'); });
+chatEl.addEventListener('drop',e=>{ e.preventDefault(); chatEl.classList.remove('drag-over'); for(const file of e.dataTransfer.files) addFile(file); });
+
 // ── iOS PWA KEYBOARD FIX ─────────────────────────────────────────────────
 // When the soft keyboard appears/dismisses in standalone PWA mode, iOS can
 // scroll the UIWebView, causing the header to drift off-screen. We use the
