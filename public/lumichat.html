@@ -332,6 +332,11 @@
     .mab{background:transparent;border:none;color:var(--t3);cursor:pointer;border-radius:var(--r1);padding:4px;font-size:11px;display:flex;align-items:center;gap:3px;transition:color .1s,background .1s}
     .mab:hover{color:var(--t1);background:var(--sb-hover)}
     .mab svg{width:13px;height:13px}
+    .mab.thumb-active{color:var(--accent)}
+    .mab.thumb-inactive{opacity:.35;pointer-events:none}
+    .mab.speaking{color:var(--accent);animation:tts-pulse 1.2s ease-in-out infinite}
+    @keyframes tts-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    #chat.drag-over{outline:2px dashed var(--accent);outline-offset:-4px;border-radius:var(--r3)}
     .typing{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:4px 0;animation:fadeIn .3s ease}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     .typing-dots{display:flex;gap:5px}
@@ -2632,6 +2637,31 @@ function makeCopyBtn(getText){
   return btn;
 }
 
+function rateFeedback(btn, msgId, rating){
+  const acts=btn.parentElement;
+  if(!acts) return;
+  acts.querySelectorAll('.thumb-up,.thumb-down').forEach(b=>{
+    if(b===btn){ b.classList.add('thumb-active'); b.classList.remove('thumb-inactive'); }
+    else { b.classList.add('thumb-inactive'); b.classList.remove('thumb-active'); }
+  });
+  if(msgId) fetch(`/lc/messages/${msgId}/feedback`,{
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({rating})
+  }).catch(()=>{});
+}
+
+function speakMessage(btn){
+  const text=btn.closest('.msg-row')?.querySelector('.asst-content')?.textContent;
+  if(!text) return;
+  if(speechSynthesis.speaking){ speechSynthesis.cancel(); btn.classList.remove('speaking'); return; }
+  const utt=new SpeechSynthesisUtterance(text);
+  utt.lang=_lang==='zh'?'zh-CN':'en-US';
+  utt.onend=()=>btn.classList.remove('speaking');
+  btn.classList.add('speaking');
+  speechSynthesis.speak(utt);
+}
+
 function appendMsg(role, content, msgId, files=[]){
   if(emptyEl.style.display!=='none') emptyEl.style.display='none';
   const row=document.createElement('div'); row.className=`msg-row ${role}`;
@@ -2729,6 +2759,20 @@ function appendMsg(role, content, msgId, files=[]){
       }
     });
     acts.appendChild(retryBtn);
+    // Thumbs up/down feedback
+    const thumbUp=document.createElement('button'); thumbUp.className='mab thumb-up'; thumbUp.title='Good response';
+    thumbUp.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>';
+    thumbUp.addEventListener('click',()=>rateFeedback(thumbUp, msgId, 'up'));
+    acts.appendChild(thumbUp);
+    const thumbDn=document.createElement('button'); thumbDn.className='mab thumb-down'; thumbDn.title='Bad response';
+    thumbDn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>';
+    thumbDn.addEventListener('click',()=>rateFeedback(thumbDn, msgId, 'down'));
+    acts.appendChild(thumbDn);
+    // TTS — read aloud
+    const ttsBtn=document.createElement('button'); ttsBtn.className='mab tts-btn'; ttsBtn.title='Read aloud';
+    ttsBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.08"/></svg>';
+    ttsBtn.addEventListener('click',()=>speakMessage(ttsBtn));
+    acts.appendChild(ttsBtn);
     row.appendChild(acts);
   }
   chatEl.appendChild(row); return row;
@@ -3316,6 +3360,17 @@ async function sendMessage(){
       streamEl.classList.remove('streaming-active');
       streamEl.textContent=''; renderMarkdown(streamEl,streamText);
     }
+    // Collapsible thinking block (if thinking content was captured)
+    if(streamEl&&_thinkingContent.trim()){
+      if(!_thinkingEndTime) _thinkingEndTime=Date.now();
+      const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
+      const details=document.createElement('details');
+      details.className='thinking-block';
+      details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="10" y1="24" x2="14" y2="24"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
+      const tc=details.querySelector('.thinking-content');
+      tc.textContent=_thinkingContent.trim();
+      streamEl.parentNode.insertBefore(details,streamEl);
+    }
     // Token/cost footer
     if(streamEl&&streamUsage){
       const minfo=(modelsData[selectedProvider]||[]).find(m=>m.id===selectedModel);
@@ -3370,6 +3425,16 @@ async function sendMessage(){
       if(streamEl&&streamText){
         streamEl.textContent='';
         renderMarkdown(streamEl,streamText);
+        // Insert thinking block on abort too
+        if(_thinkingContent.trim()){
+          if(!_thinkingEndTime) _thinkingEndTime=Date.now();
+          const secs=Math.max(1,Math.round((_thinkingEndTime-_thinkingStartTime)/1000));
+          const details=document.createElement('details');
+          details.className='thinking-block';
+          details.innerHTML=`<summary><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="10" y1="24" x2="14" y2="24"/></svg><span>${_lang==='zh'?'思考了 '+secs+' 秒':'Thought for '+secs+'s'}</span><svg class="think-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></summary><div class="thinking-content"></div>`;
+          details.querySelector('.thinking-content').textContent=_thinkingContent.trim();
+          streamEl.parentNode.insertBefore(details,streamEl);
+        }
         try{
           const aMsg=await apiJSON('/lc/messages',{method:'POST',body:JSON.stringify({session:currentSid,role:'assistant',content:clampMessageContentForPb(streamText || '[Interrupted response]')})});
           messages.push(aMsg);
