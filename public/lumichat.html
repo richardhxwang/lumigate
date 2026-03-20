@@ -744,9 +744,55 @@
     /* KaTeX math rendering */
     .katex{font-size:1.05em}
     .katex-display{margin:0.8em 0;overflow-x:auto}
+
+    /* SELECTION TOOLBAR — floating "Ask about this" menu */
+    #sel-menu{
+      display:none;gap:2px;padding:4px;position:fixed;z-index:9999;
+      background:var(--inp);backdrop-filter:blur(20px) saturate(160%);
+      border:1px solid var(--border);border-radius:var(--r2);
+      box-shadow:0 4px 20px rgba(0,0,0,.25);
+      animation:sel-menu-in .15s ease;
+      -webkit-user-select:none;user-select:none;
+    }
+    @keyframes sel-menu-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    #sel-menu button{
+      display:flex;align-items:center;gap:5px;
+      padding:6px 10px;border:none;border-radius:var(--r1);
+      background:transparent;color:var(--t1);font-size:13px;font-weight:500;
+      cursor:pointer;white-space:nowrap;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+      transition:background .12s;
+    }
+    #sel-menu button:hover{background:var(--sb-hover)}
+    #sel-menu button:active{background:var(--sb-active)}
+    #sel-menu button svg{width:14px;height:14px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    #sel-menu .sel-sep{width:1px;background:var(--border);margin:4px 0;flex-shrink:0}
   </style>
 </head>
 <body>
+
+<!-- SELECTION TOOLBAR — "Ask about this" floating menu -->
+<div id="sel-menu">
+  <button onclick="selAction('ask')">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Ask
+  </button>
+  <div class="sel-sep"></div>
+  <button onclick="selAction('explain')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    Explain
+  </button>
+  <div class="sel-sep"></div>
+  <button onclick="selAction('translate')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg>
+    Translate
+  </button>
+  <div class="sel-sep"></div>
+  <button onclick="selAction('copy')">
+    <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    Copy
+  </button>
+</div>
 
 <!-- SPLASH — shown on every load, hides auth flash -->
 <div id="splash">
@@ -5906,6 +5952,108 @@ $('sb-search-btn').addEventListener('click',()=>{
 });
 $('sb-search-inp').addEventListener('input',()=>{ renderSidebar($('sb-search-inp').value.trim()); });
 $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-search-bar').style.display='none'; $('sb-search-inp').value=''; renderSidebar(); } });
+
+// ── SELECTION TOOLBAR — "Ask about this" ──
+(function initSelectionMenu(){
+  const menu = $('sel-menu');
+  let _selText = '';
+
+  function hideSelMenu(){ menu.style.display='none'; _selText=''; }
+
+  function showSelMenu(sel, text){
+    _selText = text;
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    menu.style.display = 'flex';
+    // Position above selection, centered
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let left = rect.left + rect.width/2 - mw/2;
+    let top = rect.top - mh - 8;
+    // If no room above, show below
+    if(top < 4){ top = rect.bottom + 8; }
+    // Clamp horizontal to viewport
+    left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+  }
+
+  // Listen for text selection on assistant messages
+  document.addEventListener('mouseup', e => {
+    if(e.target.closest('#sel-menu')) return;
+    setTimeout(()=>{
+      const sel = window.getSelection();
+      if(!sel.rangeCount || sel.isCollapsed){ hideSelMenu(); return; }
+      const text = sel.toString().trim();
+      if(!text || text.length < 3){ hideSelMenu(); return; }
+      // Check if selection is inside an assistant message
+      const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+      const focus = sel.focusNode?.nodeType === 3 ? sel.focusNode.parentElement : sel.focusNode;
+      if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')){ hideSelMenu(); return; }
+      showSelMenu(sel, text);
+    }, 10);
+  });
+
+  // Mobile: touchend-based selection
+  document.addEventListener('selectionchange', (function(){
+    let timer = null;
+    return function(){
+      clearTimeout(timer);
+      timer = setTimeout(()=>{
+        const sel = window.getSelection();
+        if(!sel.rangeCount || sel.isCollapsed){ return; }
+        const text = sel.toString().trim();
+        if(!text || text.length < 3) return;
+        const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+        const focus = sel.focusNode?.nodeType === 3 ? sel.focusNode.parentElement : sel.focusNode;
+        if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')) return;
+        showSelMenu(sel, text);
+      }, 300);
+    };
+  })());
+
+  // Hide on click outside or scroll
+  document.addEventListener('mousedown', e => {
+    if(!e.target.closest('#sel-menu')) hideSelMenu();
+  });
+  document.addEventListener('scroll', hideSelMenu, true);
+  document.addEventListener('touchstart', e => {
+    if(!e.target.closest('#sel-menu')) hideSelMenu();
+  }, {passive:true});
+
+  // Action handler (global for onclick attributes)
+  window.selAction = function(action){
+    const text = _selText;
+    if(!text) return;
+    hideSelMenu();
+    window.getSelection()?.removeAllRanges();
+
+    if(action === 'copy'){
+      navigator.clipboard.writeText(text).catch(()=>{});
+      return;
+    }
+    if(action === 'ask'){
+      // Quote text and let user add their question
+      msgIn.value = '> ' + text.replace(/\n/g, '\n> ') + '\n\n';
+      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+      updateSendBtn(); msgIn.focus();
+      msgIn.setSelectionRange(msgIn.value.length, msgIn.value.length);
+      return;
+    }
+    if(action === 'explain'){
+      msgIn.value = 'Explain this in detail:\n> ' + text.replace(/\n/g, '\n> ');
+      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+      updateSendBtn(); sendMessage();
+      return;
+    }
+    if(action === 'translate'){
+      const targetLang = _lang === 'zh' ? 'English' : '中文';
+      msgIn.value = 'Translate to ' + targetLang + ':\n> ' + text.replace(/\n/g, '\n> ');
+      msgIn.style.height='auto'; msgIn.style.height=Math.min(msgIn.scrollHeight,200)+'px';
+      updateSendBtn(); sendMessage();
+      return;
+    }
+  };
+})();
 
 clientLog('info', 'boot_start', { build: '2026-03-19-v4' });
 initGoogleOAuth();
