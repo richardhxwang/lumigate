@@ -646,7 +646,7 @@ function saveProjects(list) {
 let projects = loadProjects();
 let projectKeyIndex = new Map();
 function rebuildProjectKeyIndex() {
-  projectKeyIndex = new Map();
+  projectKeyIndex.clear();
   for (const p of projects) {
     if (p.key) projectKeyIndex.set(p.key, p);
   }
@@ -1798,15 +1798,15 @@ const _adminResult = require('./routes/admin')({
   __dirname,
   // Data access (getters for mutable state)
   getProjects: () => projects,
-  setProjects: (v) => { projects = v; },
+  setProjects: (v) => { projects.length = 0; projects.push(...v); },
   getUsers: () => users,
-  setUsers: (v) => { users = v; },
+  setUsers: (v) => { users.length = 0; users.push(...v); },
   getSettings: () => settings,
-  setSettings: (v) => { settings = v; },
+  setSettings: (v) => { Object.keys(settings).forEach(k => delete settings[k]); Object.assign(settings, v); },
   getProviderKeys: () => providerKeys,
-  setProviderKeys: (v) => { providerKeys = v; },
+  setProviderKeys: (v) => { Object.keys(providerKeys).forEach(k => delete providerKeys[k]); Object.assign(providerKeys, v); },
   getCollectorTokens: () => collectorTokens,
-  setCollectorTokens: (v) => { collectorTokens = v; },
+  setCollectorTokens: (v) => { Object.keys(collectorTokens).forEach(k => delete collectorTokens[k]); Object.assign(collectorTokens, v); },
   getUsageData: () => usageData,
   getExchangeRate: () => exchangeRate,
   usageCache,
@@ -3395,6 +3395,23 @@ app.post("/v1/tools/execute", apiLimiter, platformAuth, async (req, res) => {
     return res.status(500).json({ ok: false, error: "Tool execution failed" });
   }
 });
+
+// ── Workflow routes ───────────────────────────────────────────────────────────
+const createWorkflowRouter = require("./routes/workflow");
+app.use("/v1/workflows", apiLimiter, platformAuth, createWorkflowRouter({ unifiedRegistry, lumigentRuntime, log }));
+
+// ── Observability routes ──────────────────────────────────────────────────────
+const createObservabilityRouter = require("./routes/observability");
+app.use("/v1/traces", apiLimiter, platformAuth, createObservabilityRouter({ traceCollector: null, evaluator: null, getSessionRole, parseCookies, log }));
+
+// ── Version routes ────────────────────────────────────────────────────────────
+const versionsRouter = require("./routes/versions");
+app.use("/v1/versions", apiLimiter, platformAuth, versionsRouter);
+
+// ── Sandbox routes ────────────────────────────────────────────────────────────
+const createSandboxRouter = require("./routes/sandbox");
+app.use("/v1/sandbox", apiLimiter, platformAuth, createSandboxRouter({ logger: log }));
+
 // ── End Agent Platform routes ─────────────────────────────────────────────────
 
 // ============================================================
