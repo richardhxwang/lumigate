@@ -352,6 +352,87 @@ function formatSearchContext(results) {
   ).join("\n\n");
 }
 
+// --- Native function calling support ---
+// Providers that support structured tool/function calling in their API
+const NATIVE_TOOL_PROVIDERS = new Set(['openai', 'deepseek', 'anthropic', 'gemini']);
+
+/**
+ * Convert unified tool schemas to provider-specific format.
+ * @param {string} providerName
+ * @param {object[]} schemas - Array of { name, description, input_schema }
+ * @returns {object|undefined} Provider-formatted tools param, or undefined
+ */
+function formatNativeTools(providerName, schemas) {
+  if (!schemas || !schemas.length) return undefined;
+  if (providerName === 'anthropic') {
+    // Anthropic: tools: [{ name, description, input_schema }]
+    return schemas.map(s => ({
+      name: s.name,
+      description: s.description,
+      input_schema: s.input_schema,
+    }));
+  }
+  // OpenAI / DeepSeek / Gemini (via OpenAI-compat endpoint):
+  // tools: [{ type: "function", function: { name, description, parameters } }]
+  return schemas.map(s => ({
+    type: 'function',
+    function: {
+      name: s.name,
+      description: s.description,
+      parameters: s.input_schema,
+    }
+  }));
+}
+
+/**
+ * Select relevant tools based on user message content.
+ * Avoids sending all 22+ tool schemas every request (saves tokens).
+ * @param {string} userMessage
+ * @param {object[]} allSchemas
+ * @returns {object[]}
+ */
+function selectRelevantTools(userMessage, allSchemas) {
+  if (!allSchemas || !allSchemas.length) return [];
+  const msg = String(userMessage || "").toLowerCase();
+
+  // Core tools: always include
+  const alwaysInclude = new Set([
+    'web_search', 'generate_spreadsheet', 'generate_document',
+    'generate_presentation', 'code_run', 'parse_file', 'use_template',
+    'fill_template',
+  ]);
+
+  // Audit tools: only if message mentions audit/financial keywords
+  const auditKeywords = /audit|sampling|journal|entry|entries|benford|material|reconcil|going.?concern|gl\b|general\s*ledger|抽样|分录|审计|对账|重大性|持续经营/i;
+  const includeAudit = auditKeywords.test(msg);
+
+  // Financial analysis
+  const financeKeywords = /financial.?statement|tie.?out|balance.?sheet|income.?statement|cash.?flow|variance|财务报表|资产负债|利润表|现金流/i;
+  const includeFinance = financeKeywords.test(msg);
+
+  // HKEX
+  const hkexKeywords = /hkex|stock.?exchange|公告|年报|annual\s*report|filing|披露/i;
+  const includeHkex = hkexKeywords.test(msg);
+
+  // Vision/audio
+  const mediaKeywords = /image|picture|photo|vision|看图|图片|截图|audio|transcribe|录音|语音|voice/i;
+  const includeMedia = mediaKeywords.test(msg);
+
+  // Browser
+  const browserKeywords = /browse|browser|screenshot|网页|打开|open\s+url|scrape|crawl/i;
+  const includeBrowser = browserKeywords.test(msg);
+
+  return allSchemas.filter(s => {
+    if (alwaysInclude.has(s.name)) return true;
+    if (includeAudit && /^(audit_sampling|benford_analysis|journal_entry_testing|variance_analysis|materiality_calculator|reconciliation|going_concern_check)$/.test(s.name)) return true;
+    if (includeFinance && s.name === 'financial_statement_analyze') return true;
+    if (includeHkex && s.name === 'hkex_download') return true;
+    if (includeMedia && /^(vision_analyze|transcribe_audio)$/.test(s.name)) return true;
+    if (includeBrowser && s.name === 'browser_action') return true;
+    return false;
+  });
+}
+
 // --- Provider URL/headers/body builders ---
 function getChatUrl(providerName, provider) {
   const base = provider.baseUrl;
@@ -383,18 +464,20 @@ function getMaxTokens(providerName, model) {
   return undefined; // omit → provider uses its own max
 }
 
-function buildChatBody(providerName, model, messages, systemPrompt, stream) {
+function buildChatBody(providerName, model, messages, systemPrompt, stream, nativeTools) {
   const maxTok = getMaxTokens(providerName, model);
   if (providerName === "anthropic") {
     const sysMessages = messages.filter(m => m.role === "system");
     const nonSysMessages = messages.filter(m => m.role !== "system");
     let system = sysMessages.map(m => m.content).join("\n\n");
     if (systemPrompt) system = system ? systemPrompt + "\n\n" + system : systemPrompt;
-    return {
+    const body = {
       model, max_tokens: maxTok, stream,
       system: system || undefined,
       messages: nonSysMessages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
     };
+    if (nativeTools) body.tools = nativeTools;
+    return body;
   }
   // OpenAI-compatible providers
   // User's system prompt has highest priority — put server prompts BEFORE it
@@ -404,7 +487,9 @@ function buildChatBody(providerName, model, messages, systemPrompt, stream) {
     if (sysMsg) sysMsg.content = systemPrompt + "\n\n" + (sysMsg.content || "");
     else msgs.unshift({ role: "system", content: systemPrompt });
   }
-  return { model, max_tokens: maxTok, stream, messages: msgs, stream_options: stream ? { include_usage: true } : undefined };
+  const body = { model, max_tokens: maxTok, stream, messages: msgs, stream_options: stream ? { include_usage: true } : undefined };
+  if (nativeTools) body.tools = nativeTools;
+  return body;
 }
 
 function stripInternalChatFields(body) {
@@ -1053,17 +1138,50 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   if (isSmallModel) {
     injectedSystemPrompt += "\nYou are a lightweight model. If the user asks to generate files (Excel, Word, PPT), politely tell them to switch to a more capable model such as DeepSeek, GPT-4.1, or Claude Sonnet. Do NOT attempt to generate files yourself.\n";
   }
-  if (req.body.tools !== false && !isSmallModel) {
-    try {
-      const toolPrompt = lumigentRuntime.getSystemPrompt();
-      if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
-    } catch {}
+  // ── Tool mode: native function calling vs prompt injection ──
+  const toolsEnabled = req.body.tools !== false && !isSmallModel;
+  const useNativeTools = toolsEnabled && NATIVE_TOOL_PROVIDERS.has(pnLower) && !useCollector;
+  let nativeToolsParam = undefined;
+
+  if (toolsEnabled) {
+    if (useNativeTools) {
+      // Native function calling: pass structured tool schemas to the provider API
+      try {
+        const allSchemas = lumigentRuntime.registry
+          ? await lumigentRuntime.registry.getSchemas()
+          : [];
+        const relevant = selectRelevantTools(userText, allSchemas);
+        if (relevant.length > 0) {
+          nativeToolsParam = formatNativeTools(pnLower, relevant);
+          log("info", "Native tools enabled", { provider: pnLower, model: modelId, toolCount: relevant.length, tools: relevant.map(s => s.name) });
+        }
+      } catch (e) {
+        log("warn", "Failed to prepare native tools, falling back to prompt injection", { error: e.message });
+        nativeToolsParam = undefined;
+      }
+      // For native tool providers, still inject a minimal tool usage hint (but not the full schema list)
+      if (nativeToolsParam) {
+        injectedSystemPrompt += "\nYou have tools available via function calling. Use them when the user asks to generate files, search the web, run code, or perform analysis. Do NOT output [TOOL:...] text markers — use the native tool calling mechanism instead.\n";
+      } else {
+        // Native tools preparation failed — fall back to prompt injection
+        try {
+          const toolPrompt = lumigentRuntime.getSystemPrompt();
+          if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
+        } catch {}
+      }
+    } else {
+      // Non-native providers (MiniMax, Kimi, Doubao, Qwen): use prompt injection
+      try {
+        const toolPrompt = lumigentRuntime.getSystemPrompt();
+        if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
+      } catch {}
+    }
   }
 
   // ── Build provider request ──
-  const chatUrl = getChatUrl(providerName.toLowerCase(), provider);
-  const headers = getChatHeaders(providerName.toLowerCase(), apiKey);
-  const body = stripInternalChatFields(buildChatBody(providerName.toLowerCase(), modelId, messages, injectedSystemPrompt.trim(), wantStream));
+  const chatUrl = getChatUrl(pnLower, provider);
+  const headers = getChatHeaders(pnLower, apiKey);
+  const body = stripInternalChatFields(buildChatBody(pnLower, modelId, messages, injectedSystemPrompt.trim(), wantStream, nativeToolsParam));
 
   try {
     // ── Collector path: use Chrome CDP when no API key ──
@@ -1186,11 +1304,55 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       const data = await upstreamRes.json();
       // Extract content, strip tool tags, execute tools
       let content = "";
-      if (providerName.toLowerCase() === "anthropic") {
-        content = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+      let nonStreamNativeToolCalls = [];
+      if (pnLower === "anthropic") {
+        const blocks = data.content || [];
+        content = blocks.filter(b => b.type === "text").map(b => b.text).join("");
+        // Extract native tool_use blocks from Anthropic response
+        for (const b of blocks) {
+          if (b.type === "tool_use") {
+            nonStreamNativeToolCalls.push({ id: b.id, name: b.name, arguments: JSON.stringify(b.input || {}) });
+          }
+        }
       } else {
         content = data.choices?.[0]?.message?.content || "";
+        // Extract native tool_calls from OpenAI/DeepSeek/Gemini response
+        const msgToolCalls = data.choices?.[0]?.message?.tool_calls;
+        if (Array.isArray(msgToolCalls)) {
+          for (const tc of msgToolCalls) {
+            if (tc.type === "function" && tc.function) {
+              nonStreamNativeToolCalls.push({ id: tc.id, name: tc.function.name, arguments: tc.function.arguments || "{}" });
+            }
+          }
+        }
       }
+
+      // Handle native tool calls in non-streaming mode
+      if (nonStreamNativeToolCalls.length > 0) {
+        const toolResults = [];
+        for (const tc of nonStreamNativeToolCalls) {
+          let toolInput = {};
+          try { toolInput = JSON.parse(tc.arguments || "{}"); } catch {}
+          try {
+            const result = await lumigentRuntime.executeToolCall(tc.name, { ...toolInput, _caller_user_id: lcUserId || projectName || "api" });
+            if (result?.ok) {
+              if (result.file) {
+                let downloadUrl = "";
+                try { downloadUrl = await lumigentRuntime.persistFile({ userId: lcUserId || projectName || "api", toolName: tc.name, filename: result.filename, mimeType: result.mimeType, file: result.file }); } catch {}
+                toolResults.push({ tool: tc.name, filename: result.filename, mimeType: result.mimeType, size: result.file.length, downloadUrl, base64: !downloadUrl ? result.file.toString("base64") : undefined });
+              } else if (result.data) {
+                toolResults.push({ tool: tc.name, data: result.data });
+              }
+            }
+          } catch (e) { log("warn", "Non-stream native tool execution failed", { tool: tc.name, error: e.message }); }
+        }
+        return res.json({
+          choices: [{ message: { role: "assistant", content: content || "已处理完成。" } }],
+          tool_results: toolResults.length ? toolResults : undefined,
+        });
+      }
+
+      // Fallback: text-based tool tags
       const hasToolTags = TOOL_TAG_MARKERS.some(m => content.includes(m));
       if (hasToolTags) {
         let toolResults = [];
@@ -1230,10 +1392,18 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     const TOOL_TAG_FAST_FLUSH_MS = isLumichatTestClient ? 80 : 120;
     let pendingSinceTs = 0;
 
-    const isAnthropic = providerName.toLowerCase() === "anthropic";
+    const isAnthropic = pnLower === "anthropic";
 
     // Strip <think>...</think> blocks from streaming content (MiniMax, DeepSeek-R1)
     let inThink = false;
+
+    // ── Native tool call accumulation state ──
+    // For OpenAI/DeepSeek/Gemini: tool_calls are streamed as deltas with index, name, arguments fragments
+    // For Anthropic: content blocks with type "tool_use" have id, name, and input_json_delta
+    // nativeToolCalls: array of { id, name, arguments (string, accumulated) }
+    let nativeToolCalls = [];
+    // Anthropic uses content block index to track which tool_use block we're accumulating
+    let anthropicToolBlocks = new Map(); // blockIndex -> { id, name, arguments }
 
     function sendDelta(text) {
       if (!text || res.writableEnded) return;
@@ -1302,18 +1472,61 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             try {
               const j = JSON.parse(data);
               if (isAnthropic) {
-                if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
+                // ── Anthropic native tool_use handling ──
+                if (j.type === "content_block_start" && j.content_block?.type === "tool_use") {
+                  // A new tool_use block begins
+                  const block = j.content_block;
+                  anthropicToolBlocks.set(j.index, { id: block.id, name: block.name, arguments: "" });
+                  if (!res.writableEnded) {
+                    res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(block.name)}...`, icon: block.name.includes("search") ? "search" : "file" })}\n\n`);
+                  }
+                } else if (j.type === "content_block_delta" && j.delta?.type === "input_json_delta") {
+                  // Accumulate JSON argument fragments for the tool_use block
+                  const tb = anthropicToolBlocks.get(j.index);
+                  if (tb) tb.arguments += (j.delta.partial_json || "");
+                } else if (j.type === "content_block_stop") {
+                  // Block finished — if it was a tool_use, finalize it
+                  const tb = anthropicToolBlocks.get(j.index);
+                  if (tb) {
+                    nativeToolCalls.push({ id: tb.id, name: tb.name, arguments: tb.arguments });
+                    anthropicToolBlocks.delete(j.index);
+                  }
+                } else if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
                   pipeContent(j.delta.text || "");
                 } else if (j.type === "message_delta") {
                   if (j.usage) streamUsage = { prompt_tokens: j.usage.input_tokens || 0, completion_tokens: j.usage.output_tokens || 0 };
-                  if (j.delta?.stop_reason) finishReason = ({ end_turn: "stop", max_tokens: "length" }[j.delta.stop_reason] || j.delta.stop_reason || finishReason);
+                  if (j.delta?.stop_reason) finishReason = ({ end_turn: "stop", max_tokens: "length", tool_use: "tool_calls" }[j.delta.stop_reason] || j.delta.stop_reason || finishReason);
                 }
               } else {
+                // ── OpenAI / DeepSeek / Gemini native tool_calls handling ──
                 if (j.usage) streamUsage = j.usage;
                 const choice = j.choices?.[0];
                 if (!choice) continue;
-                const delta = choice.delta?.content || "";
-                if (delta) pipeContent(delta);
+                const delta = choice.delta;
+                if (!delta) continue;
+
+                // Text content
+                if (delta.content) pipeContent(delta.content);
+
+                // Native tool_calls streaming
+                if (Array.isArray(delta.tool_calls)) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index ?? 0;
+                    // Initialize entry if this is a new tool call
+                    if (!nativeToolCalls[idx]) {
+                      nativeToolCalls[idx] = { id: tc.id || "", name: "", arguments: "" };
+                    }
+                    if (tc.id) nativeToolCalls[idx].id = tc.id;
+                    if (tc.function?.name) {
+                      nativeToolCalls[idx].name = tc.function.name;
+                      if (!res.writableEnded) {
+                        res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(tc.function.name)}...`, icon: tc.function.name.includes("search") ? "search" : "file" })}\n\n`);
+                      }
+                    }
+                    if (tc.function?.arguments) nativeToolCalls[idx].arguments += tc.function.arguments;
+                  }
+                }
+
                 if (choice.finish_reason) finishReason = choice.finish_reason;
               }
             } catch {}
@@ -1329,7 +1542,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
     let { finishReason: finalFinishReason, interrupted: streamInterrupted } = await consumeStreamResponse(upstreamRes);
 
-    for (let pass = 0; pass < AUTO_CONTINUE_MAX_PASSES && (shouldAutoContinueFinishReason(finalFinishReason) || streamInterrupted) && toolTagStart < 0 && !res.writableEnded; pass++) {
+    for (let pass = 0; pass < AUTO_CONTINUE_MAX_PASSES && (shouldAutoContinueFinishReason(finalFinishReason) || streamInterrupted) && toolTagStart < 0 && nativeToolCalls.filter(tc => tc && tc.name).length === 0 && !res.writableEnded; pass++) {
       log("info", "Auto-continuing response", { provider: providerName, model: modelId, pass: pass + 1, finishReason: finalFinishReason, interrupted: streamInterrupted });
       const continuationMessages = [
         ...messages,
@@ -1353,7 +1566,141 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     }
 
     // ── Stream ended — flush remaining content and handle tools ──
-    if (toolTagStart >= 0) {
+
+    // Filter out empty/incomplete native tool calls
+    nativeToolCalls = nativeToolCalls.filter(tc => tc && tc.name);
+    const hasNativeToolCalls = nativeToolCalls.length > 0;
+
+    // ── Native tool call execution (OpenAI/DeepSeek/Anthropic/Gemini) ──
+    if (hasNativeToolCalls && !res.writableEnded) {
+      // Flush any remaining text content before tool execution
+      if (sentLength < fullText.length) { sendDelta(fullText.slice(sentLength)); sentLength = fullText.length; }
+
+      log("info", "Native tool calls detected", {
+        provider: providerName, model: modelId,
+        tools: nativeToolCalls.map(tc => tc.name),
+        count: nativeToolCalls.length,
+      });
+
+      const nativeToolResults = [];
+      for (const tc of nativeToolCalls) {
+        let toolInput = {};
+        try { toolInput = JSON.parse(tc.arguments || "{}"); } catch {
+          log("warn", "Failed to parse native tool arguments", { tool: tc.name, args: (tc.arguments || "").slice(0, 200) });
+        }
+
+        try {
+          const result = await lumigentRuntime.executeToolCall(tc.name, {
+            ...toolInput,
+            _caller_user_id: lcUserId || projectName || "api",
+          });
+          if (!result?.ok) {
+            log("warn", "Native tool execution returned not-ok", { tool: tc.name, error: result?.error });
+            nativeToolResults.push({ id: tc.id, name: tc.name, ok: false, error: result?.error || "Tool failed" });
+            continue;
+          }
+
+          if (result.file) {
+            let downloadUrl = "";
+            try {
+              downloadUrl = await lumigentRuntime.persistFile({
+                userId: lcUserId || projectName || "api",
+                toolName: tc.name,
+                filename: result.filename,
+                mimeType: result.mimeType,
+                file: result.file,
+              });
+            } catch {}
+            if (!res.writableEnded) {
+              res.write(`event: file_download\ndata: ${JSON.stringify({
+                filename: result.filename, size: result.file.length, mimeType: result.mimeType,
+                downloadUrl: downloadUrl || "", base64: !downloadUrl ? result.file.toString("base64") : undefined,
+              })}\n\n`);
+              const icon = tc.name.includes("spread") ? "spreadsheet" : tc.name.includes("present") ? "presentation" : "file";
+              const sizeStr = result.file.length > 1048576 ? `${(result.file.length / 1048576).toFixed(1)} MB` : `${(result.file.length / 1024).toFixed(1)} KB`;
+              res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.toolDone(result.filename, sizeStr), icon, done: true })}\n\n`);
+            }
+            nativeToolResults.push({
+              id: tc.id, name: tc.name, ok: true,
+              summary: `[File generated: ${result.filename} (${result.file.length} bytes)]`,
+            });
+          } else if (result.data) {
+            const formatted = lumigentRuntime.formatToolResult(tc.name, result.data);
+            // For search results, emit link lines to client
+            if (result.data.results && Array.isArray(result.data.results)) {
+              if (!res.writableEnded) {
+                res.write(`event: tool_status\ndata: ${JSON.stringify({ text: L.searchDone(result.data.results.length), icon: "search", done: true })}\n\n`);
+              }
+            } else {
+              if (!res.writableEnded) {
+                res.write(`event: tool_status\ndata: ${JSON.stringify({ text: `${L.toolLabel(tc.name)} done`, icon: "file", done: true })}\n\n`);
+              }
+            }
+            nativeToolResults.push({
+              id: tc.id, name: tc.name, ok: true,
+              summary: formatted?.html ? formatted.html.replace(/<[^>]*>/g, "").slice(0, 500) :
+                result.data.results ? result.data.results.slice(0, 5).map((r, i) => `${i+1}. ${r.title || ""}\nURL: ${r.url || ""}\n${(r.content || "").slice(0, 150)}`).join("\n\n") :
+                JSON.stringify(result.data).slice(0, 500),
+              data: result.data,
+            });
+          }
+        } catch (e) {
+          log("error", "Native tool execution threw", { tool: tc.name, error: e.message });
+          nativeToolResults.push({ id: tc.id, name: tc.name, ok: false, error: e.message });
+        }
+      }
+
+      // ── Follow-up AI call to summarize native tool results ──
+      if (nativeToolResults.length > 0 && !res.writableEnded) {
+        try {
+          const toolSummaries = nativeToolResults.map(tr => {
+            if (!tr.ok) return `[${tr.name} failed: ${tr.error}]`;
+            return tr.summary || `[${tr.name} completed]`;
+          }).join("\n\n");
+
+          // Build follow-up messages with tool results
+          const followUpMessages = [
+            ...messages,
+            { role: "assistant", content: fullText || "I'm executing the requested tools." },
+            { role: "user", content: `Tool execution results:\n${toolSummaries}\n\nPlease summarize the results for the user in a helpful way. If files were generated, briefly describe what's in them. If search results were returned, output 3-5 concrete clickable source links (full URLs) first, then a short summary. Respond naturally in the same language as the user's original question.` },
+          ];
+          // Follow-up does NOT include tools (avoid infinite tool loop)
+          const followUpBody = buildChatBody(pnLower, modelId, followUpMessages, "", true);
+          const followUpRes = await fetch(chatUrl, {
+            method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000),
+          });
+
+          if (followUpRes.ok && followUpRes.body) {
+            const fReader = followUpRes.body.getReader();
+            const fDec = new TextDecoder();
+            let fBuf = "";
+            while (true) {
+              const { done: fDone, value: fVal } = await fReader.read();
+              if (fDone) break;
+              fBuf += fDec.decode(fVal, { stream: true });
+              const fLines = fBuf.split("\n");
+              fBuf = fLines.pop() || "";
+              for (const fl of fLines) {
+                if (!fl.startsWith("data: ")) continue;
+                const fd = fl.slice(6).trim();
+                if (fd === "[DONE]") continue;
+                try {
+                  const fj = JSON.parse(fd);
+                  if (isAnthropic) {
+                    if (fj.type === "content_block_delta" && fj.delta?.type === "text_delta") sendDelta(fj.delta.text || "");
+                  } else {
+                    const c = fj.choices?.[0]?.delta?.content;
+                    if (c) sendDelta(c);
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch (e) {
+          log("warn", "Follow-up AI call after native tool exec failed", { error: e.message });
+        }
+      }
+    } else if (toolTagStart >= 0) {
       // Tool tags detected — send updated status with actual tool name, then execute
       const tagContent = fullText.slice(toolTagStart);
       let detectedToolName = "tool";
