@@ -343,11 +343,9 @@ services:
     ports:
       - "127.0.0.1:18790:8080"
     environment:
-      # OKX credentials disabled for dry_run — IP whitelist blocks server IP
-      # Re-enable when IP is whitelisted or for live trading
-      # - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      # - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      # - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
       - FREQTRADE__TELEGRAM__TOKEN=${FREQTRADE_TELEGRAM_TOKEN:-}
       - FREQTRADE__TELEGRAM__CHAT_ID=${FREQTRADE_TELEGRAM_CHAT_ID:-}
     command: >
