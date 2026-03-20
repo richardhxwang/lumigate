@@ -15,6 +15,9 @@
 
 const crypto = require("crypto");
 
+/** Escape single quotes in PB filter values to prevent syntax errors. */
+function pbEscape(val) { return String(val || "").replace(/'/g, "\\'"); }
+
 const COLLECTION_PREFIX = "user_mem_";
 const PB_MEMORIES_COLLECTION = "user_memories";
 const PB_PROFILES_COLLECTION = "user_profiles";
@@ -239,7 +242,7 @@ class UserMemory {
 
     try {
       // Find the PB record to get the embedding_id
-      const record = await this.pbStore.findOne(PB_MEMORIES_COLLECTION, `user_id='${userId}' && id='${memoryId}'`);
+      const record = await this.pbStore.findOne(PB_MEMORIES_COLLECTION, `user_id='${pbEscape(userId)}' && id='${pbEscape(memoryId)}'`);
       if (!record) return false;
 
       // Delete from Qdrant
@@ -307,7 +310,7 @@ class UserMemory {
 
     try {
       // Read current profile
-      const profileRecord = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${userId}'`);
+      const profileRecord = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${pbEscape(userId)}'`);
       const existing = profileRecord?.pet_profiles || {};
       existing[petId] = { ...(existing[petId] || {}), ...data, updated_at: new Date().toISOString() };
 
@@ -616,7 +619,7 @@ class UserMemory {
     try {
       // Fetch recent facts from PB
       const result = await this.pbStore.getList(PB_MEMORIES_COLLECTION, {
-        filter: `user_id='${userId}'`,
+        filter: `user_id='${pbEscape(userId)}'`,
         sort: "-created",
         perPage: 100,
       });
@@ -641,7 +644,7 @@ Only include fields with actual data. Keep it concise.`,
       profile = JSON.parse(jsonStr);
 
       // Upsert to PB
-      const existing = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${userId}'`);
+      const existing = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${pbEscape(userId)}'`);
       const profileData = {
         user_id: userId,
         profile,
@@ -690,7 +693,7 @@ Only include fields with actual data. Keep it concise.`,
     }
 
     try {
-      const record = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${userId}'`);
+      const record = await this.pbStore.findOne(PB_PROFILES_COLLECTION, `user_id='${pbEscape(userId)}'`);
       if (!record) return null;
 
       const profile = {

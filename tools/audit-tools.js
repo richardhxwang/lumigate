@@ -14,6 +14,7 @@
  *   8. gl_extract             — Extract sub-ledger from GL by account code
  *   9. data_cleaning          — Auto-clean financial data
  *  10. audit_workpaper_fill   — Auto-fill audit working paper from source documents
+ *  11. financial_analytics_review — Compare CY vs PY financial statements, calculate variances
  *
  * Each tool is registered via unifiedRegistry.registerTool(schema, handler).
  * Handlers are pure computation — no external dependencies.
@@ -2823,6 +2824,176 @@ function findFieldValue(extracted, aliases) {
   return null;
 }
 
+// ── 11. Financial Analytics Review (FAR) ──────────────────────────────────────
+
+const FINANCIAL_ANALYTICS_REVIEW_SCHEMA = {
+  name: "financial_analytics_review",
+  description: "Generate Financial Analytics Review: compare current year vs prior year financial statements line-by-line, calculate variances, and provide explanations. Can use a prior year template for formatting.",
+  input_schema: {
+    type: "object",
+    properties: {
+      current_year: {
+        type: "object",
+        description: "Current year financial data: { income_statement: [{item, amount}], balance_sheet: [{item, amount}], cash_flow: [{item, amount}] }",
+      },
+      prior_year: {
+        type: "object",
+        description: "Prior year financial data (same structure as current_year)",
+      },
+      template_analysis: {
+        type: "array",
+        description: "Prior year analysis text for each line item (optional, AI will mimic the style). Each: { item: string, analysis: string }",
+        items: { type: "object" },
+      },
+      materiality: {
+        type: "number",
+        description: "Materiality threshold (absolute amount). Variances above this are flagged as material.",
+      },
+      currency: {
+        type: "string",
+        description: "Currency code (default: HKD)",
+      },
+    },
+    required: ["current_year", "prior_year"],
+  },
+};
+
+async function executeFinancialAnalyticsReview(input) {
+  const {
+    current_year = {},
+    prior_year = {},
+    template_analysis = [],
+    materiality = Infinity,
+    currency = "HKD",
+  } = input;
+
+  const STATEMENT_KEYS = ["income_statement", "balance_sheet", "cash_flow"];
+  const STATEMENT_LABELS = {
+    income_statement: "Income Statement",
+    balance_sheet: "Balance Sheet",
+    cash_flow: "Cash Flow Statement",
+  };
+
+  // Build lookup from template_analysis for prior year explanations
+  const templateMap = {};
+  if (Array.isArray(template_analysis)) {
+    for (const t of template_analysis) {
+      if (t && t.item) {
+        templateMap[t.item.toLowerCase().trim()] = t.analysis || "";
+      }
+    }
+  }
+
+  // Build prior year lookup per statement
+  function buildLookup(items) {
+    const map = {};
+    if (!Array.isArray(items)) return map;
+    for (const row of items) {
+      if (row && row.item != null) {
+        map[String(row.item).toLowerCase().trim()] = row.amount ?? 0;
+      }
+    }
+    return map;
+  }
+
+  const review = [];
+  let totalItems = 0;
+  let materialItems = 0;
+  let largestVariancePct = { item: null, pct: 0 };
+
+  for (const key of STATEMENT_KEYS) {
+    const currentItems = Array.isArray(current_year[key]) ? current_year[key] : [];
+    const priorLookup = buildLookup(prior_year[key] || []);
+
+    const items = [];
+
+    for (const row of currentItems) {
+      if (!row || row.item == null) continue;
+
+      const itemName = String(row.item);
+      const itemKey = itemName.toLowerCase().trim();
+      const currentAmt = row.amount ?? 0;
+      const priorAmt = priorLookup[itemKey];
+
+      totalItems++;
+
+      if (priorAmt === undefined) {
+        // New item in current year, no prior year comparator
+        items.push({
+          item: itemName,
+          current: currentAmt,
+          prior: null,
+          variance: null,
+          variance_pct: null,
+          material: Math.abs(currentAmt) > materiality,
+          flag: "new_item",
+          prior_analysis: templateMap[itemKey] || null,
+          suggested_analysis: `New item in current year: ${currency} ${currentAmt.toLocaleString()}`,
+        });
+        if (Math.abs(currentAmt) > materiality) materialItems++;
+        continue;
+      }
+
+      const variance = currentAmt - priorAmt;
+      const variancePct = priorAmt !== 0
+        ? (variance / Math.abs(priorAmt)) * 100
+        : (currentAmt !== 0 ? Infinity : 0);
+      const isMaterial = Math.abs(variance) > materiality || Math.abs(variancePct) > 10;
+      const flag = variance > 0 ? "increase" : variance < 0 ? "decrease" : "unchanged";
+
+      if (isMaterial) materialItems++;
+
+      // Track largest variance by percentage
+      if (isFinite(variancePct) && Math.abs(variancePct) > Math.abs(largestVariancePct.pct)) {
+        largestVariancePct = { item: itemName, pct: Math.round(variancePct * 100) / 100 };
+      }
+
+      // Generate suggested analysis
+      let suggestedAnalysis = "";
+      if (flag === "unchanged") {
+        suggestedAnalysis = `${itemName} remained unchanged at ${currency} ${currentAmt.toLocaleString()}.`;
+      } else {
+        const dir = flag === "increase" ? "increased" : "decreased";
+        const pctStr = isFinite(variancePct) ? `${Math.abs(variancePct).toFixed(1)}%` : "N/A";
+        suggestedAnalysis = `${itemName} ${dir} by ${currency} ${Math.abs(variance).toLocaleString()} (${pctStr}) from ${currency} ${priorAmt.toLocaleString()} to ${currency} ${currentAmt.toLocaleString()}.`;
+        if (isMaterial) {
+          suggestedAnalysis += " This variance exceeds materiality and warrants further investigation.";
+        }
+      }
+
+      items.push({
+        item: itemName,
+        current: currentAmt,
+        prior: priorAmt,
+        variance: Math.round(variance * 100) / 100,
+        variance_pct: isFinite(variancePct) ? Math.round(variancePct * 100) / 100 : null,
+        material: isMaterial,
+        flag,
+        prior_analysis: templateMap[itemKey] || null,
+        suggested_analysis: suggestedAnalysis,
+      });
+    }
+
+    if (items.length > 0) {
+      review.push({
+        statement: STATEMENT_LABELS[key] || key,
+        items,
+      });
+    }
+  }
+
+  return {
+    review,
+    summary: {
+      material_items: materialItems,
+      total_items: totalItems,
+      largest_variance_pct: largestVariancePct.item ? largestVariancePct : null,
+      currency,
+      materiality_threshold: isFinite(materiality) ? materiality : null,
+    },
+  };
+}
+
 // ── Registration ──────────────────────────────────────────────────────────────
 
 function registerAuditTools() {
@@ -2837,6 +3008,7 @@ function registerAuditTools() {
     { schema: GL_EXTRACT_SCHEMA, handler: executeGLExtract },
     { schema: DATA_CLEANING_SCHEMA, handler: executeDataCleaning },
     { schema: AUDIT_WORKPAPER_FILL_SCHEMA, handler: executeAuditWorkpaperFill },
+    { schema: FINANCIAL_ANALYTICS_REVIEW_SCHEMA, handler: executeFinancialAnalyticsReview },
   ];
 
   for (const { schema, handler } of tools) {
@@ -2860,6 +3032,7 @@ module.exports = {
     { name: "variance_analysis", description: VARIANCE_ANALYSIS_SCHEMA.description, input_schema: VARIANCE_ANALYSIS_SCHEMA.input_schema, execute: executeVarianceAnalysis },
     { name: "materiality_calculator", description: MATERIALITY_CALCULATOR_SCHEMA.description, input_schema: MATERIALITY_CALCULATOR_SCHEMA.input_schema, execute: executeMaterialityCalculator },
     { name: "going_concern_check", description: GOING_CONCERN_CHECK_SCHEMA.description, input_schema: GOING_CONCERN_CHECK_SCHEMA.input_schema, execute: executeGoingConcernCheck },
+    { name: "financial_analytics_review", description: FINANCIAL_ANALYTICS_REVIEW_SCHEMA.description, input_schema: FINANCIAL_ANALYTICS_REVIEW_SCHEMA.input_schema, execute: executeFinancialAnalyticsReview },
   ],
   registerAll(registry) {
     for (const t of this.tools) registry.registerTool(t.name, t);
@@ -2875,4 +3048,5 @@ module.exports = {
   executeGLExtract,
   executeDataCleaning,
   executeAuditWorkpaperFill,
+  executeFinancialAnalyticsReview,
 };

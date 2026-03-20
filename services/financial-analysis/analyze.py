@@ -103,25 +103,89 @@ def extract_with_docling(pdf_path: str) -> Dict[str, Optional[float]]:
 # ── 2B: Enhanced multi-language regex field extraction ──
 
 def _extract_fields(text: str) -> Dict[str, Optional[float]]:
-    num = r"([\-]?\(?\d[\d,]*(?:\.\d+)?\)?)"
-    # Separator pattern for table formats (pipe, tab, multiple spaces)
-    sep = r"[\s|,\t]+"
+    # ── Number patterns for pdftotext -layout output ──
+    #
+    # pdftotext -layout produces lines like:
+    #   營業額                 Turnover                               6           37,985
+    #   銷售成本                Cost of sales                                    (21,625)
+    #   存貨                           Stocks                                   23            9,240
+    #
+    # Key challenges:
+    #   1. 20-50+ spaces between label and number
+    #   2. English translations mixed with Chinese labels
+    #   3. Note reference numbers (small integers like 6, 16, 23) before the real value
+    #   4. Parenthesized negatives: (21,625) = -21,625
+    #   5. Multiple numbers on same line (current year, prior year)
+    #
+    # Strategy: match "financial numbers" = numbers with commas, or parenthesized,
+    # or with decimal points. This skips bare small integers (note refs like 6, 16, 23).
+    # For amounts < 1000 without commas, we use a fallback pattern.
 
-    # Helper: build pattern that matches label then number, including on the next line
+    # ── Financial number patterns for pdftotext -layout ──
+    #
+    # In pdftotext -layout, column values are separated by 2+ spaces.
+    # Note refs (6, 16, 23) appear in the "Notes" column, also space-separated.
+    # We use two tiers of number patterns:
+    #
+    # fnum: "obviously financial" — has comma separators, parentheses, or decimals.
+    #   These reliably skip over note refs since note refs are plain integers.
+    #
+    # fnum_col: "column-aligned number" — any number preceded by 2+ spaces.
+    #   This handles small amounts (90, 55) that appear in value columns.
+    #   The 2+ space prefix + non-greedy gap means we still get the first
+    #   column value, not random inline numbers.
+
+    # Tier 1: obviously financial (comma-formatted, parenthesized, or decimal)
+    fnum = (
+        r"("
+        r"\(?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?"    # comma-formatted: 1,234 or (1,234)
+        r"|\(\d+(?:\.\d+)?\)"                       # parenthesized negative: (123)
+        r"|\d+\.\d+"                                 # decimal: 1.04
+        r"|(?<!\d)(?!(?:19|20)\d{2}(?:\D|$))\d{3,}" # 3+ digits, not year-like, not partial
+        r")"
+    )
+    # Tier 2: column-aligned number (preceded by 2+ spaces, any digit count)
+    # The (?<=\s{2}) lookbehind ensures we're in a column gap, not inline text.
+    # Note: variable-length lookbehinds not supported in re, use \s\s instead.
+    fnum_col = r"\s\s+" + r"(\(?\d[\d,]*(?:\.\d+)?\)?)"
+    # Fallback: any number (for small amounts or ratios), at least 1 digit
+    snum = r"([\-]?\(?\d[\d,]*(?:\.\d+)?\)?)"
+
+    # Helper: build patterns that match label then first financial number on same/next line
     def lbl(alts: str) -> List[str]:
         """Given a pipe-separated string of label alternatives, return patterns that
-        match the label followed by a number (same line or next line)."""
+        match the label followed by a number (same line or next line).
+        Uses generous gap to handle pdftotext -layout format with wide spacing,
+        English translations, and note reference numbers between label and value.
+
+        Priority order:
+        1. Same line, obviously-financial number (comma/paren/decimal/3+digits)
+        2. Same line, column-aligned number (2+ spaces then any number) - catches small amounts
+        3. Next line, obviously-financial number
+        4. Next line, column-aligned number
+        5/6. Fallback: any number after substantial gap"""
         return [
-            rf"(?:{alts}){sep}{num}",
-            rf"(?:{alts})\s*\n\s*{num}",
+            # Priority 1: same line, obviously financial number (comma/paren/decimal/3+digits)
+            rf"(?:{alts})[^\n]*?" + fnum,
+            # Priority 2: same line, column-aligned number (2+ spaces then any number)
+            # Catches small amounts like 90 that don't have commas or 3+ digits
+            rf"(?:{alts})[^\n]*?" + fnum_col,
+            # Priority 3: next line, obviously financial number
+            rf"(?:{alts})[^\n]*\n[^\n]*?" + fnum,
+            # Priority 4: next line, column-aligned number
+            rf"(?:{alts})[^\n]*\n[^\n]*?" + fnum_col,
+            # Priority 5: same line, any number after substantial gap (>=3 spaces)
+            rf"(?:{alts})\s{{3,}}" + snum,
+            # Priority 6: next line, any number
+            rf"(?:{alts})\s*\n\s+" + snum,
         ]
 
     fields: Dict[str, List[str]] = {
         # ── Inventory ──
         "inventory_bs": [
-            rf"balance\s*sheet[^.\n]*inventory[^0-9\-()]*{num}",
-            rf"inventory[^.\n]*(?:balance\s*sheet|statement\s*of\s*financial\s*position)[^0-9\-()]*{num}",
-            *lbl(r"inventories|inventory|存货|存貨|库存|庫存"),
+            rf"balance\s*sheet[^\n]*inventory[^\n]*?" + fnum,
+            rf"inventory[^\n]*(?:balance\s*sheet|statement\s*of\s*financial\s*position)[^\n]*?" + fnum,
+            *lbl(r"inventories|inventory|存货|存貨|库存|庫存|stocks"),
         ],
         "inventory_raw": [
             *lbl(r"raw\s*materials?|原材料"),
@@ -146,28 +210,28 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             ),
         ],
         "ar_0_30": [
-            rf"(?:0[\-\u2013]30|0\s*to\s*30)\s*days?{sep}{num}",
-            rf"(?:0[\-\u2013]30|0\s*to\s*30)\s*days?\s*\n\s*{num}",
+            rf"(?:0[\-\u2013]30|0\s*to\s*30)\s*days?[^\n]*?" + fnum,
+            rf"(?:0[\-\u2013]30|0\s*to\s*30)\s*days?\s*\n[^\n]*?" + fnum,
         ],
         "ar_31_60": [
-            rf"(?:31[\-\u2013]60|31\s*to\s*60)\s*days?{sep}{num}",
-            rf"(?:31[\-\u2013]60|31\s*to\s*60)\s*days?\s*\n\s*{num}",
+            rf"(?:31[\-\u2013]60|31\s*to\s*60)\s*days?[^\n]*?" + fnum,
+            rf"(?:31[\-\u2013]60|31\s*to\s*60)\s*days?\s*\n[^\n]*?" + fnum,
         ],
         "ar_61_90": [
-            rf"(?:61[\-\u2013]90|61\s*to\s*90)\s*days?{sep}{num}",
-            rf"(?:61[\-\u2013]90|61\s*to\s*90)\s*days?\s*\n\s*{num}",
+            rf"(?:61[\-\u2013]90|61\s*to\s*90)\s*days?[^\n]*?" + fnum,
+            rf"(?:61[\-\u2013]90|61\s*to\s*90)\s*days?\s*\n[^\n]*?" + fnum,
         ],
         "ar_91_180": [
-            rf"(?:91[\-\u2013]180|91\s*to\s*180)\s*days?{sep}{num}",
-            rf"(?:91[\-\u2013]180|91\s*to\s*180)\s*days?\s*\n\s*{num}",
+            rf"(?:91[\-\u2013]180|91\s*to\s*180)\s*days?[^\n]*?" + fnum,
+            rf"(?:91[\-\u2013]180|91\s*to\s*180)\s*days?\s*\n[^\n]*?" + fnum,
         ],
         "ar_over_180": [
-            rf"(?:over\s*180|180\+|>180|181[\-\u2013]365)\s*days?{sep}{num}",
-            rf"(?:over\s*180|180\+|>180|181[\-\u2013]365)\s*days?\s*\n\s*{num}",
+            rf"(?:over\s*180|180\+|>180|181[\-\u2013]365)\s*days?[^\n]*?" + fnum,
+            rf"(?:over\s*180|180\+|>180|181[\-\u2013]365)\s*days?\s*\n[^\n]*?" + fnum,
         ],
         "ar_60_plus": [
-            rf"(?:over\s*60|60\+|61[\-\u2013]90|>60)\s*days?{sep}{num}",
-            rf"(?:over\s*60|60\+|61[\-\u2013]90|>60)\s*days?\s*\n\s*{num}",
+            rf"(?:over\s*60|60\+|61[\-\u2013]90|>60)\s*days?[^\n]*?" + fnum,
+            rf"(?:over\s*60|60\+|61[\-\u2013]90|>60)\s*days?\s*\n[^\n]*?" + fnum,
         ],
 
         # ── Loans / Borrowings ──
@@ -209,25 +273,25 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
         "ppe_bs": [
             *lbl(
                 r"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產"
-                r"|物業、?廠房及設備|物业、?厂房及设备)"
+                r"|物業、?廠房及設備|物业、?厂房及设备|fixed\s*assets)"
             ),
         ],
         "ppe_open": [
-            rf"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產|物業、?廠房及設備|物业、?厂房及设备)[^.\n]*(?:opening|期初|年初)[^0-9\-()]*{num}",
-            rf"(?:opening|期初|年初)[^.\n]*(?:ppe|property,?\s*plant|固定资产|固定資產)[^0-9\-()]*{num}",
+            rf"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產|物業、?廠房及設備|物业、?厂房及设备|fixed\s*assets)[^\n]*(?:opening|期初|年初)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初)[^\n]*(?:ppe|property,?\s*plant|固定资产|固定資產|fixed\s*assets)[^\n]*?" + fnum,
         ],
         "ppe_add": [
             *lbl(r"additions?|增加|本期增加|添置"),
         ],
         "ppe_disp": [
-            *lbl(r"disposals?|处置|處置|报废|報廢|减少|減少"),
+            *lbl(r"disposals?|处置|處置|报废|報廢|出售撥回|出售拨回"),
         ],
         "ppe_dep": [
             *lbl(r"depreciation|折旧|折舊|累计折旧|累計折舊"),
         ],
         "ppe_close": [
-            rf"(?:closing|期末|年末)[^.\n]*(?:ppe|property,?\s*plant|固定资产|固定資產)[^0-9\-()]*{num}",
-            rf"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產|物業、?廠房及設備|物业、?厂房及设备)[^.\n]*(?:closing|期末|年末)[^0-9\-()]*{num}",
+            rf"(?:closing|期末|年末)[^\n]*(?:ppe|property,?\s*plant|固定资产|固定資產|fixed\s*assets)[^\n]*?" + fnum,
+            rf"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產|物業、?廠房及設備|物业、?厂房及设备|fixed\s*assets)[^\n]*(?:closing|期末|年末)[^\n]*?" + fnum,
         ],
         "ppe_transfer": [
             *lbl(r"transfers?|reclassifications?|转入转出|轉入轉出|重新分类|重新分類|调拨|調撥"),
@@ -241,94 +305,94 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(r"buildings?|房屋|房屋建筑物|房屋建築物|楼宇|樓宇|房屋及建筑物|房屋及建築物"),
         ],
         "ppe_buildings_open": [
-            rf"(?:buildings?|房屋|楼宇|樓宇|房屋建筑物|房屋建築物)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
-            rf"(?:opening|期初|年初|at\s*1\s*January)[^.\n]*(?:buildings?|房屋|楼宇|樓宇)[^0-9\-()]*{num}",
+            rf"(?:buildings?|房屋|楼宇|樓宇|房屋建筑物|房屋建築物)[^\n]*(?:opening|期初|年初|at\s*1\s*January)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January)[^\n]*(?:buildings?|房屋|楼宇|樓宇)[^\n]*?" + fnum,
         ],
         "ppe_buildings_add": [
-            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^\n]*(?:additions?|增加|添置)[^\n]*?" + fnum,
         ],
         "ppe_buildings_disp": [
-            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^\n]*(?:disposals?|处置|處置|减少|減少)[^\n]*?" + fnum,
         ],
         "ppe_buildings_dep": [
-            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^\n]*(?:depreciation|折旧|折舊|charge)[^\n]*?" + fnum,
         ],
         "ppe_buildings_close": [
-            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^\n]*(?:closing|期末|年末|at\s*31\s*December)[^\n]*?" + fnum,
         ],
 
         "ppe_plant_cost": [
             *lbl(r"plant\s*(?:and|&)\s*machinery|机器设备|機器設備|机械设备|機械設備|厂房及机器|廠房及機器"),
         ],
         "ppe_plant_open": [
-            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^\n]*(?:opening|期初|年初|at\s*1\s*January)[^\n]*?" + fnum,
         ],
         "ppe_plant_add": [
-            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^\n]*(?:additions?|增加|添置)[^\n]*?" + fnum,
         ],
         "ppe_plant_disp": [
-            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^\n]*(?:disposals?|处置|處置|减少|減少)[^\n]*?" + fnum,
         ],
         "ppe_plant_dep": [
-            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^\n]*(?:depreciation|折旧|折舊|charge)[^\n]*?" + fnum,
         ],
         "ppe_plant_close": [
-            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^\n]*(?:closing|期末|年末|at\s*31\s*December)[^\n]*?" + fnum,
         ],
 
         "ppe_vehicles_cost": [
             *lbl(r"(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車|运输设备|運輸設備"),
         ],
         "ppe_vehicles_open": [
-            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^\n]*(?:opening|期初|年初|at\s*1\s*January)[^\n]*?" + fnum,
         ],
         "ppe_vehicles_add": [
-            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^\n]*(?:additions?|增加|添置)[^\n]*?" + fnum,
         ],
         "ppe_vehicles_disp": [
-            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^\n]*(?:disposals?|处置|處置|减少|減少)[^\n]*?" + fnum,
         ],
         "ppe_vehicles_dep": [
-            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^\n]*(?:depreciation|折旧|折舊|charge)[^\n]*?" + fnum,
         ],
         "ppe_vehicles_close": [
-            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^\n]*(?:closing|期末|年末|at\s*31\s*December)[^\n]*?" + fnum,
         ],
 
         "ppe_office_cost": [
             *lbl(r"(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|办公家具|辦公家具|电子设备|電子設備|家具及装置|傢具及裝置"),
         ],
         "ppe_office_open": [
-            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^\n]*(?:opening|期初|年初|at\s*1\s*January)[^\n]*?" + fnum,
         ],
         "ppe_office_add": [
-            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^\n]*(?:additions?|增加|添置)[^\n]*?" + fnum,
         ],
         "ppe_office_disp": [
-            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^\n]*(?:disposals?|处置|處置|减少|減少)[^\n]*?" + fnum,
         ],
         "ppe_office_dep": [
-            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^\n]*(?:depreciation|折旧|折舊|charge)[^\n]*?" + fnum,
         ],
         "ppe_office_close": [
-            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^\n]*(?:closing|期末|年末|at\s*31\s*December)[^\n]*?" + fnum,
         ],
 
         "ppe_land_cost": [
             *lbl(r"land|土地|土地使用权|土地使用權"),
         ],
         "ppe_land_open": [
-            rf"(?:land|土地|土地使用权|土地使用權)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+            rf"(?:land|土地|土地使用权|土地使用權)[^\n]*(?:opening|期初|年初|at\s*1\s*January)[^\n]*?" + fnum,
         ],
         "ppe_land_close": [
-            rf"(?:land|土地|土地使用权|土地使用權)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+            rf"(?:land|土地|土地使用权|土地使用權)[^\n]*(?:closing|期末|年末|at\s*31\s*December)[^\n]*?" + fnum,
         ],
 
         "ppe_leasehold_cost": [
             *lbl(r"leasehold\s*improvements?|租赁改良|租賃改良|装修|裝修|leasehold"),
         ],
         "ppe_leasehold_dep": [
-            rf"(?:leasehold\s*improvements?|租赁改良|租賃改良|装修|裝修)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+            rf"(?:leasehold\s*improvements?|租赁改良|租賃改良|装修|裝修)[^\n]*(?:depreciation|折旧|折舊|charge)[^\n]*?" + fnum,
         ],
 
         # ── PPE Disposal Gain/Loss ──
@@ -357,12 +421,14 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
         ],
         "net_income": [
             # Priority: profit attributable to shareholders first (for RE reconciliation)
-            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)[^0-9\n]*{sep}{num}",
-            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)[^0-9\n]*\s*\n\s*{num}",
+            # In pdftotext layout, the line may have Chinese + English + wide spaces + number
+            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)[^\n]*?" + fnum,
+            rf"(?:profit\s*attributable\s*to\s*(?:shareholders|owners|equity\s*holders)|本公司股東應佔溢利|本公司股东应占溢利)\s*\n[^\n]*?" + fnum,
             *lbl(
                 r"net\s*(?:income|profit|loss)\s*(?:for\s*the\s*(?:year|period))?"
                 r"|(?:total\s*)?profit\s*for\s*the\s*(?:year|period)"
                 r"|净利润|淨利潤|纯利|純利|本年度溢利|(?:税后|稅後)(?:净|淨)?(?:利润|利潤)"
+                r"|shareholders\s*of\s*the\s*company"
             ),
         ],
         "depreciation_is": [
@@ -437,6 +503,8 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             ),
         ],
         "cff": [
+            # Multi-line: "融資活動使用之\n 淨現金 ... (1,715)"
+            rf"(?:融資活動使用之|融资活动使用之|Net\s*cash\s*(?:used\s*in|from)\s*financing)\s*\n[^\n]*?" + fnum,
             *lbl(
                 r"\bcff\b|(?:net\s*)?cash\s*(?:flows?\s*)?(?:from|used\s*in)\s*financ(?:ing|e)\s*(?:activities)?"
                 r"|筹资活动现金流|籌資活動現金流|融资活动|融資活動"
@@ -452,21 +520,31 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             ),
         ],
         "cash_open": [
+            # Multi-line: "Cash and cash equivalents as at\n ... 1 January ... 3,816"
+            rf"(?:cash\s*and\s*cash\s*equivalents\s*as\s*at)\s*\n[^\n]*1\s*January[^\n]*?" + fnum,
+            rf"於一月一日之現金[^\n]*\n[^\n]*?" + fnum,
+            rf"于一月一日之现金[^\n]*\n[^\n]*?" + fnum,
             *lbl(
                 r"(?:opening|beginning)\s*(?:balance\s*of\s*)?cash"
-                r"|cash[^.\n]*(?:at\s*)?(?:beginning|opening)"
-                r"|cash[^.\n]*(?:as\s*at\s*)?(?:1\s*January|January\s*1)"
+                r"|cash[^\n]*(?:at\s*)?(?:beginning|opening)"
+                r"|cash[^\n]*(?:as\s*at\s*)?(?:1\s*January|January\s*1)"
                 r"|期初现金|期初現金|年初现金|年初現金"
                 r"|於一月一日之現金|于一月一日之现金"
+                r"|1\s*January[^\n]*cash"
             ),
         ],
         "cash_close": [
+            # Multi-line: "Cash and cash equivalents as at\n ... 31 December ... 6,918"
+            rf"(?:cash\s*and\s*cash\s*equivalents\s*as\s*at)\s*\n[^\n]*31\s*December[^\n]*?" + fnum,
+            rf"於十二月三十一日之現金[^\n]*\n[^\n]*?" + fnum,
+            rf"于十二月三十一日之现金[^\n]*\n[^\n]*?" + fnum,
             *lbl(
                 r"(?:closing|ending)\s*(?:balance\s*of\s*)?cash"
-                r"|cash[^.\n]*(?:at\s*)?(?:end|closing)"
-                r"|cash[^.\n]*(?:as\s*at\s*)?(?:31\s*December|December\s*31)"
+                r"|cash[^\n]*(?:at\s*)?(?:end|closing)"
+                r"|cash[^\n]*(?:as\s*at\s*)?(?:31\s*December|December\s*31)"
                 r"|期末现金|期末現金|年末现金|年末現金"
                 r"|於十二月三十一日之現金|于十二月三十一日之现金"
+                r"|31\s*December[^\n]*cash"
             ),
         ],
         "depreciation_cf": [
@@ -479,19 +557,19 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
 
         # ── Retained Earnings ──
         "re_open": [
-            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)\s*(?:opening|期初|年初)(?:\s*\([^)]*\))?\s*{num}",
-            rf"(?:retained\s*(?:earnings?|profits?))\s*(?:as\s*at\s*)?1\s*January(?:\s*\d{{4}})?\s*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^\n]*(?:opening|期初|年初)[^\n]*?" + fnum,
+            rf"(?:retained\s*(?:earnings?|profits?))[^\n]*(?:as\s*at\s*)?1\s*January[^\n]*?" + fnum,
         ],
         "re_profit": [
-            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:profit|net\s*income|净利润|淨利潤|溢利)[^0-9\-()]*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^\n]*(?:profit|net\s*income|净利润|淨利潤|溢利)[^\n]*?" + fnum,
         ],
         "re_div": [
-            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^.\n]*(?:dividends?|股息|股利|分红|分紅)[^0-9\-()]*{num}",
-            *lbl(r"dividends?\s*(?:declared|paid|proposed)|已宣派股息|已派发股息|已派發股息|分红|分紅|股利分配"),
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^\n]*(?:dividends?|股息|股利|分红|分紅)[^\n]*?" + fnum,
+            *lbl(r"dividends?\s*(?:declared|paid|proposed)|已宣派股息|已派发股息|已派發股息|分红|分紅|股利分配|dividends?\s*paid"),
         ],
         "re_close": [
-            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)\s*(?:closing|期末|年末)(?:\s*\([^)]*\))?\s*{num}",
-            rf"(?:retained\s*(?:earnings?|profits?))\s*(?:as\s*at\s*)?31\s*December(?:\s*\d{{4}})?\s*{num}",
+            rf"(?:retained\s*(?:earnings?|profits?)|留存收益|保留盈利|保留溢利|未分配利润|未分配利潤)[^\n]*(?:closing|期末|年末)[^\n]*?" + fnum,
+            rf"(?:retained\s*(?:earnings?|profits?))[^\n]*(?:as\s*at\s*)?31\s*December[^\n]*?" + fnum,
         ],
         "dividends_declared": [
             *lbl(
@@ -502,12 +580,18 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
 
         # ── Balance Sheet Totals ──
         "total_assets": [
+            # "Consolidated total assets" (segment note) — priority
+            rf"(?:consolidated\s*)?total\s*assets(?!\s*(?:less|and))[^\n]*?" + fnum,
+            rf"(?:綜合)?資產總值[^\n]*?" + fnum,
+            rf"(?:综合)?资产总值[^\n]*?" + fnum,
             *lbl(
-                r"total\s*assets|资产总计|資產總計|资产总额|資產總額|总资产|總資產"
-                r"|total\s*assets\s*and\s*liabilities"
+                r"资产总计|資產總計|资产总额|資產總額"
             ),
         ],
         "total_liabilities": [
+            rf"(?:consolidated\s*)?total\s*liabilities[^\n]*?" + fnum,
+            rf"(?:綜合)?負債總值[^\n]*?" + fnum,
+            rf"(?:综合)?负债总值[^\n]*?" + fnum,
             *lbl(
                 r"total\s*liabilities|负债总计|負債總計|负债合计|負債合計|总负债|總負債"
                 r"|负债总额|負債總額"
@@ -517,8 +601,65 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             *lbl(
                 r"total\s*(?:shareholders?['\u2019']?\s*)?equity|equity\s*attributable"
                 r"|权益总额|權益總額|权益合计|權益合計|股东权益合计|股東權益合計"
-                r"|所有者权益|所有者權益"
+                r"|所有者权益|所有者權益|總權益|总权益"
             ),
+        ],
+
+        # ── Statement of Changes in Equity ──
+        "eq_share_capital_open": [
+            rf"(?:share\s*capital|issued\s*capital|股本)[^\n]*(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*(?:share\s*capital|issued\s*capital|股本)[^\n]*?" + fnum,
+        ],
+        "eq_share_capital_close": [
+            rf"(?:share\s*capital|issued\s*capital|股本)[^\n]*(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*?" + fnum,
+            rf"(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*(?:share\s*capital|issued\s*capital|股本)[^\n]*?" + fnum,
+        ],
+        "eq_capital_reserve_open": [
+            rf"(?:capital\s*reserve|share\s*premium|資本公積|资本公积|股本溢价|股本溢價)[^\n]*(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*(?:capital\s*reserve|share\s*premium|資本公積|资本公积)[^\n]*?" + fnum,
+        ],
+        "eq_capital_reserve_close": [
+            rf"(?:capital\s*reserve|share\s*premium|資本公積|资本公积|股本溢价|股本溢價)[^\n]*(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*?" + fnum,
+            rf"(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*(?:capital\s*reserve|share\s*premium|資本公積|资本公积)[^\n]*?" + fnum,
+        ],
+        "eq_retained_open": [
+            rf"(?:retained\s*(?:earnings?|profits?)|保留盈餘|保留盈利|保留溢利|未分配利潤|未分配利润|留存收益)[^\n]*(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*(?:retained\s*(?:earnings?|profits?)|保留盈餘|保留盈利|未分配利潤)[^\n]*?" + fnum,
+        ],
+        "eq_retained_close": [
+            rf"(?:retained\s*(?:earnings?|profits?)|保留盈餘|保留盈利|保留溢利|未分配利潤|未分配利润|留存收益)[^\n]*(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*?" + fnum,
+            rf"(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*(?:retained\s*(?:earnings?|profits?)|保留盈餘|保留盈利|未分配利潤)[^\n]*?" + fnum,
+        ],
+        "eq_nci_open": [
+            rf"(?:non[\-\s]*controlling\s*interests?|minority\s*interests?|非控制性權益|非控制性权益|少数股东权益|少數股東權益)[^\n]*(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*(?:non[\-\s]*controlling|minority|非控制性權益|非控制性权益)[^\n]*?" + fnum,
+        ],
+        "eq_nci_close": [
+            rf"(?:non[\-\s]*controlling\s*interests?|minority\s*interests?|非控制性權益|非控制性权益|少数股东权益|少數股東權益)[^\n]*(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*?" + fnum,
+            rf"(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*(?:non[\-\s]*controlling|minority|非控制性權益|非控制性权益)[^\n]*?" + fnum,
+        ],
+        "eq_total_open": [
+            rf"(?:total\s*equity|總權益|总权益|權益總額|权益总额)[^\n]*(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*?" + fnum,
+            rf"(?:opening|期初|年初|at\s*1\s*January|at\s*beginning)[^\n]*(?:total\s*equity|總權益|总权益)[^\n]*?" + fnum,
+        ],
+        "eq_total_close": [
+            rf"(?:total\s*equity|總權益|总权益|權益總額|权益总额)[^\n]*(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*?" + fnum,
+            rf"(?:closing|期末|年末|at\s*31\s*December|at\s*end)[^\n]*(?:total\s*equity|總權益|总权益)[^\n]*?" + fnum,
+        ],
+        "eq_net_profit": [
+            rf"(?:profit\s*for\s*the\s*year|net\s*(?:profit|income)|本年度溢利|本年度净利润|本年度淨利潤|年度溢利)[^\n]*?" + fnum,
+        ],
+        "eq_oci": [
+            rf"(?:other\s*comprehensive\s*income|其他全面收益|其他綜合收益|其他综合收益)[^\n]*?" + fnum,
+        ],
+        "eq_dividends": [
+            rf"(?:dividends?\s*(?:declared|paid)|已宣派股息|已派发股息|已派發股息|dividends?\s*paid)[^\n]*?" + fnum,
+        ],
+        "eq_share_based_payment": [
+            rf"(?:share[\-\s]*based\s*(?:payment|compensation)|股份支付|以股份為基礎之付款)[^\n]*?" + fnum,
+        ],
+        "cf_dividends_paid": [
+            rf"(?:dividends?\s*paid|已付股息|已派股息|已支付股利|支付股息)[^\n]*?" + fnum,
         ],
     }
     out: Dict[str, Optional[float]] = {}
@@ -1263,6 +1404,223 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
             "status": "fail" if has_flags else "pass",
             "items": ppe_additional,
             "formula": "Fully depreciated assets, capitalization threshold, disposal gain/loss",
+        })
+
+    # ── 6. Statement of Changes in Equity ──
+
+    # Helper: equity column rollforward check
+    def _equity_column_check(col_name: str, open_key: str, close_key: str) -> None:
+        """Check: Opening + all changes = Closing for a single equity column."""
+        opening = fields.get(open_key)
+        closing = fields.get(close_key)
+
+        # Gather change items relevant to this column
+        change_items: List[Dict[str, Any]] = []
+        col_lower = col_name.lower()
+        if "retained" in col_lower:
+            change_items = [
+                {"label": "Net profit", "value": fields.get("eq_net_profit")},
+                {"label": "Dividends (subtracted)", "value": fields.get("eq_dividends")},
+            ]
+        elif "reserve" in col_lower or "premium" in col_lower:
+            change_items = [
+                {"label": "Other comprehensive income", "value": fields.get("eq_oci")},
+                {"label": "Share-based payment", "value": fields.get("eq_share_based_payment")},
+            ]
+        elif "non-controlling" in col_lower or "minority" in col_lower or "nci" in col_lower:
+            change_items = [
+                {"label": "NCI share of profit", "value": fields.get("eq_net_profit")},
+                {"label": "NCI share of OCI", "value": fields.get("eq_oci")},
+                {"label": "NCI dividends (subtracted)", "value": fields.get("eq_dividends")},
+            ]
+
+        non_none = [c for c in change_items if c.get("value") is not None]
+        check_id = f"equity_{col_name.lower().replace(' ', '_').replace('-', '_')}_rollforward"
+        if opening is not None and closing is not None and non_none:
+            changes_sum = sum(c["value"] for c in non_none)
+            expected_close = opening + changes_sum
+            diff = closing - expected_close
+            status = "pass" if abs(diff) <= 0.5 else "fail"
+            parts = f"{opening:,.2f}"
+            for c in non_none:
+                parts += f" + {c['value']:,.2f}"
+            formula = f"{parts} = {expected_close:,.2f} {'==' if status == 'pass' else '!='} {closing:,.2f}"
+            formula += " [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"
+            cross_checks.append({
+                "check": check_id,
+                "status": status,
+                "main_value": closing,
+                "main_source": f"{col_name} - Closing",
+                "detail_values": [{"label": "Opening", "value": opening}] + change_items,
+                "detail_sum": expected_close,
+                "difference": diff,
+                "formula": formula,
+            })
+        else:
+            missing = []
+            if opening is None:
+                missing.append(f"{col_name} opening")
+            if closing is None:
+                missing.append(f"{col_name} closing")
+            missing.extend(c["label"] for c in change_items if c.get("value") is None)
+            cross_checks.append({
+                "check": check_id,
+                "status": "insufficient",
+                "main_value": closing,
+                "main_source": f"{col_name} - Closing",
+                "detail_values": [{"label": "Opening", "value": opening}] + change_items,
+                "detail_sum": None,
+                "difference": None,
+                "formula": f"insufficient data (missing: {', '.join(missing)})" if missing else "insufficient data",
+            })
+
+    # 6a. Each column rollforward: Opening + changes = Closing
+    _equity_column_check("Share Capital", "eq_share_capital_open", "eq_share_capital_close")
+    _equity_column_check("Capital Reserve", "eq_capital_reserve_open", "eq_capital_reserve_close")
+    _equity_column_check("Retained Earnings", "eq_retained_open", "eq_retained_close")
+    _equity_column_check("Non-controlling Interests", "eq_nci_open", "eq_nci_close")
+
+    # 6b. Total equity column = sum of all individual columns
+    eq_cols_close = [
+        {"label": "Share Capital", "value": fields.get("eq_share_capital_close")},
+        {"label": "Capital Reserve", "value": fields.get("eq_capital_reserve_close")},
+        {"label": "Retained Earnings", "value": fields.get("eq_retained_close")},
+        {"label": "Non-controlling Interests", "value": fields.get("eq_nci_close")},
+    ]
+    eq_total_close = fields.get("eq_total_close")
+    eq_cols_non_none = [c for c in eq_cols_close if c.get("value") is not None]
+    if eq_total_close is not None and len(eq_cols_non_none) >= 2:
+        cols_sum = sum(c["value"] for c in eq_cols_non_none)
+        diff = eq_total_close - cols_sum
+        status = "pass" if abs(diff) <= 0.5 else "fail"
+        parts = " + ".join(f"{c['value']:,.2f}" for c in eq_cols_non_none)
+        formula = f"{parts} = {cols_sum:,.2f} {'==' if status == 'pass' else '!='} {eq_total_close:,.2f}"
+        formula += " [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"
+        cross_checks.append({
+            "check": "equity_total_vs_columns",
+            "status": status,
+            "main_value": eq_total_close,
+            "main_source": "Total Equity - Closing",
+            "detail_values": eq_cols_close,
+            "detail_sum": cols_sum,
+            "difference": diff,
+            "formula": formula,
+        })
+    else:
+        cross_checks.append({
+            "check": "equity_total_vs_columns",
+            "status": "insufficient",
+            "main_value": eq_total_close,
+            "main_source": "Total Equity - Closing",
+            "detail_values": eq_cols_close,
+            "detail_sum": None,
+            "difference": None,
+            "formula": "insufficient data (need total equity and at least 2 column closing balances)",
+        })
+
+    # 6c. Net profit in equity statement = Income statement net profit
+    eq_np = fields.get("eq_net_profit")
+    is_np = fields.get("net_income")
+    if eq_np is not None and is_np is not None:
+        diff = eq_np - is_np
+        status = "pass" if abs(diff) <= 0.5 else "fail"
+        formula = f"Equity stmt net profit {eq_np:,.2f} {'==' if status == 'pass' else '!='} IS net income {is_np:,.2f}"
+        formula += " [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"
+        cross_checks.append({
+            "check": "equity_net_profit_vs_income_statement",
+            "status": status,
+            "main_value": eq_np,
+            "main_source": "Equity Statement - Net profit",
+            "detail_values": [{"label": "Income Statement - Net income", "value": is_np}],
+            "detail_sum": is_np,
+            "difference": diff,
+            "formula": formula,
+        })
+    else:
+        missing = []
+        if eq_np is None:
+            missing.append("Equity statement net profit")
+        if is_np is None:
+            missing.append("Income statement net income")
+        cross_checks.append({
+            "check": "equity_net_profit_vs_income_statement",
+            "status": "insufficient",
+            "main_value": eq_np,
+            "main_source": "Equity Statement - Net profit",
+            "detail_values": [{"label": "Income Statement - Net income", "value": is_np}],
+            "detail_sum": None,
+            "difference": None,
+            "formula": f"insufficient data (missing: {', '.join(missing)})",
+        })
+
+    # 6d. Dividends in equity = Cash flow statement dividends paid
+    eq_div = fields.get("eq_dividends")
+    cf_div = fields.get("cf_dividends_paid")
+    if eq_div is not None and cf_div is not None:
+        diff = abs(eq_div) - abs(cf_div)
+        status = "pass" if abs(diff) <= 0.5 else "fail"
+        formula = f"Equity dividends |{eq_div:,.2f}| {'==' if status == 'pass' else '!='} CF dividends paid |{cf_div:,.2f}|"
+        formula += " [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"
+        cross_checks.append({
+            "check": "equity_dividends_vs_cashflow",
+            "status": status,
+            "main_value": eq_div,
+            "main_source": "Equity Statement - Dividends",
+            "detail_values": [{"label": "Cash Flow - Dividends paid", "value": cf_div}],
+            "detail_sum": cf_div,
+            "difference": diff,
+            "formula": formula,
+        })
+    else:
+        missing = []
+        if eq_div is None:
+            missing.append("Equity statement dividends")
+        if cf_div is None:
+            missing.append("Cash flow dividends paid")
+        cross_checks.append({
+            "check": "equity_dividends_vs_cashflow",
+            "status": "insufficient",
+            "main_value": eq_div,
+            "main_source": "Equity Statement - Dividends",
+            "detail_values": [{"label": "Cash Flow - Dividends paid", "value": cf_div}],
+            "detail_sum": None,
+            "difference": None,
+            "formula": f"insufficient data (missing: {', '.join(missing)})",
+        })
+
+    # 6e. Closing total equity = Balance sheet total equity
+    eq_tc = fields.get("eq_total_close")
+    bs_te = fields.get("total_equity")
+    if eq_tc is not None and bs_te is not None:
+        diff = eq_tc - bs_te
+        status = "pass" if abs(diff) <= 0.5 else "fail"
+        formula = f"Equity stmt closing total {eq_tc:,.2f} {'==' if status == 'pass' else '!='} BS total equity {bs_te:,.2f}"
+        formula += " [ok]" if status == "pass" else f" [diff: {diff:,.2f}]"
+        cross_checks.append({
+            "check": "equity_closing_vs_balance_sheet",
+            "status": status,
+            "main_value": eq_tc,
+            "main_source": "Equity Statement - Closing total equity",
+            "detail_values": [{"label": "Balance Sheet - Total equity", "value": bs_te}],
+            "detail_sum": bs_te,
+            "difference": diff,
+            "formula": formula,
+        })
+    else:
+        missing = []
+        if eq_tc is None:
+            missing.append("Equity statement closing total")
+        if bs_te is None:
+            missing.append("Balance sheet total equity")
+        cross_checks.append({
+            "check": "equity_closing_vs_balance_sheet",
+            "status": "insufficient",
+            "main_value": eq_tc,
+            "main_source": "Equity Statement - Closing total equity",
+            "detail_values": [{"label": "Balance Sheet - Total equity", "value": bs_te}],
+            "detail_sum": None,
+            "difference": None,
+            "formula": f"insufficient data (missing: {', '.join(missing)})",
         })
 
     return cross_checks
