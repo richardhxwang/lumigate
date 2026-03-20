@@ -1780,7 +1780,11 @@ app.get("/lumitrade/auto-auth", (req, res) => {
   const ftUser = process.env.TRADE_FREQTRADE_USERNAME || "freqtrader";
   const ftPass = process.env.TRADE_FREQTRADE_PASSWORD || "";
   if (!ftPass) return res.status(503).json({ error: "Freqtrade credentials not configured" });
-  res.json({ username: ftUser, password: ftPass, apiUrl: ftUrl, botName: "LumiTrade" });
+  // apiUrl must be browser-accessible, not Docker internal
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers.host || "lumigate.autorums.com";
+  const browserUrl = `${proto}://${host}/lumitrade`;
+  res.json({ username: ftUser, password: ftPass, apiUrl: browserUrl, botName: "LumiTrade" });
 });
 
 // --- Collector supported providers (shared with admin + proxy) ---
