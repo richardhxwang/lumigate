@@ -575,7 +575,7 @@ async function ensureCollections(pbUrl, adminToken, log) {
       const body = {
         name: collection.name,
         type: collection.type || "base",
-        schema: collection.schema.map((field) => ({
+        fields: collection.schema.map((field) => ({
           name: field.name,
           type: field.type,
           required: field.required || false,
