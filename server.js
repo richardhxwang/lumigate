@@ -17,6 +17,8 @@ const { detectPII, getMapping, checkCommand, detectSecrets } = require("./securi
 const { registry, executeToolCall, TOOL_SYSTEM_PROMPT } = require("./tools/registry");
 const { unifiedRegistry } = require("./tools/unified-registry");
 const { mcpClient } = require("./tools/mcp-client");
+const { registerAuditTools } = require("./tools/audit-tools");
+registerAuditTools();
 const {
   LumigentRuntime,
   LumigentTraceStore,
@@ -2587,6 +2589,82 @@ ragAdapter.init().catch((e) =>
   log("warn", "RAGAdapter init error (non-fatal)", { component: "rag-adapter", error: e.message })
 );
 
+// ── User Memory service (per-user long-term RAG memory) ──────────────────────
+const { createUserMemoryService } = require("./services/memory");
+
+/**
+ * Lightweight LLM fetch for memory fact extraction / profile summarization.
+ * Uses DeepSeek (cheapest) or falls back to OpenAI.
+ */
+async function memoryLlmFetch(messages, { temperature = 0, maxTokens = 1024 } = {}) {
+  // Try providers in order of cost: deepseek → openai → gemini
+  const providers = ["deepseek", "openai", "gemini"];
+  const defaultModels = {
+    deepseek: "deepseek-chat",
+    openai: "gpt-4o-mini",
+    gemini: "gemini-2.0-flash",
+  };
+
+  for (const provName of providers) {
+    const keyInfo = selectApiKey(provName, "_memory");
+    if (!keyInfo) continue;
+
+    const prov = PROVIDERS[provName];
+    if (!prov) continue;
+
+    let url, headers, body;
+    if (provName === "gemini") {
+      url = `${prov.baseUrl}/v1beta/openai/chat/completions`;
+    } else {
+      url = `${prov.baseUrl}/v1/chat/completions`;
+    }
+    headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${keyInfo.apiKey}`,
+    };
+    body = {
+      model: defaultModels[provName],
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: false,
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content || "";
+      if (text) return text;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("memoryLlmFetch: no provider available");
+}
+
+let userMemory = null;
+try {
+  userMemory = createUserMemoryService({
+    qdrantUrl: process.env.QDRANT_URL || "http://lumigate-qdrant:6333",
+    qdrantApiKey: process.env.QDRANT_API_KEY,
+    embeddingProvider: process.env.EMBEDDING_PROVIDER || "openai",
+    embeddingApiKey: process.env.OPENAI_API_KEY,
+    embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
+    pbStore,
+    llmFetch: memoryLlmFetch,
+    log,
+  });
+  log("info", "User memory service initialized", { component: "user-memory" });
+} catch (err) {
+  log("warn", "User memory service init failed (non-fatal)", { component: "user-memory", error: err.message });
+}
+
 // Retry a failed proxy request with a different API key using fetch
 async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new Set()) {
   const provider = PROVIDERS[providerName];
@@ -3292,6 +3370,7 @@ const _lcResult = require('./routes/lumichat')({
   getContinuationPrompt,
   AUTO_CONTINUE_MAX_PASSES,
   _collector: () => { try { return require("./collector"); } catch { return null; } },
+  userMemory,
 });
 app.use(_lcResult.router);
 _lcExports = _lcResult; // populate late-binding container for admin routes

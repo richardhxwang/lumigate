@@ -71,6 +71,7 @@ module.exports = function createChatRouter(deps) {
     clampPbMessageContent,
     getPbAdminToken,
     PB_URL,
+    userMemory, // optional: UserMemory instance for long-term memory
   } = deps;
 
   const router = express.Router();
@@ -986,8 +987,21 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     }
   }
 
+  // ── Long-term user memory recall (before system prompt) ──
+  let memoryContext = "";
+  if (userMemory && lcUserId && userQueryText) {
+    try {
+      memoryContext = await userMemory.recall(lcUserId, userQueryText, { limit: 8 });
+    } catch (memErr) {
+      log("warn", "User memory recall failed (non-blocking)", { userId: lcUserId, error: memErr.message });
+    }
+  }
+
   // ── Build system prompt: search context + tool prompt ──
   let injectedSystemPrompt = "";
+  if (memoryContext) {
+    injectedSystemPrompt += memoryContext + "\n";
+  }
   injectedSystemPrompt += "Output policy: provide the final answer directly. Do not expose chain-of-thought, hidden reasoning, or step-by-step internal deliberation. Keep explanations brief and result-focused unless the user explicitly asks for detailed steps.\n\n";
   const finalUrlFetchContext = [urlFetchContext, rememberedUrlFetchContext].filter(Boolean).join("\n\n");
   if (finalUrlFetchContext) {
@@ -1579,6 +1593,17 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
     if (!res.writableEnded) res.write("data: [DONE]\n\n");
     res.end();
+
+    // ── Long-term user memory ingest (fire-and-forget, after response) ──
+    if (userMemory && lcUserId && userQueryText && fullText) {
+      userMemory.ingest(lcUserId, {
+        userMessage: userQueryText,
+        assistantMessage: fullText.slice(0, 4000),
+        provider: providerName,
+        model: modelId,
+        sessionId: req.body?.session_id || "",
+      }).catch(() => {}); // silent — never block or error the response
+    }
   } catch (err) {
     log("error", "Clean chat proxy error", { provider: providerName, error: err.message });
     if (!res.headersSent) res.status(502).json({ error: "Chat proxy error" });

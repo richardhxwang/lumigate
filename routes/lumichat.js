@@ -89,6 +89,7 @@ module.exports = function createLumiChatRouter(deps) {
     getContinuationPrompt,
     AUTO_CONTINUE_MAX_PASSES,
     _collector,
+    userMemory, // optional: UserMemory instance for long-term memory
   } = deps;
 
 // FurNote auth middleware — analogous to requireLcAuth but reads fn_token cookie
@@ -1494,7 +1495,7 @@ async function uploadLcBufferRecord({ buffer, originalName, mimeType, sessionId,
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(patchBody),
-      }).catch(() => {});
+      }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_files", action: "patch_storage_ref", fileId: data.id, error: e?.message || String(e) }));
     }
   }
   audit(userId || null, "lc_file_upload_encrypted", data.id, {
@@ -3073,7 +3074,7 @@ router.post("/api/fn/extractions/confirm", _requireFnAuth, async (req, res) => {
     if (linkedMessageId) {
       const patch = { extraction_confirmed: true };
       if (extractedEventJson && typeof extractedEventJson === "string") patch.extracted_event_json = extractedEventJson;
-      await updateDomainRecord("fnMessages", { token, recordId: linkedMessageId, payload: patch }).catch(() => {});
+      await updateDomainRecord("fnMessages", { token, recordId: linkedMessageId, payload: patch }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "fnMessages", action: "extraction_confirm_patch", messageId: linkedMessageId, error: e?.message || String(e) }));
     }
 
     return res.json({ ok: true, record: created, linkedMessageId });
@@ -3509,9 +3510,9 @@ router.get("/lc/auth/oauth-callback", async (req, res) => {
           await lcPbFetch(`/api/collections/lc_user_settings/records`, {
             method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({ user: data.record.id }),
-          }).catch(() => {});
+          }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_user_settings", action: "oauth_create", userId: data.record.id, error: e?.message || String(e) }));
           const approvalTo = settings.approvalEmail || settings.authEmail;
-          if (approvalTo) sendApprovalEmail(req, approvalTo, data.record.id, data.record.email || '', data.record.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(() => {});
+          if (approvalTo) sendApprovalEmail(req, approvalTo, data.record.id, data.record.email || '', data.record.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(e => log("warn", "approval_email_failed", { component: "lumichat", userId: data.record.id, error: e?.message || String(e) }));
         }
       }
     }
@@ -3570,11 +3571,11 @@ router.post("/lc/auth/register", lcAuthLimiter, lcRegisterLimiter, async (req, r
         await lcPbFetch(`/api/collections/lc_user_settings/records`, {
           method: "POST", headers: { Authorization: `Bearer ${pbToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({ user: data.id }),
-        }).catch(() => {});
+        }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_user_settings", action: "register_create", userId: data.id, error: e?.message || String(e) }));
       }
       const approvalTo = settings.approvalEmail || settings.authEmail;
       if (approvalTo) {
-        sendApprovalEmail(req, approvalTo, data.id, data.email || req.body.email, data.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(e => log("warn", "Approval email failed", { error: e.message }));
+        sendApprovalEmail(req, approvalTo, data.id, data.email || req.body.email, data.name || '', { ip: normalizeIP(req), country: req.headers['cf-ipcountry'] || '' }).catch(e => log("warn", "approval_email_failed", { component: "lumichat", userId: data.id, error: e.message }));
       }
     }
     res.status(r.status).json(data);
@@ -3792,9 +3793,9 @@ router.post("/lc/admin/approve", express.json(), lcAuthLimiter, async (req, res)
     if (pbToken) {
       const find = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user='${userId}'&perPage=1`, { headers: { Authorization: `Bearer ${pbToken}` } }).then(r => r.json()).catch(() => ({ items: [] }));
       if (find.items?.length) {
-        await lcPbFetch(`/api/collections/lc_user_settings/records/${find.items[0].id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+        await lcPbFetch(`/api/collections/lc_user_settings/records/${find.items[0].id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_user_settings", action: "decline_delete", userId, error: e?.message || String(e) }));
       }
-      await lcPbFetch(`/api/collections/users/records/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(() => {});
+      await lcPbFetch(`/api/collections/users/records/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${pbToken}` } }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "users", action: "decline_delete", userId, error: e?.message || String(e) }));
     }
     lcTierCache.delete(userId);
     audit(null, "lc_user_declined", userId, { email: userEmail });
@@ -4909,7 +4910,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
           method: "PATCH",
           headers: { Authorization: `Bearer ${req.lcToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
-        }).catch(() => {});
+        }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_files", action: "patch_storage_ref", fileId: data.id, error: e?.message || String(e) }));
       }
     }
     audit(req.lcUser.id, "lc_file_upload", data.id, {
@@ -5253,7 +5254,126 @@ router.use("/v1/chat", require("./chat")({
   mergeArraysUnique,
   fetchLcAttachmentContextsByIds,
   runFinancialAnalysisForAttachments,
+  userMemory,
 }));
+
+// ── FurNote / LumiChat: Long-term Memory API ──────────────────────────────────
+
+router.get("/fn/memory/profile", _requireFnAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const profile = await userMemory._getProfile(req.fnUser.id);
+    res.json({ ok: true, profile: profile || {} });
+  } catch (err) {
+    log("error", "fn_memory_profile_error", { error: err.message });
+    res.status(500).json({ error: "Failed to fetch memory profile" });
+  }
+});
+
+router.get("/fn/memory/pets", _requireFnAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const profiles = await userMemory.getPetProfiles(req.fnUser.id);
+    res.json({ ok: true, pets: profiles });
+  } catch (err) {
+    log("error", "fn_memory_pets_error", { error: err.message });
+    res.status(500).json({ error: "Failed to fetch pet profiles" });
+  }
+});
+
+router.get("/fn/memory/pets/:petId", _requireFnAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const pet = await userMemory.getPetProfile(req.fnUser.id, req.params.petId);
+    if (!pet) return res.status(404).json({ error: "Pet profile not found" });
+    res.json({ ok: true, pet });
+  } catch (err) {
+    log("error", "fn_memory_pet_error", { error: err.message });
+    res.status(500).json({ error: "Failed to fetch pet profile" });
+  }
+});
+
+router.post("/fn/memory/pets/:petId", _requireFnAuth, express.json(), async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    await userMemory.updatePetProfile(req.fnUser.id, req.params.petId, req.body);
+    res.json({ ok: true });
+  } catch (err) {
+    log("error", "fn_memory_pet_update_error", { error: err.message });
+    res.status(500).json({ error: "Failed to update pet profile" });
+  }
+});
+
+router.post("/fn/memory/search", _requireFnAuth, express.json(), async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const { query, limit = 20 } = req.body || {};
+    if (!query) return res.status(400).json({ error: "query is required" });
+    const results = await userMemory.search(req.fnUser.id, query, { limit: Math.min(limit, 50) });
+    res.json({ ok: true, results });
+  } catch (err) {
+    log("error", "fn_memory_search_error", { error: err.message });
+    res.status(500).json({ error: "Failed to search memories" });
+  }
+});
+
+router.delete("/fn/memory/:id", _requireFnAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const deleted = await userMemory.deleteMemory(req.fnUser.id, req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Memory not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    log("error", "fn_memory_delete_error", { error: err.message });
+    res.status(500).json({ error: "Failed to delete memory" });
+  }
+});
+
+router.get("/fn/memory/health", async (_req, res) => {
+  if (!userMemory) return res.json({ ok: false, reason: "Memory service not initialized" });
+  try {
+    const health = await userMemory.health();
+    res.json(health);
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+router.get("/lc/memory/profile", requireLcAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const profile = await userMemory._getProfile(req.lcUser.id);
+    res.json({ ok: true, profile: profile || {} });
+  } catch (err) {
+    log("error", "lc_memory_profile_error", { error: err.message });
+    res.status(500).json({ error: "Failed to fetch memory profile" });
+  }
+});
+
+router.post("/lc/memory/search", requireLcAuth, express.json(), async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const { query, limit = 20 } = req.body || {};
+    if (!query) return res.status(400).json({ error: "query is required" });
+    const results = await userMemory.search(req.lcUser.id, query, { limit: Math.min(limit, 50) });
+    res.json({ ok: true, results });
+  } catch (err) {
+    log("error", "lc_memory_search_error", { error: err.message });
+    res.status(500).json({ error: "Failed to search memories" });
+  }
+});
+
+router.delete("/lc/memory/:id", requireLcAuth, async (req, res) => {
+  if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
+  try {
+    const deleted = await userMemory.deleteMemory(req.lcUser.id, req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Memory not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    log("error", "lc_memory_delete_error", { error: err.message });
+    res.status(500).json({ error: "Failed to delete memory" });
+  }
+});
 
 // --- LumiChat: User tier & BYOK API key management ---
 router.get("/lc/user/tier", requireLcAuth, async (req, res) => {
@@ -5315,7 +5435,7 @@ router.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
         </div>
         <p style="color:#999;font-size:11px">Or manage in <a href="${base}">LumiGate Dashboard</a> → Users tab.</p>
       </div>`
-    ).catch(() => {});
+    ).catch(e => log("warn", "upgrade_email_failed", { component: "lumichat", userId: req.lcUser.id, plan, error: e?.message || String(e) }));
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

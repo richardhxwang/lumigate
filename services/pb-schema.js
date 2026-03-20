@@ -141,6 +141,91 @@ const PB_COLLECTIONS = [
       { name: "enabled", type: "bool" },
     ],
   },
+  // User Memory (long-term per-user RAG memory)
+  {
+    name: "user_memories",
+    type: "base",
+    schema: [
+      { name: "user_id", type: "text", required: true },
+      { name: "category", type: "text" },      // preference, fact, entity, event, relationship
+      { name: "text", type: "text" },
+      { name: "source_session", type: "text" },
+      { name: "entity_id", type: "text" },      // for pet profiles: pet ID
+      { name: "entity_type", type: "text" },    // 'pet', 'person', 'place', etc.
+      { name: "metadata", type: "json" },
+      { name: "embedding_id", type: "text" },   // Qdrant point ID
+    ],
+  },
+  {
+    name: "user_profiles",
+    type: "base",
+    schema: [
+      { name: "user_id", type: "text", required: true },
+      { name: "profile", type: "json" },        // structured profile summary
+      { name: "pet_profiles", type: "json" },   // { petId: { name, breed, age, ... } }
+      { name: "last_updated", type: "text" },
+    ],
+  },
+  // Tool calls (logged from server.js tool execution pipeline)
+  {
+    name: "tool_calls",
+    type: "base",
+    schema: [
+      { name: "user", type: "text" },
+      { name: "source", type: "text" },
+      { name: "tool_name", type: "text", required: true },
+      { name: "input_json", type: "text" },
+      { name: "output_json", type: "text" },
+      { name: "status", type: "text" },
+      { name: "error_message", type: "text" },
+      { name: "duration_ms", type: "number" },
+      { name: "session_id", type: "text" },
+    ],
+  },
+  // Generated files (tool-produced files saved to PB)
+  {
+    name: "generated_files",
+    type: "base",
+    schema: [
+      { name: "filename", type: "text" },
+      { name: "mime_type", type: "text" },
+      { name: "user", type: "text" },
+      { name: "file", type: "file" },
+    ],
+  },
+  // Security events (PII detection, command guard, etc.)
+  {
+    name: "security_events",
+    type: "base",
+    schema: [
+      { name: "type", type: "text" },
+      { name: "severity", type: "text" },
+      { name: "details", type: "text" },
+      { name: "detail_json", type: "text" },
+      { name: "projectId", type: "text" },
+      { name: "user", type: "text" },
+      { name: "source", type: "text" },
+      { name: "event_type", type: "text" },
+      { name: "session_id", type: "text" },
+      { name: "ip_address", type: "text" },
+      { name: "timestamp", type: "text" },
+    ],
+  },
+  // Audit log (login, project changes, tool executions)
+  {
+    name: "audit_log",
+    type: "base",
+    schema: [
+      { name: "event_type", type: "text" },
+      { name: "user", type: "text" },
+      { name: "project", type: "text" },
+      { name: "source", type: "text" },
+      { name: "success", type: "bool" },
+      { name: "detail_json", type: "text" },
+      { name: "ip_address", type: "text" },
+      { name: "timestamp", type: "text" },
+    ],
+  },
   // Async tasks
   {
     name: "async_tasks",
