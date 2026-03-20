@@ -1711,6 +1711,8 @@ _CAST_NUM_RE = re.compile(
 _SKIP_LINE_RE = re.compile(
     r"^\s*(?:note(?:s)?|HK\$|RMB|USD|'000|million|千|百万|百萬|千元|人民幣|港幣|美元)\s*$"
     r"|^\s*[-=_]{3,}\s*$"                    # separator lines
+    r"|^\s*\|[\s:*-]+\|\s*$"                 # Markdown table separator: |---|---|
+    r"|^\s*\|[\s:*-]+(?:\|[\s:*-]+)+\|\s*$"  # multi-column: |---|---|---|
     r"|^\s*\d{1,2}\.\s"                      # footnote numbering (e.g. "6. Revenue")
     r"|^\s*$"                                 # blank
 , re.IGNORECASE)
@@ -1743,9 +1745,26 @@ def _identify_sections(text: str) -> List[Dict[str, Any]]:
         if not stripped or len(stripped) > 120:
             # Skip blank lines and lines too long to be headers
             continue
+
+        # Also handle Markdown headings: "## Consolidated Income Statement"
+        heading_text = stripped
+        if stripped.startswith('#'):
+            heading_text = stripped.lstrip('#').strip()
+            if not heading_text:
+                continue
+
         for sec_id, pat in _SECTION_PATTERNS:
-            if re.match(pat, stripped, re.IGNORECASE):
-                hits.append((offsets[line_idx], sec_id, stripped))
+            # Try matching the original stripped line first (pdftotext format),
+            # then the extracted heading text (Markdown format).
+            # Also try without the end-of-string anchor ($) to handle combined
+            # Chinese+English headings like "綜合現金流量表 Consolidated Cash Flow Statement"
+            pat_no_end = pat.rstrip('$').rstrip()  # remove trailing $ anchor
+            if re.match(pat, stripped, re.IGNORECASE) or \
+               (heading_text != stripped and (
+                   re.match(pat, heading_text, re.IGNORECASE) or
+                   re.match(pat_no_end, heading_text, re.IGNORECASE)
+               )):
+                hits.append((offsets[line_idx], sec_id, heading_text))
                 break
 
     if not hits:
@@ -1777,28 +1796,125 @@ def _identify_sections(text: str) -> List[Dict[str, Any]]:
     return sections
 
 
+def _is_markdown_table_text(text: str) -> bool:
+    """Detect whether text uses Markdown table format (pipe-separated rows)."""
+    pipe_lines = 0
+    total_lines = 0
+    for line in text.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        total_lines += 1
+        if stripped.startswith('|') and stripped.endswith('|'):
+            pipe_lines += 1
+    return total_lines > 0 and pipe_lines / total_lines > 0.3
+
+
+def _extract_md_table_row(raw_line: str) -> Optional[Tuple[str, List[float]]]:
+    """Parse a Markdown table row into (label, [numbers]).
+
+    Handles Docling format:
+      | 營業額 | Turnover | 37,985 | 38,635 |
+      | 銷售成本 | Cost of sales | (21,625) | (22,160) | |
+
+    Returns (label_string, list_of_floats) or None if not a data row.
+    """
+    stripped = raw_line.strip()
+    if not stripped.startswith('|'):
+        return None
+    # Skip separator lines: |---|---|
+    if re.match(r'^\|[\s:*-]+(?:\|[\s:*-]+)*\|\s*$', stripped):
+        return None
+
+    cells = [c.strip() for c in stripped.split('|')]
+    # Remove empty strings from leading/trailing pipes
+    if cells and cells[0] == '':
+        cells = cells[1:]
+    if cells and cells[-1] == '':
+        cells = cells[:-1]
+
+    if not cells:
+        return None
+
+    # Separate label cells from value cells.
+    # Strategy: scan from the right; cells that parse as numbers are values.
+    # Remaining left cells are labels. Also skip cells that are purely header
+    # text (year labels, currency labels, etc.)
+    label_parts: List[str] = []
+    numbers: List[float] = []
+    # Track which cells are numeric (scan all cells)
+    cell_types: List[str] = []  # 'num', 'label', 'empty', 'header', 'note_ref'
+    for cell in cells:
+        if not cell or cell == '-':
+            cell_types.append('empty')
+        elif re.match(r'^\d{1,2}$', cell):
+            # Note reference (e.g., "6", "13")
+            cell_types.append('note_ref')
+        elif re.match(
+            r'^(?:附註|Notes?|RMB\s*million|HK\$|人民幣百萬元|'
+            r'二零\S*|截至|For\s*the\s*year|As\s*at\s|'
+            r'\d{4}\s*$)',
+            cell, re.IGNORECASE
+        ):
+            cell_types.append('header')
+        elif re.match(r'^【】$', cell):
+            # Docling placeholder for redacted/missing data
+            cell_types.append('empty')
+        else:
+            # Try to parse as a number — strip currency prefixes first
+            num_cell = re.sub(r'^(?:RMB|HK\$|US\$|人民幣)\s*', '', cell)
+            v = _to_float(num_cell)
+            if v is not None:
+                cell_types.append('num')
+            elif re.match(r'^\(?\d[\d,.]*\)?$', num_cell):
+                # Looks numeric but failed to parse — still treat as number
+                cell_types.append('num')
+            else:
+                cell_types.append('label')
+
+    # Now extract: labels are the leftmost 'label' cells, numbers are 'num' cells
+    for i, (cell, ctype) in enumerate(zip(cells, cell_types)):
+        if ctype == 'label':
+            label_parts.append(cell)
+        elif ctype == 'num':
+            num_cell = re.sub(r'^(?:RMB|HK\$|US\$|人民幣)\s*', '', cell)
+            v = _to_float(num_cell)
+            if v is not None:
+                numbers.append(v)
+
+    label = ' '.join(label_parts).strip()
+    return (label, numbers) if label or numbers else None
+
+
 def _extract_line_items(section_text: str) -> List[Dict[str, Any]]:
     """Extract ALL line items with numbers from a section of financial text.
 
     Each item has: label, values (list of floats found on the line),
     indent_level (number of leading spaces), line_number.
 
-    Handles pdftotext -layout format where:
-      - Labels are left-aligned with leading spaces indicating hierarchy
-      - Chinese label + English translation appear together
-      - Note references (small integers) appear between label and values
-      - Values are right-aligned with wide spacing
-      - Parenthesized numbers are negative: (21,625) = -21,625
+    Handles TWO formats:
+    1. pdftotext -layout: space-aligned columns, numbers at fixed positions
+    2. Docling Markdown: pipe-separated table rows (| label | value | value |)
+
+    Format is auto-detected per section.
     """
     items: List[Dict[str, Any]] = []
     lines = section_text.split('\n')
+    is_markdown = _is_markdown_table_text(section_text)
 
     # Skip header lines (year labels, column headers, "Notes", "RMB million", etc.)
     _header_re = re.compile(
         r"^\s*(?:附註|Notes?\s*$|RMB\s*million|HK\$|人民幣百萬元|二零|截至|For\s*the\s*year|As\s*at\s)"
         r"|^\s*\d{4}\s*$"  # bare year
         r"|^\s*[-=_]{3,}\s*$"
+        r"|^\s*#{1,4}\s"   # Markdown headings
     , re.IGNORECASE)
+
+    # For Markdown tables, also skip column-header rows (contain year/currency labels)
+    _md_header_re = re.compile(
+        r"二零\S*\s*\d{4}|人民幣百萬元|RMB\s*million|附註\s*Notes?|增加\s*/",
+        re.IGNORECASE,
+    )
 
     for line_idx, raw_line in enumerate(lines):
         if not raw_line.strip():
@@ -1808,88 +1924,116 @@ def _extract_line_items(section_text: str) -> List[Dict[str, Any]]:
         if _SKIP_LINE_RE.match(raw_line):
             continue
 
-        # Find all financial numbers on this line.
-        # In pdftotext layout, values are in the right portion of the line.
-        # We look for "obviously financial" numbers (comma-formatted, parenthesized, decimal)
-        # and also bare numbers that are column-aligned (preceded by 2+ spaces).
-        numbers: List[float] = []
-        num_positions: List[int] = []  # character position of each number
+        if is_markdown and '|' in raw_line:
+            # ── Markdown table row parsing ──
+            # Skip separator lines
+            if re.match(r'^\s*\|[\s:*-]+(?:\|[\s:*-]+)*\|\s*$', raw_line.strip()):
+                continue
+            # Skip column-header rows (contain year/currency in cells)
+            if _md_header_re.search(raw_line):
+                continue
 
-        for m in _CAST_NUM_RE.finditer(raw_line):
-            tok = m.group(0)
-            v = _to_float(tok)
-            if v is not None:
-                numbers.append(v)
-                num_positions.append(m.start())
+            result = _extract_md_table_row(raw_line)
+            if result is None:
+                continue
+            label, numbers = result
 
-        # Also pick up column-aligned bare numbers (3+ digits preceded by 2+ spaces)
-        # that _CAST_NUM_RE might miss (e.g., small amounts without commas)
-        for m in re.finditer(r'\s{2,}(\(?\d{3,}(?:\.\d+)?\)?)', raw_line):
-            tok = m.group(1)
-            v = _to_float(tok)
-            if v is not None and v not in numbers:
-                # Skip if this looks like a year (1900-2099)
-                if 1900 <= abs(v) <= 2099 and ',' not in tok and '.' not in tok:
+            if not numbers:
+                continue
+            if not label or len(label) < 2:
+                # Unlabeled subtotal row (e.g., "| | | 3,174 | 4,759 |")
+                # Keep it — _build_hierarchy will handle it
+                label = label or ''
+
+            # Skip if label is just numbers or punctuation
+            if label and re.match(r'^[\d,.()\s\-]+$', label):
+                continue
+
+            is_total = bool(_TOTAL_LABEL_RE.search(label)) if label else False
+
+            # In Markdown tables, indent is approximated by leading whitespace
+            # in the first cell (Docling preserves some spacing)
+            cells_raw = raw_line.split('|')
+            first_content = cells_raw[1] if len(cells_raw) > 1 else ''
+            indent = len(first_content) - len(first_content.lstrip()) if first_content else 0
+
+            items.append({
+                "label": label,
+                "values": numbers,
+                "current_year": numbers[0] if len(numbers) >= 1 else None,
+                "prior_year": numbers[1] if len(numbers) >= 2 else None,
+                "indent": indent,
+                "line": line_idx,
+                "is_total": is_total,
+            })
+        else:
+            # ── Original pdftotext space-aligned parsing ──
+            # Find all financial numbers on this line.
+            numbers: List[float] = []
+            num_positions: List[int] = []  # character position of each number
+
+            for m in _CAST_NUM_RE.finditer(raw_line):
+                tok = m.group(0)
+                v = _to_float(tok)
+                if v is not None:
+                    numbers.append(v)
+                    num_positions.append(m.start())
+
+            # Also pick up column-aligned bare numbers (3+ digits preceded by 2+ spaces)
+            # that _CAST_NUM_RE might miss (e.g., small amounts without commas)
+            for m in re.finditer(r'\s{2,}(\(?\d{3,}(?:\.\d+)?\)?)', raw_line):
+                tok = m.group(1)
+                v = _to_float(tok)
+                if v is not None and v not in numbers:
+                    # Skip if this looks like a year (1900-2099)
+                    if 1900 <= abs(v) <= 2099 and ',' not in tok and '.' not in tok:
+                        continue
+                    numbers.append(v)
+                    num_positions.append(m.start(1))
+
+            if not numbers:
+                continue
+
+            # Determine label: text before the first number's column position.
+            first_num_pos = min(num_positions) if num_positions else len(raw_line)
+            label_region = raw_line[:first_num_pos]
+
+            # Split on 3+ spaces to separate Chinese label from English translation
+            segments = re.split(r'\s{3,}', label_region)
+            label_parts: List[str] = []
+            for seg in segments:
+                seg = seg.strip()
+                if not seg:
                     continue
-                numbers.append(v)
-                num_positions.append(m.start(1))
+                if re.match(r'^\d{1,2}$', seg):
+                    continue
+                label_parts.append(seg)
+                if len(label_parts) >= 2:
+                    break
 
-        if not numbers:
-            continue
+            label = ' '.join(label_parts).strip() if label_parts else ''
+            label = re.sub(r'\s+\d{1,2}\s*$', '', label).strip()
 
-        # Determine label: text before the first number's column position.
-        # In pdftotext layout the label ends where the first big gap begins.
-        first_num_pos = min(num_positions) if num_positions else len(raw_line)
-
-        # Extract everything before the first number position as potential label
-        label_region = raw_line[:first_num_pos]
-
-        # Split on 3+ spaces to separate Chinese label from English translation
-        # and from note reference numbers. Take the leftmost non-empty segment(s).
-        segments = re.split(r'\s{3,}', label_region)
-        # Merge Chinese + English parts (typically first 2 non-empty segments)
-        label_parts: List[str] = []
-        for seg in segments:
-            seg = seg.strip()
-            if not seg:
+            if not label or len(label) < 2:
                 continue
-            # Skip if segment is just a note reference number (1-2 digits)
-            if re.match(r'^\d{1,2}$', seg):
+            if re.match(r'^[\d,.()\s\-]+$', label):
                 continue
-            label_parts.append(seg)
-            if len(label_parts) >= 2:
-                break
+            if re.match(r'^\d{1,3}$', label):
+                continue
 
-        label = ' '.join(label_parts).strip() if label_parts else ''
+            stripped = raw_line.lstrip()
+            indent = len(raw_line) - len(stripped)
+            is_total = bool(_TOTAL_LABEL_RE.search(label))
 
-        # Clean label: remove trailing note reference and stray numbers
-        label = re.sub(r'\s+\d{1,2}\s*$', '', label).strip()
-
-        if not label or len(label) < 2:
-            continue
-
-        # Skip if label is just numbers or punctuation
-        if re.match(r'^[\d,.()\s\-]+$', label):
-            continue
-        # Skip if label looks like a page number line
-        if re.match(r'^\d{1,3}$', label):
-            continue
-
-        # Determine indent level (leading whitespace of the raw line)
-        stripped = raw_line.lstrip()
-        indent = len(raw_line) - len(stripped)
-
-        is_total = bool(_TOTAL_LABEL_RE.search(label))
-
-        items.append({
-            "label": label,
-            "values": numbers,
-            "current_year": numbers[0] if len(numbers) >= 1 else None,
-            "prior_year": numbers[1] if len(numbers) >= 2 else None,
-            "indent": indent,
-            "line": line_idx,
-            "is_total": is_total,
-        })
+            items.append({
+                "label": label,
+                "values": numbers,
+                "current_year": numbers[0] if len(numbers) >= 1 else None,
+                "prior_year": numbers[1] if len(numbers) >= 2 else None,
+                "indent": indent,
+                "line": line_idx,
+                "is_total": is_total,
+            })
 
     return items
 
