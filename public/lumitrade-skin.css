@@ -1,0 +1,36 @@
+/* LumiTrade Skin — LumiChat visual override for FreqUI */
+:root{--bs-body-bg:#212121!important;--bs-body-color:#ececec!important;--bs-primary:#10a37f!important;--bs-primary-rgb:16,163,127!important;--bs-link-color:#10a37f!important;--bs-link-hover-color:#0d9268!important;--bs-border-color:#2a2a2a!important;--bs-secondary-bg:#2f2f2f!important;--bs-tertiary-bg:#171717!important}
+*{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif!important}
+body{background:#212121!important;color:#ececec!important}
+.navbar,.bg-dark,nav.navbar{background:#171717!important;border-bottom:1px solid #2a2a2a!important;backdrop-filter:blur(16px) saturate(160%)!important}
+.navbar-brand{font-weight:700!important;letter-spacing:-.3px!important}
+.navbar-brand img{display:none!important}
+.navbar-brand::before{content:"LumiTrade";color:#10a37f;font-size:16px;font-weight:700}
+.nav-link{color:#8e8e8e!important;transition:color .15s!important}
+.nav-link:hover,.nav-link.active,.nav-link.router-link-active{color:#10a37f!important}
+.btn-primary,.btn-info{background:#10a37f!important;border-color:#10a37f!important;border-radius:8px!important}
+.btn-primary:hover,.btn-info:hover{background:#0d9268!important}
+.btn-secondary{background:#2f2f2f!important;border-color:#3a3a3a!important;color:#ececec!important;border-radius:8px!important}
+.btn-outline-primary{color:#10a37f!important;border-color:#10a37f!important;border-radius:8px!important}
+.btn-outline-primary:hover{background:#10a37f!important;color:#fff!important}
+.card,.card-body{background:rgba(23,23,23,.85)!important;border:1px solid #2a2a2a!important;border-radius:12px!important;backdrop-filter:blur(12px)!important;color:#ececec!important}
+.card-header{background:#171717!important;border-bottom:1px solid #2a2a2a!important;border-radius:12px 12px 0 0!important}
+.table,.table>*>*{color:#ececec!important;border-color:#2a2a2a!important;background:transparent!important}
+.table-striped>tbody>tr:nth-of-type(odd)>*{background:rgba(255,255,255,.02)!important}
+.table-hover>tbody>tr:hover>*{background:rgba(16,163,127,.08)!important}
+.form-control,.form-select,input,select,textarea{background:#2f2f2f!important;border:1px solid #3a3a3a!important;color:#ececec!important;border-radius:8px!important}
+.form-control:focus,.form-select:focus{border-color:#10a37f!important;box-shadow:0 0 0 .2rem rgba(16,163,127,.25)!important}
+.bg-dark,.sidebar,.offcanvas{background:#171717!important}
+.badge.bg-primary{background:#10a37f!important}
+.badge.bg-success{background:#22c55e!important}
+.badge.bg-danger{background:#ef4444!important}
+.badge.bg-warning{background:#eab308!important;color:#000!important}
+.dropdown-menu{background:#2f2f2f!important;border:1px solid #3a3a3a!important;border-radius:12px!important}
+.dropdown-item{color:#ececec!important}
+.dropdown-item:hover{background:rgba(16,163,127,.12)!important;color:#10a37f!important}
+.modal-content{background:#212121!important;border:1px solid #2a2a2a!important;border-radius:16px!important}
+.modal-header{border-bottom:1px solid #2a2a2a!important}
+.modal-footer{border-top:1px solid #2a2a2a!important}
+.text-success,.profit-positive{color:#22c55e!important}
+.text-danger,.profit-negative{color:#ef4444!important}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:3px}
