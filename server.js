@@ -1634,7 +1634,7 @@ app.get("/health", (req, res) => {
   const available = Object.entries(PROVIDERS)
     .filter(([name]) => (providerKeys[name] || []).some(k => k.enabled))
     .map(([name]) => name);
-  res.json({ ...base, mode: DEPLOY_MODE, modules: [...modules], providers: available, platform: { parse: true, audio: true, vision: true, code: true } });
+  res.json({ ...base, mode: DEPLOY_MODE, modules: [...modules], providers: available, platform: { parse: true, audio: true, vision: true, code: true, tts: true } });
 });
 
 // Public: { name, baseUrl, available } — minimum needed by dashboard UI per CLAUDE.md.
@@ -2538,6 +2538,15 @@ try {
   log("warn", "HKEX tool registration skipped", { error: e.message });
 }
 
+// Register LumiTrade trading tools
+try {
+  const { registerTradeTools } = require("./tools/trade-tools");
+  registerTradeTools(unifiedRegistry);
+  log("info", "LumiTrade tools registered");
+} catch (e) {
+  log("warn", "LumiTrade tool registration skipped", { error: e.message });
+}
+
 const lumigentRuntime = new LumigentRuntime({
   registry: unifiedRegistry,
   logger: log,
@@ -3417,15 +3426,27 @@ const parseRouter = require("./routes/parse");
 const audioRouter = require("./routes/audio");
 const visionRouter = require("./routes/vision");
 const codeRouter = require("./routes/code");
+const ttsRouter = require("./routes/tts");
 app.use("/platform/parse", apiLimiter, platformAuth, parseRouter);
 app.use("/platform/audio", apiLimiter, platformAuth, audioRouter);
+app.use("/platform/audio", apiLimiter, platformAuth, ttsRouter);   // TTS: /platform/audio/tts
 app.use("/platform/vision", apiLimiter, platformAuth, visionRouter);
 app.use("/platform/code", apiLimiter, platformAuth, codeRouter);
 app.use("/v1/parse", apiLimiter, platformAuth, parseRouter);
 app.use("/v1/audio", apiLimiter, platformAuth, audioRouter);
+app.use("/v1/audio", apiLimiter, platformAuth, ttsRouter);         // TTS: /v1/audio/tts
 app.use("/v1/vision", apiLimiter, platformAuth, visionRouter);
 app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ manager: knowledgeManager, log }));
+
+// ── LumiTrade API routes ──────────────────────────────────────────────────────
+try {
+  const _tradeResult = require("./routes/trade")({ PB_URL, ADMIN_SECRET, DATA_DIR });
+  app.use("/v1/trade", apiLimiter, platformAuth, _tradeResult.router);
+  log("info", "LumiTrade routes mounted at /v1/trade/*");
+} catch (e) {
+  log("warn", "LumiTrade routes not loaded", { error: e.message });
+}
 
 // Template filler REST endpoint
 const templateFillerRouter = require("./routes/template-filler");

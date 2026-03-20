@@ -76,6 +76,9 @@ services:
       - LUMIGENT_SANDBOX_CMD_ALLOWLIST=${LUMIGENT_SANDBOX_CMD_ALLOWLIST:-ALL}
       - WHISPER_URL=http://whisper:9000
       - WHISPER_ENDPOINT=/asr
+      - VOLCENGINE_TTS_APP_ID=${VOLCENGINE_TTS_APP_ID:-wxk-tts}
+      - VOLCENGINE_TTS_TOKEN=${VOLCENGINE_TTS_TOKEN:-OrKH2_RUyb-u3OfUPiWGvMqdwS-PYxyW}
+      - VOLCENGINE_TTS_CLUSTER=${VOLCENGINE_TTS_CLUSTER:-volcano_tts}
       - PB_URL=${PB_URL:-http://pocketbase:8090}
       - DOCKER_HOST=unix:///var/run/docker.sock
       - QDRANT_URL=http://lumigate-qdrant:6333
@@ -289,6 +292,83 @@ services:
       - ./docker/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./data/monitoring/alertmanager:/alertmanager
     restart: unless-stopped
+    logging: *logging-default
+
+  # ── LumiTrade containers (--profile trade) ──────────────────────────────────
+  trade-engine:
+    build: ./lumitrade/trade-engine
+    container_name: lumigate-trade-engine
+    profiles: ["trade"]
+    restart: unless-stopped
+    expose:
+      - "3200"
+    ports:
+      - "127.0.0.1:18791:3200"
+    environment:
+      - TRADE_PB_URL=http://pocketbase:8090
+      - TRADE_LUMIGATE_URL=http://lumigate:9471
+      - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
+      - TRADE_FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+      - TRADE_TELEGRAM_BOT_TOKEN=${TRADE_TELEGRAM_BOT_TOKEN:-}
+      - TRADE_TELEGRAM_CHAT_ID=${TRADE_TELEGRAM_CHAT_ID:-}
+    depends_on:
+      - pocketbase
+      - qdrant
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3200/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 2
+      start_period: 20s
+    logging: *logging-default
+
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    container_name: lumigate-freqtrade
+    profiles: ["trade"]
+    restart: unless-stopped
+    volumes:
+      - ./lumitrade/freqtrade/user_data:/freqtrade/user_data
+      - ./lumitrade/freqtrade/config.json:/freqtrade/config.json:ro
+    ports:
+      - "127.0.0.1:18790:8080"
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__TELEGRAM__TOKEN=${FREQTRADE_TELEGRAM_TOKEN:-}
+      - FREQTRADE__TELEGRAM__CHAT_ID=${FREQTRADE_TELEGRAM_CHAT_ID:-}
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging: *logging-default
+
+  finbert:
+    build:
+      context: ./lumitrade/finbert
+      dockerfile: Dockerfile
+    container_name: lumigate-finbert
+    profiles: ["trade"]
+    restart: unless-stopped
+    expose:
+      - "5000"
+    ports:
+      - "127.0.0.1:18792:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     logging: *logging-default
 
 volumes:
