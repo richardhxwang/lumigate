@@ -229,6 +229,118 @@ def _extract_fields(text: str) -> Dict[str, Optional[float]]:
             rf"(?:closing|期末|年末)[^.\n]*(?:ppe|property,?\s*plant|固定资产|固定資產)[^0-9\-()]*{num}",
             rf"(?:ppe|property,?\s*plant\s*(?:and|&)\s*equipment|固定资产|固定資產|物業、?廠房及設備|物业、?厂房及设备)[^.\n]*(?:closing|期末|年末)[^0-9\-()]*{num}",
         ],
+        "ppe_transfer": [
+            *lbl(r"transfers?|reclassifications?|转入转出|轉入轉出|重新分类|重新分類|调拨|調撥"),
+        ],
+        "ppe_impairment": [
+            *lbl(r"impairment|减值|減值|资产减值|資產減值"),
+        ],
+
+        # ── PPE by Category (cost / gross carrying amount) ──
+        "ppe_buildings_cost": [
+            *lbl(r"buildings?|房屋|房屋建筑物|房屋建築物|楼宇|樓宇|房屋及建筑物|房屋及建築物"),
+        ],
+        "ppe_buildings_open": [
+            rf"(?:buildings?|房屋|楼宇|樓宇|房屋建筑物|房屋建築物)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+            rf"(?:opening|期初|年初|at\s*1\s*January)[^.\n]*(?:buildings?|房屋|楼宇|樓宇)[^0-9\-()]*{num}",
+        ],
+        "ppe_buildings_add": [
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+        ],
+        "ppe_buildings_disp": [
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+        ],
+        "ppe_buildings_dep": [
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+        ],
+        "ppe_buildings_close": [
+            rf"(?:buildings?|房屋|楼宇|樓宇)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+        ],
+
+        "ppe_plant_cost": [
+            *lbl(r"plant\s*(?:and|&)\s*machinery|机器设备|機器設備|机械设备|機械設備|厂房及机器|廠房及機器"),
+        ],
+        "ppe_plant_open": [
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+        ],
+        "ppe_plant_add": [
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+        ],
+        "ppe_plant_disp": [
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+        ],
+        "ppe_plant_dep": [
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+        ],
+        "ppe_plant_close": [
+            rf"(?:plant\s*(?:and|&)\s*machinery|机器设备|機器設備|厂房及机器|廠房及機器)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+        ],
+
+        "ppe_vehicles_cost": [
+            *lbl(r"(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車|运输设备|運輸設備"),
+        ],
+        "ppe_vehicles_open": [
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+        ],
+        "ppe_vehicles_add": [
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+        ],
+        "ppe_vehicles_disp": [
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+        ],
+        "ppe_vehicles_dep": [
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+        ],
+        "ppe_vehicles_close": [
+            rf"(?:(?:motor\s*)?vehicles?|运输工具|運輸工具|汽车|汽車)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+        ],
+
+        "ppe_office_cost": [
+            *lbl(r"(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|办公家具|辦公家具|电子设备|電子設備|家具及装置|傢具及裝置"),
+        ],
+        "ppe_office_open": [
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+        ],
+        "ppe_office_add": [
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:additions?|增加|添置)[^0-9\-()]*{num}",
+        ],
+        "ppe_office_disp": [
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:disposals?|处置|處置|减少|減少)[^0-9\-()]*{num}",
+        ],
+        "ppe_office_dep": [
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+        ],
+        "ppe_office_close": [
+            rf"(?:(?:office\s*)?(?:equipment|furniture)|办公设备|辦公設備|家具及装置|傢具及裝置)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+        ],
+
+        "ppe_land_cost": [
+            *lbl(r"land|土地|土地使用权|土地使用權"),
+        ],
+        "ppe_land_open": [
+            rf"(?:land|土地|土地使用权|土地使用權)[^.\n]*(?:opening|期初|年初|at\s*1\s*January)[^0-9\-()]*{num}",
+        ],
+        "ppe_land_close": [
+            rf"(?:land|土地|土地使用权|土地使用權)[^.\n]*(?:closing|期末|年末|at\s*31\s*December)[^0-9\-()]*{num}",
+        ],
+
+        "ppe_leasehold_cost": [
+            *lbl(r"leasehold\s*improvements?|租赁改良|租賃改良|装修|裝修|leasehold"),
+        ],
+        "ppe_leasehold_dep": [
+            rf"(?:leasehold\s*improvements?|租赁改良|租賃改良|装修|裝修)[^.\n]*(?:depreciation|折旧|折舊|charge)[^0-9\-()]*{num}",
+        ],
+
+        # ── PPE Disposal Gain/Loss ──
+        "ppe_disposal_proceeds": [
+            *lbl(r"(?:disposal|sale)\s*proceeds|处置收入|處置收入|出售所得|出售收益"),
+        ],
+        "ppe_disposal_nbv": [
+            *lbl(r"(?:net\s*book\s*value|nbv|carrying\s*(?:amount|value))\s*(?:of\s*)?(?:disposed|disposals?)|处置资产账面|處置資產賬面"),
+        ],
+        "ppe_disposal_gain_loss": [
+            *lbl(r"(?:gain|loss)\s*on\s*disposal|处置(?:收益|损失)|處置(?:收益|損失)|出售固定资产(?:收益|损失)|出售固定資產(?:收益|損失)"),
+        ],
 
         # ── Income Statement ──
         "revenue": [
@@ -468,6 +580,220 @@ def _cross_check(
         "difference": diff,
         "formula": formula,
     }
+
+
+# ── PPE Category Analysis ──
+
+# Industry-standard depreciation rate ranges (annual rate as decimal)
+PPE_STANDARD_RATES: Dict[str, Tuple[float, float]] = {
+    "buildings": (0.02, 0.05),        # 2-5% → 20-50 years
+    "plant_machinery": (0.10, 0.20),  # 10-20% → 5-10 years
+    "vehicles": (0.20, 0.25),         # 20-25% → 4-5 years
+    "office_equipment": (0.20, 0.33), # 20-33% → 3-5 years
+    "leasehold": (0.02, 0.10),        # varies by lease term
+}
+
+PPE_CATEGORIES = [
+    ("buildings", "Buildings", "buildings"),
+    ("plant", "Plant & Machinery", "plant_machinery"),
+    ("vehicles", "Vehicles", "vehicles"),
+    ("office", "Office Equipment", "office_equipment"),
+    ("leasehold", "Leasehold Improvements", "leasehold"),
+    ("land", "Land", None),  # Land typically not depreciated
+]
+
+
+def _build_ppe_category_rollforward(fields: Dict[str, Optional[float]]) -> List[Dict[str, Any]]:
+    """Build per-category PPE rollforward verification.
+
+    For each category, check: Opening + Additions - Disposals - Depreciation = Closing.
+    Also considers transfers and impairment if available.
+    """
+    categories: List[Dict[str, Any]] = []
+
+    for prefix, display_name, _rate_key in PPE_CATEGORIES:
+        opening = fields.get(f"ppe_{prefix}_open")
+        additions = fields.get(f"ppe_{prefix}_add")
+        disposals = fields.get(f"ppe_{prefix}_disp")
+        depreciation = fields.get(f"ppe_{prefix}_dep")
+        closing = fields.get(f"ppe_{prefix}_close")
+        transfer = fields.get("ppe_transfer")  # usually total, not per-category
+        impairment = fields.get("ppe_impairment")
+
+        cat: Dict[str, Any] = {
+            "name": display_name,
+            "opening": opening,
+            "additions": additions,
+            "disposals": disposals,
+            "depreciation": depreciation,
+            "closing": closing,
+        }
+
+        # Can we verify the rollforward?
+        if opening is not None and closing is not None:
+            calculated = opening
+            if additions is not None:
+                calculated += additions
+            if disposals is not None:
+                calculated -= abs(disposals)
+            if depreciation is not None:
+                calculated -= abs(depreciation)
+            # Include transfers/impairment if available (these are total-level)
+            # Only apply to first category to avoid double-counting
+            cat["calculated"] = round(calculated, 2)
+            cat["difference"] = round(closing - calculated, 2)
+        else:
+            cat["calculated"] = None
+            cat["difference"] = None
+
+        # Only include categories where we found at least some data
+        has_data = any(v is not None for v in [opening, additions, disposals, depreciation, closing])
+        if has_data:
+            categories.append(cat)
+
+    return categories
+
+
+def _build_depreciation_rate_analysis(fields: Dict[str, Optional[float]]) -> List[Dict[str, Any]]:
+    """Analyze depreciation rates by category against industry standards.
+
+    Rate = annual_depreciation / ((opening_gross + closing_gross) / 2)
+    Implied useful life = 1 / rate
+    """
+    results: List[Dict[str, Any]] = []
+
+    for prefix, display_name, rate_key in PPE_CATEGORIES:
+        if rate_key is None:
+            continue  # Skip land (no depreciation)
+
+        depreciation = fields.get(f"ppe_{prefix}_dep")
+        opening_cost = fields.get(f"ppe_{prefix}_cost") or fields.get(f"ppe_{prefix}_open")
+        closing_cost = fields.get(f"ppe_{prefix}_close")
+
+        if depreciation is None or depreciation == 0:
+            continue
+
+        dep_abs = abs(depreciation)
+
+        # Calculate average gross value
+        if opening_cost is not None and closing_cost is not None:
+            avg_gross = (opening_cost + closing_cost) / 2
+        elif opening_cost is not None:
+            avg_gross = opening_cost
+        elif closing_cost is not None:
+            avg_gross = closing_cost
+        else:
+            continue
+
+        if avg_gross <= 0:
+            continue
+
+        rate = dep_abs / avg_gross
+        implied_life = 1.0 / rate if rate > 0 else None
+        expected_range = PPE_STANDARD_RATES.get(rate_key, (0.0, 1.0))
+        reasonable = expected_range[0] <= rate <= expected_range[1]
+
+        results.append({
+            "name": display_name,
+            "annual_depreciation": dep_abs,
+            "average_gross": round(avg_gross, 2),
+            "rate": round(rate, 4),
+            "range": list(expected_range),
+            "reasonable": reasonable,
+            "implied_life": round(implied_life, 1) if implied_life else None,
+            "flag": None if reasonable else (
+                f"Rate {rate:.1%} is {'below' if rate < expected_range[0] else 'above'} "
+                f"expected range {expected_range[0]:.0%}-{expected_range[1]:.0%} "
+                f"for {display_name}"
+            ),
+        })
+
+    return results
+
+
+def _build_ppe_additional_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, Any]]:
+    """Additional PPE checks: fully depreciated assets, small capitalizations, disposal analysis."""
+    checks: List[Dict[str, Any]] = []
+
+    # ── Fully depreciated assets still in use ──
+    # If a category has cost > 0 but NBV (close) = 0, flag it
+    for prefix, display_name, _ in PPE_CATEGORIES:
+        cost = fields.get(f"ppe_{prefix}_cost")
+        close = fields.get(f"ppe_{prefix}_close")
+        if cost is not None and close is not None and cost > 0:
+            if close == 0:
+                checks.append({
+                    "check": "fully_depreciated_in_use",
+                    "category": display_name,
+                    "cost": cost,
+                    "nbv": 0,
+                    "percentage_fully_depreciated": 100.0,
+                    "flag": f"{display_name}: 100% fully depreciated (cost={cost:,.2f}, NBV=0) — assets may still be in use",
+                })
+            elif close < cost * 0.05:
+                pct = round((1 - close / cost) * 100, 1)
+                checks.append({
+                    "check": "nearly_fully_depreciated",
+                    "category": display_name,
+                    "cost": cost,
+                    "nbv": close,
+                    "percentage_depreciated": pct,
+                    "flag": f"{display_name}: {pct}% depreciated (cost={cost:,.2f}, NBV={close:,.2f})",
+                })
+
+    # ── Capitalization threshold check ──
+    # Additions that are suspiciously small (< 5000) might should be expensed
+    for prefix, display_name, _ in PPE_CATEGORIES:
+        additions = fields.get(f"ppe_{prefix}_add")
+        if additions is not None and 0 < additions < 5000:
+            checks.append({
+                "check": "small_capitalization",
+                "category": display_name,
+                "additions": additions,
+                "threshold": 5000,
+                "flag": f"{display_name}: additions of {additions:,.2f} below typical capitalization threshold of 5,000 — consider whether these should be expensed",
+            })
+
+    # ── Disposal gain/loss analysis ──
+    proceeds = fields.get("ppe_disposal_proceeds")
+    nbv_disposed = fields.get("ppe_disposal_nbv")
+    reported_gain_loss = fields.get("ppe_disposal_gain_loss")
+
+    if proceeds is not None and nbv_disposed is not None:
+        computed_gain_loss = proceeds - abs(nbv_disposed)
+        if reported_gain_loss is not None:
+            diff = reported_gain_loss - computed_gain_loss
+            status = "pass" if abs(diff) <= 0.5 else "fail"
+        else:
+            diff = None
+            status = "computed_only"
+        checks.append({
+            "check": "disposal_gain_loss",
+            "proceeds": proceeds,
+            "nbv_disposed": abs(nbv_disposed),
+            "computed_gain_loss": round(computed_gain_loss, 2),
+            "reported_gain_loss": reported_gain_loss,
+            "difference": round(diff, 2) if diff is not None else None,
+            "status": status,
+            "flag": None if status == "pass" else (
+                f"Disposal: proceeds={proceeds:,.2f}, NBV={abs(nbv_disposed):,.2f}, "
+                f"computed {'gain' if computed_gain_loss >= 0 else 'loss'}={abs(computed_gain_loss):,.2f}"
+                + (f", reported={reported_gain_loss:,.2f}, diff={diff:,.2f}" if diff is not None else "")
+            ),
+        })
+    elif reported_gain_loss is not None:
+        checks.append({
+            "check": "disposal_gain_loss",
+            "proceeds": proceeds,
+            "nbv_disposed": nbv_disposed,
+            "computed_gain_loss": None,
+            "reported_gain_loss": reported_gain_loss,
+            "difference": None,
+            "status": "partial",
+            "flag": f"Disposal gain/loss reported as {reported_gain_loss:,.2f} but proceeds or NBV not found for verification",
+        })
+
+    return checks
 
 
 def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, Any]]:
@@ -882,6 +1208,61 @@ def _build_cross_checks(fields: Dict[str, Optional[float]]) -> List[Dict[str, An
             "detail_sum": None,
             "difference": None,
             "formula": "insufficient data for retained earnings bridge",
+        })
+
+    # ── 5. Comprehensive PPE Analysis ──
+
+    # 5a. PPE rollforward by category
+    ppe_cat_rollforward = _build_ppe_category_rollforward(fields)
+    if ppe_cat_rollforward:
+        # Determine overall status: pass if all differences are within tolerance
+        all_verified = [c for c in ppe_cat_rollforward if c.get("difference") is not None]
+        if all_verified:
+            max_diff = max(abs(c["difference"]) for c in all_verified)
+            overall_status = "pass" if max_diff <= 0.5 else "fail"
+        else:
+            overall_status = "insufficient"
+        cross_checks.append({
+            "check": "ppe_rollforward_by_category",
+            "status": overall_status,
+            "categories": ppe_cat_rollforward,
+            "formula": "Opening + Additions - Disposals - Depreciation = Closing (per category)",
+        })
+    else:
+        cross_checks.append({
+            "check": "ppe_rollforward_by_category",
+            "status": "insufficient",
+            "categories": [],
+            "formula": "No per-category PPE data found",
+        })
+
+    # 5b. Depreciation rate reasonableness
+    dep_rate_analysis = _build_depreciation_rate_analysis(fields)
+    if dep_rate_analysis:
+        all_reasonable = all(c.get("reasonable", True) for c in dep_rate_analysis)
+        cross_checks.append({
+            "check": "depreciation_rate_reasonableness",
+            "status": "pass" if all_reasonable else "fail",
+            "categories": dep_rate_analysis,
+            "formula": "rate = annual_depreciation / avg(opening_gross, closing_gross); check vs industry range",
+        })
+    else:
+        cross_checks.append({
+            "check": "depreciation_rate_reasonableness",
+            "status": "insufficient",
+            "categories": [],
+            "formula": "No category-level depreciation data found for rate analysis",
+        })
+
+    # 5c. Additional PPE checks (fully depreciated, capitalization, disposal)
+    ppe_additional = _build_ppe_additional_checks(fields)
+    if ppe_additional:
+        has_flags = any(c.get("flag") for c in ppe_additional)
+        cross_checks.append({
+            "check": "ppe_additional_checks",
+            "status": "fail" if has_flags else "pass",
+            "items": ppe_additional,
+            "formula": "Fully depreciated assets, capitalization threshold, disposal gain/loss",
         })
 
     return cross_checks
