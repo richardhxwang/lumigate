@@ -325,6 +325,11 @@ class TaskQueue {
       // Free the handler reference to allow GC
       task.handler = null;
 
+      // Auto-purge completed tasks to prevent unbounded Map growth
+      if (this._tasks.size > 1000) {
+        this.purge();
+      }
+
       // Sync final task state to PocketBase (fire-and-forget)
       if (this._pbStore) {
         this._pbStore.createAsync("async_tasks", {

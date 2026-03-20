@@ -4,6 +4,9 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+/** Escape single quotes for PocketBase filter strings. */
+function pbEscape(val) { return String(val || '').replace(/'/g, "\\'"); }
+
 // ---------------------------------------------------------------------------
 // Atomic file helpers (project convention: *.tmp + rename)
 // ---------------------------------------------------------------------------
@@ -131,7 +134,7 @@ class WorkflowStore {
     // Fallback: try PocketBase
     if (this._pbStore) {
       try {
-        const record = await this._pbStore.findOne("workflows", `id='${sanitized}'`);
+        const record = await this._pbStore.findOne("workflows", `id='${pbEscape(sanitized)}'`);
         if (record) return record;
       } catch {
         // PB unavailable — return null
@@ -168,7 +171,7 @@ class WorkflowStore {
 
       // Delete from PocketBase (async, non-blocking)
       if (this._pbStore) {
-        this._pbStore.findOne("workflows", `id='${sanitized}'`).then((rec) => {
+        this._pbStore.findOne("workflows", `id='${pbEscape(sanitized)}'`).then((rec) => {
           if (rec) this._pbStore.delete("workflows", rec.id).catch(() => {});
         }).catch(() => {});
       }
@@ -217,7 +220,7 @@ class WorkflowStore {
       };
       this._pbStore.upsert(
         "workflow_executions",
-        `workflow_id='${execution.workflowId || ""}' && id='${sanitized}'`,
+        `workflow_id='${pbEscape(execution.workflowId)}' && id='${pbEscape(sanitized)}'`,
         pbData,
       ).catch(() => {});
     }

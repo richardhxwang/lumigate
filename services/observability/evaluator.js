@@ -85,7 +85,7 @@ class Evaluator {
 
     // Re-persist trace
     try {
-      this.tc._persistTrace(trace);
+      await this.tc._persistTrace(trace);
     } catch (e) {
       this.log('error', 'eval persist failed', { traceId, error: e.message });
     }
@@ -215,6 +215,9 @@ Respond in this exact JSON format:
       metrics: metrics || {},
       timestamp: Date.now(),
     });
+
+    // Trim to prevent unbounded growth
+    if (v.records.length > 10000) v.records = v.records.slice(-10000);
 
     this._saveExperiments();
     return { recorded: true };

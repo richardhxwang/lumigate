@@ -153,6 +153,7 @@ class Embedder {
         model: this.model,
         input: texts,
       }),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) {
@@ -178,6 +179,7 @@ class Embedder {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: this.model, input: texts }),
+        signal: AbortSignal.timeout(30000),
       });
       if (res.ok) {
         const json = await res.json();
@@ -196,6 +198,7 @@ class Embedder {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: this.model, prompt: text }),
+        signal: AbortSignal.timeout(30000),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "");

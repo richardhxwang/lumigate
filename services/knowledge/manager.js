@@ -16,6 +16,9 @@ const { BM25Index } = require("./bm25");
 /** Collection name prefix to namespace LumiGate KBs in Qdrant. */
 const COLLECTION_PREFIX = "lg_kb_";
 
+/** Escape single quotes for PocketBase filter strings. */
+function pbEscape(val) { return String(val || '').replace(/'/g, "\\'"); }
+
 class KnowledgeBaseManager {
   /**
    * @param {object} opts
@@ -117,6 +120,12 @@ class KnowledgeBaseManager {
     const filePath = this._bm25Path(kbId);
     let idx = BM25Index.load(filePath);
     if (!idx) idx = new BM25Index();
+
+    // LRU eviction: keep cache bounded
+    if (this._bm25Cache.size > 20) {
+      const oldest = this._bm25Cache.keys().next().value;
+      this._bm25Cache.delete(oldest);
+    }
 
     this._bm25Cache.set(kbId, idx);
     return idx;
@@ -265,7 +274,7 @@ class KnowledgeBaseManager {
 
     // Delete from PocketBase (async, non-blocking)
     if (this._pbStore) {
-      this._pbStore.findOne("knowledge_bases", `name='${meta.name}'`).then((rec) => {
+      this._pbStore.findOne("knowledge_bases", `name='${pbEscape(meta.name)}'`).then((rec) => {
         if (rec) this._pbStore.delete("knowledge_bases", rec.id).catch(() => {});
       }).catch(() => {});
     }
@@ -358,7 +367,7 @@ class KnowledgeBaseManager {
         metadata: metadata || {},
       });
       // Update document_count on the KB record
-      this._pbStore.findOne("knowledge_bases", `name='${meta.name}'`).then((rec) => {
+      this._pbStore.findOne("knowledge_bases", `name='${pbEscape(meta.name)}'`).then((rec) => {
         if (rec) {
           this._pbStore.updateAsync("knowledge_bases", rec.id, {
             document_count: meta.documents.length,

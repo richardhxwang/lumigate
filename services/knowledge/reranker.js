@@ -109,6 +109,7 @@ class Reranker {
         top_n: topK,
         return_documents: false,
       }),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) {
@@ -152,6 +153,7 @@ Respond with ONLY a JSON array of scores in order, e.g. [8, 3, 7, ...]. No expla
         temperature: 0,
         max_tokens: 200,
       }),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) {
@@ -203,6 +205,7 @@ ${docList}`;
         stream: false,
         options: { temperature: 0 },
       }),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) {

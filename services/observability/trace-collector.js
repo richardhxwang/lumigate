@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+/** Escape single quotes for PocketBase filter strings. */
+function pbEscape(val) { return String(val || '').replace(/'/g, "\\'"); }
+
 /**
  * TraceCollector — lightweight LangSmith-style trace collection.
  *
@@ -53,38 +56,39 @@ class TraceCollector {
     return path.join(this.dataDir, day, 'index.json');
   }
 
-  _readIndex(day) {
+  async _readIndex(day) {
     const f = this._indexFile(day);
     try {
-      if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8'));
+      const data = await fs.promises.readFile(f, 'utf8');
+      return JSON.parse(data);
     } catch {}
     return [];
   }
 
-  _writeIndex(day, entries) {
+  async _writeIndex(day, entries) {
     const f = this._indexFile(day);
     const dir = path.dirname(f);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    await fs.promises.mkdir(dir, { recursive: true });
     const tmp = f + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(entries, null, 0));
-    fs.renameSync(tmp, f);
+    await fs.promises.writeFile(tmp, JSON.stringify(entries, null, 0));
+    await fs.promises.rename(tmp, f);
   }
 
-  _persistTrace(trace) {
+  async _persistTrace(trace) {
     const { dir, day } = this._dayDir(trace.startTime);
     const file = path.join(dir, `${trace.traceId}.json`);
     const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(trace, null, 2));
-    fs.renameSync(tmp, file);
+    await fs.promises.writeFile(tmp, JSON.stringify(trace, null, 2));
+    await fs.promises.rename(tmp, file);
     return day;
   }
 
-  _upsertIndex(day, summary) {
-    const entries = this._readIndex(day);
+  async _upsertIndex(day, summary) {
+    const entries = await this._readIndex(day);
     const idx = entries.findIndex(e => e.traceId === summary.traceId);
     if (idx >= 0) entries[idx] = summary;
     else entries.push(summary);
-    this._writeIndex(day, entries);
+    await this._writeIndex(day, entries);
   }
 
   _makeSummary(trace) {
@@ -160,15 +164,22 @@ class TraceCollector {
       error: null,
       evaluations: [],
     };
+    // Sweep stale entries to prevent unbounded Map growth
+    if (this._active.size > 100) {
+      const cutoff = Date.now() - 30 * 60 * 1000;
+      for (const [tid, t] of this._active) {
+        if (new Date(t.startTime).getTime() < cutoff) this._active.delete(tid);
+      }
+    }
+
     this._active.set(id, trace);
 
     // Persist immediately so it shows up in queries even if not yet ended
-    try {
-      const day = this._persistTrace(trace);
-      this._upsertIndex(day, this._makeSummary(trace));
-    } catch (e) {
+    this._persistTrace(trace).then((day) => {
+      return this._upsertIndex(day, this._makeSummary(trace));
+    }).catch((e) => {
       this.log('error', 'trace persist failed', { traceId: id, error: e.message });
-    }
+    });
 
     // Sync to PocketBase (fire-and-forget)
     if (this._pbStore) {
@@ -221,14 +232,13 @@ class TraceCollector {
 
     trace.spans.push(span);
 
-    // Re-persist
-    try {
-      const day = this._persistTrace(trace);
-      this._upsertIndex(day, this._makeSummary(trace));
+    // Re-persist (async, fire-and-forget from sync addSpan)
+    this._persistTrace(trace).then((day) => {
       if (this._active.has(traceId)) this._active.set(traceId, trace);
-    } catch (e) {
+      return this._upsertIndex(day, this._makeSummary(trace));
+    }).catch((e) => {
       this.log('error', 'span persist failed', { traceId, error: e.message });
-    }
+    });
 
     return span;
   }
@@ -249,17 +259,16 @@ class TraceCollector {
     if (output !== undefined) trace.output = output;
     if (error !== undefined) trace.error = error;
 
-    try {
-      const day = this._persistTrace(trace);
-      this._upsertIndex(day, this._makeSummary(trace));
-    } catch (e) {
+    this._persistTrace(trace).then((day) => {
+      return this._upsertIndex(day, this._makeSummary(trace));
+    }).catch((e) => {
       this.log('error', 'endTrace persist failed', { traceId, error: e.message });
-    }
+    });
 
     // Update PocketBase record with final state (fire-and-forget)
     if (this._pbStore) {
       const summary = this._makeSummary(trace);
-      this._pbStore.findOne('traces', `trace_id='${traceId}'`).then((rec) => {
+      this._pbStore.findOne('traces', `trace_id='${pbEscape(traceId)}'`).then((rec) => {
         if (rec) {
           this._pbStore.updateAsync('traces', rec.id, {
             status: trace.status,
@@ -308,7 +317,7 @@ class TraceCollector {
     const d = new Date(toDate);
     while (d >= fromDate) {
       const day = d.toISOString().slice(0, 10);
-      const entries = this._readIndex(day);
+      const entries = await this._readIndex(day);
 
       for (let i = entries.length - 1; i >= 0; i--) {
         const e = entries[i];
@@ -355,8 +364,8 @@ class TraceCollector {
         if (fs.existsSync(file)) {
           fs.unlinkSync(file);
           // Remove from index
-          const entries = this._readIndex(day).filter(e => e.traceId !== traceId);
-          this._writeIndex(day, entries);
+          const entries = (await this._readIndex(day)).filter(e => e.traceId !== traceId);
+          await this._writeIndex(day, entries);
           return true;
         }
       } catch {}
@@ -389,7 +398,7 @@ class TraceCollector {
     const d = new Date(toDate);
     while (d >= fromDate) {
       const day = d.toISOString().slice(0, 10);
-      const entries = this._readIndex(day);
+      const entries = await this._readIndex(day);
 
       if (!byDay[day]) byDay[day] = { traces: 0, tokens: 0, cost: 0, errors: 0, avgDuration: 0, _durSum: 0, _durCount: 0 };
 
