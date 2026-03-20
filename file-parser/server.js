@@ -23,19 +23,20 @@ const MAX_FILE_SIZE = Number(process.env.FILE_PARSER_MAX_FILE_SIZE || 0);
 // ── Parsers ──────────────────────────────────────────────────────────────────
 
 async function parsePDF(buffer) {
-  const primary = await parsePDFWithPdfParse(buffer);
-  const fallback = await parsePDFWithPdfJs(buffer).catch(() => ({ text: "", pages: primary?.pages || 0 }));
-  const poppler = await parsePDFWithPdftotext(buffer).catch(() => ({ text: "", pages: primary?.pages || 0 }));
-  const primaryScore = extractionScore(primary?.text || "");
-  const fallbackScore = extractionScore(fallback?.text || "");
-  const popplerScore = extractionScore(poppler?.text || "");
-  if (popplerScore > Math.max(primaryScore, fallbackScore)) {
+  // pdftotext -layout is best for tables (preserves column alignment).
+  // Try it first; only fall back to JS parsers if pdftotext fails or returns empty.
+  const poppler = await parsePDFWithPdftotext(buffer).catch(() => null);
+  if (poppler?.text && poppler.text.trim().length > 100) {
     return {
-      text: poppler.text || "",
-      pages: poppler.pages || primary?.pages || 0,
-      info: { engine: "pdftotext-fallback" },
+      text: poppler.text,
+      pages: poppler.pages || 0,
+      info: { engine: "pdftotext-layout" },
     };
   }
+  const primary = await parsePDFWithPdfParse(buffer);
+  const fallback = await parsePDFWithPdfJs(buffer).catch(() => ({ text: "", pages: primary?.pages || 0 }));
+  const primaryScore = extractionScore(primary?.text || "");
+  const fallbackScore = extractionScore(fallback?.text || "");
   if (fallbackScore > primaryScore) {
     return {
       text: fallback.text || "",
@@ -63,13 +64,9 @@ function extractionScore(text) {
 
 /**
  * Join sorted row items with gap-aware separators.
- * Small gap (< COLUMN_GAP_THRESHOLD) between end of one item and start of next → space.
- * Large gap (>= COLUMN_GAP_THRESHOLD) → pipe separator (table column boundary).
- * No gap (items touch or overlap) → concatenate directly.
+ * Uses font-size-relative thresholds to handle CJK (each char = separate item).
+ * Column gap → pipe separator. Word gap → space. Same-word → concatenate.
  */
-const COLUMN_GAP_THRESHOLD = 15; // px — typical column gap in PDF tables
-const WORD_GAP_THRESHOLD = 2;    // px — small gap between adjacent text items
-
 function joinRowItems(items) {
   if (!items.length) return "";
   let result = items[0].str;
@@ -77,27 +74,21 @@ function joinRowItems(items) {
     const prev = items[i - 1];
     const curr = items[i];
     const gap = curr.x - prev.endX;
-    if (gap >= COLUMN_GAP_THRESHOLD) {
+    // Use font height as reference for relative gap sizing
+    const fontSize = Math.max(curr.height || 10, prev.height || 10, 6);
+    // Column boundary: gap > 2x font size (e.g., 24px for 12pt font)
+    const colThreshold = fontSize * 2;
+    // Word boundary: gap > 0.3x font size (e.g., 3.6px for 12pt font)
+    // This prevents CJK single-char items from being split
+    const wordThreshold = fontSize * 0.3;
+
+    if (gap >= colThreshold) {
       result += " | " + curr.str;
-    } else if (gap >= WORD_GAP_THRESHOLD) {
+    } else if (gap >= wordThreshold) {
       result += " " + curr.str;
     } else {
-      // Items touch or overlap — still insert space if prev doesn't end with
-      // whitespace and curr doesn't start with it (prevents "Turnover637,985")
-      const prevEnds = /\s$/.test(prev.str);
-      const currStarts = /^\s/.test(curr.str);
-      const hasWidthInfo = prev.endX > prev.x; // width was non-zero
-      if (!prevEnds && !currStarts) {
-        // If we have width info and items truly overlap/touch, insert space.
-        // If no width info, use x-position gap as fallback.
-        if (hasWidthInfo || (curr.x - prev.x) > 1) {
-          result += " " + curr.str;
-        } else {
-          result += curr.str;
-        }
-      } else {
-        result += curr.str;
-      }
+      // Items touch or overlap — concatenate directly (same word/CJK sequence)
+      result += curr.str;
     }
   }
   return result;
@@ -108,7 +99,7 @@ async function parsePDFWithPdfParse(buffer) {
   const customPagerender = async (pageData) => {
     const textContent = await pageData.getTextContent({
       normalizeWhitespace: false,
-      disableCombineTextItems: true,
+      disableCombineTextItems: false,
     });
     const rows = [];
     for (const item of textContent.items || []) {
@@ -162,7 +153,7 @@ async function parsePDFWithPdfJs(buffer) {
     const page = await pdf.getPage(pageNo);
     const textContent = await page.getTextContent({
       normalizeWhitespace: false,
-      disableCombineTextItems: true,
+      disableCombineTextItems: false,
     });
     const rows = [];
     for (const item of textContent.items || []) {
