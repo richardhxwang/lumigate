@@ -1,6 +1,6 @@
 # LumiGate
 
-Self-hosted AI Agent Platform. One endpoint, 8 providers, server-side tool execution, enterprise auth.
+Self-hosted AI Agent Platform. 8 providers, 24 tools, RAG memory, workflow engine, enterprise security.
 
 ## Quick Start
 
@@ -15,473 +15,238 @@ Dashboard at `http://localhost:9471`. Chat UI at `http://localhost:9471/lumichat
 Integrated local services started by default:
 - PocketBase: `http://localhost:8090`
 - Whisper STT: `http://localhost:17863`
+- Qdrant Vector DB: `http://localhost:6333`
+- SearXNG Web Search: `http://localhost:18780`
 
 First-time PocketBase bootstrap:
 1. Open `http://localhost:8090/_/`.
 2. Create the first superuser.
 3. Put the same credentials into `.env` as `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` (required for admin-tier and subscription actions in LumiGate).
 
-## Auto Error Detection (Loki + Promtail + Alertmanager)
+## Architecture Overview
 
-Enable optional observability stack:
-
-```bash
-docker compose --profile observability up -d loki promtail alertmanager
-```
-
-Endpoints:
-- Loki API: `http://127.0.0.1:19410`
-- Alertmanager UI/API: `http://127.0.0.1:19093`
-
-Preloaded log alert rules:
-- `network error`
-- `Bad request to AI provider`
-- `未能从当前链接提取可读内容`
-
-Telegram bot push (optional):
-1. Add to `.env`:
-   - `ALERT_TELEGRAM_BOT_TOKEN=...`
-   - `ALERT_TELEGRAM_CHAT_ID=...`
-2. Restart Alertmanager:
-
-```bash
-docker compose --profile observability restart alertmanager
-```
-
-Watch firing alerts from terminal:
-
-```bash
-./scripts/watch_alerts.sh
-```
-
-One-command error aggregation report (grouped by session/provider/model/error type):
-
-```bash
-npm run logs:errors
-```
-
-## File Parsing Priority (Excel First)
-
-Current parsing priority and behavior is:
-- `Excel (.xls/.xlsx)` first priority.
-- then `PDF`, then `Word (.docx/.doc)`.
-- `PPTX` lower priority.
-
-Excel upload extraction path:
-1. Direct parse via `file-parser`.
-2. For legacy/complex `.xls`, LumiGate forces fallback to `gotenberg` (convert to PDF) and re-parses.
-3. Result is cleaned before writeback to reduce binary/junk segments.
-
-PocketBase file metadata fields written on upload include:
-- `original_name`, `ext`, `kind`
-- `parse_status`, `parse_error`, `parsed_at`
-- `created_at`, `updated_at`
-
-If PB Dashboard was created earlier and missing these fields, run:
-
-```bash
-./scripts/sync_pb_lc_schema.sh
-```
-
-This syncs both:
-- root DB: `pocketbase/pb_data/data.db`
-- lumichat project DB: `pocketbase/pb_data/projects/lumichat/data.db`
-
-## What is LumiGate
-
-LumiGate is a unified AI gateway that sits between your apps and 8 AI providers. Send a single `POST /v1/chat` request — the server handles provider routing, web search, file generation, and tool execution. Clients only receive clean text and download events. No tool logic on the frontend.
-
-Ships with LumiChat, a production chat UI with SSE streaming, PocketBase auth, file attachments, voice input, and dark/light mode.
-
-Runs on a NAS, mini PC, or any Docker host.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph Client["Client Layer"]
-      direction TB
-      U[LumiChat Web UI]
-    end
-
-    subgraph Gateway["LumiGate Gateway Layer"]
-      direction TB
-      A1["/lc/auth/*"]
-      L1["/lc/* data APIs"]
-      F1["/lc/files (upload + serve)"]
-      V1["/platform/audio/transcriptions"]
-      C1["/v1/chat (SSE)"]
-      M1["/lc/messages PATCH/POST"]
-    end
-
-    subgraph Data["Data Layer"]
-      direction TB
-      PB[(PocketBase)]
-    end
-
-    subgraph AI["AI / Tool Layer"]
-      direction TB
-      W[Whisper ASR]
-      ST[Optional search/tools]
-      P[AI Providers]
-    end
-
-    U -->|1. Login/Register| A1
-    A1 -->|Set httpOnly lc_token| U
-
-    U -->|2. Load sessions/messages/files| L1
-    L1 -->|Owned records| PB
-    PB --> L1
-    L1 --> U
-
-    U -->|3. Optional file upload| F1
-    F1 -->|Store/read file metadata| PB
-    F1 -->|Serve by id| U
-
-    U -->|4. Optional voice recording| V1
-    V1 -->|audio_file multipart| W
-    W -->|text transcript| V1
-    V1 --> U
-
-    U -->|5. Send chat turn| C1
-    C1 -->|Model routing| P
-    C1 -->|Optional search/tools| ST
-    ST -->|Optional generated file metadata| PB
-    P -->|stream tokens| C1
-    C1 -->|SSE clean text + tool/file events| U
-
-    C1 -->|6. Persist conversation| M1
-    M1 --> PB
-```
-
-<details><summary>Text-based architecture (for renderers without Mermaid support)</summary>
+### Request Flow: POST /v1/chat
 
 ```
-┌──────────┐                ┌──────────────────────────────┐
-│ LumiChat │──cookie──▶     │        LumiGate Server       │
-│ iOS App  │──HMAC────▶     │                              │
-│ Any App  │──Token───▶     │  /v1/chat → Auth → AI Proxy  │
-└──────────┘                │    → Tool Execute → Clean SSE │
-                            └──────┬────────┬────────┬─────┘
-                                   │        │        │
-                            ┌──────┴──┐ ┌───┴───┐ ┌──┴────────┐
-                            │ 8 AI    │ │DocGen │ │PocketBase │
-                            │Providers│ │SearXNG│ │(Auth/Data)│
-                            └─────────┘ └───────┘ └───────────┘
-```
-
-</details>
-
-### Current Integrated Architecture (LumiChat + LumiGate + PocketBase)
-
-This is the current production data flow and trust boundary:
-
-1. LumiChat (`/lumichat`) is a browser UI. It stores no PB credentials in JS; auth uses `lc_token` httpOnly cookie.
-2. LumiGate (`server.js`) is the single backend gateway. It enforces auth/rate-limit, forwards user-scoped calls to PocketBase, and proxies AI provider traffic.
-3. PocketBase is the system of record for LumiChat domain data: users, projects, sessions, messages, files, usage settings.
-4. Ownership checks are enforced in gateway routes before write/read of sensitive records (`assertLcSessionOwned` / `assertRecordOwned`) and mapped to proper client status codes.
-5. File flow: browser uploads multipart file to `POST /lc/files` -> LumiGate streams file to PocketBase `lc_files` -> browser consumes via guarded `GET /lc/files/serve/:id`.
-6. Voice flow: browser records audio with `MediaRecorder` -> uploads as multipart `file` field to `/platform/audio/transcriptions` -> gateway audio route forwards to Whisper service -> transcript is inserted into chat input.
-7. AI flow: UI sends chat to LumiGate (`/v1/chat`) -> provider routing/tool execution/search happens server-side -> SSE stream returns clean text + optional tool/file events.
-
-Security boundaries in this architecture:
-
-- Client never talks to PocketBase directly for privileged admin operations.
-- PB token verification and row ownership happen on every gateway-mediated data operation.
-- Unauthorized ownership access returns 4xx (forbidden/not found semantics), not masked 5xx.
-- Uploads are constrained by multer limits and MIME/extension validation in domain routes.
-- Admin and platform APIs use separate auth paths from LumiChat user auth.
-
-```mermaid
-flowchart TB
-  subgraph Client["Client Layer"]
-    U["LumiChat Web UI"]
-  end
-
-  subgraph Gateway["LumiGate Gateway (server.js)"]
-    AUTH["Auth + Rate Limit + Ownership Check"]
-    CHAT["/v1/chat (SSE)"]
-    FILE["/lc/files + /lc/files/serve/:id"]
-    AUDIO["/platform/audio/transcriptions"]
-  end
-
-  subgraph Data["Data Layer"]
-    PB["PocketBase (users/projects/sessions/messages/files)"]
-  end
-
-  subgraph AI["AI/Tool Layer"]
-    P["Providers (OpenAI/Gemini/Anthropic/...)"]
-    W["Whisper Service"]
-    T["Tool Execution (parse/vision/doc/code/search)"]
-  end
-
-  U -->|"lc_token cookie"| AUTH
-  AUTH --> CHAT
-  AUTH --> FILE
-  AUTH --> AUDIO
-
-  FILE -->|"record + blob metadata"| PB
-  PB -->|"guarded read"| FILE
-  AUDIO -->|"multipart file"| W
-  CHAT -->|"route by provider/model"| P
-  CHAT --> T
-  CHAT -->|"SSE text/tool/file events"| U
-```
-
-## API
-
-```bash
-curl -N -X POST http://localhost:9471/v1/chat \
-  -H "Content-Type: application/json" \
-  -H "X-Project-Key: $KEY" \
-  -d '{
-    "provider": "deepseek",
-    "model": "deepseek-chat",
-    "messages": [{"role": "user", "content": "Generate Excel: quarterly sales"}],
-    "stream": true
-  }'
+User sends message
+  |
+  +-- 1. Auth (6 paths: internal key -> admin cookie -> lc_token -> ephemeral -> HMAC -> project key)
+  |
+  +-- 2. Memory Recall -> Qdrant vector search -> inject user profile + relevant memories
+  |
+  +-- 3. Pre-search -> auto-detect if web search needed -> SearXNG (up to 30 results)
+  |
+  +-- 4. Specialist Mode -> financial analysis pre-computation (if selected)
+  |
+  +-- 5. System Prompt Assembly (memory + RAG + search + attachments + tools + principles)
+  |
+  +-- 6. AI Provider Call -> SSE streaming to client
+  |
+  +-- 7. Tool Detection + Execution -> 24 registered tools
+  |
+  +-- 8. Tool Results -> file persistence + second AI call for synthesis
+  |
+  +-- 9. Auto-continue (up to 12 rounds if response truncated)
+  |
+  +-- 10. Memory Ingest -> extract facts -> store in Qdrant + PocketBase
 ```
 
 SSE response delivers three event types:
 
 | Event | Purpose |
 |-------|---------|
-| `data` (default) | Clean text chunks — render directly |
+| `data` (default) | Clean text chunks -- render directly |
 | `event: tool_status` | Progress hints (e.g. "Generating Excel...") |
-| `event: file_download` | File metadata — render as download card |
+| `event: file_download` | File metadata -- render as download card |
 
-Optional fields: `web_search` (bool, auto-detected if omitted), `tools` (bool, default true).
+Three tool tag formats are supported: DSML (`[TOOL:...]...[/TOOL]`), XML (`<tool name="...">...</tool>`), and Anthropic native `tool_use` blocks. The server normalizes all formats before execution, so any model can use tools regardless of its native calling convention.
 
-### Auth Headers / Cookies
+### Registered Tools
 
-- Platform API: `X-Project-Key` (or HMAC/token flow).
-- Admin API: `admin_token` cookie (or `X-Admin-Token`).
-- LumiChat API: `lc_token` cookie.
+| Tool | Category | Description |
+|------|----------|-------------|
+| generate_spreadsheet | File Gen | Excel with formulas via ExcelJS |
+| generate_document | File Gen | Word documents |
+| generate_presentation | File Gen | PowerPoint slides |
+| use_template | File Gen | 224 professional templates across business, finance, HR, and project management |
+| fill_template | File Gen | Word/Excel template auto-fill from uploaded data |
+| web_search | Search | SearXNG, adaptive 15-30 results with time-aware multi-keyword queries |
+| hkex_download | Search | Download HKEX announcements via Chrome CDP |
+| parse_file | Parse | PDF/Excel/Word/PPT extraction |
+| transcribe_audio | Audio | Whisper speech-to-text |
+| vision_analyze | Vision | Image description via Ollama |
+| code_run | Code | Python/JS in Docker sandbox |
+| sandbox_exec | Code | Shell command execution in sandbox |
+| audit_sampling | Audit | MUS/random/stratified (AICPA factor table + 4 resampling modes) |
+| benford_analysis | Audit | First-digit / first-two-digit fraud detection + chi-square |
+| journal_entry_testing | Audit | 15 standard JET tests with risk scoring |
+| variance_analysis | Audit | Period-over-period, budget vs actual, trend, ratio analysis |
+| materiality_calculator | Audit | ISA 320 / PCAOB materiality computation |
+| reconciliation | Audit | Auto-reconcile two datasets (exact, fuzzy, one-to-many) |
+| going_concern_check | Audit | ISA 570 going concern indicators |
+| gl_extract | Audit | GL sub-ledger extraction by account code |
+| data_cleaning | Audit | 7 cleaning operations for financial data |
+| audit_workpaper_fill | Audit | Auto-fill working papers from source documents |
+| financial_statement_analyze | Finance | 15 cross-checks + PPE rollforward + depreciation rate reasonableness |
+| browser_action | Automation | Playwright browser control via MCP |
 
-### Complete API Reference
+### File Structure
 
-Source of truth is `server.js`; list below mirrors current routes.
-
-#### Public / System
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/health` | Health + module/provider detail for admin |
-| GET | `/providers` | Provider availability |
-| GET | `/models/:provider` | Models for provider |
-| GET | `/collector/health` | Collector runtime status |
-| GET | `/` | Root page |
-| GET | `/v1/sys/panel` | Hidden dashboard entry |
-| GET | `/dashboard` | Disabled (204) |
-| GET | `/chat` | Chat redirect/entry |
-| GET | `/lumichat` | LumiChat entry |
-
-#### Admin Auth / MFA
-
-| Method | Path |
-|---|---|
-| POST | `/admin/login` |
-| POST | `/admin/mfa/verify` |
-| POST | `/admin/logout` |
-| GET | `/admin/auth` |
-| POST | `/admin/mfa/setup` |
-| POST | `/admin/mfa/confirm` |
-| DELETE | `/admin/mfa` |
-| GET | `/admin/mfa/qr` |
-| GET | `/admin/mfa/status` |
-| GET | `/admin/uptime` |
-
-#### Admin Control Plane
-
-| Method | Path |
-|---|---|
-| GET | `/admin/test/:provider` |
-| GET | `/admin/projects` |
-| POST | `/admin/projects` |
-| PUT | `/admin/projects/:name` |
-| POST | `/admin/projects/:name/regenerate` |
-| DELETE | `/admin/projects/:name` |
-| GET | `/admin/rate` |
-| GET | `/admin/usage` |
-| GET | `/admin/usage/summary` |
-| GET | `/admin/settings` |
-| PUT | `/admin/settings` |
-| GET | `/admin/lc/schema` |
-| GET | `/admin/lc/trash` |
-| POST | `/admin/lc/trash/restore` |
-| GET | `/admin/lc/projects/:id/references` |
-| POST | `/admin/lc/projects/:id/remap` |
-| GET | `/admin/lc-users` |
-| PATCH | `/admin/lc-users/:id/tier` |
-| PATCH | `/admin/lc-users/:id/decline-upgrade` |
-| GET | `/admin/lc-subscriptions` |
-| POST | `/admin/lc-subscriptions` |
-| POST | `/admin/key` |
-| GET | `/admin/keys/cooldowns` |
-| DELETE | `/admin/keys/cooldowns/:keyId` |
-| GET | `/admin/keys/:provider` |
-| POST | `/admin/keys/:provider` |
-| PUT | `/admin/keys/:provider/reorder` |
-| PUT | `/admin/keys/:provider/:keyId` |
-| DELETE | `/admin/keys/:provider/:keyId` |
-| GET | `/admin/collector/status` |
-| POST | `/admin/collector/accounts/:provider` |
-| PUT | `/admin/collector/accounts/:provider/:accountId` |
-| DELETE | `/admin/collector/accounts/:provider/:accountId` |
-| POST | `/admin/collector/login/:provider` |
-| GET | `/admin/collector/login/status` |
-| DELETE | `/admin/collector/login` |
-| POST | `/admin/collector/restore` |
-| PUT | `/admin/collector/token/:provider` |
-| DELETE | `/admin/collector/token/:provider` |
-| PUT | `/admin/providers/:name/access-mode` |
-| GET | `/admin/users` |
-| POST | `/admin/users` |
-| PUT | `/admin/users/:username` |
-| DELETE | `/admin/users/:username` |
-| GET | `/admin/metrics` |
-| GET | `/admin/audit` |
-| POST | `/admin/backup` |
-| GET | `/admin/backups` |
-| POST | `/admin/restore/:name` |
-| GET | `/admin/upgrade-requests` |
-| POST | `/admin/upgrade-requests/:settingsId/approve` |
-| POST | `/admin/upgrade-requests/:settingsId/reject` |
-
-#### Gateway / Platform APIs
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/v1/chat` | Unified streaming chat API |
-| POST | `/platform/parse` | File parsing (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) |
-| POST | `/platform/audio/transcribe` | Audio transcription (native path) |
-| POST | `/platform/audio/transcriptions` | OpenAI-compatible transcription |
-| POST | `/platform/vision/analyze` | Vision/image analysis |
-| POST | `/platform/code/run` | Code runtime execution |
-| POST | `/platform/sandbox/exec` | CLI sandbox execution (Lumigent tool) |
-| GET | `/platform/lumigent/tools` | Lumigent tool catalog |
-| GET | `/platform/lumigent/traces` | Lumigent execution traces |
-| POST | `/platform/lumigent/execute` | Lumigent tool execution endpoint |
-| POST | `/platform/tools/execute` | Server-side tool execution |
-| POST | `/v1/token` | Ephemeral token issuance |
-| POST | `/v1/otp/send` | OTP send |
-| POST | `/v1/otp/verify` | OTP verify |
-
-Legacy platform endpoint migration:
-
-| Old Path | New Path |
-|---|---|
-| `/v1/parse` | `/platform/parse` |
-| `/v1/audio/transcribe` | `/platform/audio/transcribe` |
-| `/v1/audio/transcriptions` | `/platform/audio/transcriptions` |
-| `/v1/vision/analyze` | `/platform/vision/analyze` |
-| `/v1/code/run` | `/platform/code/run` |
-| `/v1/sandbox/exec` | `/platform/sandbox/exec` |
-| `/v1/lumigent/tools` | `/platform/lumigent/tools` |
-| `/v1/lumigent/traces` | `/platform/lumigent/traces` |
-| `/v1/lumigent/execute` | `/platform/lumigent/execute` |
-| `/v1/tools/execute` | `/platform/tools/execute` |
-
-#### Domain APIs (Config-driven)
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/domains/:domain/schema` | Domain schema/capabilities |
-| GET | `/api/domains/:domain/:collection` | Generic list/filter/sort |
-| POST | `/api/domains/:domain/:collection` | Generic create |
-| PATCH | `/api/domains/:domain/:collection/:id` | Generic update |
-| DELETE | `/api/domains/:domain/:collection/:id` | Generic delete (soft/hard policy) |
-| GET | `/api/domains/:domain/:collection/:id/references` | Inspect FK-like dependencies |
-| POST | `/api/domains/:domain/:collection/:id/remap` | Remap dependencies (collection-specific) |
-| POST | `/api/domains/:domain/trash/:collection/:id/restore` | Restore soft-deleted record |
-
-Query contract for generic list:
-- `filter[field][op]=value` where `op` supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`
-- `sort=field:asc,field2:desc` or legacy `sort=-field`
-- `perPage`, `include_deleted=1`, `trash_only=1`
-
-#### LumiChat Auth / Profile
-
-| Method | Path |
-|---|---|
-| GET | `/lc/auth/methods` |
-| GET | `/lc/auth/oauth-start` |
-| GET | `/lc/auth/oauth-callback` |
-| POST | `/lc/auth/check-email` |
-| POST | `/lc/auth/register` |
-| GET | `/lc/admin/approve` |
-| POST | `/lc/admin/approve` |
-| POST | `/lc/auth/login` |
-| POST | `/lc/auth/logout` |
-| POST | `/lc/auth/refresh` |
-| GET | `/lc/auth/me` |
-| PATCH | `/lc/auth/profile` |
-| POST | `/lc/auth/change-password` |
-
-#### LumiChat Providers / Search / Suggest
-
-| Method | Path |
-|---|---|
-| GET | `/lc/providers` |
-| GET | `/lc/models/:provider` |
-| POST | `/lc/collector/login/:provider` |
-| GET | `/lc/collector/login/status` |
-| GET | `/lc/search` |
-| GET | `/lc/suggest` |
-
-#### LumiChat Data (PB-backed)
-
-| Method | Path |
-|---|---|
-| GET | `/lc/user/settings` |
-| PATCH | `/lc/user/settings` |
-| GET | `/lc/projects` |
-| POST | `/lc/projects` |
-| PATCH | `/lc/projects/:id` |
-| GET | `/lc/projects/:id/references` |
-| POST | `/lc/projects/:id/remap` |
-| DELETE | `/lc/projects/:id` |
-| GET | `/lc/sessions` |
-| POST | `/lc/sessions` |
-| PATCH | `/lc/sessions/:id/title` |
-| PATCH | `/lc/sessions/:id/model` |
-| DELETE | `/lc/sessions/:id` |
-| GET | `/lc/sessions/:id/messages` |
-| POST | `/lc/messages` |
-| PATCH | `/lc/messages/:id` |
-| DELETE | `/lc/messages/:id` |
-| GET | `/lc/trash` |
-| POST | `/lc/trash/:collection/:id/restore` |
-| POST | `/lc/files` |
-| GET | `/lc/files/serve/:id` |
-| POST | `/lc/files/gemini-upload/:pbFileId` |
-| POST | `/lc/chat/gemini-native` |
-
-#### LumiChat Tier / Billing / BYOK
-
-| Method | Path |
-|---|---|
-| GET | `/lc/user/tier` |
-| POST | `/lc/upgrade-request` |
-| GET | `/lc/admin/upgrade-action` |
-| GET | `/lc/user/apikeys` |
-| POST | `/lc/user/apikeys` |
-| DELETE | `/lc/user/apikeys/:id` |
-
-### Usage Examples
-
-List LC sessions with Excel-style filters:
-
-```bash
-curl -s "http://localhost:9471/api/domains/lc/sessions?filter[provider][eq]=openai&filter[title][contains]=audit&sort=deleted_at:desc,id:asc&perPage=50" \
-  -H "Cookie: lc_token=YOUR_TOKEN"
+```
+server.js              (3,643 lines) -- Init + middleware + route mounting
+routes/
+  chat.js              (1,615) -- POST /v1/chat core flow
+  admin.js             (1,931) -- Admin API (projects, keys, users, collector)
+  lumichat.js          (5,655) -- LumiChat endpoints (auth, sessions, files, tiers)
+  proxy.js             (458)   -- Generic /v1/:provider proxy passthrough
+  knowledge.js         (237)   -- Knowledge Base CRUD + RAG search
+  workflow.js          (305)   -- DAG workflow execution + task queue
+  observability.js     (216)   -- Trace listing + evaluation + stats
+  hkex.js              (158)   -- HKEX announcement download
+  template-filler.js   (187)   -- Word/Excel template filling
+  parse.js             (294)   -- File parsing (PDF/XLSX/DOCX/PPTX)
+  audio.js             (186)   -- Audio transcription
+  vision.js            (127)   -- Image analysis
+  code.js              (135)   -- Code execution
+  sandbox.js           (218)   -- CLI sandbox execution
+  plugins.js           (127)   -- Plugin management
+  rbac.js              (154)   -- Role-based access control
+  versions.js          (97)    -- API versioning
+services/
+  knowledge/           -- RAG pipeline (BM25, reranker, HyDE, orchestrator, RAGFlow adapter)
+  memory/              -- Per-user vector memory (Qdrant + PB) + fact extraction
+  workflow/            -- DAG engine + async task queue + workflow store
+  observability/       -- Trace collector + evaluator
+  financial-analysis/  -- Python analyzers (15 cross-checks)
+  financial-engine/    -- Financial computation engine
+  pb-schema.js         -- Auto-provision 13 PB collections
+  pb-store.js          -- Generic PB CRUD helper
+  plugins/             -- Plugin system
+  rbac/                -- Role-based access control
+  versioning/          -- API version management
+tools/
+  unified-registry.js  -- Single tool registry (built-in + schema + MCP)
+  builtin-handlers.js  -- Doc-gen/search/parse execution
+  audit-tools.js       -- 10 audit analytics tools
+  hkex-downloader.js   -- HKEX Chrome CDP scraper
+  template-filler.js   -- Template auto-fill
+  financial-analysis.js -- Python bridge for financial analysis
+  mcp-client.js        -- MCP tool server client
+  schemas/             -- JSON schema definitions for tools
+lumigent/
+  runtime.js           -- Parser + dispatcher + agent loop
+  trace-store.js       -- In-memory traces + PB callback
+  bridges/             -- Tool service connections (internal HTTP, MCP, tool service)
+public/
+  lumichat.html        (6,325) -- Chat UI
+  index.html           -- Dashboard
+  traces.html          -- Trace visualization
+  workflow-editor.html -- React Flow DAG editor
+security/
+  index.js             -- PII detection, secret masking, command guard
+docker/
+  monitoring/          -- Loki, Promtail, Alertmanager configs + 20 alert rules
 ```
 
-Read LC domain schema:
+## Features
 
-```bash
-curl -s "http://localhost:9471/api/domains/lc/schema"
-```
+### Clean Chat Proxy
+
+Single `POST /v1/chat` endpoint for all providers and all apps (LumiChat, FurNote, etc.). Tool tags are intercepted and executed server-side -- clients never see them. Works with any model, no native function calling required. Clients only need a standard EventSource with three event types.
+
+### LumiChat
+
+Built-in chat UI at `/lumichat.html`. Full feature list:
+
+- SSE streaming with real-time markdown rendering, syntax highlighting, and KaTeX math support
+- Collapsible thinking blocks for chain-of-thought models
+- Canvas/Artifacts side panel for code and document previews
+- Text selection menu (Ask / Explain / Translate)
+- Source chips linking to search results
+- Drag-and-drop file upload with inline chips
+- Voice input via browser speech API and TTS playback
+- Adaptive web search (auto-detect + manual toggle)
+- 10 built-in system presets (Coder, Professional, Translator, etc.) with custom preset support (up to 8)
+- Slash commands for quick actions
+- Mid-stream messaging (new messages queue without aborting the current stream)
+- Persistent session management with conversation history
+- PocketBase-backed auth with JWT token refresh
+- Mobile-responsive layout with dark/light theme
+- Rotating tips bar on the welcome screen
+
+### RAG and Memory
+
+- **RAGFlow integration** (primary, via `--profile rag`) with self-built fallback pipeline (BM25, vector reranker, HyDE query transform)
+- **Per-user long-term memory**: auto-extract structured facts from every conversation, store in Qdrant, recall relevant memories before each chat turn (< 100ms)
+- **FurNote pet profile API**: sync pet health data as persistent user memory
+- **Knowledge Base management**: create KBs, upload documents, search across multiple KBs via `/v1/knowledge` endpoints
+
+### Workflow Engine
+
+- Visual drag-and-drop DAG editor (`/workflow-editor.html`) built with React Flow
+- 7 node types: `llm`, `tool`, `condition`, `parallel`, `code`, `human_approval`, `template`
+- Async task queue with configurable concurrency and priority
+- Template interpolation (`{{variable}}`) across all node inputs
+- Human-in-the-loop: pause workflow at approval nodes, resume via API
+- Workflow store with persistence and purge scheduling
+
+### Audit Tools
+
+10 professional audit analytics tools:
+
+- **Sampling**: MUS with AICPA factor table + 4 resampling modes, random, stratified
+- **Benford's Law**: first-digit and first-two-digit distribution with chi-square test
+- **Journal Entry Testing**: 15 standard JET tests with risk scoring
+- **Variance Analysis**: period-over-period, budget vs actual, trend, ratio
+- **Materiality**: ISA 320 / PCAOB materiality computation
+- **Reconciliation**: auto-reconcile two datasets (exact, fuzzy, one-to-many matching)
+- **Going Concern**: ISA 570 indicators check
+- **GL Extraction**: sub-ledger extraction by account code
+- **Data Cleaning**: 7 cleaning operations for financial data
+- **Working Paper Auto-Fill**: populate audit templates from source documents
+
+### Financial Analysis
+
+- 15 programmatic cross-checks (balance sheet equation, inventory, loans, AR aging, PPE rollforward, etc.)
+- Depreciation rate reasonableness by asset category
+- Specialist mode in chat: upload financial statements, get automated pre-analysis injected into the AI prompt
+- Python-based analysis engine with JSON bridge
+- PDF table extraction: pdftotext-layout primary + optional Docling enhanced parser
+
+### Smart Web Search
+
+Contextual web search integrated into the chat pipeline:
+
+- Auto-detects whether search is needed before sending to AI provider
+- Configurable keyword model (default: MiniMax for cost efficiency) generates time-aware multi-keyword queries
+- Self-hosted SearXNG with adaptive result count (15-30)
+- Default one-month time range with all-time fallback
+- Deduplication and freshness-prioritized context injection
+
+### Security
+
+- **Auth**: 4 modes -- Direct Key, HMAC Signature, Ephemeral Token, HMAC + Token combo (key never transmitted)
+- **PII detection**: 20+ regex patterns covering emails, phone numbers, SSNs, credit cards. Optional Ollama-based semantic analysis
+- **Secret masking**: `[SEC_xxx]` placeholders in LLM context, originals restored only for server-side tool execution
+- **Command guard**: 17 rules block dangerous shell commands in AI output before tool execution
+- **SSRF protection**: private IP ranges and internal hostnames blocked at DNS resolution layer
+- **Tool injection prevention**: user messages scanned for embedded tool tags to prevent prompt injection
+- **Per-project limits**: RPM rate limiting, daily/monthly budget caps, IP allowlist (up to 50 CIDRs), model allowlist, anomaly auto-suspend (5x traffic spike trigger)
+- **Audit trail**: all security events and API calls logged to PocketBase (`security_events`, `audit_log`)
+- **MFA**: TOTP-based two-factor auth for admin dashboard (Google Authenticator / Authy compatible)
+
+### Observability
+
+- Full-chain tracing with visualization dashboard (`/traces.html`)
+- 20 Loki alert rules with Chinese diagnostic messages and fix suggestions
+- Telegram multi-channel alerts: critical (immediate delivery) and warning (batched)
+- Structured JSON logging with in-memory buffer (configurable, default 1200 entries)
+- Error aggregation reports via `npm run logs:errors`
+- Alertmanager UI at `http://localhost:19093`
+
+### MCP Gateway
+
+MCPJungle + Playwright for browser automation and external tool server integration. Enables LumiGate to call external MCP-compatible tool servers and orchestrate browser-based workflows.
 
 ## Providers
 
@@ -496,49 +261,7 @@ curl -s "http://localhost:9471/api/domains/lc/schema"
 | Doubao | Collector | Doubao Seed 2.0 Pro/Lite/Mini |
 | Qwen | Collector | Qwen 3.5 Plus, Qwen 3 Max |
 
-Collector providers use headless Chrome via CDP. Admin logs in once through VNC; Chrome maintains the session.
-
-## Features
-
-### Clean Chat Proxy
-
-Single `POST /v1/chat` endpoint for all providers. Tool tags are intercepted and executed server-side — clients never see them. Works with any model, no native function calling required.
-
-The SSE stream delivers three event types: `data` for clean text chunks (render directly), `tool_status` for progress hints with a fade-in animation and typing dots indicator, and `file_download` for file metadata that the client renders as a download card. Clients only need a standard EventSource — no tool parsing, no provider-specific handling.
-
-### Tool Execution
-
-AI models trigger tools via text tags (`[TOOL:name]{params}[/TOOL]`). The server intercepts, executes, and streams results back as clean events.
-
-Three tag formats are supported: DSML (`[TOOL:...]...[/TOOL]`), XML (`<tool name="...">...</tool>`), and Anthropic native `tool_use` blocks. The server normalizes all formats before execution, so any model can use tools regardless of its native calling convention.
-
-Available tools: `generate_spreadsheet` (Excel with formulas), `generate_document` (Word), `generate_presentation` (PowerPoint), `use_template` (224 professional templates across business, finance, HR, and project management), `web_search`, `parse_file`, `transcribe_audio`, `vision_analyze`, `code_run`.
-
-Tool injection prevention is enforced: user-supplied content is scanned for embedded tool tags to prevent prompt-injection attacks that attempt to trigger unauthorized tool calls.
-
-### Smart Web Search
-
-Contextual web search is integrated into the chat pipeline. When enabled, the server analyzes the user's message and auto-detects whether a search is needed before sending to the AI provider. A configurable keyword model (default: MiniMax for cost efficiency) generates time-aware multi-keyword queries that include the current year for freshness. Results are fetched from a self-hosted SearXNG instance with a default one-month time range (falls back to all-time if too few results), deduplicated, and injected as context into the AI prompt with instructions to prioritize recent results. Auto-search can be toggled on or off per request or globally via the dashboard.
-
-### LumiChat
-
-Built-in chat UI at `/lumichat.html`. SSE streaming with real-time markdown rendering, syntax highlighting, and LaTeX math support. Supports all 8 providers with per-model switching.
-
-Key capabilities: slash commands for quick actions, 10 built-in system presets (Coder, Professional, Translator, etc.) with custom preset support (up to 8), persistent session management with conversation history, mid-stream messaging (new messages queue without aborting the current stream), file attachments with drag-and-drop, voice input via browser speech API, and a rotating tips bar on the welcome screen. PocketBase-backed auth with JWT token refresh, mobile-responsive layout, dark/light theme.
-
-### Security
-
-- **Auth**: HMAC + ephemeral token exchange (key never transmitted). Supports four auth modes — see [Auth Modes](#auth-modes) below.
-- **PII detection**: 20+ regex patterns covering emails, phone numbers, SSNs, credit cards, and more. Optional Ollama-based semantic analysis catches patterns that regex alone misses.
-- **Secret masking**: Detected secrets are replaced with `[SEC_xxx]` placeholders before reaching the LLM. Original values are restored only when executing tools server-side, so the model never sees raw secrets.
-- **Command guard**: 17 rules block dangerous shell commands (rm -rf, curl pipes, reverse shells, etc.) in AI-generated output before they reach tool execution.
-- **SSRF protection**: Private IP ranges and internal hostnames are blocked at the DNS resolution layer, preventing tools like `web_search` or `code_run` from accessing internal services.
-- **Per-project limits**: RPM rate limiting, daily/monthly budget caps, IP allowlist (up to 50 CIDRs), model allowlist, and anomaly auto-suspend (triggers on 5x traffic spikes).
-- **Audit trail**: All security events and API calls are logged to PocketBase collections (`security_events`, `audit_log`) for compliance and forensics.
-
-### MCP Gateway
-
-MCPJungle + Playwright for browser automation and external tool server integration. Enables LumiGate to call external MCP-compatible tool servers and orchestrate browser-based workflows.
+Collector providers (Kimi, Doubao, Qwen) use headless Chrome via CDP. Admin logs in once through VNC; Chrome maintains the session. Cookies persist across container restarts. Session health is shown on the dashboard.
 
 ## Auth Modes
 
@@ -546,8 +269,14 @@ MCPJungle + Playwright for browser automation and external tool server integrati
 |------|-----------|----------|
 | Direct Key | `X-Project-Key` header | Server-to-server |
 | HMAC Signature | Client signs request; key never transmitted | Mobile apps |
-| Ephemeral Token | Short-lived token via `/v1/token` | Session-bound access |
+| Ephemeral Token | Short-lived token via `POST /v1/token` | Session-bound access |
 | HMAC + Token | HMAC to exchange, token for requests | **Client apps (recommended)** |
+
+### Auth Headers / Cookies
+
+- Platform API: `X-Project-Key` (or HMAC/token flow)
+- Admin API: `admin_token` cookie (or `X-Admin-Token`)
+- LumiChat API: `lc_token` cookie
 
 ## Deploy Modes
 
@@ -555,25 +284,254 @@ MCPJungle + Playwright for browser automation and external tool server integrati
 |------|---------|----------|
 | Lite | usage, chat, backup | Personal use |
 | Enterprise | All 9 modules | Teams, compliance |
-| Custom | Pick & choose via `MODULES` env var | Tailored setups |
+| Custom | Pick and choose via `MODULES` env var | Tailored setups |
 
-### Modular Design
+### Module System
 
-LumiGate uses a runtime module system. Each module can be enabled or disabled without restarting — data files are always loaded, modules only gate their endpoints. Hot-switch between modes via the dashboard or API.
+Runtime module system. Each module can be enabled or disabled without restarting -- data files are always loaded, modules only gate their endpoints.
 
 | Module | Purpose |
 |--------|---------|
-| `usage` | Request counting, per-provider/per-model usage tracking, auto-pruning at 365 days |
-| `budget` | Per-project spend enforcement with daily or monthly caps in USD |
-| `multikey` | Multiple API keys per provider with automatic rotation and failover |
-| `users` | User management, approval flow for new registrations, role-based access |
-| `audit` | Structured event logging to PocketBase for compliance and forensic review |
+| `usage` | Request counting, per-provider/model tracking, auto-pruning at 365 days |
+| `budget` | Per-project spend enforcement with daily or monthly caps |
+| `multikey` | Multiple API keys per provider with rotation and failover |
+| `users` | User management, approval flow, role-based access |
+| `audit` | Structured event logging to PocketBase |
 | `metrics` | Latency histograms, error rates, provider health scoring |
-| `backup` | Scheduled data backup and restore, PocketBase sync for collector tokens |
-| `smart` | Intelligent routing — model fallback, cost optimization, load balancing |
+| `backup` | Scheduled backup and restore, PocketBase sync for collector tokens |
+| `smart` | Intelligent routing -- model fallback, cost optimization, load balancing |
 | `chat` | LumiChat UI serving and session management |
 
-Use `mod(name)` in code to check if a module is active, or `requireModule(name)` as Express middleware to gate routes.
+## API Reference
+
+### Quick Example
+
+```bash
+curl -N -X POST http://localhost:9471/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-Project-Key: $KEY" \
+  -d '{
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "messages": [{"role": "user", "content": "Generate Excel: quarterly sales"}],
+    "stream": true
+  }'
+```
+
+Optional fields: `web_search` (bool, auto-detected if omitted), `tools` (bool, default true), `specialist_mode` (string), `specialist_category` (string).
+
+### Public / System
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/health` | Health + module/provider detail for admin |
+| GET | `/providers` | Provider availability |
+| GET | `/models/:provider` | Models for provider |
+| GET | `/collector/health` | Collector runtime status |
+
+### Gateway / Platform APIs
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/v1/chat` | Unified streaming chat API |
+| POST | `/platform/parse` | File parsing (PDF/XLSX/DOCX/PPTX/HTML/TXT/MD) |
+| POST | `/platform/audio/transcribe` | Audio transcription (native path) |
+| POST | `/platform/audio/transcriptions` | OpenAI-compatible transcription |
+| POST | `/platform/vision/analyze` | Vision/image analysis |
+| POST | `/platform/code/run` | Code runtime execution |
+| POST | `/platform/sandbox/exec` | CLI sandbox execution |
+| POST | `/platform/tools/execute` | Server-side tool execution |
+| POST | `/platform/lumigent/execute` | Lumigent tool execution |
+| GET | `/platform/lumigent/tools` | Lumigent tool catalog |
+| GET | `/platform/lumigent/traces` | Lumigent execution traces |
+| POST | `/v1/token` | Ephemeral token issuance |
+| POST | `/v1/otp/send` | OTP send |
+| POST | `/v1/otp/verify` | OTP verify |
+
+### Knowledge Base
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/v1/knowledge` | Create knowledge base |
+| GET | `/v1/knowledge` | List knowledge bases |
+| GET | `/v1/knowledge/:id` | Get KB detail + stats |
+| DELETE | `/v1/knowledge/:id` | Delete knowledge base |
+| POST | `/v1/knowledge/:id/documents` | Add document (text or file, up to 50MB) |
+| GET | `/v1/knowledge/:id/documents` | List documents |
+| DELETE | `/v1/knowledge/:id/documents/:docId` | Remove document |
+| POST | `/v1/knowledge/:id/search` | Search within one KB |
+| POST | `/v1/knowledge/search` | Search across multiple KBs |
+
+### Workflows
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/v1/workflows` | Create workflow |
+| GET | `/v1/workflows` | List workflows |
+| GET | `/v1/workflows/:id` | Get workflow detail |
+| PUT | `/v1/workflows/:id` | Update workflow |
+| DELETE | `/v1/workflows/:id` | Delete workflow |
+| POST | `/v1/workflows/:id/run` | Execute workflow |
+| POST | `/v1/workflows/:id/resume` | Resume paused workflow (after human approval) |
+| GET | `/v1/tasks` | List task queue |
+| GET | `/v1/tasks/:id` | Get task status |
+
+### Traces / Observability
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/v1/traces` | List traces (filter by userId, type, status, date range) |
+| GET | `/v1/traces/stats` | Aggregate stats (groupBy, date range) |
+| GET | `/v1/traces/days` | List available trace days |
+| GET | `/v1/traces/:id` | Get trace detail |
+
+### User Memory
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/lc/memory/recall` | Recall memories for current user |
+| POST | `/lc/memory/ingest` | Manually ingest a memory fact |
+| GET | `/fn/memory/profile/:userId` | FurNote pet profile retrieval |
+| POST | `/fn/memory/profile/:userId` | FurNote pet profile update |
+
+### HKEX / Template Fill
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/v1/hkex/download` | Download HKEX announcements via Chrome CDP |
+| POST | `/v1/tools/fill-template` | Auto-fill Word/Excel templates from data |
+
+### Admin Auth / MFA
+
+| Method | Path |
+|--------|------|
+| POST | `/admin/login` |
+| POST | `/admin/mfa/verify` |
+| POST | `/admin/logout` |
+| GET | `/admin/auth` |
+| POST | `/admin/mfa/setup` |
+| POST | `/admin/mfa/confirm` |
+| DELETE | `/admin/mfa` |
+| GET | `/admin/mfa/qr` |
+| GET | `/admin/mfa/status` |
+
+### Admin Control Plane
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/admin/projects` | List projects |
+| POST | `/admin/projects` | Create project |
+| PUT | `/admin/projects/:name` | Update project |
+| DELETE | `/admin/projects/:name` | Delete project |
+| POST | `/admin/projects/:name/regenerate` | Regenerate project key |
+| GET | `/admin/usage` | Usage data |
+| GET | `/admin/usage/summary` | Usage summary |
+| GET | `/admin/settings` | Global settings |
+| PUT | `/admin/settings` | Update settings |
+| GET | `/admin/metrics` | Metrics data |
+| GET | `/admin/audit` | Audit log |
+| POST | `/admin/backup` | Trigger backup |
+| GET | `/admin/backups` | List backups |
+| POST | `/admin/restore/:name` | Restore backup |
+| GET | `/admin/keys/:provider` | List API keys |
+| POST | `/admin/keys/:provider` | Add API key |
+| PUT | `/admin/keys/:provider/reorder` | Reorder keys |
+| PUT | `/admin/keys/:provider/:keyId` | Update key |
+| DELETE | `/admin/keys/:provider/:keyId` | Delete key |
+| GET | `/admin/lc-users` | LumiChat user management |
+| GET | `/admin/lc-subscriptions` | Subscription management |
+| GET | `/admin/collector/status` | Collector status |
+
+### Domain APIs (Config-driven)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/domains/:domain/schema` | Domain schema/capabilities |
+| GET | `/api/domains/:domain/:collection` | Generic list with Excel-style filters |
+| POST | `/api/domains/:domain/:collection` | Generic create |
+| PATCH | `/api/domains/:domain/:collection/:id` | Generic update |
+| DELETE | `/api/domains/:domain/:collection/:id` | Generic delete (soft/hard policy) |
+
+Query contract: `filter[field][op]=value` (supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`), `sort=field:asc,field2:desc`, `perPage`, `include_deleted=1`, `trash_only=1`.
+
+### LumiChat Auth / Data
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/lc/auth/login` | Login |
+| POST | `/lc/auth/register` | Register |
+| POST | `/lc/auth/logout` | Logout |
+| POST | `/lc/auth/refresh` | Refresh token |
+| GET | `/lc/auth/me` | Current user profile |
+| PATCH | `/lc/auth/profile` | Update profile |
+| GET | `/lc/sessions` | List sessions |
+| POST | `/lc/sessions` | Create session |
+| DELETE | `/lc/sessions/:id` | Delete session |
+| GET | `/lc/sessions/:id/messages` | Get messages |
+| POST | `/lc/messages` | Save message |
+| POST | `/lc/files` | Upload file |
+| GET | `/lc/files/serve/:id` | Serve file |
+| GET | `/lc/providers` | Provider list for UI |
+| GET | `/lc/models/:provider` | Model list for UI |
+| GET | `/lc/user/tier` | User tier info |
+| GET | `/lc/user/apikeys` | BYOK key management |
+
+## Docker Services
+
+| Service | Container | Port | Purpose |
+|---------|-----------|------|---------|
+| lumigate | lumigate | 9471 (internal) | Main gateway + Collector Chrome |
+| nginx | lumigate-nginx | 9471 (exposed) | Reverse proxy + health fallback |
+| pocketbase | lumigate-pocketbase | 8090 | Database (users, sessions, files, audit) |
+| file-parser | lumigate-file-parser | 3100 | File parsing (PDF/XLSX/DOCX/PPTX) |
+| doc-gen | lumigate-doc-gen | 3101 | Document generation (Excel/Word/PPT) |
+| searxng | lumigate-searxng | 8080 | Web search engine |
+| whisper | lumigate-whisper | 17863 | Speech-to-text |
+| qdrant | lumigate-qdrant | 6333 | Vector search (memory + RAG) |
+| gotenberg | lumigate-gotenberg | 3000 | Office-to-PDF conversion (legacy .xls) |
+| cloudflare | cloudflare-lumigate | -- | Tunnel to public domain |
+
+Optional services (enabled via Docker profiles):
+
+| Service | Container | Port | Profile | Purpose |
+|---------|-----------|------|---------|---------|
+| ragflow | lumigate-ragflow | 9380 | `rag` | RAG engine (primary) |
+| docling-parser | lumigate-docling | 3102 | `enhanced` | Enhanced PDF parsing |
+| loki | lumigate-loki | 19410 | `observability` | Log aggregation |
+| promtail | lumigate-promtail | -- | `observability` | Log shipper |
+| alertmanager | lumigate-alertmanager | 19093 | `observability` | Alert routing + Telegram |
+
+Enable optional profiles:
+
+```bash
+docker compose --profile rag up -d --build           # RAGFlow
+docker compose --profile enhanced up -d --build       # Docling parser
+docker compose --profile observability up -d --build  # Loki + Promtail + Alertmanager
+```
+
+## Observability Stack
+
+Enable the optional Loki + Promtail + Alertmanager stack:
+
+```bash
+docker compose --profile observability up -d loki promtail alertmanager
+```
+
+20 preloaded Loki alert rules with Chinese diagnostic messages and fix suggestions.
+
+Telegram push (optional):
+1. Add to `.env`: `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID`
+2. Restart: `docker compose --profile observability restart alertmanager`
+
+Terminal alert watch:
+```bash
+./scripts/watch_alerts.sh
+```
+
+Error aggregation report:
+```bash
+npm run logs:errors
+```
 
 ## Configuration
 
@@ -581,12 +539,12 @@ Most settings are configurable through the Dashboard (Settings page) without edi
 
 | Setting | Description |
 |---------|-------------|
-| **Search keyword model** | Which provider/model generates search keywords (default: MiniMax for cost efficiency) |
-| **Auto search** | Toggle automatic web search detection on or off globally |
-| **Tool injection guard** | Enable/disable scanning of user messages for embedded tool tags |
-| **SMTP settings** | Configure outbound email for user approval notifications |
-| **Approval flow** | Require admin approval for new user registrations before granting access |
-| **Deploy mode** | Switch between Lite, Enterprise, and Custom module sets at runtime |
+| Search keyword model | Which provider/model generates search keywords (default: MiniMax) |
+| Auto search | Toggle automatic web search detection |
+| Tool injection guard | Enable/disable scanning of user messages for embedded tool tags |
+| SMTP settings | Outbound email for user approval notifications |
+| Approval flow | Require admin approval for new user registrations |
+| Deploy mode | Switch between Lite, Enterprise, and Custom module sets at runtime |
 
 Environment variables (`.env`):
 
@@ -595,26 +553,23 @@ DEPLOY_MODE=lite                  # lite | enterprise | custom
 MODULES=usage,chat,audit          # only used when DEPLOY_MODE=custom
 ADMIN_SECRET=your-secret          # dashboard admin password
 PB_URL=http://pocketbase:8090     # PocketBase instance URL
-PB_ADMIN_EMAIL=admin@example.com  # PB superuser email (for admin PB write paths)
-PB_ADMIN_PASSWORD=change-me        # PB superuser password
+PB_ADMIN_EMAIL=admin@example.com  # PB superuser email
+PB_ADMIN_PASSWORD=change-me       # PB superuser password
+QDRANT_URL=http://lumigate-qdrant:6333  # Qdrant vector DB
+RAGFLOW_API_KEY=...               # RAGFlow API key (if using --profile rag)
 CF_TUNNEL_TOKEN_LUMIGATE=...      # Cloudflare tunnel token (optional)
 ```
 
-## Collector Providers
+## File Parsing Priority
 
-Kimi, Doubao, and Qwen do not offer standard API key access. LumiGate uses a Collector approach to proxy these providers:
+Parsing priority and behavior:
+- Excel (`.xls`/`.xlsx`) -- first priority. Direct parse via file-parser; legacy `.xls` falls back to Gotenberg (convert to PDF) then re-parses.
+- PDF -- second priority.
+- Word (`.docx`/`.doc`) -- third.
+- PPTX -- lower priority.
 
-- **Headless Chrome via CDP**: A Chrome instance runs alongside LumiGate, controlled through the Chrome DevTools Protocol. Requests are forwarded as if from a logged-in browser session.
-- **Cookie persistence**: Authentication cookies are saved to disk and survive container restarts. No need to re-login after a reboot.
-- **Auto re-login flow**: If a session expires, the admin is prompted to log in again through a VNC-accessible browser window. Once authenticated, the new cookies are captured and persisted automatically.
-- **Session sharing**: A single authenticated session is shared across all projects and users. Collector tokens are backed up to PocketBase for redundancy.
-
-Collector providers appear in the Providers table on the dashboard with a distinct status indicator showing session health.
+PocketBase file metadata fields: `original_name`, `ext`, `kind`, `parse_status`, `parse_error`, `parsed_at`.
 
 ## License
 
 MIT
-
-## Planning Docs
-
-- PocketBase convergence plan: `docs/pb-converge-into-lumigate-plan.md`
