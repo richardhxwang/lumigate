@@ -5099,7 +5099,7 @@ router.use("/v1/chat", require("./chat")({
   LC_URL_FETCH_MEMORY_MAX_ITEMS,
   LC_URL_FETCH_MEMORY_MAX_CHARS,
   FILE_PARSER_URL,
-  _collector: () => _collector,
+  _collector,
   touchLcSession,
   clampPbMessageContent,
   getPbAdminToken,
@@ -5219,7 +5219,7 @@ router.get("/admin/upgrade-requests", adminAuth, requireRole("root", "admin"), a
 });
 
 // POST /admin/upgrade-requests/:settingsId/approve — approve upgrade
-router.post("/admin/upgrade-requests/:settingsId/approve", requireRole("root"), async (req, res) => {
+router.post("/admin/upgrade-requests/:settingsId/approve", adminAuth, requireRole("root"), async (req, res) => {
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
@@ -5240,7 +5240,7 @@ router.post("/admin/upgrade-requests/:settingsId/approve", requireRole("root"), 
 });
 
 // POST /admin/upgrade-requests/:settingsId/reject — reject upgrade
-router.post("/admin/upgrade-requests/:settingsId/reject", requireRole("root"), async (req, res) => {
+router.post("/admin/upgrade-requests/:settingsId/reject", adminAuth, requireRole("root"), async (req, res) => {
   const pbToken = await getPbAdminToken();
   if (!pbToken) return res.status(500).json({ error: "PB admin auth failed" });
   try {
@@ -5374,5 +5374,13 @@ router.delete("/lc/user/apikeys/:id", requireLcAuth, async (req, res) => {
     LC_URL_FETCH_MEMORY_MAX_CHARS,
     // File parser URL
     FILE_PARSER_URL,
+    // Soft-delete & collection config (used by admin.js via _lcExports)
+    isLcSoftDeleteEnabled,
+    withSoftDeleteFilters,
+    restoreSoftDeletedRecord,
+    listReferencingRecords,
+    assertNoBlockingReferences,
+    remapLcProjectReferences,
+    LC_COLLECTION_CONFIG,
   };
 };

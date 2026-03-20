@@ -1927,5 +1927,5 @@ module.exports = function createAdminRouter(deps) {
     }
   });
 
-  return router;
+  return { router, saveCollectorCookies };
 };

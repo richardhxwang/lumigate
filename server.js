@@ -1763,7 +1763,7 @@ const _loginStateRef = { current: { active: false, provider: null, status: 'idle
 // ============================================================
 // Admin routes — extracted to routes/admin.js
 // ============================================================
-app.use(require('./routes/admin')({
+const _adminResult = require('./routes/admin')({
   // Middleware & limiters
   adminLimiter,
   loginLimiter,
@@ -1886,7 +1886,8 @@ app.use(require('./routes/admin')({
   remapLcProjectReferences: (...a) => _lcExports.remapLcProjectReferences?.(...a),
   get LC_COLLECTION_CONFIG() { return _lcExports.LC_COLLECTION_CONFIG; },
   get lcTierCache() { return lcTierCache; },
-}));
+});
+app.use(_adminResult.router);
 
 // Late-binding container for lumichat.js exports (populated after mount below)
 let _lcExports = {};
@@ -3245,6 +3246,7 @@ const _lcResult = require('./routes/lumichat')({
   requireLcAuth,
   requireFnAuth: undefined, // defined inside lumichat.js (FurNote auth — not yet wired externally)
   requireRole,
+  adminAuth,
   isAdminRequest,
   lcAuthLimiter,
   lcRegisterLimiter,
@@ -3268,7 +3270,7 @@ const _lcResult = require('./routes/lumichat')({
   collectorHealth,
   analyzeFinancialStatements,
   normalizeIP,
-  saveCollectorCookies: undefined, // defined inside admin.js — not exposed externally
+  saveCollectorCookies: (...a) => _adminResult.saveCollectorCookies?.(...a),
   sendAdminNotify,
   _getLoginState: () => _loginStateRef.current,
   _setLoginState: (v) => { _loginStateRef.current = v; },
@@ -3294,53 +3296,8 @@ const _lcResult = require('./routes/lumichat')({
 app.use(_lcResult.router);
 _lcExports = _lcResult; // populate late-binding container for admin routes
 
-// ============================================================
-// Clean Chat Proxy — POST /v1/chat (extracted to routes/chat.js)
-// ============================================================
-app.use("/v1/chat", require('./routes/chat')({
-  apiLimiter,
-  safeEqual,
-  INTERNAL_CHAT_KEY,
-  getSessionRole,
-  parseCookies,
-  validateLcTokenPayload,
-  getLcUserTier,
-  projects,
-  projectKeyIndex,
-  ephemeralTokens,
-  verifyHmacSignature,
-  selectApiKey,
-  checkBudgetReset,
-  PROVIDERS,
-  COLLECTOR_SUPPORTED,
-  getProviderAccessMode,
-  hasCollectorToken,
-  getCollectorCredentials,
-  setCollectorHealth,
-  lumigentRuntime,
-  settings,
-  recordUsage,
-  log,
-  lcPbFetch,
-  lcNowIso: _lcResult.lcNowIso,
-  lcSupportsField: _lcResult.lcSupportsField,
-  validPbId,
-  normalizeAttachmentContextItems: _lcResult.normalizeAttachmentContextItems,
-  shouldAutoContinueFinishReason,
-  getContinuationPrompt,
-  AUTO_CONTINUE_MAX_PASSES,
-  SEARXNG_URL: _lcResult.SEARXNG_URL || process.env.SEARXNG_URL || "http://lumigate-searxng:8080",
-  lcUrlFetchMemory: _lcResult.lcUrlFetchMemory,
-  LC_URL_FETCH_MEMORY_MAX_ITEMS: _lcResult.LC_URL_FETCH_MEMORY_MAX_ITEMS,
-  LC_URL_FETCH_MEMORY_MAX_CHARS: _lcResult.LC_URL_FETCH_MEMORY_MAX_CHARS,
-  FILE_PARSER_URL,
-  _collector: () => { try { return require("./collector"); } catch { return null; } },
-  touchLcSession,
-  clampPbMessageContent,
-  getPbAdminToken,
-  PB_URL,
-}));
-
+// NOTE: /v1/chat is mounted inside lumichat.js (routes/chat.js required there).
+// Do NOT duplicate-mount here — lumichat.js's mount handles it.
 
 // ── Agent Platform API routes ─────────────────────────────────────────────────
 // Agent Platform API — requires project key or admin session
