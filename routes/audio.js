@@ -33,19 +33,27 @@ const upload = multer({
   },
 });
 
-function buildMultipartBody({ fieldName, buffer, filename, contentType }) {
+function buildMultipartBody({ fieldName, buffer, filename, contentType, language }) {
   const boundary = "----WhisperBoundary" + crypto.randomBytes(8).toString("hex");
   const safeName = sanitizeFilename(filename || "audio.wav");
-  const header = Buffer.from(
+  const parts = [];
+  // Audio file part
+  parts.push(Buffer.from(
     `--${boundary}\r\n` +
     `Content-Disposition: form-data; name="${fieldName}"; filename="${safeName}"\r\n` +
     `Content-Type: ${contentType}\r\n\r\n`
-  );
-  const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-  return {
-    boundary,
-    body: Buffer.concat([header, buffer, footer]),
-  };
+  ));
+  parts.push(buffer);
+  // Language hint — force simplified Chinese output
+  if (language) {
+    parts.push(Buffer.from(
+      `\r\n--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="language"\r\n\r\n` +
+      language
+    ));
+  }
+  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+  return { boundary, body: Buffer.concat(parts) };
 }
 
 function normalizeEndpoint(endpoint) {
@@ -54,8 +62,8 @@ function normalizeEndpoint(endpoint) {
   return v.startsWith("/") ? v : `/${v}`;
 }
 
-async function whisperRequest({ endpoint, fieldName, buffer, filename, contentType }) {
-  const { boundary, body } = buildMultipartBody({ fieldName, buffer, filename, contentType });
+async function whisperRequest({ endpoint, fieldName, buffer, filename, contentType, language }) {
+  const { boundary, body } = buildMultipartBody({ fieldName, buffer, filename, contentType, language });
   const res = await fetch(`${WHISPER_URL}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
@@ -86,7 +94,7 @@ async function forwardToWhisper(buffer, filename, contentType) {
     const preferredField = configuredField || (endpoint === "/asr" ? "audio_file" : "file");
     const fieldCandidates = Array.from(new Set([preferredField, "audio_file", "file"]));
     for (const fieldName of fieldCandidates) {
-      const { res, raw } = await whisperRequest({ endpoint, fieldName, buffer, filename, contentType });
+      const { res, raw } = await whisperRequest({ endpoint, fieldName, buffer, filename, contentType, language: "zh" });
       if (res.ok) {
         if (!raw.trim()) return { text: "" };
         try {
