@@ -43,7 +43,7 @@ const results = [];
 const ALL_PROVIDERS = [
   { name: "openai",    models: ["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4o-mini"] },
   { name: "anthropic", models: ["claude-haiku-4-5-20251001", "claude-3-5-haiku-20241022"] },
-  { name: "gemini",    models: ["gemini-2.5-flash-lite", "gemini-2.0-flash"] },
+  { name: "gemini",    models: ["gemini-2.5-flash-lite", "gemini-2.5-flash"] },
   { name: "deepseek",  models: ["deepseek-chat"] },
   { name: "kimi",      models: ["moonshot-v1-auto", "moonshot-v1-8k"] },
   { name: "doubao",    models: ["doubao-1-5-lite-32k", "doubao-1-5-pro-32k"] },
@@ -1079,7 +1079,7 @@ async function runCategory4(page) {
   const financialProviders = [
     { name: "deepseek",  models: ["deepseek-chat"] },
     { name: "openai",    models: ["gpt-4.1-nano", "gpt-4.1-mini"] },
-    { name: "gemini",    models: ["gemini-2.5-flash-lite", "gemini-2.0-flash"] },
+    { name: "gemini",    models: ["gemini-2.5-flash-lite", "gemini-2.5-flash"] },
     { name: "anthropic", models: ["claude-haiku-4-5-20251001"] },
     { name: "qwen",      models: ["qwen-plus", "qwen-turbo"] },
   ];

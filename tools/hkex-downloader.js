@@ -1,16 +1,16 @@
 "use strict";
 
 /**
- * tools/hkex-downloader.js — Download HKEX announcements for a company via Chrome CDP.
+ * tools/hkex-downloader.js — Download HKEX announcements via direct HTTP API.
  *
- * Uses the Collector's Chrome instance (Playwright over CDP) to search
- * HKEX news for filings, download PDFs, and bundle them into a ZIP.
+ * Uses HKEX's titleSearchServlet.do JSON API to search for filings,
+ * downloads PDFs via direct HTTP, and bundles them into a ZIP.
+ * No browser/Playwright dependency required.
  *
  * Input:  { stock_code, date_from?, date_to?, doc_type? }
  * Output: { files: [{ name, url, date, type, local_path }], zip_path, zip_url }
  */
 
-const { chromium } = require("playwright-core");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -19,84 +19,58 @@ const { promisify } = require("node:util");
 
 const execFileAsync = promisify(execFile);
 
-const CDP_HOST = process.env.CDP_HOST || "127.0.0.1";
-const CDP_PORT = process.env.CDP_PORT || 9223;
 const DATA_DIR = path.join(__dirname, "..", "data", "hkex-filings");
-const HKEX_SEARCH_URL = "https://www1.hkexnews.hk/search/titlesearch.xhtml";
-const TIMEOUT_MS = 60_000;
+const HKEX_API_URL = "https://www1.hkexnews.hk/search/titleSearchServlet.do";
+const HKEX_STOCK_LIST_URL = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_e.json";
+const HKEX_BASE_URL = "https://www1.hkexnews.hk";
 
-// Reuse singleton CDP connection (same pattern as collector/adapters/browser.js)
-let _browser = null;
-let _connecting = null;
+// Cache the stock list in memory (18k entries, ~2MB)
+let _stockList = null;
+let _stockListTime = 0;
+const STOCK_LIST_TTL = 24 * 60 * 60 * 1000; // refresh daily
 
-async function getCDPBrowser() {
-  if (_browser) {
-    try {
-      // Verify connection is still alive
-      _browser.contexts();
-      return _browser;
-    } catch {
-      _browser = null;
-    }
+/**
+ * Fetch and cache the HKEX active stock list.
+ * Returns a Map of stockCode (e.g. "00291") → internal stockId (e.g. 513).
+ */
+async function getStockList() {
+  if (_stockList && Date.now() - _stockListTime < STOCK_LIST_TTL) {
+    return _stockList;
   }
-  if (_connecting) return _connecting;
-
-  _connecting = (async () => {
-    const cdpUrl = `http://${CDP_HOST}:${CDP_PORT}`;
-    let wsUrl = null;
-
-    // Try /json/version to get the WebSocket URL
-    for (let i = 0; i < 3; i++) {
-      try {
-        const res = await fetch(`${cdpUrl}/json/version`, {
-          signal: AbortSignal.timeout(2000),
-          headers: { Host: `127.0.0.1:${CDP_PORT}` },
-        });
-        const data = await res.json();
-        wsUrl = data.webSocketDebuggerUrl;
-        if (wsUrl) {
-          wsUrl = wsUrl.replace("127.0.0.1", CDP_HOST).replace("localhost", CDP_HOST);
-          break;
-        }
-      } catch {}
-      await new Promise((r) => setTimeout(r, 500));
-    }
-
-    if (!wsUrl) wsUrl = `ws://${CDP_HOST}:${CDP_PORT}`;
-
-    try {
-      _browser = await chromium.connectOverCDP(wsUrl);
-    } catch (e) {
-      _connecting = null;
-      throw new Error(
-        `Cannot connect to Chrome CDP at ${cdpUrl}. ` +
-          `Ensure Collector Chrome is running (cd collector && node login.js start). ` +
-          `Original: ${e.message}`
-      );
-    }
-
-    _browser.on("disconnected", () => {
-      _browser = null;
-    });
-    _connecting = null;
-    return _browser;
-  })();
-
-  return _connecting;
+  const res = await fetch(HKEX_STOCK_LIST_URL, {
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      Referer: "https://www1.hkexnews.hk/search/titlesearch.xhtml",
+    },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch HKEX stock list: ${res.status}`);
+  const data = await res.json();
+  // data is an array of { i: internalId, c: "00291", n: "CHINA RES BEER", s: sortKey }
+  const map = new Map();
+  for (const item of data) {
+    map.set(item.c, item.i);
+  }
+  _stockList = map;
+  _stockListTime = Date.now();
+  return map;
 }
 
 /**
- * Map doc_type filter to HKEX category IDs.
- * HKEX uses numeric category codes in their search form.
+ * Map doc_type filter to HKEX headline category codes.
+ * Returns { t1code, t2code, title } for the search API.
  */
 function getDocTypeFilter(docType) {
   const dt = String(docType || "all").toLowerCase();
-  if (dt === "annual" || dt === "annual_report") return "annual";
-  if (dt === "interim" || dt === "interim_report") return "interim";
-  if (dt === "results" || dt === "financial_results") return "results";
-  if (dt === "circular") return "circular";
-  if (dt === "prospectus") return "prospectus";
-  return "all";
+  // t1code=40000 is "Financial Statements/ESG Information"
+  // t2code=40100 is "Annual Report", 40200 is "Interim/Half-Year Report"
+  // Using title search is more reliable than category filters for stock-specific queries
+  if (dt === "annual" || dt === "annual_report") return { t1code: "-2", t2code: "-2", title: "annual" };
+  if (dt === "interim" || dt === "interim_report") return { t1code: "-2", t2code: "-2", title: "interim" };
+  if (dt === "results" || dt === "financial_results") return { t1code: "-2", t2code: "-2", title: "results" };
+  if (dt === "circular") return { t1code: "20000", t2code: "-2", title: "" };
+  if (dt === "prospectus") return { t1code: "30000", t2code: "-2", title: "" };
+  return { t1code: "-2", t2code: "-2", title: "" };
 }
 
 /**
@@ -143,7 +117,7 @@ async function createZip(sourceDir, zipPath) {
 }
 
 /**
- * Main download function — searches HKEX and downloads announcements.
+ * Main download function — searches HKEX via direct HTTP API and downloads announcements.
  *
  * @param {object} input
  * @param {string} input.stock_code - e.g. "0291", "00291", "291"
@@ -159,224 +133,129 @@ async function downloadHKEXFilings(input) {
   }
   // Pad to 5 digits (HKEX format)
   const stockCode = rawCode.padStart(5, "0");
-  const dateFrom = input.date_from || "";
-  const dateTo = input.date_to || new Date().toISOString().slice(0, 10);
-  const docType = getDocTypeFilter(input.doc_type);
+  const dateFrom = input.date_from ? input.date_from.replace(/-/g, "") : "";
+  const dateTo = input.date_to
+    ? input.date_to.replace(/-/g, "")
+    : new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const docFilter = getDocTypeFilter(input.doc_type);
 
   // Ensure output directory
   const outputDir = path.join(DATA_DIR, stockCode);
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const browser = await getCDPBrowser();
-  const context = browser.contexts()[0] || (await browser.newContext());
-  const page = await context.newPage();
+  // Step 1: Resolve stock code to HKEX internal stockId
+  const stockList = await getStockList();
+  const stockId = stockList.get(stockCode);
+  if (!stockId) {
+    throw new Error(
+      `Stock code ${stockCode} not found in HKEX active stock list. ` +
+        `It may be delisted or invalid.`
+    );
+  }
+
+  // Step 2: Search via HKEX titleSearchServlet.do API
+  // If no dateFrom, default to 12 months back (HKEX max range for stock-specific queries)
+  const effectiveDateFrom =
+    dateFrom ||
+    (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 12);
+      return d.toISOString().slice(0, 10).replace(/-/g, "");
+    })();
+
+  const params = new URLSearchParams({
+    sortDir: "0",
+    sortByRecordCount: "100",
+    category: "0",
+    market: "SEHK",
+    searchType: "0",
+    documentType: "-1",
+    t1code: docFilter.t1code,
+    t2Gcode: "-2",
+    t2code: docFilter.t2code,
+    stockId: String(stockId),
+    from: effectiveDateFrom,
+    to: dateTo,
+    title: docFilter.title,
+    rowRange: "100",
+    lang: "EN",
+  });
+
+  const searchUrl = `${HKEX_API_URL}?${params}`;
+  const searchRes = await fetch(searchUrl, {
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      Referer: "https://www1.hkexnews.hk/search/titlesearch.xhtml",
+    },
+  });
+  if (!searchRes.ok) {
+    throw new Error(`HKEX search API returned ${searchRes.status}`);
+  }
+
+  const searchData = await searchRes.json();
+  const results = JSON.parse(searchData.result || "[]");
+
+  console.log(
+    `[hkex-downloader] Found ${results.length} results for stock ${stockCode} (id=${stockId})`
+  );
 
   const files = [];
 
-  try {
-    // Navigate to HKEX title search
-    await page.goto(HKEX_SEARCH_URL, {
-      waitUntil: "domcontentloaded",
-      timeout: TIMEOUT_MS,
-    });
+  // Step 3: Download each PDF
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const fileLink = r.FILE_LINK || "";
+    if (!fileLink) continue;
 
-    // Wait for the search form to be ready
-    await page.waitForSelector("#searchStockCode", { timeout: 15_000 }).catch(() => {});
+    const url = fileLink.startsWith("http") ? fileLink : HKEX_BASE_URL + fileLink;
+    const date = (r.DATE_TIME || "").split(" ")[0] || "unknown";
+    const title = (r.TITLE || `filing_${i + 1}`)
+      .replace(/&#x[0-9a-fA-F]+;/g, "_") // decode HTML entities
+      .replace(/[^a-zA-Z0-9\u4e00-\u9fff_\-]/g, "_")
+      .slice(0, 80);
+    const dateStr = date.replace(/\//g, "-");
+    const ext = fileLink.toLowerCase().endsWith(".pdf") ? ".pdf" : ".pdf";
+    const filename = `${dateStr}_${title}${ext}`;
+    const destPath = path.join(outputDir, filename);
 
-    // Fill in the stock code
-    const stockInput =
-      (await page.$("#searchStockCode")) || (await page.$('input[name="stockCode"]'));
-    if (stockInput) {
-      await stockInput.fill("");
-      await stockInput.fill(stockCode);
-    } else {
-      throw new Error("Could not find stock code input on HKEX search page");
-    }
-
-    // Fill date range if provided
-    if (dateFrom) {
-      const fromInput =
-        (await page.$("#txtDateFrom")) || (await page.$('input[name="from"]'));
-      if (fromInput) {
-        await fromInput.fill("");
-        await fromInput.fill(dateFrom.replace(/-/g, "/"));
-      }
-    }
-
-    if (dateTo) {
-      const toInput =
-        (await page.$("#txtDateTo")) || (await page.$('input[name="to"]'));
-      if (toInput) {
-        await toInput.fill("");
-        await toInput.fill(dateTo.replace(/-/g, "/"));
-      }
-    }
-
-    // Select document type from dropdown if not "all"
-    if (docType !== "all") {
-      try {
-        const typeSelect =
-          (await page.$("#selTIERTwo")) ||
-          (await page.$("select[name='tierTwo']")) ||
-          (await page.$(".tier-two select"));
-        if (typeSelect) {
-          // Try to find and select the matching option
-          const options = await typeSelect.$$("option");
-          for (const opt of options) {
-            const text = (await opt.textContent()).toLowerCase();
-            if (text.includes(docType)) {
-              const val = await opt.getAttribute("value");
-              if (val) await typeSelect.selectOption(val);
-              break;
-            }
-          }
-        }
-      } catch {}
-    }
-
-    // Click search button
-    const searchBtn =
-      (await page.$("#searchButton")) ||
-      (await page.$('a[href*="search"]')) ||
-      (await page.$("button.search-btn")) ||
-      (await page.$("a.search-btn"));
-    if (searchBtn) {
-      await searchBtn.click();
-    } else {
-      // Fallback: press Enter in the stock code field
-      if (stockInput) await stockInput.press("Enter");
-    }
-
-    // Wait for results to load
-    await page
-      .waitForSelector(".result-table tbody tr, .search-results tr, table.result tbody tr", {
-        timeout: 20_000,
-      })
-      .catch(() => {});
-
-    // Give extra time for dynamic content
-    await page.waitForTimeout(2000);
-
-    // Extract all result rows — PDF links + metadata
-    const results = await page.evaluate(() => {
-      const rows = [];
-      // Try multiple selectors for the results table
-      const selectors = [
-        ".result-table tbody tr",
-        "table.result tbody tr",
-        ".search-results tbody tr",
-        "#titleSearchResultPanel tr",
-        "table tr",
-      ];
-
-      let trElements = [];
-      for (const sel of selectors) {
-        const els = document.querySelectorAll(sel);
-        if (els.length > 0) {
-          trElements = Array.from(els);
-          break;
-        }
-      }
-
-      for (const tr of trElements) {
-        const links = tr.querySelectorAll("a[href]");
-        const tds = tr.querySelectorAll("td");
-        if (tds.length < 2) continue;
-
-        const date = tds[0]?.textContent?.trim() || "";
-        const title = tds[1]?.textContent?.trim() || tds[2]?.textContent?.trim() || "";
-
-        // Find PDF links
-        for (const link of links) {
-          const href = link.getAttribute("href") || "";
-          if (
-            href.endsWith(".pdf") ||
-            href.includes("/filing_") ||
-            href.includes("SEHK") ||
-            href.includes("listedco")
-          ) {
-            let fullUrl = href;
-            if (href.startsWith("/")) {
-              fullUrl = "https://www1.hkexnews.hk" + href;
-            } else if (!href.startsWith("http")) {
-              fullUrl = "https://www1.hkexnews.hk/" + href;
-            }
-            rows.push({ date, title, url: fullUrl });
-          }
-        }
-      }
-      return rows;
-    });
-
-    if (results.length === 0) {
-      // Try an alternative approach: look for any links containing PDF patterns
-      const altResults = await page.evaluate(() => {
-        const links = document.querySelectorAll('a[href*=".pdf"], a[href*="listedco"], a[href*="SEHK"]');
-        return Array.from(links).map((a) => ({
-          date: "",
-          title: a.textContent?.trim() || a.getAttribute("title") || "",
-          url: a.href || "",
-        }));
+    // Skip if already downloaded
+    if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+      files.push({
+        name: filename,
+        url,
+        date,
+        type: (r.LONG_TEXT || r.SHORT_TEXT || "").replace(/<br\/>/g, "").trim(),
+        local_path: destPath,
+        size: fs.statSync(destPath).size,
+        cached: true,
       });
-      results.push(...altResults);
+      continue;
     }
 
-    console.log(`[hkex-downloader] Found ${results.length} results for stock ${stockCode}`);
-
-    // Download each PDF
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (!r.url) continue;
-
-      // Sanitize filename
-      const dateStr = (r.date || "unknown").replace(/\//g, "-").replace(/\s/g, "");
-      const titleStr = (r.title || `filing_${i + 1}`)
-        .replace(/[^a-zA-Z0-9\u4e00-\u9fff_\-]/g, "_")
-        .slice(0, 80);
-      const ext = r.url.toLowerCase().endsWith(".pdf") ? ".pdf" : ".pdf";
-      const filename = `${dateStr}_${titleStr}${ext}`;
-      const destPath = path.join(outputDir, filename);
-
-      // Skip if already downloaded
-      if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
-        files.push({
-          name: filename,
-          url: r.url,
-          date: r.date,
-          type: r.title,
-          local_path: destPath,
-          size: fs.statSync(destPath).size,
-          cached: true,
-        });
-        continue;
-      }
-
-      try {
-        const size = await downloadFile(r.url, destPath);
-        files.push({
-          name: filename,
-          url: r.url,
-          date: r.date,
-          type: r.title,
-          local_path: destPath,
-          size,
-          cached: false,
-        });
-        console.log(`[hkex-downloader] Downloaded: ${filename} (${(size / 1024).toFixed(1)} KB)`);
-      } catch (e) {
-        console.warn(`[hkex-downloader] Failed to download ${r.url}: ${e.message}`);
-        files.push({
-          name: filename,
-          url: r.url,
-          date: r.date,
-          type: r.title,
-          local_path: null,
-          error: e.message,
-        });
-      }
+    try {
+      const size = await downloadFile(url, destPath);
+      files.push({
+        name: filename,
+        url,
+        date,
+        type: (r.LONG_TEXT || r.SHORT_TEXT || "").replace(/<br\/>/g, "").trim(),
+        local_path: destPath,
+        size,
+        cached: false,
+      });
+      console.log(`[hkex-downloader] Downloaded: ${filename} (${(size / 1024).toFixed(1)} KB)`);
+    } catch (e) {
+      console.warn(`[hkex-downloader] Failed to download ${url}: ${e.message}`);
+      files.push({
+        name: filename,
+        url,
+        date,
+        type: (r.LONG_TEXT || r.SHORT_TEXT || "").replace(/<br\/>/g, "").trim(),
+        local_path: null,
+        error: e.message,
+      });
     }
-  } finally {
-    await page.close().catch(() => {});
   }
 
   // Create ZIP if we have downloaded files
