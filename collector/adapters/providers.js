@@ -115,6 +115,16 @@ const doubao = {
 // ═══════════════════════════════════════════════
 // 通义千问 (Qwen)
 // ═══════════════════════════════════════════════
+// Map Dashscope API model IDs → Qwen web chat model IDs
+const QWEN_MODEL_MAP = {
+  'qwen-flash': 'qwen3.5-flash',
+  'qwen-turbo': 'qwen3.5-flash',
+  'qwen3.5-plus': 'qwen3.5-plus',
+  'qwen3-max': 'qwen3-max-2026-01-23',
+  'qwen-long': 'qwen3.5-plus', // no direct equivalent, use plus
+  'qwen-max': 'qwen-max-latest',
+};
+
 const qwen = {
   name: 'qwen',
   baseUrl: 'https://chat.qwen.ai',
@@ -128,7 +138,7 @@ const qwen = {
 
   // Qwen 需要先创建 chat session，再发消息
   async buildRequest(messages, model, cred, page) {
-    const resolvedModel = model || 'qwen3.5-plus';
+    const resolvedModel = QWEN_MODEL_MAP[model] || model || 'qwen3.5-plus';
     const prompt = messages.map(m => m.content).join('\n\n');
 
     // Step 1: 在浏览器中创建 chat（后台，不抢焦点）
@@ -181,7 +191,11 @@ const qwen = {
       if (data === '[DONE]') break;
       try {
         const obj = JSON.parse(data);
-        const c = obj.choices?.[0]?.delta?.content;
+        const delta = obj.choices?.[0]?.delta;
+        if (!delta) continue;
+        // Skip thinking phase — only emit output phase content
+        if (delta.phase === 'think') continue;
+        const c = delta.content;
         if (c) chunks.push({ content: c });
       } catch {}
     }

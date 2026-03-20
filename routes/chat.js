@@ -689,9 +689,12 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
   // Resolve API key — fallback to Collector if no key available
   const selectedKey = selectApiKey(providerName.toLowerCase(), projectName);
-  const apiKey = selectedKey?.apiKey || provider.apiKey;
   const pnLower = providerName.toLowerCase();
-  const useCollector = !apiKey && COLLECTOR_SUPPORTED.includes(pnLower) && hasCollectorToken(pnLower);
+  // When access mode is explicitly "collector" AND collector tokens exist, prefer Collector over API key
+  const accessMode = typeof getProviderAccessMode === "function" ? getProviderAccessMode(pnLower) : "api_key";
+  const collectorAvailable = COLLECTOR_SUPPORTED.includes(pnLower) && hasCollectorToken(pnLower);
+  const useCollector = collectorAvailable && (accessMode === "collector" || !(selectedKey?.apiKey || provider.apiKey));
+  const apiKey = useCollector ? null : (selectedKey?.apiKey || provider.apiKey);
   if (!apiKey && !useCollector) return res.status(403).json({ error: "No API key configured for this provider" });
 
   if (lcToken && lcUserId) {
@@ -1252,6 +1255,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             }
           }
         }
+        setCollectorHealth(pnLower, true);
         if (!res.writableEnded) { if (wantStream) res.write("data: [DONE]\n\n"); res.end(); }
       } catch (e) {
         setCollectorHealth(pnLower, false, e.message);

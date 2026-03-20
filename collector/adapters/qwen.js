@@ -1,6 +1,16 @@
 const crypto = require('node:crypto');
 const BaseAdapter = require('./base');
 
+// Map Dashscope API model IDs → Qwen web chat model IDs
+const QWEN_MODEL_MAP = {
+  'qwen-flash': 'qwen3.5-flash',
+  'qwen-turbo': 'qwen3.5-flash',
+  'qwen3.5-plus': 'qwen3.5-plus',
+  'qwen3-max': 'qwen3-max-2026-01-23',
+  'qwen-long': 'qwen3.5-plus',
+  'qwen-max': 'qwen-max-latest',
+};
+
 class QwenAdapter extends BaseAdapter {
   constructor(credentials) {
     super('qwen', credentials);
@@ -38,7 +48,7 @@ class QwenAdapter extends BaseAdapter {
 
   async *chat(messages, model, signal) {
     const chatId = await this.createChat(signal);
-    const resolvedModel = model || 'qwen3.5-plus';
+    const resolvedModel = QWEN_MODEL_MAP[model] || model || 'qwen3.5-plus';
     const prompt = messages.map(m => m.content).join('\n\n');
     const fid = crypto.randomUUID();
 
@@ -90,7 +100,11 @@ class QwenAdapter extends BaseAdapter {
 
       try {
         const parsed = JSON.parse(data);
-        const content = parsed.choices?.[0]?.delta?.content;
+        const delta = parsed.choices?.[0]?.delta;
+        if (!delta) continue;
+        // Skip thinking phase — only emit output phase content
+        if (delta.phase === 'think') continue;
+        const content = delta.content;
         if (content) {
           emittedContent = true;
           yield this.formatSSE(this.toOpenAIChunk(content, resolvedModel));

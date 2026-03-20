@@ -773,7 +773,7 @@
     /* SELECTION TOOLBAR — floating "Ask about this" menu */
     #sel-menu{
       display:none;gap:2px;padding:4px;position:fixed;z-index:9999;
-      background:var(--inp);backdrop-filter:blur(20px) saturate(160%);
+      background:var(--inp);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);
       border:1px solid var(--border);border-radius:var(--r2);
       box-shadow:0 4px 20px rgba(0,0,0,.25);
       animation:sel-menu-in .15s ease;
@@ -6474,12 +6474,16 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     menu.style.display = 'flex';
-    // Position above selection, centered
+    // Measure menu dimensions after display:flex
     const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    let left = rect.left + rect.width/2 - mw/2;
-    let top = rect.top - mh - 8;
+    // Compensate for body offset — Safari with position:fixed on <body>
+    // can shift the containing block for position:fixed children
+    const bodyRect = document.body.getBoundingClientRect();
+    const ox = bodyRect.left, oy = bodyRect.top;
+    let left = (rect.left - ox) + rect.width/2 - mw/2;
+    let top = (rect.top - oy) - mh - 8;
     // If no room above, show below
-    if(top < 4){ top = rect.bottom + 8; }
+    if((top + oy) < 4){ top = (rect.bottom - oy) + 8; }
     // Clamp horizontal to viewport
     left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
     menu.style.left = left + 'px';
