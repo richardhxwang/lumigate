@@ -5412,7 +5412,7 @@ function saveSettings(s){ Object.assign(_userSettings, s); patchUserSettings(s);
 
 async function ensureEncryptedUploadExt(){
   if(encryptedUploadExt) return encryptedUploadExt;
-  const mod = await import('/lumichat-ext/encrypted-upload/index.js');
+  const mod = await import('/lumichat-ext/encrypted-upload/index.js?v=' + Date.now());
   encryptedUploadExt = mod.createEncryptedUploadExtension();
   return encryptedUploadExt;
 }
