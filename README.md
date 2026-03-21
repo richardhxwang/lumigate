@@ -1,6 +1,6 @@
 # LumiGate
 
-Self-hosted AI Agent Platform. 8 providers, 24 tools, RAG memory, workflow engine, enterprise security.
+Self-hosted AI Agent Platform. 8 providers, 26 tools, Deep Search, long-term memory, workflow engine, enterprise security.
 
 ## Quick Start
 
@@ -71,6 +71,8 @@ Three tool tag formats are supported: DSML (`[TOOL:...]...[/TOOL]`), XML (`<tool
 | use_template | File Gen | 224 professional templates across business, finance, HR, and project management |
 | fill_template | File Gen | Word/Excel template auto-fill from uploaded data |
 | web_search | Search | SearXNG, adaptive 15-30 results with time-aware multi-keyword queries |
+| memory_save | Memory | AI proactively saves user facts and preferences |
+| memory_search | Memory | AI queries past conversations for context |
 | hkex_download | Search | Download HKEX announcements via Chrome CDP |
 | parse_file | Parse | PDF/Excel/Word/PPT extraction |
 | transcribe_audio | Audio | Whisper speech-to-text |
@@ -164,10 +166,11 @@ Built-in chat UI at `/lumichat.html`. Full feature list:
 - Text selection menu (Ask / Explain / Translate)
 - Source chips linking to search results
 - Drag-and-drop file upload with inline chips
-- Voice input via browser speech API and TTS playback
+- Voice input via Whisper transcription and TTS playback (language-aware, clean newline handling)
 - Adaptive web search (auto-detect + manual toggle)
 - 10 built-in system presets (Coder, Professional, Translator, etc.) with custom preset support (up to 8)
-- Slash commands for quick actions
+- Slash commands: `/deep-search` (multi-round research), `/hkex` (filing search modal), and more
+- Background task cards: frosted-glass progress UI for long-running tasks (Deep Search, Financial Analysis, HKEX Download, Agent Loop) with real-time steps, progress bar, and collapsible detail
 - Mid-stream messaging (new messages queue without aborting the current stream)
 - Persistent session management with conversation history
 - PocketBase-backed auth with JWT token refresh
@@ -177,7 +180,8 @@ Built-in chat UI at `/lumichat.html`. Full feature list:
 ### RAG and Memory
 
 - **RAGFlow integration** (primary, via `--profile rag`) with self-built fallback pipeline (BM25, vector reranker, HyDE query transform)
-- **Per-user long-term memory**: auto-extract structured facts from every conversation, store in Qdrant, recall relevant memories before each chat turn (< 100ms)
+- **GPT-style long-term memory**: two AI-driven tools -- `memory_save` (AI proactively saves user facts, preferences, and context) and `memory_search` (AI queries past conversations for relevant information). Background auto-extraction after each conversation + periodic profile summarization. All memories stored in Qdrant with per-user isolation
+- **Automatic recall**: relevant memories injected before each chat turn (< 100ms vector search), giving the AI persistent context across sessions
 - **FurNote pet profile API**: sync pet health data as persistent user memory
 - **Knowledge Base management**: create KBs, upload documents, search across multiple KBs via `/v1/knowledge` endpoints
 
@@ -222,6 +226,25 @@ Contextual web search integrated into the chat pipeline:
 - Self-hosted SearXNG with adaptive result count (15-30)
 - Default one-month time range with all-time fallback
 - Deduplication and freshness-prioritized context injection
+- **Search synthesis**: explicit synthesis instructions ensure the AI produces coherent, cited answers instead of raw link dumps
+
+### Deep Search
+
+Multi-round iterative research triggered by the `/deep-search` slash command (GPT Deep Research style):
+
+- Decomposes complex questions into sub-queries, researches each independently across multiple rounds
+- Uses cost-efficient models (DeepSeek / GPT-4.1-mini) for research rounds, then a high-capability model for final synthesis
+- Produces structured Markdown reports with inline citations and source links
+- Progress shown in a real-time background task card with per-step status updates
+
+### HKEX Filing Search
+
+`/hkex` slash command opens a search modal for Hong Kong Exchange announcements:
+
+- Autocomplete by stock code, English name, or Chinese name (Traditional Chinese)
+- Filter by date range and announcement category
+- Downloads selected announcements as a ZIP file
+- Powered by the official HKEX API with Chrome CDP for file retrieval
 
 ### Security
 
