@@ -1972,7 +1972,6 @@ let dropProvider = null;
 let autoFollowStream = true;
 let forceWebSearch = false;
 let forceDeepSearch = false;
-let forceHkexDownload = false;
 let encryptedUploadEnabled = false;
 let encryptedUploadExt = null;
 let selectedProCategory = "";
@@ -3874,13 +3873,10 @@ async function sendMessage(){
     const payload=useNative
       ? {model:_sendModel,messages:aiMsgs,stream:true,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})}
       : {provider:_sendProvider,model:_sendModel,messages:aiMsgs,stream:true,lang:_lang,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})};
+    const _wasDeepSearch = forceDeepSearch; // capture before reset for SSE handler
     if(forceDeepSearch){
       payload.deep_search = true;
       forceDeepSearch = false;
-    }
-    if(forceHkexDownload){
-      payload.hkex_download = true;
-      forceHkexDownload = false;
     }
     if(selectedProTool){
       payload.specialist_mode = selectedProTool;
@@ -3972,12 +3968,12 @@ async function sendMessage(){
             const st=JSON.parse(data);
             // Detect long-running tasks → use background task card
             const stText = st?.text || '';
-            const isLongTask = _bgTaskCard || forceDeepSearch || /round \d|\[step \d|synthesiz|深度|研究|casting|financial.*analy|分析.*财务|hkex|港交所|agent.*loop|iteration \d|multi.?step|parsing.*page|提取.*页|docling|正在分析/i.test(stText);
+            const isLongTask = _bgTaskCard || _wasDeepSearch || /round \d|\[step \d|synthesiz|深度|研究|casting|financial.*analy|分析.*财务|hkex|港交所|agent.*loop|iteration \d|multi.?step|parsing.*page|提取.*页|docling|正在分析/i.test(stText);
             if(isLongTask) {
               if(!_bgTaskCard) {
                 // Detect task type from status text
                 let taskType = 'agent';
-                if(forceDeepSearch || /round \d|deep|synthesiz|深度|研究/i.test(stText)) taskType = 'deep_search';
+                if(_wasDeepSearch || /round \d|deep|synthesiz|深度|研究/i.test(stText)) taskType = 'deep_search';
                 else if(/casting|financial.*analy|财务|报表|正在分析.*报表/i.test(stText)) taskType = 'casting';
                 else if(/hkex|港交所|公告|announcement/i.test(stText)) taskType = 'hkex';
                 else if(/pars|docling|提取|document.*process/i.test(stText)) taskType = 'parse';
@@ -6845,6 +6841,7 @@ let _hkexSelectedCode = '';
 let _hkexSelectedName = '';
 let _hkexSelectedNameEn = '';
 let _hkexSelIdx = -1;       // keyboard nav index in results list
+let _hkexStep2KeyHandler = null; // named handler for Step 2 keydown (removable)
 let _hkexResults = [];       // current result set for keyboard nav
 
 function slashHkex(){
@@ -6905,7 +6902,8 @@ function _hkexRenderStep1(){
       _hkexHighlight(items);
     } else if(e.key === 'Enter'){
       e.preventDefault();
-      e.stopImmediatePropagation(); // prevent event from reaching Step 2's handler
+      e.stopPropagation(); // prevent bubbling to overlay Step 2 handler
+      e.stopImmediatePropagation();
       if(_hkexSelIdx >= 0 && items[_hkexSelIdx]){
         items[_hkexSelIdx].click(); // → _hkexRenderStep2()
       }
@@ -7862,7 +7860,7 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
     }
     if(e.key==='Escape'){
       e.preventDefault();
-      menu.style.display='none';
+      hideSelMenu(); // also calls removeHighlight() on touch devices
       window.getSelection()?.removeAllRanges();
       return;
     }
