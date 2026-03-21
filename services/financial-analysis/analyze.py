@@ -2569,6 +2569,908 @@ def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, An
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Notes Verification Engine (附注验证)
+#
+# Parses all numbered footnotes from the notes section, verifies:
+# 1. Internal addition: sub-items add up to note totals
+# 2. Statement tie-out: note totals match main statement line items
+# 3. Cross-note references: numbers cited across notes are consistent
+# 4. Prior year consistency: current "opening" == prior "closing"
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Pattern to detect note section headings like "## 18. Goodwill" or
+# "## 二十三 . 存貨   23  Stocks" or inline table rows with note numbers
+_NOTE_HEADING_RE = re.compile(
+    r'^\s*(?:#{1,4}\s+)?'                          # optional Markdown heading
+    r'(?:'
+    r'(?:(?:十九|十八|十七|十六|十五|十四|十三|十二|十一|'
+    r'二十[一二三四五六七八九]?|三十[一二三四五六七八九]?|'
+    r'[一二三四五六七八九十])\s*[\.\．]?\s*)?'           # Chinese numeral prefix
+    r'(?:[^\n]{0,30}?)?'                            # optional Chinese title
+    r'(\d{1,2})\s*[\.\．]\s*'                        # captured Arabic note number
+    r'([A-Za-z][^\n]{2,60}?)'                       # captured English title
+    r')',
+    re.IGNORECASE
+)
+
+# Chinese-only note heading: "## 二十五 . 貿易及其他應付款項" (no Arabic number or English title)
+_NOTE_CN_HEADING_RE = re.compile(
+    r'^\s*(?:#{1,4}\s+)?'
+    r'(十[一二三四五六七八九]|二十[一二三四五六七八九]?|三十[一二三四五六七八九]?|'
+    r'[一二三四五六七八九十])\s*[\.\．]\s*'
+    r'([\u4e00-\u9fff][^\n]{1,40}?)\s*$'
+)
+
+# Pattern for note headings in table rows: | 二十三 . | 存貨 | 23 | Stocks |
+_NOTE_TABLE_HEADING_RE = re.compile(
+    r'\|\s*(?:十[一二三四五六七八九]?|二十[一二三四五六七八九]?|'
+    r'三十[一二三四五六七八九]?|[一二三四五六七八九])\s*[\.\．]?\s*\|'
+    r'[^|]*\|\s*(\d{1,2})\s*\|\s*([A-Za-z][^|]{2,60}?)\s*\|',
+    re.IGNORECASE
+)
+
+# Main statement note reference: "| Fixed assets | 16 | 17,963 |"
+# or "附註 Notes" column with number
+_BS_NOTE_REF_RE = re.compile(
+    r'(?:Note|附註)\s*(\d{1,2})|'
+    r'\|\s*(\d{1,2})\s*\|',
+    re.IGNORECASE
+)
+
+# Chinese-to-Arabic note number mapping for cross-references in text
+_CN_NUM_MAP = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+    '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15,
+    '十六': 16, '十七': 17, '十八': 18, '十九': 19,
+    '二十': 20, '二十一': 21, '二十二': 22, '二十三': 23,
+    '二十四': 24, '二十五': 25, '二十六': 26, '二十七': 27,
+    '二十八': 28, '二十九': 29, '三十': 30, '三十一': 31,
+    '三十二': 32, '三十三': 33, '三十四': 34, '三十五': 35,
+}
+
+# Pattern to find "(Note XX)" or "(附註XX)" references in note text
+_CROSS_NOTE_REF_RE = re.compile(
+    r'(?:Note|附註)\s*(\d{1,2})|'
+    r'附註(十[一二三四五六七八九]?|二十[一二三四五六七八九]?|'
+    r'三十[一二三四五六七八九]?|[一二三四五六七八九])',
+    re.IGNORECASE
+)
+
+
+def _extract_notes(text: str) -> Dict[int, Dict[str, Any]]:
+    """Parse all numbered notes from the notes section of the annual report.
+
+    Returns: { note_number: {
+        title: str,
+        text: str,          # raw text of this note section
+        tables: [ { items: [{label, current, prior}], total_current, total_prior } ],
+    }}
+    """
+    lines = text.split('\n')
+
+    # Find where the notes section actually starts — look for the first
+    # "Notes to the Consolidated Financial Statements" / "綜合財務報告附註"
+    # heading that appears AFTER the main statements.
+    notes_start_line = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip().lstrip('#').strip()
+        if re.match(
+            r'(?:Notes?\s+to\s+(?:the\s+)?(?:Consolidated\s+)?Financial\s+Statements?'
+            r'|綜合財務報告附註|财务报表附注)\s*$',
+            stripped, re.IGNORECASE
+        ):
+            notes_start_line = i
+            break
+
+    # First pass: find all note heading positions (only in notes section)
+    note_positions: List[Tuple[int, int, str]] = []  # (line_idx, note_num, title)
+
+    for i, line in enumerate(lines):
+        if i < notes_start_line:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Try heading pattern (English or bilingual)
+        m = _NOTE_HEADING_RE.match(stripped)
+        if m:
+            num = int(m.group(1))
+            title = m.group(2).strip()
+            title_clean = re.sub(r'\s*\(continued\).*', '', title, flags=re.IGNORECASE).strip()
+            is_continued = bool(re.search(r'continued|續|续', stripped, re.IGNORECASE))
+            existing = [idx for idx, (_, n, _) in enumerate(note_positions) if n == num]
+            if not existing:
+                note_positions.append((i, num, title_clean))
+            elif is_continued:
+                note_positions.append((i, num, title_clean))
+            continue
+
+        # Try Chinese-only heading (e.g., "## 二十五 . 貿易及其他應付款項")
+        m = _NOTE_CN_HEADING_RE.match(stripped)
+        if m:
+            cn_num_str = m.group(1)
+            cn_title = m.group(2).strip()
+            num = _CN_NUM_MAP.get(cn_num_str)
+            if num is not None:
+                is_continued = bool(re.search(r'續|续', cn_title))
+                existing = [idx for idx, (_, n, _) in enumerate(note_positions) if n == num]
+                if not existing:
+                    # Use Chinese title as placeholder until English heading is found
+                    note_positions.append((i, num, cn_title))
+                elif is_continued:
+                    note_positions.append((i, num, cn_title))
+                continue
+
+        # Try table-row heading pattern
+        m = _NOTE_TABLE_HEADING_RE.search(stripped)
+        if m:
+            num = int(m.group(1))
+            title = m.group(2).strip()
+            if not any(n == num for _, n, _ in note_positions):
+                note_positions.append((i, num, title))
+
+    if not note_positions:
+        return {}
+
+    # Sort by line position
+    note_positions.sort(key=lambda x: x[0])
+
+    # Second pass: deduplicate positions — keep only the first occurrence per
+    # (note_num, line_idx) to avoid processing the same heading twice.
+    seen_positions: set = set()
+    deduped_positions: List[Tuple[int, int, str]] = []
+    for pos in note_positions:
+        key = (pos[0], pos[1])  # (line_idx, note_num)
+        if key not in seen_positions:
+            seen_positions.add(key)
+            deduped_positions.append(pos)
+    note_positions = deduped_positions
+
+    # Third pass: for each note number, find the range of lines it spans.
+    # Collect all line positions per note number, then compute
+    # [earliest_start, start_of_next_different_note) for the merged range.
+    note_ranges: Dict[int, Tuple[int, int, str]] = {}  # num -> (start_line, end_line, title)
+    # First, determine the position ordering of unique note numbers by first appearance
+    note_first_pos: Dict[int, int] = {}  # num -> first line_idx
+    for (line_idx, note_num, title) in note_positions:
+        if note_num not in note_first_pos:
+            note_first_pos[note_num] = line_idx
+
+    # Sort note numbers by first appearance
+    ordered_nums = sorted(note_first_pos.keys(), key=lambda n: note_first_pos[n])
+
+    for i, num in enumerate(ordered_nums):
+        start_line = note_first_pos[num]
+        # End = start of the next different note number, or end of text
+        if i + 1 < len(ordered_nums):
+            next_num = ordered_nums[i + 1]
+            end_line = note_first_pos[next_num]
+        else:
+            end_line = len(lines)
+
+        # Pick best title: prefer English over Chinese
+        best_title = ""
+        for (_, n, t) in note_positions:
+            if n == num:
+                if not best_title or (re.match(r'^[A-Za-z]', t) and re.match(r'^[\u4e00-\u9fff]', best_title)):
+                    best_title = t
+        note_ranges[num] = (start_line, end_line, best_title)
+
+    # Build notes dict
+    notes: Dict[int, Dict[str, Any]] = {}
+    for num, (start_line, end_line, title) in note_ranges.items():
+        note_text = '\n'.join(lines[start_line:end_line])
+        notes[num] = {
+            "title": title,
+            "text": note_text,
+            "tables": [],
+        }
+
+    # Third pass: parse tables within each note
+    for note_num, note_data in notes.items():
+        note_data["tables"] = _parse_note_tables(note_data["text"])
+
+    return notes
+
+
+def _parse_note_tables(note_text: str) -> List[Dict[str, Any]]:
+    """Extract Markdown tables from a note's text, identifying sub-items and totals.
+
+    Returns list of tables, each: {
+        items: [{label, current, prior}],
+        total_current: float or None,
+        total_prior: float or None,
+        has_total: bool,
+    }
+    """
+    lines = note_text.split('\n')
+    tables: List[Dict[str, Any]] = []
+    current_table_rows: List[Tuple[str, List[float]]] = []
+
+    # Header detection to skip
+    _md_hdr_re = re.compile(
+        r'二零\S*\s*\d{4}|人民幣百萬元|RMB\s*million|附註\s*Notes?|'
+        r'^\s*\|[\s:*-]+(?:\|[\s:*-]+)*\|\s*$',
+        re.IGNORECASE,
+    )
+
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            if in_table and current_table_rows:
+                tables.append(_finalize_note_table(current_table_rows))
+                current_table_rows = []
+                in_table = False
+            continue
+
+        if stripped.startswith('|'):
+            # Skip separator and header rows
+            if re.match(r'^\|[\s:*-]+(?:\|[\s:*-]+)*\|\s*$', stripped):
+                in_table = True
+                continue
+            if _md_hdr_re.search(stripped):
+                in_table = True
+                continue
+
+            result = _extract_md_table_row(stripped)
+            if result is not None:
+                label, numbers = result
+                if numbers:
+                    in_table = True
+                    current_table_rows.append((label, numbers))
+        else:
+            # Non-table line breaks the current table
+            if in_table and current_table_rows:
+                tables.append(_finalize_note_table(current_table_rows))
+                current_table_rows = []
+                in_table = False
+
+    # Flush last table
+    if current_table_rows:
+        tables.append(_finalize_note_table(current_table_rows))
+
+    return tables
+
+
+def _finalize_note_table(rows: List[Tuple[str, List[float]]]) -> Dict[str, Any]:
+    """Convert raw table rows into structured note table with items and total detection.
+
+    Identifies subtotal groups: consecutive items followed by an unlabeled or
+    "Total"-labelled row.  For each such group, records the sub-items and total
+    separately so internal verification can check each group independently.
+    """
+    if not rows:
+        return {"items": [], "groups": [], "total_current": None,
+                "total_prior": None, "has_total": False}
+
+    items: List[Dict[str, Any]] = []
+    # Groups: each is {sub_items: [...], total: {...}}
+    groups: List[Dict[str, Any]] = []
+    total_current: Optional[float] = None
+    total_prior: Optional[float] = None
+    total_idx: Optional[int] = None
+
+    for i, (label, numbers) in enumerate(rows):
+        current = numbers[0] if len(numbers) >= 1 else None
+        prior = numbers[1] if len(numbers) >= 2 else None
+
+        is_total = False
+        if label:
+            is_total = bool(_TOTAL_LABEL_RE.search(label))
+
+        # Unlabeled row with numbers is likely a subtotal/total
+        if not label.strip() and i > 0 and current is not None:
+            is_total = True
+
+        items.append({
+            "label": label,
+            "current": current,
+            "prior": prior,
+            "is_total": is_total,
+        })
+
+        if is_total:
+            total_current = current
+            total_prior = prior
+            total_idx = i
+
+    # If no explicit total found, check if last row looks like a summation
+    if total_idx is None and len(items) >= 3:
+        last = items[-1]
+        if last["current"] is not None:
+            preceding_sum = sum(
+                it["current"] for it in items[:-1]
+                if it["current"] is not None
+            )
+            if abs(preceding_sum - last["current"]) <= 1.0 and preceding_sum != 0:
+                items[-1]["is_total"] = True
+                total_current = last["current"]
+                total_prior = last.get("prior")
+                total_idx = len(items) - 1
+
+    has_total = total_idx is not None
+
+    # Build groups: scan for subtotal rows and group preceding items
+    # A group ends at each "is_total" row; sub-items are the non-total items
+    # between the previous total (or start) and this total.
+    prev_total_idx = -1
+    for i, item in enumerate(items):
+        if item.get("is_total") and item["current"] is not None:
+            sub_items = [
+                it for it in items[prev_total_idx + 1:i]
+                if it["current"] is not None and not it.get("is_total")
+            ]
+            if sub_items:
+                groups.append({
+                    "sub_items": sub_items,
+                    "total": item,
+                })
+            prev_total_idx = i
+
+    return {
+        "items": items,
+        "groups": groups,
+        "total_current": total_current,
+        "total_prior": total_prior,
+        "has_total": has_total,
+    }
+
+
+def _verify_note_internal(note_num: int, note_data: Dict[str, Any],
+                          tolerance: float = 1.0) -> List[Dict[str, Any]]:
+    """Check if sub-items add up to the total within each group of each table.
+
+    Uses the "groups" structure which correctly segments items by their
+    subtotal/total boundaries, avoiding false failures from summing items
+    across different sections of a rollforward table.
+
+    Returns list of verification results, one per group that has sub-items + total.
+    """
+    results: List[Dict[str, Any]] = []
+
+    for t_idx, table in enumerate(note_data.get("tables", [])):
+        groups = table.get("groups", [])
+        if not groups:
+            continue
+
+        for g_idx, group in enumerate(groups):
+            sub_items = group["sub_items"]
+            total_item = group["total"]
+            total_current = total_item.get("current")
+            total_prior = total_item.get("prior")
+
+            if not sub_items or total_current is None:
+                continue
+            # Skip groups with only 1 sub-item (nothing to sum)
+            if len(sub_items) < 2:
+                continue
+
+            # Sum current year
+            current_sum = sum(
+                it["current"] for it in sub_items
+                if it["current"] is not None
+            )
+            prior_sum = sum(
+                it["prior"] for it in sub_items
+                if it["prior"] is not None
+            )
+
+            # Check current year
+            current_diff = round(total_current - current_sum, 2)
+            current_status = "pass" if abs(current_diff) <= tolerance else "fail"
+
+            # Check prior year
+            prior_status = "not_applicable"
+            prior_diff = None
+            if total_prior is not None and any(it["prior"] is not None for it in sub_items):
+                prior_diff = round(total_prior - prior_sum, 2)
+                prior_status = "pass" if abs(prior_diff) <= tolerance else "fail"
+
+            results.append({
+                "note": str(note_num),
+                "title": note_data.get("title", ""),
+                "table_index": t_idx,
+                "group_index": g_idx,
+                "sub_items": [
+                    {"label": it["label"], "current": it["current"], "prior": it["prior"]}
+                    for it in sub_items
+                ],
+                "computed_sum_current": round(current_sum, 2),
+                "computed_sum_prior": round(prior_sum, 2),
+                "reported_total_current": total_current,
+                "reported_total_prior": total_prior,
+                "current_diff": current_diff,
+                "prior_diff": prior_diff,
+                "current_status": current_status,
+                "prior_status": prior_status,
+            })
+
+    return results
+
+
+def _extract_stmt_note_refs(text: str) -> Dict[int, List[Dict[str, Any]]]:
+    """Scan main financial statement tables for note-number column references.
+
+    In the BS/IS, a "Notes" column contains bare numbers (e.g., "| 16 |") that
+    reference footnotes.  Parse these and associate them with the line item label
+    and numeric values on the same row.
+
+    Returns: { note_number: [{label, current, prior, section}] }
+    """
+    # Identify statement sections first
+    sections = _identify_sections(text)
+    refs: Dict[int, List[Dict[str, Any]]] = {}
+
+    for sec in sections:
+        sec_id = sec["id"]
+        if sec_id in _SENTINEL_SECTIONS:
+            continue
+        if sec_id not in ("balance_sheet", "income_statement", "comprehensive_income",
+                          "cash_flow"):
+            continue
+
+        sec_text = text[sec["start"]:sec["end"]]
+        for line in sec_text.split('\n'):
+            stripped = line.strip()
+            if not stripped.startswith('|'):
+                continue
+            if re.match(r'^\|[\s:*-]+(?:\|[\s:*-]+)*\|\s*$', stripped):
+                continue
+
+            cells = [c.strip() for c in stripped.split('|')]
+            cells = [c for c in cells if c != '']
+
+            # Look for a cell that is just a 1-2 digit number (note reference)
+            note_num = None
+            label_parts = []
+            numbers = []
+
+            for cell in cells:
+                if re.match(r'^\d{1,2}$', cell):
+                    candidate = int(cell)
+                    if 1 <= candidate <= 40:
+                        note_num = candidate
+                elif cell == '-' or not cell:
+                    continue
+                else:
+                    num_cell = re.sub(r'^(?:RMB|HK\$|US\$|人民幣)\s*', '', cell)
+                    v = _to_float(num_cell)
+                    if v is not None:
+                        numbers.append(v)
+                    elif not re.match(
+                        r'^(?:附註|Notes?|RMB\s*million|HK\$|人民幣百萬元|二零\S*|'
+                        r'\d{4}\s*$)',
+                        cell, re.IGNORECASE
+                    ):
+                        label_parts.append(cell)
+
+            if note_num is not None and numbers:
+                label = ' '.join(label_parts).strip()
+                refs.setdefault(note_num, []).append({
+                    "label": label,
+                    "current": numbers[0] if len(numbers) >= 1 else None,
+                    "prior": numbers[1] if len(numbers) >= 2 else None,
+                    "section": sec_id,
+                })
+
+    return refs
+
+
+def _match_notes_to_statements(
+    notes: Dict[int, Dict[str, Any]],
+    casting_sheet: List[Dict[str, Any]],
+    tolerance: float = 1.0,
+    text: str = "",
+) -> List[Dict[str, Any]]:
+    """Match note totals to corresponding main statement line items.
+
+    Uses three strategies (in priority order):
+    1. Note-number column: BS/IS rows with a note-reference column (e.g., "| 16 |")
+    2. Explicit "(Note XX)" in labels
+    3. Label similarity: fuzzy match note title to statement line labels
+    """
+    results: List[Dict[str, Any]] = []
+
+    # Strategy 1: Parse note-number columns from raw text
+    stmt_note_refs = _extract_stmt_note_refs(text) if text else {}
+
+    # Strategy 2: Build map from casting_sheet labels containing "Note XX"
+    stmt_items_by_note: Dict[int, List[Dict[str, Any]]] = {}
+    stmt_items_by_label: List[Dict[str, Any]] = []
+
+    for item in casting_sheet:
+        section = item.get("source", "")
+        if section not in ("balance_sheet", "income_statement", "comprehensive_income",
+                           "cash_flow"):
+            continue
+        stmt_items_by_label.append(item)
+
+        label = item.get("label", "")
+        for m in re.finditer(r'Note\s*(\d{1,2})', label, re.IGNORECASE):
+            ref_num = int(m.group(1))
+            stmt_items_by_note.setdefault(ref_num, []).append(item)
+
+    for note_num, note_data in notes.items():
+        # Skip policy notes (1-5) that typically have no numeric tables
+        if note_num <= 5:
+            continue
+
+        # Get the best total from the note's tables.
+        # Prefer the table with the largest absolute total (likely the main summary).
+        best_total_current = None
+        best_total_prior = None
+        best_abs = -1
+        for table in note_data.get("tables", []):
+            if table.get("has_total") and table["total_current"] is not None:
+                abs_val = abs(table["total_current"])
+                if abs_val > best_abs:
+                    best_abs = abs_val
+                    best_total_current = table["total_current"]
+                    best_total_prior = table["total_prior"]
+
+        if best_total_current is None:
+            continue
+
+        # Strategy 1: Note-number column reference from raw text
+        matched = False
+        if note_num in stmt_note_refs:
+            ref_items = stmt_note_refs[note_num]
+
+            # Try individual match first (single line)
+            single_match = None
+            for ref_item in ref_items:
+                stmt_val = ref_item.get("current")
+                if stmt_val is None:
+                    continue
+                diff_abs = abs(abs(best_total_current) - abs(stmt_val))
+                if diff_abs <= tolerance:
+                    single_match = ref_item
+                    break
+
+            if single_match is not None:
+                stmt_val = single_match["current"]
+                diff_abs = abs(abs(best_total_current) - abs(stmt_val))
+                results.append({
+                    "note": str(note_num),
+                    "title": note_data["title"],
+                    "note_total_current": best_total_current,
+                    "note_total_prior": best_total_prior,
+                    "statement": single_match.get("section", ""),
+                    "statement_line": single_match.get("label", ""),
+                    "statement_value": stmt_val,
+                    "difference": round(diff_abs, 2),
+                    "status": "pass",
+                    "match_method": "note_column",
+                })
+                matched = True
+            elif len(ref_items) >= 2:
+                # Multiple lines reference same note (e.g., current + non-current
+                # portions of same item, or short-term + long-term loans)
+                # Sum absolute values of all referenced lines
+                stmt_sum = sum(abs(r.get("current", 0) or 0) for r in ref_items)
+                labels = [r.get("label", "") for r in ref_items]
+                diff_abs = abs(abs(best_total_current) - stmt_sum)
+                status = "pass" if diff_abs <= tolerance else "fail"
+                results.append({
+                    "note": str(note_num),
+                    "title": note_data["title"],
+                    "note_total_current": best_total_current,
+                    "note_total_prior": best_total_prior,
+                    "statement": ref_items[0].get("section", ""),
+                    "statement_line": " + ".join(labels),
+                    "statement_value": stmt_sum,
+                    "difference": round(diff_abs, 2),
+                    "status": status,
+                    "match_method": "note_column_sum",
+                })
+                matched = True
+            else:
+                # Single line but doesn't match — still report
+                ref_item = ref_items[0]
+                stmt_val = ref_item.get("current")
+                if stmt_val is not None:
+                    diff_abs = abs(abs(best_total_current) - abs(stmt_val))
+                    # Also try: note has multiple tables, pick the one that matches
+                    best_match_total = best_total_current
+                    for table in note_data.get("tables", []):
+                        if table.get("has_total") and table["total_current"] is not None:
+                            alt_diff = abs(abs(table["total_current"]) - abs(stmt_val))
+                            if alt_diff < diff_abs:
+                                diff_abs = alt_diff
+                                best_match_total = table["total_current"]
+                    status = "pass" if diff_abs <= tolerance else "fail"
+                    results.append({
+                        "note": str(note_num),
+                        "title": note_data["title"],
+                        "note_total_current": best_match_total,
+                        "note_total_prior": best_total_prior,
+                        "statement": ref_item.get("section", ""),
+                        "statement_line": ref_item.get("label", ""),
+                        "statement_value": stmt_val,
+                        "difference": round(diff_abs, 2),
+                        "status": status,
+                        "match_method": "note_column",
+                    })
+                    matched = True
+
+        if matched:
+            continue
+
+        # Strategy 2: Explicit "(Note XX)" in casting_sheet labels
+        if note_num in stmt_items_by_note:
+            for stmt_item in stmt_items_by_note[note_num]:
+                stmt_val = stmt_item.get("current_year")
+                if stmt_val is None:
+                    continue
+                diff_abs = abs(abs(best_total_current) - abs(stmt_val))
+                status = "pass" if diff_abs <= tolerance else "fail"
+                results.append({
+                    "note": str(note_num),
+                    "title": note_data["title"],
+                    "note_total_current": best_total_current,
+                    "note_total_prior": best_total_prior,
+                    "statement": stmt_item.get("source", ""),
+                    "statement_line": stmt_item.get("label", ""),
+                    "statement_value": stmt_val,
+                    "difference": round(diff_abs, 2),
+                    "status": status,
+                    "match_method": "note_reference",
+                })
+                matched = True
+                break
+
+        if matched:
+            continue
+
+        # Strategy 3: Label similarity matching (higher threshold to avoid false matches)
+        note_title_lower = note_data["title"].lower().strip()
+        note_title_clean = re.sub(r'\s*\(continued\).*', '', note_title_lower).strip()
+
+        best_match = None
+        best_score = 0.0
+        for stmt_item in stmt_items_by_label:
+            stmt_label = stmt_item.get("label", "").lower()
+            score = SequenceMatcher(None, note_title_clean, stmt_label).ratio()
+            if note_title_clean in stmt_label or stmt_label in note_title_clean:
+                score = max(score, 0.85)
+            if score > best_score and score >= 0.65:  # raised threshold
+                best_score = score
+                best_match = stmt_item
+
+        if best_match is not None:
+            stmt_val = best_match.get("current_year")
+            if stmt_val is not None:
+                diff_abs = abs(abs(best_total_current) - abs(stmt_val))
+                status = "pass" if diff_abs <= tolerance else "fail"
+                results.append({
+                    "note": str(note_num),
+                    "title": note_data["title"],
+                    "note_total_current": best_total_current,
+                    "note_total_prior": best_total_prior,
+                    "statement": best_match.get("source", ""),
+                    "statement_line": best_match.get("label", ""),
+                    "statement_value": stmt_val,
+                    "difference": round(diff_abs, 2),
+                    "status": status,
+                    "match_method": "label_similarity",
+                    "match_score": round(best_score, 3),
+                })
+
+    return results
+
+
+def _verify_cross_note_references(
+    notes: Dict[int, Dict[str, Any]],
+    tolerance: float = 1.0,
+) -> List[Dict[str, Any]]:
+    """Check cross-note references: when Note X mentions a number from Note Y,
+    verify they are consistent."""
+    results: List[Dict[str, Any]] = []
+
+    # Build a map of note_num -> primary totals for quick lookup
+    note_totals: Dict[int, Tuple[Optional[float], Optional[float]]] = {}
+    for num, data in notes.items():
+        for table in data.get("tables", []):
+            if table.get("has_total"):
+                note_totals[num] = (table["total_current"], table["total_prior"])
+                break
+
+    for note_num, note_data in notes.items():
+        note_text = note_data.get("text", "")
+        # Find references to other notes
+        for m in _CROSS_NOTE_REF_RE.finditer(note_text):
+            ref_num = None
+            if m.group(1):
+                ref_num = int(m.group(1))
+            elif m.group(2):
+                ref_num = _CN_NUM_MAP.get(m.group(2))
+
+            if ref_num is None or ref_num == note_num:
+                continue
+            if ref_num not in note_totals:
+                continue
+
+            # Check if there's a specific number near this reference that
+            # should match the referenced note's total
+            # Look for numbers within ~80 chars of the reference
+            context_start = max(0, m.start() - 80)
+            context_end = min(len(note_text), m.end() + 80)
+            context = note_text[context_start:context_end]
+
+            # Extract numbers from context
+            context_nums = []
+            for nm in re.finditer(r'[\(（]?\d{1,3}(?:,\d{3})+[\)）]?|\d{4,}', context):
+                v = _to_float(nm.group())
+                if v is not None and abs(v) > 1:  # skip small reference numbers
+                    context_nums.append(v)
+
+            ref_current, ref_prior = note_totals[ref_num]
+            if ref_current is None:
+                continue
+
+            # Check if any number in context matches the referenced note total
+            for cv in context_nums:
+                if abs(abs(cv) - abs(ref_current)) <= tolerance:
+                    results.append({
+                        "source_note": str(note_num),
+                        "referenced_note": str(ref_num),
+                        "referenced_title": notes[ref_num]["title"],
+                        "value_in_source": cv,
+                        "value_in_target": ref_current,
+                        "status": "pass",
+                    })
+                    break
+
+    return results
+
+
+def _verify_prior_year_consistency(
+    notes: Dict[int, Dict[str, Any]],
+    tolerance: float = 1.0,
+) -> List[Dict[str, Any]]:
+    """For rollforward tables, check current year opening == prior year closing."""
+    results: List[Dict[str, Any]] = []
+
+    # Patterns for opening/closing balance labels
+    _opening_re = re.compile(
+        r'At\s*1\s*January\s*2025|於二零二五年一月一日|'
+        r'As\s*at\s*1\s*January\s*2025',
+        re.IGNORECASE
+    )
+    _closing_prior_re = re.compile(
+        r'At\s*31\s*December\s*2024|於二零二四年十二月三十一日|'
+        r'As\s*at\s*31\s*December\s*2024',
+        re.IGNORECASE
+    )
+
+    for note_num, note_data in notes.items():
+        for t_idx, table in enumerate(note_data.get("tables", [])):
+            opening_vals: List[Tuple[str, float]] = []
+            closing_prior_vals: List[Tuple[str, float]] = []
+
+            for item in table.get("items", []):
+                label = item.get("label", "")
+                current = item.get("current")
+                if current is None:
+                    continue
+
+                if _opening_re.search(label):
+                    opening_vals.append((label, current))
+                if _closing_prior_re.search(label):
+                    closing_prior_vals.append((label, current))
+
+            # If we found both opening 2025 and closing 2024 in the same table,
+            # they should match
+            for (o_label, o_val), (c_label, c_val) in zip(opening_vals, closing_prior_vals):
+                diff = abs(o_val - c_val)
+                status = "pass" if diff <= tolerance else "fail"
+                results.append({
+                    "note": str(note_num),
+                    "title": note_data["title"],
+                    "table_index": t_idx,
+                    "opening_label": o_label,
+                    "opening_value": o_val,
+                    "closing_prior_label": c_label,
+                    "closing_prior_value": c_val,
+                    "difference": round(diff, 2),
+                    "status": status,
+                })
+
+    return results
+
+
+def verify_notes(
+    text: str,
+    casting_sheet: List[Dict[str, Any]],
+    tolerance: float = 1.0,
+) -> Dict[str, Any]:
+    """Run comprehensive notes verification.
+
+    Returns {
+        notes_verification: [...],      # internal addition checks
+        notes_statement_matches: [...], # note <-> main statement tie-outs
+        notes_cross_references: [...],  # cross-note reference checks
+        notes_prior_year: [...],        # opening == prior closing checks
+        notes_stats: {...},             # summary statistics
+    }
+    """
+    notes = _extract_notes(text)
+
+    if not notes:
+        return {
+            "notes_verification": [],
+            "notes_statement_matches": [],
+            "notes_cross_references": [],
+            "notes_prior_year": [],
+            "notes_stats": {
+                "total_notes_found": 0,
+                "notes_with_tables": 0,
+                "internal_checks": 0,
+                "internal_pass": 0,
+                "internal_fail": 0,
+                "statement_match_total": 0,
+                "statement_match_pass": 0,
+                "statement_match_fail": 0,
+                "cross_ref_total": 0,
+                "cross_ref_pass": 0,
+                "prior_year_total": 0,
+                "prior_year_pass": 0,
+                "prior_year_fail": 0,
+            },
+        }
+
+    # 1. Internal addition checks
+    all_internal: List[Dict[str, Any]] = []
+    for note_num, note_data in sorted(notes.items()):
+        checks = _verify_note_internal(note_num, note_data, tolerance)
+        all_internal.extend(checks)
+
+    # 2. Statement tie-out
+    stmt_matches = _match_notes_to_statements(notes, casting_sheet, tolerance, text=text)
+
+    # 3. Cross-note references
+    cross_refs = _verify_cross_note_references(notes, tolerance)
+
+    # 4. Prior year consistency
+    prior_year = _verify_prior_year_consistency(notes, tolerance)
+
+    # Stats
+    notes_with_tables = sum(1 for n in notes.values() if n.get("tables"))
+    int_pass = sum(1 for c in all_internal if c["current_status"] == "pass")
+    int_fail = sum(1 for c in all_internal if c["current_status"] == "fail")
+    stmt_pass = sum(1 for m in stmt_matches if m["status"] == "pass")
+    stmt_fail = sum(1 for m in stmt_matches if m["status"] == "fail")
+    cr_pass = sum(1 for r in cross_refs if r["status"] == "pass")
+    py_pass = sum(1 for r in prior_year if r["status"] == "pass")
+    py_fail = sum(1 for r in prior_year if r["status"] == "fail")
+
+    return {
+        "notes_verification": all_internal,
+        "notes_statement_matches": stmt_matches,
+        "notes_cross_references": cross_refs,
+        "notes_prior_year": prior_year,
+        "notes_stats": {
+            "total_notes_found": len(notes),
+            "notes_with_tables": notes_with_tables,
+            "internal_checks": len(all_internal),
+            "internal_pass": int_pass,
+            "internal_fail": int_fail,
+            "statement_match_total": len(stmt_matches),
+            "statement_match_pass": stmt_pass,
+            "statement_match_fail": stmt_fail,
+            "cross_ref_total": len(cross_refs),
+            "cross_ref_pass": cr_pass,
+            "prior_year_total": len(prior_year),
+            "prior_year_pass": py_pass,
+            "prior_year_fail": py_fail,
+        },
+    }
+
+
 def _validate_with_pandera(checks: List[Dict[str, Any]]) -> Dict[str, Any]:
     try:
         import pandas as pd  # type: ignore
@@ -2718,6 +3620,9 @@ def main() -> None:
     # ── Full Casting (铸表): parse ALL line items, verify every total ──
     casting_result = cast_financial_statements(merged)
 
+    # ── Notes Verification (附注验证): parse all footnotes, verify sums ──
+    notes_result = verify_notes(merged, casting_result.get("casting_sheet", []))
+
     missing_fields = sorted({m for c in checks for m in c.get("missing_fields", [])})
     pass_count = len([c for c in checks if c.get("status") == "tie"])
     fail_count = len([c for c in checks if c.get("status") == "not_tie"])
@@ -2746,6 +3651,11 @@ def main() -> None:
         "casting_cross_stmt_fail": cast_stats.get("cross_statement_fail", 0),
         "docling_available": _DOCLING_AVAILABLE,
         "docling_used": docling_used,
+        "notes_found": notes_result.get("notes_stats", {}).get("total_notes_found", 0),
+        "notes_internal_pass": notes_result.get("notes_stats", {}).get("internal_pass", 0),
+        "notes_internal_fail": notes_result.get("notes_stats", {}).get("internal_fail", 0),
+        "notes_stmt_match_pass": notes_result.get("notes_stats", {}).get("statement_match_pass", 0),
+        "notes_stmt_match_fail": notes_result.get("notes_stats", {}).get("statement_match_fail", 0),
     }
     meta.update(_validate_with_pandera(checks))
 
@@ -2757,6 +3667,12 @@ def main() -> None:
         summary += f" Full casting: {cast_stats.get('total_line_items', 0)} line items across {cast_stats.get('sections_found', 0)} sections,"
         summary += f" addition checks pass={cast_stats.get('addition_pass', 0)} fail={cast_stats.get('addition_fail', 0)},"
         summary += f" cross-statement matches={cast_stats.get('cross_statement_total', 0)} (pass={cast_stats.get('cross_statement_pass', 0)}, fail={cast_stats.get('cross_statement_fail', 0)})."
+        ns = notes_result.get("notes_stats", {})
+        if ns.get("total_notes_found", 0) > 0:
+            summary += f" Notes verification: {ns.get('total_notes_found', 0)} notes found,"
+            summary += f" internal checks pass={ns.get('internal_pass', 0)} fail={ns.get('internal_fail', 0)},"
+            summary += f" statement matches pass={ns.get('statement_match_pass', 0)} fail={ns.get('statement_match_fail', 0)},"
+            summary += f" cross-refs={ns.get('cross_ref_total', 0)}, prior-year checks pass={ns.get('prior_year_pass', 0)} fail={ns.get('prior_year_fail', 0)}."
         if docling_used:
             summary += " (docling structured extraction used)"
 
@@ -2769,6 +3685,11 @@ def main() -> None:
         "casting_cross_statement": casting_result.get("cross_statement_matches", []),
         "casting_section_summaries": casting_result.get("section_summaries", {}),
         "casting_stats": cast_stats,
+        "notes_verification": notes_result.get("notes_verification", []),
+        "notes_statement_matches": notes_result.get("notes_statement_matches", []),
+        "notes_cross_references": notes_result.get("notes_cross_references", []),
+        "notes_prior_year": notes_result.get("notes_prior_year", []),
+        "notes_stats": notes_result.get("notes_stats", {}),
         "extracted_fields": {k: v for k, v in fields.items() if v is not None},
         "missing_fields": missing_fields,
         "evidence": evidence[:20],
