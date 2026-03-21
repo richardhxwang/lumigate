@@ -1,0 +1,73 @@
+//@version=5
+indicator("LumiTrade Signals", overlay=true, max_labels_count=500)
+
+// ============================================================================
+// LumiTrade Signal Marker Indicator
+// ============================================================================
+// This indicator works with TradingView alerts + LumiGate webhook integration.
+//
+// Setup:
+//   1. Add this indicator to your TradingView chart
+//   2. Create a TradingView alert on your strategy/indicator
+//   3. Set the alert webhook URL to: https://<your-lumigate>/v1/trade/tv-webhook
+//   4. Use the JSON payload format below in the alert message
+//
+// Webhook JSON payload format (set in TradingView alert message):
+//   {
+//     "action": "{{strategy.order.action}}",
+//     "pair": "{{ticker}}",
+//     "price": {{close}},
+//     "time": "{{time}}",
+//     "strategy": "{{strategy.order.id}}",
+//     "exchange": "{{exchange}}"
+//   }
+//
+// The webhook endpoint at /v1/trade/tv-webhook receives these signals,
+// stores them in PocketBase (trade_signals collection), and can trigger
+// automated or semi-automated trade execution.
+//
+// This indicator itself displays manual signal markers for visual reference.
+// Use input.source() or plot from your strategy to drive the shapes.
+// ============================================================================
+
+// --- Inputs ---
+src = close
+fastLen = input.int(9, "Fast EMA Length", minval=1)
+slowLen = input.int(21, "Slow EMA Length", minval=1)
+showSignals = input.bool(true, "Show Buy/Sell Signals")
+
+// --- Simple crossover detection (example trigger) ---
+fastEMA = ta.ema(src, fastLen)
+slowEMA = ta.ema(src, slowLen)
+
+bullishCross = ta.crossover(fastEMA, slowEMA)
+bearishCross = ta.crossunder(fastEMA, slowEMA)
+
+// --- Plot EMAs ---
+plot(fastEMA, "Fast EMA", color=color.new(#22c55e, 30), linewidth=1)
+plot(slowEMA, "Slow EMA", color=color.new(#ef4444, 30), linewidth=1)
+
+// --- Plot trade markers ---
+plotshape(
+     showSignals and bullishCross,
+     title="Buy Signal",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=color.new(#22c55e, 0),
+     size=size.small,
+     text="BUY"
+)
+
+plotshape(
+     showSignals and bearishCross,
+     title="Sell Signal",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=color.new(#ef4444, 0),
+     size=size.small,
+     text="SELL"
+)
+
+// --- Alert conditions (wire these to webhook) ---
+alertcondition(bullishCross, title="LumiTrade Buy", message='{"action":"buy","pair":"{{ticker}}","price":{{close}},"time":"{{time}}","exchange":"{{exchange}}"}')
+alertcondition(bearishCross, title="LumiTrade Sell", message='{"action":"sell","pair":"{{ticker}}","price":{{close}},"time":"{{time}}","exchange":"{{exchange}}"}')
