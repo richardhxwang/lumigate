@@ -918,7 +918,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       res.flushHeaders();
     }
     // Early emitToolStatus for pre-search (before streaming consumer defines full version)
-    if (typeof emitToolStatus !== "function") { var emitToolStatus = function(p) { if (!wantStream || res.writableEnded) return; res.write("event: tool_status\ndata: " + JSON.stringify(p) + "\n\n"); res.write("data: " + JSON.stringify({ choices: [{ delta: { content: "" }, tool_status: p }] }) + "\n\n"); }; }
+    let emitToolStatus = function(p) { if (!wantStream || res.writableEnded) return; res.write("event: tool_status\ndata: " + JSON.stringify(p) + "\n\n"); res.write("data: " + JSON.stringify({ choices: [{ delta: { content: "" }, tool_status: p }] }) + "\n\n"); };
     try {
       const fetched = [];
       for (let i = 0; i < directUrls.length; i++) {
@@ -1506,12 +1506,12 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: text } }] })}\n\n`);
     }
 
-    // Dual-format helpers: emit custom SSE event (for LumiChat) + OpenAI-compatible data line (for third-party clients)
-    function emitToolStatus(payload) {
+    // Upgrade emitToolStatus with model field now that streaming phase has begun
+    emitToolStatus = function(payload) {
       if (res.writableEnded) return;
       res.write(`event: tool_status\ndata: ${JSON.stringify(payload)}\n\n`);
       res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, tool_status: payload }] })}\n\n`);
-    }
+    };
 
     function emitFileDownload(payload) {
       if (res.writableEnded) return;
