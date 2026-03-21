@@ -7105,8 +7105,9 @@ function _hkexRenderStep2(){
   // Collect all focusable elements in order
   const _s2Focusables = () => Array.from(modal.querySelectorAll('.hkex-preset-btn, .hkex-select, .hkex-mode-btn, .hkex-date-inp, .hkex-num-inp, .hkex-step-btn, .hkex-download-btn, .hkex-change-btn'));
 
-  // Listen on overlay (not just modal) to catch keys even when focus is elsewhere
-  _hkexOverlay.addEventListener('keydown', e => {
+  // Remove previous Step 2 listener to prevent accumulation (Bug #3)
+  if(_hkexStep2KeyHandler) _hkexOverlay.removeEventListener('keydown', _hkexStep2KeyHandler);
+  _hkexStep2KeyHandler = function(e) {
     if(e.key==='Escape'){ closeHkex(); return; }
     // Enter → activate focused element, or submit if on Download button
     if(e.key==='Enter'){
@@ -7136,7 +7137,8 @@ function _hkexRenderStep2(){
         : (cur >= items.length - 1 ? 0 : cur + 1);
       items[next]?.focus();
     }
-  });
+  };
+  _hkexOverlay.addEventListener('keydown', _hkexStep2KeyHandler);
 
   // Delay focus to avoid Enter key bleed-through from Step 1
   setTimeout(() => {
@@ -7161,13 +7163,14 @@ async function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='
   // Add assistant bubble with loading status
   appendMsg('assistant', zh?'正在搜索港交所...':'Searching HKEX...');
   messages.push({role:'assistant', content:''});
-  const asstRow = chatEl.querySelector('.msg-row.asst:last-child');
+  const asstRow = chatEl.querySelector('.msg-row.assistant:last-child');
   const asstContent = asstRow?.querySelector('.asst-content');
   chatEl.scrollTop = chatEl.scrollHeight;
 
   try {
     const body = { stock_code: code, doc_type: docType };
     if(mode==='date' && dateFrom) { body.date_from = dateFrom; body.date_to = dateTo; }
+    if(mode==='latest') { body.count = count; }
     const r = await apiFetch('/v1/hkex/download', { method:'POST', body:JSON.stringify(body) });
     const d = await r.json();
 
