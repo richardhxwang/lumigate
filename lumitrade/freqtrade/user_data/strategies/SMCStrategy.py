@@ -41,6 +41,25 @@ class SMCStrategy(IStrategy):
     swing_length = IntParameter(5, 50, default=5, space="buy", optimize=True)
     ob_strength_min = DecimalParameter(0.3, 0.8, default=0.381, space="buy", optimize=True)
 
+    plot_config = {
+        "main_plot": {
+            "ob_top": {"color": "rgba(46, 204, 113, 0.4)", "type": "line"},
+            "ob_bottom": {"color": "rgba(46, 204, 113, 0.4)", "type": "line"},
+            "fvg_top": {"color": "rgba(241, 196, 15, 0.4)", "type": "line"},
+            "fvg_bottom": {"color": "rgba(241, 196, 15, 0.4)", "type": "line"},
+        },
+        "subplots": {
+            "SMC Structure": {
+                "bos": {"color": "#2ecc71", "type": "bar"},
+                "choch": {"color": "#e74c3c", "type": "bar"},
+            },
+            "Liquidity": {
+                "liquidity": {"color": "#9b59b6", "type": "line"},
+                "liq_swept": {"color": "#f39c12", "type": "bar"},
+            },
+        },
+    }
+
     def informative_pairs(self):
         pairs = self.dp.current_whitelist()
         return [(pair, "1h") for pair in pairs] + [(pair, "4h") for pair in pairs]

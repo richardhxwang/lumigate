@@ -626,6 +626,19 @@ const PB_COLLECTIONS = [
       { name: "custom_prompt", type: "text" },
     ],
   },
+  {
+    name: "lt_notifications",
+    type: "base",
+    schema: [
+      { name: "type", type: "text" },
+      { name: "severity", type: "text" },
+      { name: "title", type: "text" },
+      { name: "message", type: "text" },
+      { name: "trade_plan", type: "json" },
+      { name: "read", type: "bool" },
+      { name: "action_taken", type: "text" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -674,6 +687,7 @@ const COLLECTION_PROJECT_MAP = {
   lt_sessions: "lumitrade",
   lt_messages: "lumitrade",
   lt_user_settings: "lumitrade",
+  lt_notifications: "lumitrade",
 };
 
 async function ensureCollections(pbUrl, adminToken, log) {

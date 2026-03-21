@@ -860,6 +860,66 @@ module.exports = function createTradeRouter(deps) {
     }, SYNC_INTERVAL_MS);
   }, 30_000);
 
+  // ── Periodic news fetch + FinBERT auto-scoring ────────────────────────────
+  //
+  // Calls trade-engine POST /analyze for the top 5 pairs by volume every 15min.
+  // Only top-5 to stay within Finnhub free-tier rate limits (60 req/min).
+  // A 2s delay between pairs adds a safety margin.
+  // All errors are caught individually — one failing pair never stops the rest.
+
+  const NEWS_PAIRS = ["BTC", "ETH", "SOL", "BNB", "XRP"];
+  const NEWS_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+  async function fetchNewsForAllPairs() {
+    console.log(`[trade-news] fetching news for ${NEWS_PAIRS.length} pairs...`);
+    let totalArticles = 0;
+    let totalScored = 0;
+
+    for (const symbol of NEWS_PAIRS) {
+      try {
+        const resp = await engineFetch("/analyze", {
+          method: "POST",
+          body: JSON.stringify({ symbol, include_news: true, timeframes: [] }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        const articles = data?.news_count ?? data?.articles_saved ?? 0;
+        const scored = data?.finbert_scored ?? data?.sentiment_count ?? 0;
+        totalArticles += articles;
+        totalScored += scored;
+        console.log(`[trade-news] ${symbol}: ${articles} articles, ${scored} scored`);
+      } catch (err) {
+        console.error(`[trade-news] ${symbol} error: ${err.message}`);
+      }
+      // 2s delay between pairs — Finnhub free tier: 60 req/min
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    console.log(`[trade-news] done: ${totalArticles} articles saved, ${totalScored} scored`);
+    return { articles: totalArticles, scored: totalScored };
+  }
+
+  // Initial run delayed by 60s to let all containers (trade-engine, FinBERT) warm up
+  setTimeout(() => {
+    fetchNewsForAllPairs().catch((err) =>
+      console.error("[trade-news] initial run error:", err.message)
+    );
+    setInterval(() => {
+      fetchNewsForAllPairs().catch((err) =>
+        console.error("[trade-news] interval error:", err.message)
+      );
+    }, NEWS_INTERVAL_MS);
+  }, 60_000);
+
+  // GET /v1/trade/news/fetch — manually trigger news fetch + FinBERT scoring
+  router.get("/news/fetch", async (req, res) => {
+    try {
+      const results = await fetchNewsForAllPairs();
+      res.json({ ok: true, ...results });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "News fetch failed", detail: err.message });
+    }
+  });
+
   // ── WebSocket proxy ──────────────────────────────────────────────────────
   //
   // Express does not natively handle WebSocket upgrade events on sub-routes.
