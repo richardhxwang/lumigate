@@ -270,11 +270,24 @@ async def analyze(req: AnalyzeRequest):
     signals = result.get("signals", [])
 
     if req.include_news and settings.finnhub_api_key:
-        from news.sentiment import get_sentiment_score
+        from news.sentiment import get_sentiment_score, analyze_with_finbert
         sentiment = await get_sentiment_score(req.symbol, http_client)
         for sig in signals:
             sig["news_sentiment"] = sentiment
         result["news_sentiment"] = sentiment
+
+        # Run FinBERT on each saved article headline (best-effort)
+        pb_ids = sentiment.get("pb_record_ids", {})
+        headlines = sentiment.get("top_headlines", [])
+        if pb_ids and headlines:
+            record_ids = list(pb_ids.values())[:len(headlines)]
+            for i, headline in enumerate(headlines[:len(record_ids)]):
+                rid = record_ids[i] if i < len(record_ids) else None
+                if headline and rid:
+                    try:
+                        await analyze_with_finbert(headline, http_client, pb_record_id=rid)
+                    except Exception as fb_err:
+                        logger.debug(f"FinBERT failed for {rid}: {fb_err}")
 
     return result
 
