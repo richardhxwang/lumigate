@@ -36,8 +36,7 @@
     </div>
   </div>
   <script>
-    // One-time migration: clear old FreqUI localStorage to force fresh auto-login
-    if(!localStorage.getItem('lt-v5')){localStorage.removeItem('ftAuthLoginInfo');localStorage.removeItem('ftSelectedBot');localStorage.setItem('lt-v5','1')}
+    // Splash only (no more localStorage clearing — login persists)
     if(sessionStorage.getItem('lt-sd')){document.getElementById('lt-splash').remove()}
     else{sessionStorage.setItem('lt-sd','1');setTimeout(function(){var s=document.getElementById('lt-splash');if(s){s.classList.add('out');setTimeout(function(){s.remove()},600)}},2200)}
   </script>
