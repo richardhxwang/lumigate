@@ -87,7 +87,7 @@ const PB_COLLECTIONS = [
     schema: [
       { name: "trace_id", type: "text", required: true },
       { name: "type", type: "text" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "session_id", type: "text" },
       { name: "status", type: "text" },
       { name: "duration_ms", type: "number" },
@@ -265,7 +265,7 @@ const PB_COLLECTIONS = [
       { name: "status", type: "text" },
       { name: "news_sentiment", type: "number" },
       { name: "broker", type: "text" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "action", type: "text" },
       { name: "price", type: "number" },
       { name: "raw", type: "text" },
@@ -288,7 +288,7 @@ const PB_COLLECTIONS = [
       { name: "status", type: "text" },
       { name: "opened_at", type: "text" },
       { name: "closed_at", type: "text" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "r_multiple", type: "number" },
       { name: "risk_amount", type: "number" },
       { name: "session", type: "text" },
@@ -343,7 +343,7 @@ const PB_COLLECTIONS = [
       { name: "exit_time", type: "text" },
       { name: "strategy", type: "text" },
       { name: "signal_id", type: "text" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "r_multiple", type: "number" },        // P&L in R (risk units)
       { name: "risk_amount", type: "number" },        // USD risked on this trade
       { name: "session", type: "text" },              // london, new_york, asian, overlap, off_hours
@@ -436,7 +436,7 @@ const PB_COLLECTIONS = [
       { name: "win_rate", type: "number" },
       { name: "portfolio_value", type: "number" },
       { name: "max_drawdown", type: "number" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "total_r", type: "number" },            // sum of R for the day
       { name: "avg_r", type: "number" },              // average R per trade
       { name: "largest_win_r", type: "number" },
@@ -478,7 +478,7 @@ const PB_COLLECTIONS = [
       { name: "symbols", type: "json" },
       { name: "timeframes", type: "json" },
       { name: "backtest_results", type: "json" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
     ],
   },
   {
@@ -496,7 +496,7 @@ const PB_COLLECTIONS = [
       { name: "ai_extracted", type: "bool" },         // was this auto-extracted from chat?
       { name: "source_message", type: "text" },       // original LumiChat message that triggered this
       { name: "market_condition", type: "text" },     // trending, ranging, volatile, calm
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "consecutive_result", type: "text" },        // "3W" or "2L" — streak at time of mood log
     ],
   },
@@ -520,7 +520,7 @@ const PB_COLLECTIONS = [
       { name: "killzone_performance", type: "json" }, // performance by killzone
       { name: "patterns_noted", type: "json" },  // SMC patterns that worked/failed
       { name: "lessons", type: "text" },         // AI-extracted lessons
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
     ],
   },
 
@@ -530,7 +530,7 @@ const PB_COLLECTIONS = [
     type: "base",
     schema: [
       { name: "title", type: "text" },
-      { name: "user_id", type: "text" },
+      { name: "user_id", type: "text", required: true },
       { name: "model", type: "text" },
       { name: "preset", type: "text" },
       { name: "message_count", type: "number" },
