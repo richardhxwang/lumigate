@@ -3,8 +3,8 @@
 /**
  * LumiTrade — AI-callable trading tools for UnifiedRegistry.
  *
- * Registers 9 tools that proxy to the Trade Engine FastAPI service:
- *   market_analysis, check_positions, place_trade, backtest_strategy, news_sentiment, ibkr_account, trading_journal, performance_report, mood_tracker
+ * Registers 10 tools that proxy to the Trade Engine FastAPI service:
+ *   market_analysis, check_positions, place_trade, backtest_strategy, news_sentiment, ibkr_account, trading_journal, performance_report, mood_tracker, trading_rag_search
  *
  * Usage:
  *   const { registerTradeTools } = require("./trade-tools");
@@ -193,6 +193,19 @@ const MOOD_TRACKER_SCHEMA = {
       },
     },
     required: ["action"],
+  },
+};
+
+const TRADING_RAG_SEARCH_SCHEMA = {
+  name: "trading_rag_search",
+  description: "Search the trading knowledge base for insights about past trades, backtest results, strategies, mood patterns, and market analysis. Use this to answer questions about trading history and performance.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search query about trading data" },
+      limit: { type: "number", description: "Max results (default 5)" },
+    },
+    required: ["query"],
   },
 };
 
@@ -491,6 +504,26 @@ async function handleMoodTracker(input) {
   }
 }
 
+async function handleTradingRagSearch(input) {
+  const query = encodeURIComponent(input.query || "");
+  const limit = input.limit || 5;
+
+  try {
+    const res = await fetch(
+      `${TRADE_ENGINE_URL}/rag/search?query=${query}&limit=${limit}`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: `Trade engine returned ${res.status}: ${text}` };
+    }
+    const data = await res.json();
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: `trading_rag_search failed: ${err.message}` };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -509,7 +542,8 @@ function registerTradeTools(registry) {
   registry.registerTool(TRADING_JOURNAL_SCHEMA, handleTradingJournal);
   registry.registerTool(PERFORMANCE_REPORT_SCHEMA, handlePerformanceReport);
   registry.registerTool(MOOD_TRACKER_SCHEMA, handleMoodTracker);
-  console.log("[trade-tools] 9 trading tools registered");
+  registry.registerTool(TRADING_RAG_SEARCH_SCHEMA, handleTradingRagSearch);
+  console.log("[trade-tools] 10 trading tools registered");
 }
 
 module.exports = { registerTradeTools };

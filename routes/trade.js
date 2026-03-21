@@ -366,6 +366,31 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
+  // ── RAG (Retrieval-Augmented Generation) ────────────────────────────────
+
+  // GET /v1/trade/rag/search — search trading RAG
+  router.get("/rag/search", async (req, res) => {
+    try {
+      const qs = new URLSearchParams(req.query).toString();
+      const r = await engineFetch(`/rag/search?${qs}`);
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // POST /v1/trade/rag/embed — embed text into trading RAG
+  router.post("/rag/embed", async (req, res) => {
+    try {
+      const r = await engineFetch("/rag/embed", { method: "POST", body: JSON.stringify(req.body) });
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
   // ── Reports / Analytics ─────────────────────────────────────────────────
 
   // GET /v1/trade/reports/performance — QuantStats performance metrics

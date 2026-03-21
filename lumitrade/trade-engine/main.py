@@ -22,6 +22,7 @@ from risk.manager import RiskManager
 from analytics.sessions import SessionAnalyzer
 from analytics.reports import generate_performance_report, generate_html_report
 from analytics.mood_correlator import MoodCorrelator
+from analytics.trading_rag import TradingRAG
 from strategies.smc_strategy import SMCAnalyzer
 
 logger = logging.getLogger("lumitrade")
@@ -30,6 +31,7 @@ risk_manager = RiskManager(settings)
 smc_analyzer = SMCAnalyzer()
 session_analyzer = SessionAnalyzer()
 mood_correlator = MoodCorrelator()
+trading_rag = TradingRAG()
 http_client: httpx.AsyncClient | None = None
 ibkr_connector: IBKRConnector | None = None
 ft_connector = FreqtradeConnector()
@@ -158,6 +160,13 @@ async def lifespan(app: FastAPI):
             logger.warning("IBKR not available at startup — endpoints will return 503 until connected")
     except Exception as e:
         logger.warning("IBKR startup connection error (non-fatal): %s", e)
+
+    # Ensure Qdrant RAG collection exists
+    try:
+        await trading_rag.ensure_collection()
+        logger.info("Trading RAG collection ready")
+    except Exception as e:
+        logger.warning("Qdrant RAG init error (non-fatal): %s", e)
 
     yield
 
@@ -543,6 +552,26 @@ async def run_backtest(req: BacktestRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- RAG (Qdrant) ---
+
+@app.get("/rag/search")
+async def rag_search(q: str, limit: int = 5):
+    """Search trading RAG for relevant context."""
+    results = await trading_rag.search(q, limit)
+    return {"query": q, "results": results}
+
+
+@app.post("/rag/embed")
+async def rag_embed(body: dict):
+    """Embed arbitrary text into trading RAG."""
+    text = body.get("text", "")
+    metadata = body.get("metadata", {})
+    if not text:
+        raise HTTPException(400, "text required")
+    await trading_rag.embed_text(text, metadata)
+    return {"ok": True}
 
 
 # --- Execute Trade ---
