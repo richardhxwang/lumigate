@@ -347,7 +347,7 @@ module.exports = function createLumiTraderRouter(deps) {
       const userId = req.user.id;
 
       const r = await tradePbFetch(
-        `/api/collections/lt_user_settings/records?filter=(user='${userId}')&perPage=1`
+        `/api/collections/lt_user_settings/records?filter=(user_id='${userId}')&perPage=1`
       );
       if (!r.ok) {
         const err = await r.text().catch(() => "");
@@ -371,7 +371,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
       // Check if record exists
       const existing = await tradePbFetch(
-        `/api/collections/lt_user_settings/records?filter=(user='${userId}')&perPage=1`
+        `/api/collections/lt_user_settings/records?filter=(user_id='${userId}')&perPage=1`
       );
       const existingData = existing.ok ? await existing.json() : { items: [] };
       const existingRecord = existingData.items?.[0];
@@ -381,13 +381,13 @@ module.exports = function createLumiTraderRouter(deps) {
         // Update existing
         r = await tradePbFetch(`/api/collections/lt_user_settings/records/${existingRecord.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ ...settings, user: userId }),
+          body: JSON.stringify({ ...settings, user_id: userId }),
         });
       } else {
         // Create new
         r = await tradePbFetch("/api/collections/lt_user_settings/records", {
           method: "POST",
-          body: JSON.stringify({ ...settings, user: userId }),
+          body: JSON.stringify({ ...settings, user_id: userId }),
         });
       }
 
@@ -412,7 +412,7 @@ module.exports = function createLumiTraderRouter(deps) {
       const perPage = Math.min(parseInt(req.query.perPage) || 20, 50);
 
       const r = await tradePbFetch(
-        `/api/collections/lt_sessions/records?filter=(user='${userId}')&sort=-updated&page=${page}&perPage=${perPage}`
+        `/api/collections/lt_sessions/records?filter=(user_id='${userId}')&sort=-updated&page=${page}&perPage=${perPage}`
       );
       if (!r.ok) {
         const err = await r.text().catch(() => "");
@@ -435,9 +435,9 @@ module.exports = function createLumiTraderRouter(deps) {
       const r = await tradePbFetch("/api/collections/lt_sessions/records", {
         method: "POST",
         body: JSON.stringify({
-          user: userId,
+          user_id: userId,
           title: title || "New Trading Chat",
-          messages: "[]",
+          messages: [],
         }),
       });
 

@@ -265,7 +265,7 @@ const PB_COLLECTIONS = [
       { name: "status", type: "text" },
       { name: "news_sentiment", type: "number" },
       { name: "broker", type: "text" },
-      { name: "user_id", type: "text", required: true },
+      { name: "user_id", type: "text", required: false },
       { name: "action", type: "text" },
       { name: "price", type: "number" },
       { name: "raw", type: "text" },
@@ -422,6 +422,11 @@ const PB_COLLECTIONS = [
       // === RAG Embedding ===
       { name: "trade_summary_text", type: "text" },        // human-readable summary for embedding
       { name: "embedding_id", type: "text" },              // Qdrant vector ID for this trade
+
+      // === Bot / Exchange Context ===
+      { name: "bot_name", type: "text" },                  // freqtrade bot name
+      { name: "exchange", type: "text" },                  // OKX, IBKR, Binance, etc.
+      { name: "trading_mode", type: "text" },              // live / paper / backtest
     ],
   },
   {
@@ -464,6 +469,7 @@ const PB_COLLECTIONS = [
       { name: "llm_sentiment", type: "number" },
       { name: "final_sentiment", type: "number" },
       { name: "impact", type: "text" },
+      { name: "category", type: "text" },
       { name: "processed", type: "bool" },
     ],
   },
@@ -478,6 +484,9 @@ const PB_COLLECTIONS = [
       { name: "symbols", type: "json" },
       { name: "timeframes", type: "json" },
       { name: "backtest_results", type: "json" },
+      { name: "version", type: "text" },
+      { name: "freqai_enabled", type: "bool" },
+      { name: "last_backtest_id", type: "text" },
       { name: "user_id", type: "text", required: true },
     ],
   },
@@ -520,6 +529,10 @@ const PB_COLLECTIONS = [
       { name: "killzone_performance", type: "json" }, // performance by killzone
       { name: "patterns_noted", type: "json" },  // SMC patterns that worked/failed
       { name: "lessons", type: "text" },         // AI-extracted lessons
+      { name: "reflection", type: "text" },      // trader's personal reflection
+      { name: "lessons_learned", type: "text" }, // concrete takeaways
+      { name: "trades_reviewed", type: "json" }, // list of trade IDs reviewed in this journal entry
+      { name: "plan_adherence_score", type: "number" }, // 0-10 self-rating on following the plan
       { name: "user_id", type: "text", required: true },
     ],
   },
@@ -545,7 +558,12 @@ const PB_COLLECTIONS = [
       { name: "max_drawdown_abs", type: "number" },
       { name: "max_drawdown_pct", type: "number" },
       { name: "sharpe", type: "number" },
+      { name: "sortino", type: "number" },
+      { name: "calmar", type: "number" },
       { name: "profit_factor", type: "number" },
+      { name: "avg_duration", type: "text" },
+      { name: "pairs_count", type: "number" },
+      { name: "notes", type: "text" },
       { name: "tags", type: "json" },
       { name: "result_json", type: "json" },
       { name: "filename", type: "text" },
@@ -567,6 +585,10 @@ const PB_COLLECTIONS = [
       { name: "message_count", type: "number" },
       { name: "last_message_at", type: "text" },
       { name: "context_snapshot", type: "json" },
+      { name: "messages", type: "json" },
+      { name: "pair", type: "text" },
+      { name: "exchange", type: "text" },
+      { name: "market_type", type: "text" },
     ],
   },
   {
