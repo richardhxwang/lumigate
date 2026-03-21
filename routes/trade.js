@@ -13,6 +13,7 @@ const { URL } = require("url");
 
 const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
 const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() || "lumitrade";
+const FREQTRADE_URL = process.env.TRADE_FREQTRADE_URL || "http://lumigate-freqtrade:8080";
 const FREQTRADE_BT_URL = process.env.TRADE_FREQTRADE_BT_URL || "http://lumigate-freqtrade-bt:8080";
 const FREQTRADE_USERNAME = process.env.TRADE_FREQTRADE_USERNAME || "lumitrade";
 const FREQTRADE_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "123123@";
@@ -682,6 +683,168 @@ module.exports = function createTradeRouter(deps) {
       detail: results,
     });
   });
+
+  // ── Freqtrade → PocketBase trade history sync ────────────────────────────
+
+  /**
+   * Core sync logic: fetch closed trades from freqtrade REST API and upsert
+   * them into PocketBase trade_history collection.
+   *
+   * Deduplication key: freqtrade trade_id stored in signal_id field.
+   * Only closed trades (is_open=false) are synced.
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.limit=200]  max trades to fetch per run
+   * @returns {{ synced: number, skipped: number, errors: string[] }}
+   */
+  async function syncFreqtradeTrades({ limit = 200 } = {}) {
+    const ftAuth = "Basic " + Buffer.from(`${FREQTRADE_USERNAME}:${FREQTRADE_PASSWORD}`).toString("base64");
+    const results = { synced: 0, skipped: 0, errors: [] };
+
+    // 1. Fetch trades from freqtrade REST API
+    let trades;
+    try {
+      const r = await fetch(`${FREQTRADE_URL}/api/v1/trades?limit=${limit}`, {
+        headers: { Authorization: ftAuth },
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(() => "");
+        throw new Error(`freqtrade API ${r.status}: ${errText.slice(0, 200)}`);
+      }
+      const data = await r.json();
+      // freqtrade returns { trades: [...], trades_count: N, offset: 0, total_trades: N }
+      trades = Array.isArray(data) ? data : (data.trades || []);
+    } catch (err) {
+      results.errors.push(`fetch_trades: ${err.message}`);
+      return results;
+    }
+
+    // 2. Filter to closed trades only
+    const closed = trades.filter((t) => t.is_open === false);
+
+    // 3. For each closed trade, check if already in PB (by signal_id = freqtrade trade_id)
+    for (const trade of closed) {
+      const tradeId = String(trade.trade_id ?? trade.id ?? "");
+      if (!tradeId) {
+        results.errors.push(`skipped trade with missing trade_id: ${JSON.stringify(trade).slice(0, 100)}`);
+        continue;
+      }
+
+      try {
+        // Check existence — signal_id holds the freqtrade trade_id
+        const checkQs = new URLSearchParams({ filter: `signal_id="ft_${tradeId}"`, perPage: "1" }).toString();
+        const checkRes = await tradePbFetch(`/api/collections/trade_history/records?${checkQs}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if ((checkData.items || []).length > 0) {
+            results.skipped++;
+            continue;
+          }
+        }
+
+        // Compute duration in minutes from open_date / close_date
+        let durationMinutes = null;
+        if (trade.open_date && trade.close_date) {
+          const openMs = new Date(trade.open_date).getTime();
+          const closeMs = new Date(trade.close_date).getTime();
+          if (!isNaN(openMs) && !isNaN(closeMs)) {
+            durationMinutes = Math.round((closeMs - openMs) / 60000);
+          }
+        }
+
+        // Parse entry hour (UTC) for timing context
+        let hourUtc = null;
+        let dayOfWeek = null;
+        if (trade.open_date) {
+          const d = new Date(trade.open_date);
+          if (!isNaN(d.getTime())) {
+            hourUtc = d.getUTCHours();
+            dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()];
+          }
+        }
+
+        // Total fees (open + close)
+        const fees = (trade.fee_open_cost || 0) + (trade.fee_close_cost || 0);
+
+        // Build PB record — map freqtrade fields → trade_history schema
+        const record = {
+          symbol:          trade.pair || "",
+          broker:          "freqtrade",
+          exchange:        trade.exchange || "",
+          direction:       trade.is_short ? "short" : "long",
+          entry_price:     trade.open_rate || 0,
+          exit_price:      trade.close_rate || 0,
+          quantity:        trade.amount || 0,
+          pnl:             trade.close_profit_abs ?? null,
+          pnl_pct:         trade.close_profit ?? null,
+          duration_minutes: durationMinutes,
+          entry_time:      trade.open_date || "",
+          exit_time:       trade.close_date || "",
+          strategy:        trade.strategy || "",
+          signal_id:       `ft_${tradeId}`,             // ft_ prefix = freqtrade source
+          risk_amount:     trade.stake_amount || 0,
+          fees:            fees || 0,
+          exit_reason:     trade.exit_reason || trade.sell_reason || "",
+          bot_name:        trade.bot_name || "freqtrade",
+          trading_mode:    "live",
+          hour_utc:        hourUtc,
+          day_of_week:     dayOfWeek,
+          minutes_in_trade: durationMinutes,
+          // Required by schema
+          user_id:         "freqtrade_bot",
+          notes:           trade.exit_reason ? `exit: ${trade.exit_reason}` : "",
+        };
+
+        const saveRes = await tradePbFetch("/api/collections/trade_history/records", {
+          method: "POST",
+          body: JSON.stringify(record),
+        });
+
+        if (saveRes.ok) {
+          results.synced++;
+        } else {
+          const errText = await saveRes.text().catch(() => "");
+          results.errors.push(`save trade_id=${tradeId}: PB ${saveRes.status} ${errText.slice(0, 200)}`);
+        }
+      } catch (err) {
+        results.errors.push(`trade_id=${tradeId}: ${err.message}`);
+      }
+    }
+
+    return results;
+  }
+
+  // GET /v1/trade/sync/trades — manually trigger freqtrade → PB trade history sync
+  router.get("/sync/trades", async (req, res) => {
+    const limit = parseInt(req.query.limit, 10) || 200;
+    try {
+      const results = await syncFreqtradeTrades({ limit });
+      res.json({
+        ok: true,
+        synced: results.synced,
+        skipped: results.skipped,
+        errors: results.errors.length,
+        error_detail: results.errors,
+      });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Sync failed", detail: err.message });
+    }
+  });
+
+  // Auto-sync every 5 minutes — only runs when the module is loaded (server start)
+  // Delay first run by 30s to let freqtrade container finish starting up
+  const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+  setTimeout(() => {
+    // Run once immediately after the initial delay, then on interval
+    syncFreqtradeTrades().catch((err) =>
+      console.error("[trade-sync] auto-sync error:", err.message)
+    );
+    setInterval(() => {
+      syncFreqtradeTrades().catch((err) =>
+        console.error("[trade-sync] auto-sync error:", err.message)
+      );
+    }, SYNC_INTERVAL_MS);
+  }, 30_000);
 
   // ── WebSocket proxy ──────────────────────────────────────────────────────
   //
