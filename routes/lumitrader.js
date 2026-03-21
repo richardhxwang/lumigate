@@ -255,7 +255,27 @@ module.exports = function createLumiTraderRouter(deps) {
       try {
         const ctx = await fetchTradingContext(userQuery, userId);
         contextBlock = formatTradingContext(ctx);
-      } catch { /* context fetch is best-effort */ }
+        const fs = require("fs");
+        fs.appendFileSync("/tmp/lumitrader-debug.log", `[${new Date().toISOString()}] context sources: ` +
+          JSON.stringify({positions:!!ctx.positions,pnl:!!ctx.pnl,btHistory:Array.isArray(ctx.backtestHistory)?ctx.backtestHistory.length:"null",btPB:Array.isArray(ctx.backtestResultsPB)?ctx.backtestResultsPB.length:"null",contextLen:contextBlock.length}) + "\n" +
+          "contextBlock: " + contextBlock.slice(0, 500) + "\n---\n"
+        );
+        console.log("[lumitrader] context sources:",
+          "positions:", !!ctx.positions,
+          "pnl:", !!ctx.pnl,
+          "signals:", !!ctx.signals,
+          "history:", !!ctx.history,
+          "journal:", !!ctx.journal,
+          "mood:", !!ctx.mood,
+          "rag:", !!ctx.rag,
+          "btHistory:", Array.isArray(ctx.backtestHistory) ? ctx.backtestHistory.length : "null",
+          "btPB:", Array.isArray(ctx.backtestResultsPB) ? ctx.backtestResultsPB.length : "null"
+        );
+        console.log("[lumitrader] contextBlock length:", contextBlock.length);
+        if (contextBlock.length < 50) console.log("[lumitrader] WARNING: context nearly empty!", contextBlock);
+      } catch (ctxErr) {
+        console.error("[lumitrader] context fetch error:", ctxErr.message);
+      }
 
       const systemPrompt = TRADING_SYSTEM_PROMPT + contextBlock;
 
