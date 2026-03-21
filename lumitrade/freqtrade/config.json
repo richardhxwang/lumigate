@@ -77,7 +77,7 @@
         "password": "123123@",
         "ws_token": "_-3o4WOb4T0u9gJI0LjDXTXrUpAIfp8qbpe73s0LKuU"
     },
-    "bot_name": "LumiTrade-Crypto",
+    "bot_name": "LumiTrade",
     "freqaimodel": "LightGBMRegressor",
     "initial_state": "running",
     "force_entry_enable": true,

@@ -102,7 +102,7 @@
         "password": "123123@",
         "ws_token": "pure-smc-ws-token-12345"
     },
-    "bot_name": "LumiTrade-PureSMC",
+    "bot_name": "PureSMC",
     "freqaimodel": "LightGBMRegressor",
     "initial_state": "running",
     "force_entry_enable": true,
