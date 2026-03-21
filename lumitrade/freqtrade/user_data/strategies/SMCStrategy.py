@@ -14,7 +14,7 @@ class SMCStrategy(IStrategy):
     """
 
     INTERFACE_VERSION = 3
-    can_short = False  # Set True only with futures trading_mode
+    can_short = True  # All bots now run futures mode
 
     timeframe = "15m"
     startup_candle_count = 200

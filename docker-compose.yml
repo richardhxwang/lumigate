@@ -411,6 +411,36 @@ services:
       start_period: 30s
     logging: *logging-default
 
+  # AI-Enhanced bot — FreqAI + news sentiment, futures with shorting
+  freqtrade-ai:
+    build: ./lumitrade/freqtrade
+    container_name: lumigate-freqtrade-ai
+    profiles: ["trade"]
+    restart: unless-stopped
+    volumes:
+      - ./lumitrade/freqtrade/user_data:/freqtrade/user_data
+      - ./lumitrade/freqtrade/config-ai-enhanced.json:/freqtrade/config.json:ro
+      - ./lumitrade/frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
+    ports:
+      - "127.0.0.1:18792:8080"
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-ai.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3-ai.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging: *logging-default
+
   # Freqtrade webserver mode — for backtesting UI (separate from trade instance)
   freqtrade-backtest:
     build: ./lumitrade/freqtrade
