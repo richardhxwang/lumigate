@@ -7145,40 +7145,69 @@ function _hkexRenderStep2(){
   }, 250);
 }
 
-function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='', count=10}={}){
+async function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='', count=10}={}){
   if(!_hkexSelectedCode) return;
   closeHkex();
   const zh = _lang==='zh';
-  const dispCode = _hkexSelectedCode.replace(/^0+(\d{4})$/, '$1').padStart(5,'0');
-  const docLabels = {
-    annual: zh?'年报':'annual reports',
-    interim: zh?'中期报告':'interim reports',
-    results: zh?'业绩公告':'results announcements',
-    circular: zh?'通函':'circulars',
-    all: zh?'所有公告':'all filings'
-  };
-  const docLabel = docLabels[docType] || (zh?'公告':'filings');
-  let msg;
-  if(zh){
-    if(mode==='latest'){
-      msg = `帮我从港交所下载 ${dispCode} (${_hkexSelectedName}) 的最新 ${count} 条${docLabel}`;
+  const code = _hkexSelectedCode;
+  const name = _hkexSelectedName || _hkexSelectedNameEn || code;
+
+  // Show user message bubble
+  const docLabels = {annual:zh?'年报':'Annual',interim:zh?'中期报告':'Interim',results:zh?'业绩公告':'Results',circular:zh?'通函':'Circular',all:zh?'全部':'All'};
+  const userMsg = zh ? `下载 ${code} ${name} 的${docLabels[docType]||'公告'}` : `Download ${docLabels[docType]||'filings'} for ${code} ${name}`;
+  addMessageBubble('user', userMsg);
+  messages.push({role:'user', content:userMsg});
+
+  // Show assistant bubble with progress
+  const asstEl = addMessageBubble('asst', '');
+  const statusDiv = document.createElement('div');
+  statusDiv.className = 'st-text show';
+  statusDiv.innerHTML = `<span class="st-ico">F</span><span class="st-msg">${zh?'正在搜索港交所...':'Searching HKEX...'}</span>`;
+  asstEl.appendChild(statusDiv);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  try {
+    // Call REST API directly — no AI involved
+    const body = { stock_code: code, doc_type: docType };
+    if(mode==='date' && dateFrom) { body.date_from = dateFrom; body.date_to = dateTo; }
+    const r = await apiFetch('/v1/hkex/download', { method:'POST', body:JSON.stringify(body) });
+    const d = await r.json();
+
+    statusDiv.remove();
+
+    if(d.ok && d.downloaded > 0){
+      const note = d.used_fallback ? `<p style="color:var(--t3);font-size:13px;margin-bottom:8px">${zh?'未找到年报，以下为业绩公告：':'No Annual Report found. Showing Results Announcement:'}</p>` : '';
+      let html = note + `<p>${zh?`已找到 ${d.downloaded} 个文件：`:`Found ${d.downloaded} files:`}</p>`;
+      // Show download cards
+      if(d.files){
+        for(const f of d.files.filter(f=>!f.error)){
+          const size = f.size ? (f.size>1048576?((f.size/1048576).toFixed(1)+' MB'):((f.size/1024).toFixed(1)+' KB')) : '';
+          html += `<div class="dl-card" style="margin:6px 0">
+            <div class="dl-card-icon pdf"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="dl-card-meta"><div class="dl-card-name">${f.name||'file'}</div><div class="dl-card-size">PDF${size?' · '+size:''} · ${f.date||''}</div></div>
+            ${f.url?`<a href="${f.url}" target="_blank" rel="noopener" class="dl-card-dl"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>`:''}
+          </div>`;
+        }
+      }
+      // ZIP card if available
+      if(d.zip_url){
+        html += `<div class="dl-card" style="margin:6px 0">
+          <div class="dl-card-icon zip"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div>
+          <div class="dl-card-meta"><div class="dl-card-name">${zh?'全部文件打包':'All files ZIP'}</div><div class="dl-card-size">ZIP · ${d.downloaded} files</div></div>
+          <a href="${d.zip_url}" download class="dl-card-dl"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>
+        </div>`;
+      }
+      asstEl.innerHTML = html;
     } else {
-      msg = `帮我从港交所下载 ${dispCode} (${_hkexSelectedName}) 的${docLabel} (${dateFrom} 至 ${dateTo})`;
+      asstEl.textContent = d.message || (zh ? '未找到匹配的公告。请尝试其他文件类型或日期范围。' : 'No matching filings found. Try a different doc type or date range.');
     }
-  } else {
-    if(mode==='latest'){
-      msg = `Download the latest ${count} ${docLabel} for ${dispCode} (${_hkexSelectedName || _hkexSelectedNameEn}) from HKEX`;
-    } else {
-      msg = `Download ${docLabel} for ${dispCode} (${_hkexSelectedName || _hkexSelectedNameEn}) from HKEX (${dateFrom} to ${dateTo})`;
-    }
+    messages.push({role:'assistant', content: asstEl.textContent || 'HKEX download complete'});
+  } catch(e) {
+    statusDiv.remove();
+    asstEl.textContent = zh ? `下载失败: ${e.message}` : `Download failed: ${e.message}`;
+    messages.push({role:'assistant', content: asstEl.textContent});
   }
-  forceHkexDownload = true; // signal backend to force hkex_download tool
-  const inp = document.getElementById('msg-in');
-  if(inp){ inp.value = msg; updateSendBtn && updateSendBtn(); }
-  setTimeout(() => {
-    const sendBtn = document.getElementById('send-btn');
-    if(sendBtn) sendBtn.click();
-  }, 100);
+  chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 function closeHkex(){

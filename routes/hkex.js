@@ -83,6 +83,9 @@ function createHKEXRouter(options = {}) {
         total: result.total,
         downloaded: result.downloaded,
         zip_url: result.zip_url,
+        used_fallback: result.usedFallback || false,
+        fallback_label: result.fallbackLabel || "",
+        message: result.downloaded === 0 ? (result.usedFallback ? `No results found (tried fallback)` : `No matching filings in this date range`) : "",
         files: result.files.map((f) => ({
           name: f.name,
           url: f.url,
