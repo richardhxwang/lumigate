@@ -3586,7 +3586,7 @@ router.get("/lc/auth/oauth-callback", async (req, res) => {
       return res.redirect(`${safeRedirect}${sep}token=${encodeURIComponent(data.token)}&oauth=1`);
     }
 
-    res.cookie("lc_token", data.token, {
+    res.cookie("auth_token", data.token, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       secure: isSecure,
@@ -3877,7 +3877,7 @@ router.post("/lc/auth/login", lcAuthLimiter, async (req, res) => {
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json(data);
     const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
-    res.cookie("lc_token", data.token, {
+    res.cookie("auth_token", data.token, {
       httpOnly: true,
       secure: isSecure,
       sameSite: "Strict",
@@ -3892,21 +3892,21 @@ router.post("/lc/auth/login", lcAuthLimiter, async (req, res) => {
 
 // POST /lc/auth/logout → clear cookie
 router.post("/lc/auth/logout", (req, res) => {
-  res.clearCookie("lc_token", { path: "/" });
+  res.clearCookie("auth_token", { path: "/" });
   res.json({ ok: true });
 });
 
 // POST /lc/auth/refresh → call PB auth-refresh to extend session while user is active
-router.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
+router.post("/lc/auth/refresh", requireAuth, async (req, res) => {
   try {
     const r = await lcPbFetch("/api/collections/users/auth-refresh", {
       method: "POST",
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json(data);
     const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https" || (req.headers["cf-visitor"] || "").includes("https");
-    res.cookie("lc_token", data.token, {
+    res.cookie("auth_token", data.token, {
       httpOnly: true, secure: isSecure, sameSite: "Strict", path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -3917,24 +3917,24 @@ router.post("/lc/auth/refresh", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/auth/me → fetch full user record from PB (JWT only has id+email)
-router.get("/lc/auth/me", requireLcAuth, async (req, res) => {
+router.get("/lc/auth/me", requireAuth, async (req, res) => {
   try {
-    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+    const r = await lcPbFetch(`/api/collections/users/records/${req.user.id}`, {
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     const data = await r.json();
-    if (!r.ok) return res.json({ id: req.lcUser.id, email: req.lcUser.email, name: null, avatarUrl: null });
+    if (!r.ok) return res.json({ id: req.user.id, email: req.user.email, name: null, avatarUrl: null });
     const avatarUrl = data.avatar
       ? `${PB_URL}/api/files/users/${data.id}/${data.avatar}?thumb=80x80`
       : null;
     res.json({ id: data.id, email: data.email, name: data.name || null, avatarUrl });
   } catch {
-    res.json({ id: req.lcUser.id, email: req.lcUser.email, name: null, avatarUrl: null });
+    res.json({ id: req.user.id, email: req.user.email, name: null, avatarUrl: null });
   }
 });
 
 // GET /lc/crypto/public-key → public key for encrypted upload extension
-router.get("/lc/crypto/public-key", requireLcAuth, async (req, res) => {
+router.get("/lc/crypto/public-key", requireAuth, async (req, res) => {
   res.json({
     alg: "RSA-OAEP-256",
     kid: LC_RSA_KEY_ID,
@@ -3943,7 +3943,7 @@ router.get("/lc/crypto/public-key", requireLcAuth, async (req, res) => {
 });
 
 // PATCH /lc/auth/profile → update display name + avatar
-router.patch("/lc/auth/profile", requireLcAuth, lcUpload.single("avatar"), async (req, res) => {
+router.patch("/lc/auth/profile", requireAuth, lcUpload.single("avatar"), async (req, res) => {
   try {
     const form = new FormData();
     const name = req.body?.name;
@@ -3953,9 +3953,9 @@ router.patch("/lc/auth/profile", requireLcAuth, lcUpload.single("avatar"), async
       form.append("avatar", blob, req.file.originalname || "avatar.jpg");
       require("fs").unlinkSync(req.file.path);
     }
-    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
+    const r = await lcPbFetch(`/api/collections/users/records/${req.user.id}`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
       body: form,
     });
     const data = await r.json();
@@ -3971,14 +3971,14 @@ router.patch("/lc/auth/profile", requireLcAuth, lcUpload.single("avatar"), async
 });
 
 // POST /lc/auth/change-password → change password (requires old password)
-router.post("/lc/auth/change-password", requireLcAuth, async (req, res) => {
+router.post("/lc/auth/change-password", requireAuth, async (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   if (!oldPassword || !newPassword) return res.status(400).json({ error: "Missing fields" });
   if (newPassword.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
   try {
-    const r = await lcPbFetch(`/api/collections/users/records/${req.lcUser.id}`, {
+    const r = await lcPbFetch(`/api/collections/users/records/${req.user.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify({ oldPassword, password: newPassword, passwordConfirm: newPassword }),
     });
     const data = await r.json();
@@ -3994,7 +3994,7 @@ const LC_ID_RE = /^[a-zA-Z0-9]{15}$/;
 function validPbId(id) { return typeof id === 'string' && LC_ID_RE.test(id); }
 
 // ── LumiChat proxy for /providers and /models (CF Access bypass via /lc/ path) ──
-router.get("/lc/providers", requireLcAuth, (req, res) => {
+router.get("/lc/providers", requireAuth, (req, res) => {
   const admin = isAdminRequest(req);
   res.json(Object.entries(PROVIDERS).map(([name, cfg]) => {
     const allKeys = providerKeys[name] || [];
@@ -4007,14 +4007,14 @@ router.get("/lc/providers", requireLcAuth, (req, res) => {
     return entry;
   }));
 });
-router.get("/lc/models/:provider", requireLcAuth, (req, res) => {
+router.get("/lc/models/:provider", requireAuth, (req, res) => {
   const name = req.params.provider.toLowerCase();
   res.json(MODELS[name] || []);
 });
 
 // ── Collector re-login for LumiChat users ─────────────────────────────────
 // Trigger login, poll status, get VNC URL — no admin required
-router.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => {
+router.post("/lc/collector/login/:provider", requireAuth, async (req, res) => {
   const name = req.params.provider.toLowerCase();
   if (!COLLECTOR_LOGIN_SITES[name]) return res.status(400).json({ error: "Unsupported provider" });
   if (_getLoginState().active) return res.status(409).json({ error: `Login in progress for ${_getLoginState().provider}` });
@@ -4069,14 +4069,14 @@ router.post("/lc/collector/login/:provider", requireLcAuth, async (req, res) => 
     res.status(500).json({ error: e.message });
   }
 });
-router.get("/lc/collector/login/status", requireLcAuth, (req, res) => {
+router.get("/lc/collector/login/status", requireAuth, (req, res) => {
   res.json({ active: _getLoginState().active, provider: _getLoginState().provider, status: _getLoginState().status });
 });
 
 // ── SearXNG web search ────────────────────────────────────────────────────
 // GET /lc/search?q=... → query SearXNG JSON API, return top results
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://lumigate-searxng:8080";
-router.get("/lc/search", requireLcAuth, async (req, res) => {
+router.get("/lc/search", requireAuth, async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Missing query" });
   try {
@@ -4098,10 +4098,10 @@ router.get("/lc/search", requireLcAuth, async (req, res) => {
 
 // ── GET /lc/suggest → server-side: search SearXNG + call AI → return 4 suggestion questions
 // Avoids client-side chained fetches which are brittle (cookie timing, provider selection)
-router.get("/lc/suggest", requireLcAuth, async (req, res) => {
+router.get("/lc/suggest", requireAuth, async (req, res) => {
   const memory = (req.query.memory || "").slice(0, 500);
   const lang = req.query.lang === "en" ? "en" : "zh";
-  log("info", "lc/suggest called", { user: req.lcUser?.email, lang });
+  log("info", "lc/suggest called", { user: req.user?.email, lang });
   const today = new Date().toLocaleDateString(lang === "en" ? "en-US" : "zh-CN", { year: "numeric", month: "long", day: "numeric" });
 
   // 1. Fetch news headlines from SearXNG
@@ -4203,17 +4203,17 @@ Output ONLY a JSON array of 4 English strings. No explanation or markdown. Examp
 
 // ── lc_user_settings ──────────────────────────────────────────────────────
 // GET /lc/user/settings → get or create settings record for current user
-router.get("/lc/user/settings", requireLcAuth, async (req, res) => {
+router.get("/lc/user/settings", requireAuth, async (req, res) => {
   try {
-    const record = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
+    const record = await getOrCreateLcUserSettingsRecord(req.user.id, req.authToken);
     res.json(record);
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 // GET /lc/settings/ui → frontend settings schema + current values
-router.get("/lc/settings/ui", requireLcAuth, async (req, res) => {
+router.get("/lc/settings/ui", requireAuth, async (req, res) => {
   try {
-    const userSettings = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
+    const userSettings = await getOrCreateLcUserSettingsRecord(req.user.id, req.authToken);
     res.json({
       userSettings,
       schema: buildLcSettingsUiSchema(),
@@ -4258,13 +4258,13 @@ router.post("/lc/client-log", express.json({ limit: "128kb" }), (req, res) => {
 });
 
 // PATCH /lc/user/settings → update settings (upsert)
-router.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
+router.patch("/lc/user/settings", requireAuth, async (req, res) => {
   try {
     const body = pickAllowedFields(req.body, getLcCollectionConfig("userSettings").writableFields);
-    const beforeSettings = await getOrCreateLcUserSettingsRecord(req.lcUser.id, req.lcToken);
+    const beforeSettings = await getOrCreateLcUserSettingsRecord(req.user.id, req.authToken);
 
     // Find existing record
-    const fr = await pbListOwnedRecords("userSettings", { ownerId: req.lcUser.id, token: req.lcToken });
+    const fr = await pbListOwnedRecords("userSettings", { ownerId: req.user.id, token: req.authToken });
     const fd = await fr.json();
     const existing = fd.items?.[0];
 
@@ -4272,14 +4272,14 @@ router.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
     if (existing) {
       r = await lcPbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
         body: JSON.stringify(body),
       });
     } else {
       r = await lcPbFetch("/api/collections/lc_user_settings/records", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
-        body: JSON.stringify({ user: req.lcUser.id, ...LC_USER_SETTINGS_DEFAULTS, ...body }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
+        body: JSON.stringify({ user: req.user.id, ...LC_USER_SETTINGS_DEFAULTS, ...body }),
       });
     }
     const d = await r.json();
@@ -4291,10 +4291,10 @@ router.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
           changes[key] = { before, after: d[key] };
         }
       }
-      logParamChange("user", req.lcUser.email || req.lcUser.id, changes, {
+      logParamChange("user", req.user.email || req.user.id, changes, {
         component: "settings",
         route: "/lc/user/settings",
-        userId: req.lcUser.id,
+        userId: req.user.id,
       });
     }
     res.status(r.status).json(d);
@@ -4303,11 +4303,11 @@ router.patch("/lc/user/settings", requireLcAuth, async (req, res) => {
 
 // ── lc_projects ───────────────────────────────────────────────────────────
 // GET /lc/projects → list user's projects
-router.get("/lc/projects", requireLcAuth, async (req, res) => {
+router.get("/lc/projects", requireAuth, async (req, res) => {
   try {
     const r = await pbListOwnedRecords("projects", {
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId: req.user.id,
+      token: req.authToken,
       extraFilters: withSoftDeleteFilters("projects", {
         extraFilters: buildPbFiltersFromQuery("projects", req.query),
         includeDeleted: String(req.query.include_deleted || "") === "1",
@@ -4321,22 +4321,22 @@ router.get("/lc/projects", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/projects → create project
-router.post("/lc/projects", requireLcAuth, async (req, res) => {
+router.post("/lc/projects", requireAuth, async (req, res) => {
   try {
-    const r = await createLcProjectRecord({ lcToken: req.lcToken, userId: req.lcUser.id, input: req.body || {} });
+    const r = await createLcProjectRecord({ lcToken: req.authToken, userId: req.user.id, input: req.body || {} });
     const d = await r.json();
     res.status(r.status).json(d);
   } catch (e) { res.status(e.status || 502).json({ error: e.message }); }
 });
 
 // PATCH /lc/projects/:id → update project
-router.patch("/lc/projects/:id", requireLcAuth, async (req, res) => {
+router.patch("/lc/projects/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   const body = sanitizeLcProjectPayload(req.body || {});
   try {
     const r = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const d = await r.json();
@@ -4345,14 +4345,14 @@ router.patch("/lc/projects/:id", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/projects/:id/references → inspect dependent records before delete/remap
-router.get("/lc/projects/:id/references", requireLcAuth, async (req, res) => {
+router.get("/lc/projects/:id/references", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   try {
     const references = await listReferencingRecords({
       domainKey: "lc",
       sourceCollectionKey: "projects",
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId: req.user.id,
+      token: req.authToken,
       recordId: req.params.id,
     });
     res.json({
@@ -4366,13 +4366,13 @@ router.get("/lc/projects/:id/references", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/projects/:id/remap → move dependent sessions to another project before delete
-router.post("/lc/projects/:id/remap", requireLcAuth, async (req, res) => {
+router.post("/lc/projects/:id/remap", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   try {
     const { target_project_id: targetProjectId, delete_source: deleteSource = false } = req.body || {};
     const remap = await remapLcProjectReferences({
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId: req.user.id,
+      token: req.authToken,
       sourceId: req.params.id,
       targetId: targetProjectId,
     });
@@ -4382,13 +4382,13 @@ router.post("/lc/projects/:id/remap", requireLcAuth, async (req, res) => {
       await assertNoBlockingReferences({
         domainKey: "lc",
         sourceCollectionKey: "projects",
-        ownerId: req.lcUser.id,
-        token: req.lcToken,
+        ownerId: req.user.id,
+        token: req.authToken,
         recordId: req.params.id,
       });
       const delResp = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${req.lcToken}` },
+        headers: { Authorization: `Bearer ${req.authToken}` },
       });
       if (!delResp.ok) {
         const delData = await delResp.json().catch(() => ({}));
@@ -4404,14 +4404,14 @@ router.post("/lc/projects/:id/remap", requireLcAuth, async (req, res) => {
 });
 
 // DELETE /lc/projects/:id → delete project
-router.delete("/lc/projects/:id", requireLcAuth, async (req, res) => {
+router.delete("/lc/projects/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   try {
     if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
       const data = await softDeleteRecord("projects", {
         id: req.params.id,
-        token: req.lcToken,
-        userId: req.lcUser.id,
+        token: req.authToken,
+        userId: req.user.id,
         reason: req.body?.reason || "user_deleted",
       });
       return res.json({ success: true, mode: "soft", data });
@@ -4419,13 +4419,13 @@ router.delete("/lc/projects/:id", requireLcAuth, async (req, res) => {
     await assertNoBlockingReferences({
       domainKey: "lc",
       sourceCollectionKey: "projects",
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId: req.user.id,
+      token: req.authToken,
       recordId: req.params.id,
     });
     const r = await lcPbFetch(`/api/collections/lc_projects/records/${req.params.id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     res.status(r.status).json({ success: r.ok });
   } catch (e) {
@@ -4435,11 +4435,11 @@ router.delete("/lc/projects/:id", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/sessions → list user's sessions
-router.get("/lc/sessions", requireLcAuth, async (req, res) => {
+router.get("/lc/sessions", requireAuth, async (req, res) => {
   try {
     const r = await pbListOwnedRecords("sessions", {
-      ownerId: req.lcUser.id,
-      token: req.lcToken,
+      ownerId: req.user.id,
+      token: req.authToken,
       extraFilters: withSoftDeleteFilters("sessions", {
         extraFilters: buildPbFiltersFromQuery("sessions", req.query),
         includeDeleted: String(req.query.include_deleted || "") === "1",
@@ -4455,11 +4455,11 @@ router.get("/lc/sessions", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/sessions → create session
-router.post("/lc/sessions", requireLcAuth, async (req, res) => {
+router.post("/lc/sessions", requireAuth, async (req, res) => {
   try {
     const now = lcNowIso();
     const body = {
-      user: req.lcUser.id,
+      user: req.user.id,
       title: req.body?.title || "New Chat",
       provider: req.body?.provider || "openai",
       model: req.body?.model || "gpt-4.1-mini",
@@ -4469,7 +4469,7 @@ router.post("/lc/sessions", requireLcAuth, async (req, res) => {
     if (req.body?.project && validPbId(req.body.project)) body.project = req.body.project;
     const r = await lcPbFetch("/api/collections/lc_sessions/records", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4480,7 +4480,7 @@ router.post("/lc/sessions", requireLcAuth, async (req, res) => {
 });
 
 // PATCH /lc/sessions/:id/title → update title
-router.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
+router.patch("/lc/sessions/:id/title", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
     const { title } = req.body || {};
@@ -4489,7 +4489,7 @@ router.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
     if (lcSupportsField("sessions", "updated_at")) body.updated_at = lcNowIso();
     const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4500,7 +4500,7 @@ router.patch("/lc/sessions/:id/title", requireLcAuth, async (req, res) => {
 });
 
 // PATCH /lc/sessions/:id/model → update provider/model
-router.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
+router.patch("/lc/sessions/:id/model", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
     const { provider, model } = req.body || {};
@@ -4509,7 +4509,7 @@ router.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
     if (lcSupportsField("sessions", "updated_at")) body.updated_at = lcNowIso();
     const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4520,21 +4520,21 @@ router.patch("/lc/sessions/:id/model", requireLcAuth, async (req, res) => {
 });
 
 // DELETE /lc/sessions/:id → delete session (PB cascades messages + files)
-router.delete("/lc/sessions/:id", requireLcAuth, async (req, res) => {
+router.delete("/lc/sessions/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
     if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
       const data = await softDeleteRecord("sessions", {
         id: req.params.id,
-        token: req.lcToken,
-        userId: req.lcUser.id,
+        token: req.authToken,
+        userId: req.user.id,
         reason: req.body?.reason || "user_deleted",
       });
       return res.json({ success: true, mode: "soft", data });
     }
     const r = await lcPbFetch(`/api/collections/lc_sessions/records/${req.params.id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (r.status === 204 || r.ok) return res.json({ ok: true });
     const data = await r.json();
@@ -4545,11 +4545,11 @@ router.delete("/lc/sessions/:id", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/sessions/:id/messages → list messages
-router.get("/lc/sessions/:id/messages", requireLcAuth, async (req, res) => {
+router.get("/lc/sessions/:id/messages", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid session ID" });
   try {
     const r = await pbListOwnedRecords("messages", {
-      token: req.lcToken,
+      token: req.authToken,
       extraFilters: withSoftDeleteFilters("messages", {
         extraFilters: [buildPbFilterClause("session", "=", req.params.id), ...buildPbFiltersFromQuery("messages", req.query)],
         includeDeleted: String(req.query.include_deleted || "") === "1",
@@ -4565,7 +4565,7 @@ router.get("/lc/sessions/:id/messages", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/files/context?ids=id1,id2&q=query → fetch model-ready attachment contexts from PB
-router.get("/lc/files/context", requireLcAuth, async (req, res) => {
+router.get("/lc/files/context", requireAuth, async (req, res) => {
   const ids = String(req.query.ids || "")
     .split(",")
     .map((id) => id.trim())
@@ -4573,27 +4573,27 @@ router.get("/lc/files/context", requireLcAuth, async (req, res) => {
   if (!ids.length) return res.json({ ok: true, items: [] });
   const queryText = String(req.query.q || "").slice(0, 1000);
   const items = await fetchLcAttachmentContextsByIds(ids, {
-    token: req.lcToken,
-    ownerId: req.lcUser.id,
+    token: req.authToken,
+    ownerId: req.user.id,
     queryText,
   });
   res.json({ ok: true, items });
 });
 
 // POST /lc/files/consent/:id → issue short-lived, one-time download token
-router.post("/lc/files/consent/:id", requireLcAuth, async (req, res) => {
+router.post("/lc/files/consent/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid file ID" });
   try {
-    await assertRecordOwned("files", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
+    await assertRecordOwned("files", { id: req.params.id, ownerId: req.user.id, token: req.authToken });
     const policy = getLcFileSandboxPolicy();
     if (!policy.downloadEnabled || !policy.requireConsent) {
-      audit(req.lcUser.id, "lc_file_consent_bypass", req.params.id, {
+      audit(req.user.id, "lc_file_consent_bypass", req.params.id, {
         reason: "policy_disabled",
       });
       return res.json({ ok: true, downloadUrl: `/lc/files/serve/${req.params.id}` });
     }
-    const token = issueLcFileConsentToken({ fileId: req.params.id, userId: req.lcUser.id });
-    audit(req.lcUser.id, "lc_file_consent_issued", req.params.id, {
+    const token = issueLcFileConsentToken({ fileId: req.params.id, userId: req.user.id });
+    audit(req.user.id, "lc_file_consent_issued", req.params.id, {
       expiresInSec: LC_CONSENT_TOKEN_TTL_SEC,
     });
     return res.json({
@@ -4608,18 +4608,18 @@ router.post("/lc/files/consent/:id", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/messages → create message record
-router.post("/lc/messages", requireLcAuth, async (req, res) => {
+router.post("/lc/messages", requireAuth, async (req, res) => {
   try {
     const { session, role, content, file_ids } = req.body || {};
     if (!session || !role || !content) return res.status(400).json({ error: "Missing required fields" });
-    await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
+    await assertLcSessionOwned(session, { ownerId: req.user.id, token: req.authToken });
     const now = lcNowIso();
     const body = { session, role, content: clampPbMessageContent(content), file_ids: file_ids || [] };
     if (lcSupportsField("messages", "created_at")) body.created_at = now;
     if (lcSupportsField("messages", "updated_at")) body.updated_at = now;
     const r = await lcPbFetch("/api/collections/lc_messages/records", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4628,7 +4628,7 @@ router.post("/lc/messages", requireLcAuth, async (req, res) => {
       return res.status(r.status).json({ ...data, error: pbErrorSummary(data, "Message save failed") });
     }
     try {
-      await touchLcSession(session, req.lcToken);
+      await touchLcSession(session, req.authToken);
     } catch (err) {
       log("warn", "lc session touch failed", { session, error: err.message });
     }
@@ -4642,22 +4642,22 @@ router.post("/lc/messages", requireLcAuth, async (req, res) => {
 });
 
 // DELETE /lc/messages/:id → delete a message from PB
-router.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
+router.delete("/lc/messages/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid message ID" });
   try {
     if (isLcSoftDeleteEnabled() && !isHardDeleteRequested(req)) {
       const data = await softDeleteRecord("messages", {
         id: req.params.id,
-        token: req.lcToken,
-        userId: req.lcUser.id,
+        token: req.authToken,
+        userId: req.user.id,
         reason: req.body?.reason || "user_deleted",
       });
       return res.json({ success: true, mode: "soft", data });
     }
-    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
+    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.user.id, token: req.authToken });
     const r = await lcPbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (r.status === 204 || r.ok) return res.json({ success: true });
     const data = await r.json();
@@ -4668,7 +4668,7 @@ router.delete("/lc/messages/:id", requireLcAuth, async (req, res) => {
 });
 
 // GET /lc/trash → list soft-deleted records
-router.get("/lc/trash", requireLcAuth, async (req, res) => {
+router.get("/lc/trash", requireAuth, async (req, res) => {
   if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled. Enable lcSoftDeleteEnabled in settings or set LC_SOFT_DELETE_ENABLED=1" });
   const collectionMap = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
   const requested = String(req.query.collection || "all");
@@ -4680,8 +4680,8 @@ router.get("/lc/trash", requireLcAuth, async (req, res) => {
     for (const key of keys) {
       const configKey = collectionMap[key];
       const r = await pbListOwnedRecords(configKey, {
-        ownerId: req.lcUser.id,
-        token: req.lcToken,
+        ownerId: req.user.id,
+        token: req.authToken,
         extraFilters: withSoftDeleteFilters(configKey, { trashOnly: true }),
         sort: ["-deleted_at", "-id"],
         perPage: req.query.perPage ? Number(req.query.perPage) : 100,
@@ -4698,14 +4698,14 @@ router.get("/lc/trash", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/trash/:collection/:id/restore → restore soft-deleted record
-router.post("/lc/trash/:collection/:id/restore", requireLcAuth, async (req, res) => {
+router.post("/lc/trash/:collection/:id/restore", requireAuth, async (req, res) => {
   if (!isLcSoftDeleteEnabled()) return res.status(400).json({ error: "Soft delete is disabled. Enable lcSoftDeleteEnabled in settings or set LC_SOFT_DELETE_ENABLED=1" });
   const collectionMap = { projects: "projects", sessions: "sessions", messages: "messages", files: "files" };
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid ID" });
   const configKey = collectionMap[req.params.collection];
   if (!configKey) return res.status(400).json({ error: "Unsupported trash collection" });
   try {
-    const data = await restoreSoftDeletedRecord(configKey, { id: req.params.id, token: req.lcToken });
+    const data = await restoreSoftDeletedRecord(configKey, { id: req.params.id, token: req.authToken });
     res.json({ success: true, data });
   } catch (e) {
     res.status(e.status || 502).json({ error: e.message });
@@ -4713,10 +4713,10 @@ router.post("/lc/trash/:collection/:id/restore", requireLcAuth, async (req, res)
 });
 
 // PATCH /lc/messages/:id → update message content/file_ids in PB
-router.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
+router.patch("/lc/messages/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid message ID" });
   try {
-    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
+    await assertRecordOwned("messages", { id: req.params.id, ownerId: req.user.id, token: req.authToken });
     const body = {};
     if (typeof req.body?.content === "string") body.content = clampPbMessageContent(req.body.content);
     if (Array.isArray(req.body?.file_ids)) body.file_ids = req.body.file_ids;
@@ -4725,7 +4725,7 @@ router.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
 
     const r = await lcPbFetch(`/api/collections/lc_messages/records/${req.params.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4743,20 +4743,20 @@ router.patch("/lc/messages/:id", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/messages/:id/feedback → rate a message (up/down/clear)
-router.post("/lc/messages/:id/feedback", requireLcAuth, async (req, res) => {
+router.post("/lc/messages/:id/feedback", requireAuth, async (req, res) => {
   const msgId = req.params.id;
   if (!validPbId(msgId)) return res.status(400).json({ error: "Invalid message ID" });
   const { rating } = req.body || {};
   if (rating && !["up", "down"].includes(rating)) return res.status(400).json({ error: "Invalid rating" });
 
   try {
-    await assertRecordOwned("messages", { id: msgId, ownerId: req.lcUser.id, token: req.lcToken });
+    await assertRecordOwned("messages", { id: msgId, ownerId: req.user.id, token: req.authToken });
     const body = { feedback: rating || "" };
     if (lcSupportsField("messages", "updated_at")) body.updated_at = lcNowIso();
 
     const r = await lcPbFetch(`/api/collections/lc_messages/records/${msgId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -4773,13 +4773,13 @@ router.post("/lc/messages/:id/feedback", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/sessions/:id/share → generate a share link for a session
-router.post("/lc/sessions/:id/share", requireLcAuth, async (req, res) => {
+router.post("/lc/sessions/:id/share", requireAuth, async (req, res) => {
   const sid = req.params.id;
   if (!validPbId(sid)) return res.status(400).json({ error: "Invalid session ID" });
 
   try {
     // Verify ownership
-    const session = await assertLcSessionOwned(sid, { ownerId: req.lcUser.id, token: req.lcToken });
+    const session = await assertLcSessionOwned(sid, { ownerId: req.user.id, token: req.authToken });
 
     // Re-use existing share token if present, otherwise generate new one
     let shareToken = session.share_token;
@@ -4790,7 +4790,7 @@ router.post("/lc/sessions/:id/share", requireLcAuth, async (req, res) => {
 
       const r = await lcPbFetch(`/api/collections/lc_sessions/records/${sid}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.lcToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${req.authToken}` },
         body: JSON.stringify(body),
       });
       if (!r.ok) {
@@ -4870,13 +4870,13 @@ ${messages.map((m) => `<div class="msg ${escapeHtml(m.role)}"><div class="role">
 }
 
 // POST /lc/files → upload file to PB
-router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res) => {
+router.post("/lc/files", requireAuth, lcUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   const tmpPath = req.file.path;
   try {
     const { session } = req.body || {};
     if (!session) { fs.unlink(tmpPath, () => {}); return res.status(400).json({ error: "Missing session" }); }
-    await assertLcSessionOwned(session, { ownerId: req.lcUser.id, token: req.lcToken });
+    await assertLcSessionOwned(session, { ownerId: req.user.id, token: req.authToken });
 
     // Stream file to PB without loading into heap (avoids OOM on large uploads)
     const now = lcNowIso();
@@ -4886,7 +4886,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
     const mimeType = detectLcUploadMime(originalName, req.file.mimetype);
     const kind = lcFileKindByMimeOrExt(mimeType, originalName);
     const sandboxPolicy = getLcFileSandboxPolicy();
-    const trusted = sandboxPolicy.trustedUsers.includes(String(req.lcUser.id || ""));
+    const trusted = sandboxPolicy.trustedUsers.includes(String(req.user.id || ""));
     const uploadSandboxEnabled = !!sandboxPolicy.uploadEnabled && !(sandboxPolicy.uploadTrustedBypass && trusted);
     const sandboxMode = uploadSandboxEnabled ? "full" : "trusted_bypass";
     if (uploadSandboxEnabled) {
@@ -4898,7 +4898,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
       });
     }
     log("info", "lc upload policy", {
-      userId: req.lcUser.id,
+      userId: req.user.id,
       sessionId: session,
       name: originalName,
       mime: mimeType,
@@ -4910,7 +4910,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
 
     const parts = [
       `--${boundary}\r\nContent-Disposition: form-data; name="session"\r\n\r\n${session}`,
-      `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${req.lcUser.id}`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="user"\r\n\r\n${req.user.id}`,
       `--${boundary}\r\nContent-Disposition: form-data; name="mime_type"\r\n\r\n${mimeType}`,
       `--${boundary}\r\nContent-Disposition: form-data; name="size_bytes"\r\n\r\n${req.file.size}`,
     ];
@@ -4940,7 +4940,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
     const r = await pbFetch("/api/collections/lc_files/records", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${req.lcToken}`,
+        Authorization: `Bearer ${req.authToken}`,
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
       body: pt,
@@ -4957,7 +4957,7 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
       originalName,
       mimeType,
       sizeBytes: req.file.size,
-      userId: req.lcUser.id,
+      userId: req.user.id,
       sessionId: session,
       status: "ready",
       sandboxMode,
@@ -4969,12 +4969,12 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
       if (Object.keys(patchBody).length) {
         await lcPbFetch(`/api/collections/lc_files/records/${data.id}`, {
           method: "PATCH",
-          headers: { Authorization: `Bearer ${req.lcToken}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${req.authToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         }).catch(e => log("warn", "pb_write_failed", { component: "lumichat", collection: "lc_files", action: "patch_storage_ref", fileId: data.id, error: e?.message || String(e) }));
       }
     }
-    audit(req.lcUser.id, "lc_file_upload", data.id, {
+    audit(req.user.id, "lc_file_upload", data.id, {
       sessionId: session,
       sandboxMode,
       sizeBytes: req.file.size,
@@ -4994,16 +4994,16 @@ router.post("/lc/files", requireLcAuth, lcUpload.single("file"), async (req, res
 });
 
 // GET /lc/files/serve/:id → stream file from PB to browser
-router.get("/lc/files/serve/:id", requireLcAuth, async (req, res) => {
+router.get("/lc/files/serve/:id", requireAuth, async (req, res) => {
   if (!validPbId(req.params.id)) return res.status(400).json({ error: "Invalid file ID" });
   try {
-    const rec = await assertRecordOwned("files", { id: req.params.id, ownerId: req.lcUser.id, token: req.lcToken });
+    const rec = await assertRecordOwned("files", { id: req.params.id, ownerId: req.user.id, token: req.authToken });
     const policy = getLcFileSandboxPolicy();
     if (policy.downloadEnabled && policy.requireConsent) {
       const consentToken = String(req.query.consent_token || "");
-      const check = consumeLcFileConsentToken({ token: consentToken, fileId: req.params.id, userId: req.lcUser.id });
+      const check = consumeLcFileConsentToken({ token: consentToken, fileId: req.params.id, userId: req.user.id });
       if (!check.ok) {
-        audit(req.lcUser.id, "lc_file_download_blocked", req.params.id, { reason: check.reason || "consent_required" });
+        audit(req.user.id, "lc_file_download_blocked", req.params.id, { reason: check.reason || "consent_required" });
         return res.status(428).json({ error: "Download consent required", code: "consent_required" });
       }
     }
@@ -5015,7 +5015,7 @@ router.get("/lc/files/serve/:id", requireLcAuth, async (req, res) => {
       const isoMeta = readLcIsolatedMeta(req.params.id);
       const isoPath = lcFileIsolationBlobPath(req.params.id);
       if (isoMeta && fs.existsSync(isoPath)) {
-        audit(req.lcUser.id, "lc_file_download", req.params.id, { source: "isolation" });
+        audit(req.user.id, "lc_file_download", req.params.id, { source: "isolation" });
         const rs = fs.createReadStream(isoPath);
         rs.on("error", (streamErr) => {
           log("error", "lcServeFile isolated stream error", { error: streamErr.message });
@@ -5027,9 +5027,9 @@ router.get("/lc/files/serve/:id", requireLcAuth, async (req, res) => {
     }
 
     // Fallback for legacy records: stream from PB file storage.
-    audit(req.lcUser.id, "lc_file_download", req.params.id, { source: "pocketbase_fallback" });
+    audit(req.user.id, "lc_file_download", req.params.id, { source: "pocketbase_fallback" });
     const fileR = await lcPbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (!fileR.ok) return res.status(fileR.status).json({ error: "File fetch failed" });
     const readable = Readable.fromWeb(fileR.body);
@@ -5046,19 +5046,19 @@ router.get("/lc/files/serve/:id", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/files/gemini-upload/:pbFileId → upload PB file to Gemini File API
-router.post("/lc/files/gemini-upload/:pbFileId", requireLcAuth, async (req, res) => {
+router.post("/lc/files/gemini-upload/:pbFileId", requireAuth, async (req, res) => {
   if (!validPbId(req.params.pbFileId)) return res.status(400).json({ error: "Invalid file ID" });
   try {
     // Get file record
     const recR = await lcPbFetch(`/api/collections/lc_files/records/${req.params.pbFileId}`, {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (!recR.ok) return res.status(404).json({ error: "File not found" });
     const rec = await recR.json();
 
     // Fetch file bytes from PB
     const fileR = await lcPbFetch(`/api/files/lc_files/${rec.id}/${rec.file}`, {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (!fileR.ok) return res.status(502).json({ error: "Failed to fetch file from PB" });
 
@@ -5118,7 +5118,7 @@ router.post("/lc/files/gemini-upload/:pbFileId", requireLcAuth, async (req, res)
 // POST /lc/chat/gemini-native → Gemini native API for video/PDF/audio via File API
 // Body: { model, messages (OpenAI fmt), stream }
 // Converts file_data parts to Gemini inlineData/fileData format, calls native API
-router.post("/lc/chat/gemini-native", requireLcAuth, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "256mb" }), async (req, res) => {
+router.post("/lc/chat/gemini-native", requireAuth, express.json({ limit: process.env.LC_CHAT_BODY_LIMIT || "256mb" }), async (req, res) => {
   const { model = "gemini-2.5-flash", messages = [], stream = false } = req.body || {};
 
   const geminiKey = (selectApiKey("gemini", "_lumichat") || {}).apiKey || PROVIDERS.gemini?.apiKey;
@@ -5259,7 +5259,7 @@ router.use("/v1/chat", require("./chat")({
   INTERNAL_CHAT_KEY,
   getSessionRole,
   parseCookies,
-  validateLcTokenPayload,
+  validateAuthToken,
   getLcUserTier,
   projects,
   projectKeyIndex,
@@ -5402,10 +5402,10 @@ router.get("/fn/memory/health", async (_req, res) => {
   }
 });
 
-router.get("/lc/memory/profile", requireLcAuth, async (req, res) => {
+router.get("/lc/memory/profile", requireAuth, async (req, res) => {
   if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
   try {
-    const profile = await userMemory._getProfile(req.lcUser.id);
+    const profile = await userMemory._getProfile(req.user.id);
     res.json({ ok: true, profile: profile || {} });
   } catch (err) {
     log("error", "lc_memory_profile_error", { error: err.message });
@@ -5413,12 +5413,12 @@ router.get("/lc/memory/profile", requireLcAuth, async (req, res) => {
   }
 });
 
-router.post("/lc/memory/search", requireLcAuth, express.json(), async (req, res) => {
+router.post("/lc/memory/search", requireAuth, express.json(), async (req, res) => {
   if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
   try {
     const { query, limit = 20 } = req.body || {};
     if (!query) return res.status(400).json({ error: "query is required" });
-    const results = await userMemory.search(req.lcUser.id, query, { limit: Math.min(limit, 50) });
+    const results = await userMemory.search(req.user.id, query, { limit: Math.min(limit, 50) });
     res.json({ ok: true, results });
   } catch (err) {
     log("error", "lc_memory_search_error", { error: err.message });
@@ -5426,10 +5426,10 @@ router.post("/lc/memory/search", requireLcAuth, express.json(), async (req, res)
   }
 });
 
-router.delete("/lc/memory/:id", requireLcAuth, async (req, res) => {
+router.delete("/lc/memory/:id", requireAuth, async (req, res) => {
   if (!userMemory) return res.status(503).json({ error: "Memory service not available" });
   try {
-    const deleted = await userMemory.deleteMemory(req.lcUser.id, req.params.id);
+    const deleted = await userMemory.deleteMemory(req.user.id, req.params.id);
     if (!deleted) return res.status(404).json({ error: "Memory not found" });
     res.json({ ok: true });
   } catch (err) {
@@ -5439,9 +5439,9 @@ router.delete("/lc/memory/:id", requireLcAuth, async (req, res) => {
 });
 
 // --- LumiChat: User tier & BYOK API key management ---
-router.get("/lc/user/tier", requireLcAuth, async (req, res) => {
+router.get("/lc/user/tier", requireAuth, async (req, res) => {
   try {
-    const tierInfo = await getLcUserTier(req.lcUser.id, req.lcToken);
+    const tierInfo = await getLcUserTier(req.user.id, req.authToken);
     // Pending approval
     if (!tierInfo.tier) {
       return res.json({ tier: null, pending: true, rpm: 0, providers: [] });
@@ -5464,24 +5464,24 @@ router.get("/lc/user/tier", requireLcAuth, async (req, res) => {
 });
 
 // POST /lc/upgrade-request — user requests tier upgrade
-router.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
+router.post("/lc/upgrade-request", requireAuth, async (req, res) => {
   const { plan } = req.body;
   if (plan !== 'premium') return res.status(400).json({ error: "Can only upgrade to premium" });
   try {
-    const fr = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user%3D'${req.lcUser.id}'&perPage=1`, { headers: { Authorization: `Bearer ${req.lcToken}` } });
+    const fr = await lcPbFetch(`/api/collections/lc_user_settings/records?filter=user%3D'${req.user.id}'&perPage=1`, { headers: { Authorization: `Bearer ${req.authToken}` } });
     const fd = await fr.json();
     const existing = fd.items?.[0];
     if (!existing) return res.status(404).json({ error: "Settings not found" });
     if (existing.tier === plan) return res.json({ success: true, message: "Already on this plan" });
     await lcPbFetch(`/api/collections/lc_user_settings/records/${existing.id}`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${req.authToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ upgrade_request: plan, upgrade_requested_at: new Date().toISOString() }),
     });
-    lcTierCache.delete(req.lcUser.id);
+    lcTierCache.delete(req.user.id);
     // Send email notification to admin
-    const userEmail = req.lcUser.email || 'unknown';
-    const userName = req.lcUser.name || userEmail.split('@')[0];
+    const userEmail = req.user.email || 'unknown';
+    const userName = req.user.name || userEmail.split('@')[0];
     const settingsId = existing.id;
     const token = require('crypto').createHmac('sha256', ADMIN_SECRET).update(settingsId).digest('hex').slice(0, 24);
     const base = process.env.PUBLIC_URL || settings.publicUrl || 'https://lumigate.autorums.com';
@@ -5498,7 +5498,7 @@ router.post("/lc/upgrade-request", requireLcAuth, async (req, res) => {
         </div>
         <p style="color:#999;font-size:11px">Or manage in <a href="${base}">LumiGate Dashboard</a> → Users tab.</p>
       </div>`
-    ).catch(e => log("warn", "upgrade_email_failed", { component: "lumichat", userId: req.lcUser.id, plan, error: e?.message || String(e) }));
+    ).catch(e => log("warn", "upgrade_email_failed", { component: "lumichat", userId: req.user.id, plan, error: e?.message || String(e) }));
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -5585,11 +5585,11 @@ router.post("/admin/upgrade-requests/:settingsId/reject", adminAuth, requireRole
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.get("/lc/user/apikeys", requireLcAuth, async (req, res) => {
+router.get("/lc/user/apikeys", requireAuth, async (req, res) => {
   try {
     const r = await lcPbFetch(
-      `/api/collections/lc_user_apikeys/records?filter=user='${req.lcUser.id}'&perPage=50`,
-      { headers: { Authorization: `Bearer ${req.lcToken}` } }
+      `/api/collections/lc_user_apikeys/records?filter=user='${req.user.id}'&perPage=50`,
+      { headers: { Authorization: `Bearer ${req.authToken}` } }
     );
     const data = await r.json();
     // Return keys without the actual key value (security)
@@ -5601,7 +5601,7 @@ router.get("/lc/user/apikeys", requireLcAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post("/lc/user/apikeys", requireLcAuth, async (req, res) => {
+router.post("/lc/user/apikeys", requireAuth, async (req, res) => {
   const { provider, key, label } = req.body;
   if (!provider || !key) return res.status(400).json({ error: "provider and key required" });
   if (!PROVIDERS[provider]) return res.status(400).json({ error: "Unknown provider" });
@@ -5609,33 +5609,33 @@ router.post("/lc/user/apikeys", requireLcAuth, async (req, res) => {
   try {
     const r = await lcPbFetch(`/api/collections/lc_user_apikeys/records`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${req.lcToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: req.lcUser.id, provider, key_encrypted: encrypted, label: label || provider, enabled: true }),
+      headers: { Authorization: `Bearer ${req.authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: req.user.id, provider, key_encrypted: encrypted, label: label || provider, enabled: true }),
     });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json(data);
-    lcTierCache.delete(req.lcUser.id);
+    lcTierCache.delete(req.user.id);
     res.json({ success: true, id: data.id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.delete("/lc/user/apikeys/:id", requireLcAuth, async (req, res) => {
+router.delete("/lc/user/apikeys/:id", requireAuth, async (req, res) => {
   if (!isValidPbId(req.params.id)) return res.status(400).json({ error: "Invalid id" });
   try {
     // Verify ownership before delete
     const check = await lcPbFetch(`/api/collections/lc_user_apikeys/records/${req.params.id}`, {
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (!check.ok) return res.status(404).json({ error: "Not found" });
     const rec = await check.json();
-    if (rec.user !== req.lcUser.id) return res.status(403).json({ error: "Forbidden" });
+    if (rec.user !== req.user.id) return res.status(403).json({ error: "Forbidden" });
     // Delete
     const r = await lcPbFetch(`/api/collections/lc_user_apikeys/records/${req.params.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${req.lcToken}` },
+      headers: { Authorization: `Bearer ${req.authToken}` },
     });
     if (!r.ok) return res.status(r.status).json({ error: "Delete failed" });
-    lcTierCache.delete(req.lcUser.id);
+    lcTierCache.delete(req.user.id);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

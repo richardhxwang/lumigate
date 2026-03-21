@@ -1545,7 +1545,7 @@ function requireRole(...roles) {
 // on every call and enforces row-level ownership. The local decode is only used to check expiry
 // and gate the AI proxy fast-path. A forged token gains no data access; it can at most consume
 // the gateway's shared API quota via the _lumichat rate-limit path.
-function validateLcTokenPayload(token) {
+function validateAuthToken(token) {
   try {
     if (!token || token.split('.').length !== 3) return null;
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
@@ -1555,14 +1555,14 @@ function validateLcTokenPayload(token) {
   } catch { return null; }
 }
 
-function requireLcAuth(req, res, next) {
+function requireAuth(req, res, next) {
   const cookies = parseCookies(req);
-  const token = cookies.lc_token;
+  const token = cookies.auth_token;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  const payload = validateLcTokenPayload(token);
+  const payload = validateAuthToken(token);
   if (!payload) return res.status(401).json({ error: 'Session expired' });
-  req.lcUser = payload; // { id, email, collectionId, ... }
-  req.lcToken = token;
+  req.user = payload; // { id, email, collectionId, ... }
+  req.authToken = token;
   next();
 }
 
@@ -3500,8 +3500,8 @@ const _lcResult = require('./routes/lumichat')({
   isValidPbId,
   pbErrorSummary,
   clampPbMessageContent,
-  validateLcTokenPayload,
-  requireLcAuth,
+  validateAuthToken,
+  requireAuth,
   requireFnAuth: undefined, // defined inside lumichat.js (FurNote auth — not yet wired externally)
   requireRole,
   adminAuth,
@@ -3569,7 +3569,7 @@ const platformAuth = async (req, res, next) => {
   if (["root", "admin"].includes(getSessionRole(req))) return next();
   // Check LumiChat token
   const lcCookies = parseCookies(req);
-  if (lcCookies.lc_token && validateLcTokenPayload(lcCookies.lc_token)) return next();
+  if (lcCookies.auth_token && validateAuthToken(lcCookies.auth_token)) return next();
   // Check project key
   const proj = ((k) => { const _p = projectKeyIndex.get(k); return _p && _p.enabled ? _p : undefined; })(projectKey);
   if (proj) return next();
@@ -3600,7 +3600,7 @@ app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 // ── LumiTrader AI routes (MUST be before global knowledge mount) ──────────────
 try {
   const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
-  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL, INTERNAL_CHAT_KEY, parseCookies, validateLcTokenPayload });
+  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL, INTERNAL_CHAT_KEY, parseCookies, validateAuthToken });
   app.use(_lumitraderResult.router);
   log("info", "LumiTrader routes mounted at /lumitrader/*");
 } catch (e) {
@@ -3720,7 +3720,7 @@ app.use("/platform/hkex", apiLimiter, platformAuth, hkexRouter);
 app.get("/lc/hkex/search", apiLimiter, (req, res, next) => {
   // Accept LumiChat auth (lc_token) OR admin auth (admin_token)
   const cookies = parseCookies(req);
-  const lcToken = cookies.lc_token;
+  const lcToken = cookies.auth_token;
   const adminToken = cookies.admin_token || req.headers["x-admin-token"];
   if (!lcToken && !adminToken) return res.status(401).json({ error: "Login required" });
   next();
@@ -3760,7 +3760,7 @@ app.use("/v1/:provider", require('./routes/proxy')({
   INTERNAL_CHAT_KEY,
   getSessionRole,
   parseCookies,
-  validateLcTokenPayload,
+  validateAuthToken,
   getLcUserTier,
   projects,
   projectKeyIndex,

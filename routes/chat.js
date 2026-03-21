@@ -837,6 +837,108 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     });
   }
 
+  // ── HKEX Direct Download — bypass AI entirely ──
+  if (isHkexDownload) {
+    // Parse stock code and params from user message
+    const hkexMatch = userText.match(/(\d{4,5})/);
+    const hkexCode = hkexMatch ? hkexMatch[1].padStart(5, "0") : "";
+    const hkexDocType = /年报|annual/i.test(userText) ? "annual"
+      : /中期|interim/i.test(userText) ? "interim"
+      : /业绩|result/i.test(userText) ? "results"
+      : /通函|circular/i.test(userText) ? "circular" : "all";
+    const dateMatch = userText.match(/(\d{4}-\d{2}-\d{2})\s*[至到to\-]\s*(\d{4}-\d{2}-\d{2})/i);
+    const latestMatch = userText.match(/最新\s*(\d+)\s*条|latest\s*(\d+)/i);
+
+    if (!hkexCode) {
+      return res.json({ choices: [{ message: { role: "assistant", content: lang === "zh" ? "未能识别股票代码，请重新选择。" : "Could not parse stock code. Please try again." } }] });
+    }
+
+    // Start SSE
+    if (wantStream && !res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+    }
+
+    try {
+      const { downloadHKEXFilings } = require("../tools/hkex-downloader");
+      const _toolStatus = wantStream ? (p) => {
+        if (res.writableEnded) return;
+        res.write(`event: tool_status\ndata: ${JSON.stringify(p)}\n\n`);
+        res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, tool_status: p }] })}\n\n`);
+      } : () => {};
+      const onProgress = (msg) => _toolStatus({ text: msg.text || "", icon: msg.icon || "file", done: !!msg.done });
+      const result = await downloadHKEXFilings({
+        stock_code: hkexCode,
+        doc_type: hkexDocType,
+        date_from: dateMatch ? dateMatch[1] : undefined,
+        date_to: dateMatch ? dateMatch[2] : undefined,
+      }, onProgress);
+
+      // Build response text
+      const zh = lang === "zh";
+      let responseText;
+      if (result.downloaded > 0) {
+        const fileList = result.files.filter(f => f.local_path && !f.error).map(f => `- ${f.name} (${f.date})`).join("\n");
+        responseText = zh
+          ? `已下载 ${result.downloaded} 个文件：\n${fileList}`
+          : `Downloaded ${result.downloaded} files:\n${fileList}`;
+        if (result.usedFallback) responseText = (zh ? `未找到年报原文，以下为${result.fallbackLabel}：\n` : `No Annual Report found. Showing ${result.fallbackLabel} instead:\n`) + responseText;
+      } else {
+        responseText = result.usedFallback
+          ? (zh ? `未找到年报，也未找到${result.fallbackLabel}。请尝试其他文件类型或扩大日期范围。` : `No Annual Report or ${result.fallbackLabel} found. Try a different doc type or wider date range.`)
+          : (zh ? `在搜索范围内未找到匹配的公告。股票代码 ${hkexCode} 有效，但该时间段内没有此类型的文件。请尝试其他文件类型或日期范围。` : `No matching filings found for ${hkexCode} in this date range. Try a different doc type or wider date range.`);
+      }
+
+      if (wantStream) {
+        const _send = (content) => res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content } }] })}\n\n`);
+        const _fileDl = (payload) => {
+          res.write(`event: file_download\ndata: ${JSON.stringify(payload)}\n\n`);
+          res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, file_download: payload }] })}\n\n`);
+        };
+        // Send text
+        _send(responseText);
+        // Send file download cards (individual files only, no ZIP for < 3)
+        const downloadedFiles = result.files.filter(f => f.local_path && !f.error);
+        if (downloadedFiles.length > 0 && downloadedFiles.length < 3) {
+          for (const f of downloadedFiles) {
+            const fs = require("node:fs");
+            try {
+              const stat = fs.statSync(f.local_path);
+              // Use original HKEX URL for direct PDF download (our route only serves ZIPs)
+              _fileDl({ filename: f.name, size: stat.size, mimeType: "application/pdf", downloadUrl: f.url || "" });
+            } catch {}
+          }
+        } else if (result.zip_url && downloadedFiles.length >= 3) {
+          // 3+ files: single ZIP card
+          const fs = require("node:fs");
+          try {
+            const zipSize = result.zip_path ? fs.statSync(result.zip_path).size : 0;
+            _fileDl({ filename: require("node:path").basename(result.zip_path), size: zipSize, mimeType: "application/zip", downloadUrl: result.zip_url });
+          } catch {}
+        }
+        // Done
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      } else {
+        return res.json({ choices: [{ message: { role: "assistant", content: responseText } }] });
+      }
+    } catch (e) {
+      log("error", "HKEX direct download failed", { error: e.message, code: hkexCode });
+      const errMsg = lang === "zh" ? `下载失败: ${e.message}` : `Download failed: ${e.message}`;
+      if (wantStream) {
+        sendDelta(errMsg);
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
+      return res.json({ choices: [{ message: { role: "assistant", content: errMsg } }] });
+    }
+  }
+
   // ── Pre-search ──
   // Models with built-in web search don't need SearXNG
   // Only models with ACTUAL API-level search (not ChatGPT web browsing which is UI-only)
