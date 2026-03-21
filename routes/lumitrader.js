@@ -502,12 +502,14 @@ module.exports = function createLumiTraderRouter(deps) {
 
       const wantStream = stream !== false;
 
-      // Proxy to LumiGate /v1/chat
+      // Always use streaming internally — /v1/chat non-streaming mode
+      // truncates responses when tools are invoked. Streaming collects
+      // the full AI response including post-tool-execution text.
       const upstreamBody = {
         messages: outMessages,
         model: model || "gpt-4o",
         provider: provider || "openai",
-        stream: wantStream,
+        stream: true, // always stream internally
       };
 
       const upstreamRes = await fetch(`${LUMIGATE_INTERNAL_URL}/v1/chat`, {
@@ -520,45 +522,81 @@ module.exports = function createLumiTraderRouter(deps) {
         body: JSON.stringify(upstreamBody),
       });
 
-      if (!wantStream) {
-        // Non-streaming: forward JSON response
-        const data = await upstreamRes.json();
-        return res.status(upstreamRes.status).json(data);
-      }
-
-      // Streaming: pipe SSE
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-      res.flushHeaders();
-
       const readable = upstreamRes.body;
       if (!readable) {
-        res.write("data: [DONE]\n\n");
-        return res.end();
+        if (wantStream) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.write("data: [DONE]\n\n");
+          return res.end();
+        }
+        return res.json({ choices: [{ message: { role: "assistant", content: "" } }] });
       }
 
-      // Node fetch returns a web ReadableStream; pipe to response
-      const reader = readable.getReader();
-      const decoder = new TextDecoder();
+      if (wantStream) {
+        // Client wants streaming: pipe SSE through
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (res.writableEnded) break;
-          res.write(decoder.decode(value, { stream: true }));
+        const reader = readable.getReader();
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (res.writableEnded) break;
+            res.write(decoder.decode(value, { stream: true }));
+          }
+        } catch (pipeErr) {
+          if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ error: pipeErr.message })}\n\n`);
+          }
+        } finally {
+          if (!res.writableEnded) {
+            res.write("data: [DONE]\n\n");
+            res.end();
+          }
         }
-      } catch (pipeErr) {
-        if (!res.writableEnded) {
-          res.write(`data: ${JSON.stringify({ error: pipeErr.message })}\n\n`);
+      } else {
+        // Client wants JSON: collect full SSE stream, extract text
+        const reader = readable.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        try {
+          let buffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            // Parse SSE lines
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || ""; // keep incomplete line
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const payload = line.slice(6).trim();
+                if (payload === "[DONE]") continue;
+                try {
+                  const chunk = JSON.parse(payload);
+                  // OpenAI-style SSE: choices[0].delta.content
+                  const delta = chunk.choices?.[0]?.delta?.content;
+                  if (delta) fullText += delta;
+                  // Also handle direct content field
+                  if (chunk.content) fullText += chunk.content;
+                } catch { /* skip non-JSON lines */ }
+              }
+            }
+          }
+        } catch (collectErr) {
+          console.error("[lumitrader] stream collect error:", collectErr.message);
         }
-      } finally {
-        if (!res.writableEnded) {
-          res.write("data: [DONE]\n\n");
-          res.end();
-        }
+        return res.json({
+          choices: [{
+            message: { role: "assistant", content: fullText || "(No response generated)" },
+            finish_reason: "stop",
+          }],
+        });
       }
     } catch (err) {
       if (!res.headersSent) {
