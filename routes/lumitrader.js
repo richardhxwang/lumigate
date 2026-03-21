@@ -12,6 +12,7 @@ const express = require("express");
 const TRADE_ENGINE_URL_DEFAULT = "http://localhost:3200";
 const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() || "lumitrade";
 const LUMIGATE_INTERNAL_URL = process.env.LUMIGATE_INTERNAL_URL || "http://localhost:9471";
+const LUMITRADE_PROJECT_KEY = process.env.LUMITRADE_PROJECT_KEY || "";
 const TG_BOT_TOKEN = process.env.LUMITRADER_TELEGRAM_TOKEN || process.env.TRADE_TELEGRAM_BOT_TOKEN || "";
 const TG_CHAT_ID = process.env.LUMITRADER_TELEGRAM_CHAT_ID || process.env.TRADE_TELEGRAM_CHAT_ID || "";
 
@@ -553,7 +554,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
         },
         body: JSON.stringify(upstreamBody),
       });
@@ -701,7 +702,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
         },
         body: JSON.stringify(upstreamBody),
       });
@@ -941,7 +942,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
         },
         body: JSON.stringify({
           messages: [

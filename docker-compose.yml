@@ -102,6 +102,7 @@ services:
       - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-123123@}
       - LUMITRADER_TELEGRAM_TOKEN=${LUMITRADER_TELEGRAM_TOKEN:-}
       - LUMITRADER_TELEGRAM_CHAT_ID=${LUMITRADER_TELEGRAM_CHAT_ID:-}
+      - LUMITRADE_PROJECT_KEY=${LUMITRADE_PROJECT_KEY:-}
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
