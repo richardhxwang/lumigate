@@ -16,3 +16,8 @@ lumitrade/freqtrade/user_data/data/
 lumitrade/freqtrade/user_data/hyperopt_results/
 lumitrade/freqtrade/user_data/models/
 lumitrade/ICT/
+
+# LumiTrade sensitive docs (in private repo)
+lumitrade/LUMITRADER-TEST-REPORT.md
+lumitrade/LUMITRADER-TEST-PLAN.md
+lumitrade/DATA-ARCHITECTURE.md
