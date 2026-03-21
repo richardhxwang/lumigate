@@ -1850,6 +1850,9 @@ function applyLang(){
 // STATE
 let currentUser = null, sessions = [], messages = [], currentSid = null;
 let selectedProvider = 'deepseek', selectedModel = 'deepseek-chat';
+// Embedded app source (e.g. ?app=lumitrade) — used for per-app usage tracking
+const _appSource = (() => { try { return new URLSearchParams(window.location.search).get('app') || ''; } catch { return ''; } })();
+function _chatHeaders(extra){const h={'Content-Type':'application/json',...(extra||{})};if(_appSource)h['X-App-Source']=_appSource;return h;}
 
 let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = null, pendingFileReads = new Set();
 let providersData = [], modelsData = {};
@@ -2966,7 +2969,7 @@ async function canvasAskEdit(){
   try{
     const resp=await fetch('/v1/chat',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:_chatHeaders(),
       credentials:'same-origin',
       body:JSON.stringify({
         provider:selectedProvider,
@@ -3698,7 +3701,7 @@ async function sendMessage(){
     });
 
     const res=await fetch(endpoint,{
-      method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      method:'POST',headers:_chatHeaders(),credentials:'same-origin',
       body:JSON.stringify(payload),signal:abortCtrl.signal,
     });
 
@@ -5613,7 +5616,9 @@ async function initGoogleOAuth(){
 // Handle OAuth callback (?oauth=1 or ?oauth_err=...)
 (function handleOAuthReturn(){
   const p=new URLSearchParams(window.location.search);
-  history.replaceState(null,'',window.location.pathname);
+  // Preserve non-OAuth params (e.g. ?app=lumitrade) when cleaning up URL
+  const keep=new URLSearchParams();p.forEach((v,k)=>{if(!['oauth','oauth_err'].includes(k))keep.set(k,v);});
+  history.replaceState(null,'',window.location.pathname+(keep.toString()?'?'+keep:''));
   if(p.get('oauth_err')){
     // Show error on auth screen after page loads
     setTimeout(()=>{ const el=$('auth-err'); if(el) el.textContent='Google login failed: '+decodeURIComponent(p.get('oauth_err')); },300);

@@ -350,7 +350,8 @@ async function executeWebSearchForChat(query, timeRange = "month") {
 
 function formatSearchContext(results) {
   if (!results.length) return "";
-  return "[Web Search Results]\n" + results.map((r, i) =>
+  // Pass all results — model decides relevance (like GPT/Claude approach)
+  return "[Web Search Results — Reference Material]\n" + results.map((r, i) =>
     `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content}`
   ).join("\n\n");
 }
@@ -669,7 +670,10 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     projectName = "_chat";
   } else if (!projectKey && lcToken) {
     if (lcPayload) {
-      projectName = "_lumichat";
+      // Allow embedded apps (e.g. LumiTrade) to track usage under their own project
+      const appSource = (req.headers["x-app-source"] || "").trim().toLowerCase();
+      const APP_SOURCE_PROJECTS = { lumitrade: "_lumitrade" };
+      projectName = APP_SOURCE_PROJECTS[appSource] || "_lumichat";
       if (lcPayload.id) lcUserId = lcPayload.id;
     }
   }
@@ -1132,7 +1136,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       : (strictFreshnessNeed
           ? `IMPORTANT: This is a freshness-sensitive query. Prioritize the most recent search results. When answering current/latest events, ONLY cite results from ${new Date().getFullYear()} unless the user explicitly asks for historical information.`
           : `IMPORTANT: This is not inherently freshness-sensitive. Prioritize authoritative primary sources and factual correctness. Do not force current-year filtering unless the user explicitly asks for latest/current information.`);
-    injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\n${dateGuard} Cite sources with URLs when possible. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
+    injectedSystemPrompt += `Today is ${new Date().toISOString().slice(0, 10)}. The current year is ${new Date().getFullYear()}.\n${searchContext}\n\n${dateGuard}\n\nSearch result usage rules:\n1. SYNTHESIZE the search results into a coherent, well-structured answer. Do NOT list or dump raw search results. The user wants an answer, not a reading list.\n2. Combine information from multiple sources to give a comprehensive response. Resolve contradictions by favoring more authoritative or recent sources.\n3. Cite sources inline with URLs where relevant (e.g., "according to [Source](url)"), but the answer must be self-contained — readable without clicking any link.\n4. If the search results are all outdated or irrelevant, explicitly state that no recent information was found rather than presenting old results as current.\n\n`;
     injectedSystemPrompt += "If search context contains relevant sources for forms/downloads, provide direct clickable URLs first. Do not claim missing attachments in this case.\n\n";
   }
   const suppressAttachmentGrounding = forceOfficialSearch && !hasDirectUrl && !hasRichUserInput;
