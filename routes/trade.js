@@ -509,6 +509,20 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
+  // PATCH /v1/trade/backtest/pb-results/:id — update a backtest record (notes, tags, etc.)
+  router.patch("/backtest/pb-results/:id", async (req, res) => {
+    try {
+      const r = await tradePbFetch(`/api/collections/trade_backtest_results/records/${req.params.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(req.body),
+      });
+      if (!r.ok) return res.status(r.status).json({ error: "PB update failed" });
+      res.json(await r.json());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ── Backtest results sync ────────────────────────────────────────────────
 
   // POST /v1/trade/backtest/sync — sync all backtest results from freqtrade-bt into PB
