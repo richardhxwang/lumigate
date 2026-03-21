@@ -894,7 +894,8 @@ module.exports = function createLumiTraderRouter(deps) {
   // ── Telegram command handlers ─────────────────────────────────────────────
 
   async function callAiForTelegram(chatId, userMessage) {
-    // Call /v1/chat internally and send result to Telegram
+    // Keep typing indicator alive while AI thinks
+    const typingTimer = setInterval(() => sendTyping(chatId), 4000);
     try {
       const ctx = await fetchTradingContext(userMessage, "");
       const contextBlock = formatTradingContext(ctx);
@@ -918,18 +919,21 @@ module.exports = function createLumiTraderRouter(deps) {
         }),
       });
 
-      // Collect stream
+      // Stream and send in chunks — each section (split by \n\n) sent as separate message
       const reader = upstreamRes.body?.getReader();
       if (!reader) return;
       const decoder = new TextDecoder();
       let fullText = "";
-      let buffer = "";
+      let sseBuffer = "";
+      let lastSentLen = 0;
+      const CHUNK_THRESHOLD = 300; // send every ~300 chars or on double newline
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const payload = line.slice(6).trim();
@@ -942,46 +946,81 @@ module.exports = function createLumiTraderRouter(deps) {
             } catch {}
           }
         }
+
+        // Check if we have a complete section to send (double newline = paragraph break)
+        const unsent = fullText.slice(lastSentLen);
+        const breakIdx = unsent.lastIndexOf("\n\n");
+        if (breakIdx > CHUNK_THRESHOLD) {
+          const chunk = unsent.slice(0, breakIdx).trim();
+          if (chunk) {
+            const formatted = chunk.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+            await sendTelegram(formatted, { chatId });
+            lastSentLen += breakIdx + 2;
+          }
+        }
       }
 
-      // Telegram has 4096 char limit — truncate if needed
-      if (fullText.length > 4000) fullText = fullText.slice(0, 3990) + "\n\n(truncated)";
-      // Convert markdown bold to HTML bold for Telegram
-      fullText = fullText.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-
-      await sendTelegram(fullText || "(No response)", { chatId });
+      // Send remaining text
+      const remaining = fullText.slice(lastSentLen).trim();
+      if (remaining) {
+        const formatted = remaining.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+        if (formatted.length > 4000) {
+          // Split long remaining into 4000-char chunks
+          for (let i = 0; i < formatted.length; i += 4000) {
+            await sendTelegram(formatted.slice(i, i + 4000), { chatId });
+          }
+        } else {
+          await sendTelegram(formatted, { chatId });
+        }
+      }
+      if (fullText.length === 0) {
+        await sendTelegram("(No response)", { chatId });
+      }
     } catch (err) {
       await sendTelegram(`Error: ${err.message}`, { chatId });
+    } finally {
+      clearInterval(typingTimer);
     }
   }
 
+  async function sendTyping(chatId) {
+    if (!TG_BOT_TOKEN) return;
+    try {
+      await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendChatAction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId || TG_CHAT_ID, action: "typing" }),
+      });
+    } catch {}
+  }
+
   async function handleAiCommand(chatId, query) {
-    await sendTelegram("Analyzing...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, query);
   }
 
   async function handleSignalsCommand(chatId) {
-    await sendTelegram("Checking signals...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, "列出当前所有活跃的 SMC 交易信号，包括方向、入场价、止损、止盈、R:R、置信度。用表格格式。");
   }
 
   async function handleRiskCommand(chatId) {
-    await sendTelegram("Checking risk...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, "报告当前的风控状态：日亏损%、持仓数、最大回撤、连胜/连亏、情绪评分。有没有接近熔断线？");
   }
 
   async function handleNewsCommand(chatId) {
-    await sendTelegram("Fetching news...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, "总结最近的市场新闻和情绪。有没有 high impact 的新闻需要注意？对当前持仓有什么影响？");
   }
 
   async function handleJournalCommand(chatId) {
-    await sendTelegram("Generating journal...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, "生成今天的交易日志总结：交易次数、胜负、P&L、最佳/最差交易、情绪变化、经验教训。");
   }
 
   async function handleOptimizeCommand(chatId) {
-    await sendTelegram("Analyzing strategy...", { chatId });
+    await sendTyping(chatId);
     await callAiForTelegram(chatId, "分析我的策略和回测结果，给出 3 个具体的优化建议，按优先级排序。包括参数调整、风控改进、pair 选择。");
   }
 
