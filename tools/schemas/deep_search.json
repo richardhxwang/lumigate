@@ -1,0 +1,21 @@
+{
+  "name": "deep_search",
+  "description": "Perform deep multi-round research on a complex topic. Decomposes the question, searches iteratively, reads full pages, evaluates findings, discovers new leads, and produces a structured markdown report with citations. Use for questions requiring thorough investigation across multiple sources — not for simple factual lookups.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "The research question or topic to investigate"
+      },
+      "max_rounds": {
+        "type": "integer",
+        "minimum": 2,
+        "maximum": 20,
+        "default": 5,
+        "description": "Maximum research rounds (default 5)"
+      }
+    },
+    "required": ["query"]
+  }
+}

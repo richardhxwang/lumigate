@@ -39,7 +39,30 @@ module.exports = function createLumiTraderRouter(deps) {
     getPbAdminToken,
     TRADE_ENGINE_URL,
     INTERNAL_CHAT_KEY,
+    parseCookies,
+    validateLcTokenPayload,
   } = deps;
+
+  // ── Auth middleware ───────────────────────────────────────────────────────
+
+  // lcAuth — validates PB lc_token cookie; populates req.lcUser and req.lcToken
+  const lcAuth = (req, res, next) => {
+    const cookies = parseCookies ? parseCookies(req) : {};
+    const token = cookies.lc_token;
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+    const payload = validateLcTokenPayload ? validateLcTokenPayload(token) : null;
+    if (!payload) return res.status(401).json({ error: "Session expired" });
+    req.lcUser = payload;
+    req.lcToken = token;
+    next();
+  };
+
+  // chatAuth — accepts either an internal server key OR a valid lc_token cookie
+  const chatAuth = (req, res, next) => {
+    const projectKey = req.headers["x-project-key"];
+    if (projectKey && INTERNAL_CHAT_KEY && projectKey === INTERNAL_CHAT_KEY) return next();
+    return lcAuth(req, res, next);
+  };
 
   const engineUrl = TRADE_ENGINE_URL || TRADE_ENGINE_URL_DEFAULT;
 
@@ -187,7 +210,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── POST /lumitrader/chat — Main chat endpoint ───────────────────────────
 
-  router.post("/lumitrader/chat", express.json({ limit: "2mb" }), async (req, res) => {
+  router.post("/lumitrader/chat", chatAuth, express.json({ limit: "2mb" }), async (req, res) => {
     try {
       const { messages, model, provider, stream } = req.body;
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -290,10 +313,9 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── GET /lumitrader/settings — Get user trading preferences ───────────────
 
-  router.get("/lumitrader/settings", async (req, res) => {
+  router.get("/lumitrader/settings", lcAuth, async (req, res) => {
     try {
-      const userId = req.query.userId;
-      if (!userId) return res.status(400).json({ error: "userId required" });
+      const userId = req.lcUser.id;
 
       const r = await tradePbFetch(
         `/api/collections/lt_user_settings/records?filter=(user='${userId}')&perPage=1`
@@ -312,10 +334,10 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── POST /lumitrader/settings — Save user trading preferences ─────────────
 
-  router.post("/lumitrader/settings", express.json(), async (req, res) => {
+  router.post("/lumitrader/settings", lcAuth, express.json(), async (req, res) => {
     try {
-      const { userId, settings } = req.body;
-      if (!userId) return res.status(400).json({ error: "userId required" });
+      const userId = req.lcUser.id;
+      const { settings } = req.body;
       if (!settings || typeof settings !== "object") return res.status(400).json({ error: "settings object required" });
 
       // Check if record exists
@@ -353,10 +375,9 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── GET /lumitrader/sessions — List chat sessions ─────────────────────────
 
-  router.get("/lumitrader/sessions", async (req, res) => {
+  router.get("/lumitrader/sessions", lcAuth, async (req, res) => {
     try {
-      const userId = req.query.userId;
-      if (!userId) return res.status(400).json({ error: "userId required" });
+      const userId = req.lcUser.id;
 
       const page = parseInt(req.query.page) || 1;
       const perPage = Math.min(parseInt(req.query.perPage) || 20, 50);
@@ -377,10 +398,10 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── POST /lumitrader/sessions — Create a chat session ─────────────────────
 
-  router.post("/lumitrader/sessions", express.json(), async (req, res) => {
+  router.post("/lumitrader/sessions", lcAuth, express.json(), async (req, res) => {
     try {
-      const { userId, title } = req.body;
-      if (!userId) return res.status(400).json({ error: "userId required" });
+      const userId = req.lcUser.id;
+      const { title } = req.body;
 
       const r = await tradePbFetch("/api/collections/lt_sessions/records", {
         method: "POST",

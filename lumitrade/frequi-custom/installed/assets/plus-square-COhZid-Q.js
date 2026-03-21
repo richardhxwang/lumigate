@@ -1,0 +1,2 @@
+import{A as t,a as r,c as n,e}from"./index-CROrDMH6.js";const s={viewBox:"0 0 24 24",width:"1.2em",height:"1.2em"};function i(a,o){return r(),n("svg",s,[...o[0]||(o[0]=[e("g",{fill:"none",stroke:"currentColor","stroke-linecap":"round","stroke-linejoin":"round","stroke-width":"2"},[e("rect",{width:"18",height:"18",x:"3",y:"3",rx:"2"}),e("path",{d:"M8 12h8m-4-4v8"})],-1)])])}const l=t({name:"lucide-plus-square",render:i});export{l as _};
+//# sourceMappingURL=plus-square-COhZid-Q.js.map

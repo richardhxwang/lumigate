@@ -60,17 +60,19 @@ async function getStockList() {
  * Map doc_type filter to HKEX headline category codes.
  * Returns { t1code, t2code, title } for the search API.
  */
+// HKEX API category codes are unreliable — fetch all results, filter locally by title
+// Primary pattern = strict match; fallback = looser match shown as alternative
+const DOC_TYPE_PATTERNS = {
+  annual:  { primary: /annual\s*report|年度報告|年度报告|年報(?!告)|年报(?!告)/i, fallback: /annual\s*result|全年業績|全年业绩/i, fallbackLabel: "Annual Results (业绩公告)" },
+  interim: { primary: /interim\s*report|half.?year\s*report|中期報告|中期报告/i, fallback: /interim\s*result|中期業績/i, fallbackLabel: "Interim Results (中期业绩)" },
+  results: { primary: /result|業績|业绩|profit|盈利|dividend/i },
+  circular: { primary: /circular|通函|通告/i },
+  prospectus: { primary: /prospectus|招股/i },
+};
+
 function getDocTypeFilter(docType) {
-  const dt = String(docType || "all").toLowerCase();
-  // t1code=40000 is "Financial Statements/ESG Information"
-  // t2code=40100 is "Annual Report", 40200 is "Interim/Half-Year Report"
-  // Using title search is more reliable than category filters for stock-specific queries
-  if (dt === "annual" || dt === "annual_report") return { t1code: "-2", t2code: "-2", title: "annual" };
-  if (dt === "interim" || dt === "interim_report") return { t1code: "-2", t2code: "-2", title: "interim" };
-  if (dt === "results" || dt === "financial_results") return { t1code: "-2", t2code: "-2", title: "results" };
-  if (dt === "circular") return { t1code: "20000", t2code: "-2", title: "" };
-  if (dt === "prospectus") return { t1code: "30000", t2code: "-2", title: "" };
-  return { t1code: "-2", t2code: "-2", title: "" };
+  // Always fetch everything from HKEX API — filter locally
+  return { t1code: "-2", t2code: "-2", title: "", localFilter: docType };
 }
 
 /**
@@ -117,7 +119,8 @@ async function createZip(sourceDir, zipPath) {
  * @param {string} [input.doc_type]  - "annual"|"interim"|"results"|"circular"|"all"
  * @returns {Promise<{ files: Array, zip_path: string, zip_url: string }>}
  */
-async function downloadHKEXFilings(input) {
+async function downloadHKEXFilings(input, onProgress) {
+  const emit = typeof onProgress === "function" ? onProgress : () => {};
   const rawCode = String(input.stock_code || "").replace(/^0+/, "");
   if (!rawCode || !/^\d+$/.test(rawCode)) {
     throw new Error("Invalid stock_code: must be a numeric HKEX stock code");
@@ -135,6 +138,7 @@ async function downloadHKEXFilings(input) {
   fs.mkdirSync(outputDir, { recursive: true });
 
   // Step 1: Resolve stock code to HKEX internal stockId
+  emit({ text: `HKEX: Looking up stock ${stockCode}...`, icon: "file" });
   const stockList = await getStockList();
   const stockId = stockList.get(stockCode);
   if (!stockId) {
@@ -145,12 +149,14 @@ async function downloadHKEXFilings(input) {
   }
 
   // Step 2: Search via HKEX titleSearchServlet.do API
-  // If no dateFrom, default to 12 months back (HKEX max range for stock-specific queries)
+  // Default range: 3 years for annual/interim (published once a year), 12 months for others
+  const isReportType = /^(annual|interim)/.test(String(docFilter.localFilter || ""));
   const effectiveDateFrom =
     dateFrom ||
     (() => {
       const d = new Date();
-      d.setMonth(d.getMonth() - 12);
+      if (isReportType) d.setFullYear(d.getFullYear() - 3);
+      else d.setMonth(d.getMonth() - 12);
       return d.toISOString().slice(0, 10).replace(/-/g, "");
     })();
 
@@ -185,8 +191,37 @@ async function downloadHKEXFilings(input) {
   }
 
   const searchData = await searchRes.json();
-  const results = JSON.parse(searchData.result || "[]");
+  let results = JSON.parse(searchData.result || "[]");
 
+  // Local filtering by doc type (HKEX API category codes are unreliable)
+  const localFilter = String(docFilter.localFilter || "all").toLowerCase();
+  let usedFallback = false;
+  let fallbackLabel = "";
+  if (localFilter !== "all" && DOC_TYPE_PATTERNS[localFilter]) {
+    const spec = DOC_TYPE_PATTERNS[localFilter];
+    const textOf = r => `${r.TITLE || ""} ${r.LONG_TEXT || ""} ${r.SHORT_TEXT || ""}`;
+    const before = results.length;
+    // Try primary pattern first
+    const primary = results.filter(r => spec.primary.test(textOf(r)));
+    if (primary.length > 0) {
+      results = primary;
+    } else if (spec.fallback) {
+      // No exact match — try fallback and flag it
+      const fb = results.filter(r => spec.fallback.test(textOf(r)));
+      if (fb.length > 0) {
+        results = fb;
+        usedFallback = true;
+        fallbackLabel = spec.fallbackLabel || localFilter;
+      } else {
+        results = [];
+      }
+    } else {
+      results = results.filter(r => spec.primary.test(textOf(r)));
+    }
+    console.log(`[hkex-downloader] Filtered ${before} → ${results.length} by doc_type=${localFilter}${usedFallback ? " (fallback)" : ""}`);
+  }
+
+  emit({ text: `HKEX: Found ${results.length} matching filings for ${stockCode}${usedFallback ? ` (${fallbackLabel})` : ""}`, icon: "file" });
   console.log(
     `[hkex-downloader] Found ${results.length} results for stock ${stockCode} (id=${stockId})`
   );
@@ -225,6 +260,7 @@ async function downloadHKEXFilings(input) {
     }
 
     try {
+      emit({ text: `HKEX: Downloading ${i + 1}/${results.length}: ${title.slice(0, 40)}...`, icon: "file" });
       const size = await downloadFile(url, destPath);
       files.push({
         name: filename,
@@ -249,12 +285,14 @@ async function downloadHKEXFilings(input) {
     }
   }
 
-  // Create ZIP if we have downloaded files
+  // Package results: single files → individual cards, 3+ files → ZIP
   let zipPath = null;
   let zipUrl = null;
   const downloadedFiles = files.filter((f) => f.local_path && !f.error);
 
-  if (downloadedFiles.length > 0) {
+  // Only create ZIP for 3+ files; fewer files get individual download cards
+  if (downloadedFiles.length >= 3) {
+    emit({ text: `HKEX: Packaging ${downloadedFiles.length} files into ZIP...`, icon: "file" });
     const zipId = crypto.randomBytes(8).toString("hex");
     const zipFilename = `hkex_${stockCode}_${zipId}.zip`;
     zipPath = path.join(outputDir, zipFilename);
@@ -269,6 +307,24 @@ async function downloadHKEXFilings(input) {
     }
   }
 
+  // For 1-2 files, prepare individual file buffers for direct download cards
+  const individualFiles = [];
+  if (downloadedFiles.length > 0 && downloadedFiles.length < 3) {
+    for (const f of downloadedFiles) {
+      try {
+        const buf = fs.readFileSync(f.local_path);
+        individualFiles.push({
+          file: buf,
+          filename: f.name,
+          mimeType: f.name.endsWith(".pdf") ? "application/pdf" : "application/octet-stream",
+          size: buf.length,
+          date: f.date,
+          type: f.type,
+        });
+      } catch {}
+    }
+  }
+
   return {
     stock_code: stockCode,
     files,
@@ -276,6 +332,9 @@ async function downloadHKEXFilings(input) {
     downloaded: downloadedFiles.length,
     zip_path: zipPath,
     zip_url: zipUrl,
+    usedFallback,
+    fallbackLabel,
+    individualFiles,
   };
 }
 
@@ -320,9 +379,37 @@ function registerHKEXTool(registry) {
       },
     },
     async (toolInput) => {
-      const result = await downloadHKEXFilings(toolInput);
+      const onProgress = typeof toolInput._progress_sink === "function" ? toolInput._progress_sink : () => {};
+      const result = await downloadHKEXFilings(toolInput, onProgress);
+      const fallbackNote = result.usedFallback
+        ? `No Annual Report found. Showing ${result.fallbackLabel} instead.`
+        : "";
+      onProgress({ text: `HKEX: Done — ${result.downloaded} files downloaded${fallbackNote ? " (fallback)" : ""}`, icon: "file", done: true });
 
-      // If we have a ZIP, return it as a file download
+      // Individual files (1-2) → return each as separate download card
+      if (result.individualFiles && result.individualFiles.length > 0) {
+        const first = result.individualFiles[0];
+        return {
+          file: first.file,
+          filename: first.filename,
+          mimeType: first.mimeType,
+          size: first.size,
+          extra_files: result.individualFiles.slice(1).map(f => ({
+            file: f.file,
+            filename: f.filename,
+            mimeType: f.mimeType,
+            size: f.size,
+          })),
+          data: {
+            stock_code: result.stock_code,
+            total_found: result.total,
+            downloaded: result.downloaded,
+            note: fallbackNote || undefined,
+          },
+        };
+      }
+
+      // ZIP for 3+ files
       if (result.zip_path && fs.existsSync(result.zip_path)) {
         const zipBuffer = fs.readFileSync(result.zip_path);
         return {

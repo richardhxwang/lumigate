@@ -12,6 +12,41 @@ const { Router } = require("express");
 const fs = require("node:fs");
 const path = require("node:path");
 const { downloadHKEXFilings, DATA_DIR } = require("../tools/hkex-downloader");
+const { s2t, t2s } = require("chinese-s2t");
+
+// Cache full stock list with English + Chinese names for search
+const HKEX_STOCK_LIST_EN = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_e.json";
+const HKEX_STOCK_LIST_ZH = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_c.json";
+let _fullStockList = null;
+let _fullStockListTime = 0;
+
+async function getFullStockList() {
+  if (_fullStockList && Date.now() - _fullStockListTime < 24 * 60 * 60 * 1000) return _fullStockList;
+  const hdrs = { "User-Agent": "Mozilla/5.0", Referer: "https://www1.hkexnews.hk/search/titlesearch.xhtml" };
+  const [enRes, zhRes] = await Promise.all([
+    fetch(HKEX_STOCK_LIST_EN, { signal: AbortSignal.timeout(15_000), headers: hdrs }),
+    fetch(HKEX_STOCK_LIST_ZH, { signal: AbortSignal.timeout(15_000), headers: hdrs }).catch(() => null),
+  ]);
+  if (!enRes.ok) throw new Error(`HKEX stock list: ${enRes.status}`);
+  const enData = await enRes.json();
+  // Build Chinese name map: code → zh name
+  const zhMap = new Map();
+  if (zhRes?.ok) {
+    try {
+      const zhData = await zhRes.json();
+      for (const item of zhData) zhMap.set(item.c, item.n);
+    } catch {}
+  }
+  // Merge: { code, name (EN), nameZh (繁体中文), id }
+  _fullStockList = enData.map(item => ({
+    code: item.c,
+    name: item.n,
+    nameZh: zhMap.get(item.c) || "",
+    id: item.i,
+  }));
+  _fullStockListTime = Date.now();
+  return _fullStockList;
+}
 
 function createHKEXRouter(options = {}) {
   const router = Router();
@@ -152,7 +187,43 @@ function createHKEXRouter(options = {}) {
     }
   });
 
+  /**
+   * GET /search?q=700 — Search HKEX stock list by code or name.
+   * Returns top 10 matches. Used by LumiChat HKEX modal autocomplete.
+   */
+  router.get("/search", async (req, res) => {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    if (!q) return res.json({ ok: true, results: [] });
+    try {
+      const list = await getFullStockList();
+      // Match by code, English name, or Chinese name
+      // Search with both simplified and traditional Chinese
+      const qTrad = s2t(q);
+      const qSimp = t2s(q);
+      const matched = list.filter(s => {
+        if (s.code.includes(q)) return true;
+        if (s.name.toLowerCase().includes(q)) return true;
+        if (s.nameZh && (s.nameZh.includes(q) || s.nameZh.includes(qTrad) || s.nameZh.includes(qSimp))) return true;
+        return false;
+      });
+      // Sort: exact code match first, then main board (code <= 09999), then others
+      matched.sort((a, b) => {
+        const aExact = a.code === q.padStart(5, "0") ? 0 : 1;
+        const bExact = b.code === q.padStart(5, "0") ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+        const aMain = parseInt(a.code) <= 9999 ? 0 : 1;
+        const bMain = parseInt(b.code) <= 9999 ? 0 : 1;
+        return aMain - bMain;
+      });
+      const results = matched.slice(0, 10).map(s => ({ code: s.code, name: s.name, nameZh: s.nameZh || "" }));
+      return res.json({ ok: true, results });
+    } catch (err) {
+      return res.status(502).json({ ok: false, error: err.message });
+    }
+  });
+
   return router;
 }
 
 module.exports = createHKEXRouter;
+module.exports.getFullStockList = getFullStockList;

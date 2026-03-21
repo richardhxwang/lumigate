@@ -1,0 +1,20 @@
+{
+  "name": "memory_search",
+  "description": "Search long-term memory from past conversations with this user. Use when: (1) the user asks what you remember, (2) you want to connect current topic to past discussions, (3) you need context about their projects/preferences/history. Returns memories spanning personal info, past projects, discussed topics, decisions made, etc.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "What to search for (e.g. 'audit project discussed last week', 'user preferences', 'HKICPA exam prep', 'what projects are they working on')"
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["search", "all"],
+        "description": "search = find memories relevant to query. all = return everything from all past conversations.",
+        "default": "search"
+      }
+    },
+    "required": ["query"]
+  }
+}

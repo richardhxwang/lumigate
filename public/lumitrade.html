@@ -251,9 +251,11 @@
   }
 
   function ftInjectAuthAndLoad(accessToken, refreshToken) {
-    // Build the auth object FreqUI expects in localStorage
+    // Build the auth object FreqUI expects in localStorage (VueUse useStorage reads this as JSON)
     var authInfo = {};
     try { authInfo = JSON.parse(localStorage.getItem('ftAuthLoginInfo') || '{}'); } catch(e) {}
+    // Clean up legacy bot ID if present
+    if (authInfo['0']) delete authInfo['0'];
     authInfo[FT_BOT_ID] = {
       botName: FT_BOT_NAME,
       apiUrl: FT_API_URL,

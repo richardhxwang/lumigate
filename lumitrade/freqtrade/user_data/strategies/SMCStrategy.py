@@ -51,7 +51,7 @@ class SMCStrategy(IStrategy):
             logger.warning("smart-money-concepts not installed, skipping SMC indicators")
             return dataframe
 
-        ohlc = dataframe[["open", "high", "low", "close"]].copy()
+        ohlc = dataframe[["open", "high", "low", "close", "volume"]].copy()
 
         # Swing Highs/Lows
         try:
@@ -111,6 +111,9 @@ class SMCStrategy(IStrategy):
             dataframe["liq_level"] = 0.0
             dataframe["liq_swept"] = 0
 
+        # FreqAI entry point — REQUIRED for model training and prediction
+        dataframe = self.freqai.start(dataframe, metadata, self)
+
         return dataframe
 
     # --- FreqAI feature engineering methods ---
@@ -128,14 +131,17 @@ class SMCStrategy(IStrategy):
         return dataframe
 
     def feature_engineering_standard(self, dataframe, metadata, **kwargs):
-        # Use SMC indicators as ML features
-        dataframe["%-bos"] = dataframe["bos"]
-        dataframe["%-choch"] = dataframe["choch"]
-        dataframe["%-ob_direction"] = dataframe["ob_direction"]
-        dataframe["%-fvg_direction"] = dataframe["fvg_direction"]
-        dataframe["%-swing_hl"] = dataframe["swing_hl"]
-        dataframe["%-liquidity"] = dataframe["liquidity"]
-        dataframe["%-liq_swept"] = dataframe["liq_swept"]
+        # Use SMC indicators as ML features (defensive — columns may be missing if SMC lib failed)
+        for src, dst in [
+            ("bos", "%-bos"),
+            ("choch", "%-choch"),
+            ("ob_direction", "%-ob_direction"),
+            ("fvg_direction", "%-fvg_direction"),
+            ("swing_hl", "%-swing_hl"),
+            ("liquidity", "%-liquidity"),
+            ("liq_swept", "%-liq_swept"),
+        ]:
+            dataframe[dst] = dataframe[src] if src in dataframe.columns else 0
         return dataframe
 
     def set_freqai_targets(self, dataframe, metadata, **kwargs):

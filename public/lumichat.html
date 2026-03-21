@@ -148,6 +148,7 @@
     .sess-item{display:flex;align-items:center;padding:7px 8px;border-radius:var(--r1);cursor:pointer;color:var(--t2);font-size:13.5px;position:relative;white-space:nowrap;overflow:hidden;gap:6px}
     .sess-item:hover{background:var(--sb-hover);color:var(--t1)}
     .sess-item.active{background:var(--sb-active);color:var(--t1)}
+    .sess-item.kbd-sel{background:var(--sb-hover);color:var(--t1);outline:2px solid var(--accent);outline-offset:-2px}
     .sess-title{flex:1;overflow:hidden;text-overflow:ellipsis}
     .sess-acts{display:none;gap:2px;flex-shrink:0}
     .sess-item:hover .sess-acts,.sess-item.active .sess-acts{display:flex}
@@ -270,8 +271,11 @@
     .mdl-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r2);cursor:pointer;transition:background .1s}
     .mdl-opt:hover{background:rgba(255,255,255,0.08)}
     .mdl-opt.sel{background:rgba(255,255,255,0.12)}
+    .mdl-opt.kbd-sel{background:rgba(255,255,255,0.08);outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r2)}
     :root.light .mdl-opt:hover{background:rgba(0,0,0,0.05)}
     :root.light .mdl-opt.sel{background:rgba(0,0,0,0.08)}
+    :root.light .mdl-opt.kbd-sel{background:rgba(0,0,0,0.04)}
+    .mdl-prov-pill.kbd-sel{outline:2px solid var(--accent);outline-offset:2px}
     .mdl-info{flex:1}
     .mdl-name{font-size:13.5px;font-weight:500}
     .mdl-desc{font-size:11.5px;color:var(--t3);margin-top:1px}
@@ -391,6 +395,97 @@
     .st-msg{white-space:pre-wrap;word-break:break-word;line-height:1.35}
     .st-text.swap .st-msg{animation:stSwap .28s ease}
     @keyframes stSwap{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── Background Task Card (Deep Search / Casting) ── */
+    .bg-task-card{background:rgba(30,30,32,0.65);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r3,16px);padding:14px 16px;margin:8px 0;overflow:hidden;transition:all .3s ease}
+    :root.light .bg-task-card{background:rgba(255,255,255,0.75);border-color:rgba(0,0,0,0.06)}
+    .bg-task-card.collapsed{padding:10px 16px}
+    .bg-task-card.collapsed .bg-task-body{max-height:0;opacity:0;margin-top:0}
+    .bg-task-header{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+    .bg-task-icon{width:32px;height:32px;border-radius:50%;background:rgba(16,163,127,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .bg-task-icon svg{width:16px;height:16px;stroke:#10a37f;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .bg-task-title{font-size:13.5px;font-weight:600;color:var(--t1);flex:1;min-width:0}
+    .bg-task-status{font-size:12px;color:var(--t3);white-space:nowrap}
+    .bg-task-collapse-btn{width:24px;height:24px;border:none;background:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s}
+    .bg-task-card.collapsed .bg-task-collapse-btn{transform:rotate(-90deg)}
+    .bg-task-body{max-height:400px;opacity:1;margin-top:12px;transition:max-height .3s ease,opacity .2s ease,margin-top .2s ease;overflow:hidden}
+    .bg-task-progress{height:3px;background:var(--inp,#2f2f2f);border-radius:2px;overflow:hidden;margin-bottom:10px}
+    .bg-task-progress-bar{height:100%;background:#10a37f;border-radius:2px;transition:width .4s ease;width:0%}
+    .bg-task-steps{list-style:none;padding:0;margin:0;font-size:12.5px;color:var(--t2);display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto}
+    .bg-task-steps li{display:flex;align-items:center;gap:6px;padding:2px 0}
+    .bg-task-steps li .step-dot{width:6px;height:6px;border-radius:50%;background:var(--t3);flex-shrink:0}
+    .bg-task-steps li.active .step-dot{background:#10a37f;box-shadow:0 0 4px rgba(16,163,127,0.4)}
+    .bg-task-steps li.done .step-dot{background:#10a37f}
+    .bg-task-steps li.active{color:var(--t1);font-weight:500}
+    .bg-task-card.complete{border-color:rgba(16,163,127,0.2)}
+    .bg-task-card.complete .bg-task-icon{background:rgba(16,163,127,0.18)}
+    @keyframes bgTaskPulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .bg-task-card.running .bg-task-status{animation:bgTaskPulse 1.5s ease infinite}
+
+    /* ── HKEX Search Modal (frosted glass, matches slash panel) ── */
+    .hkex-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;pointer-events:none}
+    .hkex-overlay.show{opacity:1;pointer-events:auto}
+    .hkex-modal{background:rgba(30,30,32,0.78);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r4,20px);width:480px;max-width:94vw;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,0.4)}
+    :root.light .hkex-modal{background:rgba(255,255,255,0.82);border-color:rgba(0,0,0,0.06);box-shadow:0 12px 32px rgba(0,0,0,0.12)}
+    .hkex-modal h3{margin:0 0 14px;font-size:16px;font-weight:600;color:var(--t1)}
+    /* Step 1 — search */
+    .hkex-search-input{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:var(--r2,12px);border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.06);color:var(--t1);font-size:14px;outline:none;transition:border-color .15s}
+    :root.light .hkex-search-input{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.04)}
+    .hkex-search-input:focus{border-color:#10a37f}
+    .hkex-search-input::placeholder{color:var(--t3)}
+    .hkex-results{margin-top:8px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.10) transparent}
+    .hkex-result-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r1,8px);cursor:pointer;transition:background .15s}
+    .hkex-result-item:hover,.hkex-result-item.sel{background:rgba(16,163,127,0.12)}
+    .hkex-result-item.sel{outline:1px solid rgba(16,163,127,0.35)}
+    .hkex-result-code{font-weight:600;font-size:14px;color:#10a37f;min-width:52px;flex-shrink:0}
+    .hkex-result-zh{font-size:14px;font-weight:600;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .hkex-result-en{font-size:12px;color:var(--t3);flex-shrink:0;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+    .hkex-empty{text-align:center;padding:20px;color:var(--t3);font-size:13px}
+    /* Step 2 — options */
+    .hkex-step2{display:none;flex-direction:column;gap:14px}
+    .hkex-step2.visible{display:flex}
+    .hkex-selected-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r2,12px);background:rgba(16,163,127,0.08);border:1px solid rgba(16,163,127,0.20)}
+    .hkex-selected-info{display:flex;flex-direction:column;gap:2px}
+    .hkex-selected-code{font-size:12px;font-weight:600;color:#10a37f}
+    .hkex-selected-name{font-size:14px;font-weight:600;color:var(--t1)}
+    .hkex-change-btn{background:none;border:none;color:var(--t3);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:var(--r1,8px);transition:color .15s,background .15s;white-space:nowrap}
+    .hkex-change-btn:hover{color:var(--t1);background:rgba(255,255,255,0.06)}
+    :root.light .hkex-change-btn:hover{background:rgba(0,0,0,0.05)}
+    .hkex-presets{display:flex;gap:6px;flex-wrap:wrap}
+    .hkex-preset-btn{padding:6px 11px;border-radius:var(--r1,8px);border:1px solid rgba(255,255,255,0.10);background:rgba(255,255,255,0.05);color:var(--t2);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+    :root.light .hkex-preset-btn{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.03)}
+    .hkex-preset-btn:hover{background:rgba(16,163,127,0.12);border-color:#10a37f;color:#10a37f}
+    .hkex-divider{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t3)}
+    .hkex-divider::before,.hkex-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.07)}
+    :root.light .hkex-divider::before,:root.light .hkex-divider::after{background:rgba(0,0,0,0.07)}
+    .hkex-form{display:flex;flex-direction:column;gap:10px}
+    .hkex-form-row{display:flex;align-items:center;gap:8px}
+    .hkex-form-label{font-size:12px;color:var(--t3);min-width:80px;flex-shrink:0}
+    .hkex-select,.hkex-date-inp,.hkex-num-inp{padding:7px 10px;border-radius:var(--r2,12px);border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.06);color:var(--t1);font-size:13px;outline:none;transition:border-color .15s;font-family:inherit}
+    :root.light .hkex-select,:root.light .hkex-date-inp,:root.light .hkex-num-inp{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.04);color:#111}
+    .hkex-select:focus,.hkex-date-inp:focus,.hkex-num-inp:focus{border-color:#10a37f}
+    .hkex-select{cursor:pointer}
+    .hkex-date-inp{width:120px}
+    .hkex-num-inp{width:64px;text-align:center}
+    .hkex-date-sep{font-size:12px;color:var(--t3)}
+    .hkex-range-group,.hkex-latest-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .hkex-mode-toggle{display:flex;gap:6px;align-items:center}
+    .hkex-mode-btn{padding:5px 10px;border-radius:var(--r1,8px);border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:var(--t3);font-size:12px;cursor:pointer;transition:all .15s}
+    :root.light .hkex-mode-btn{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.03)}
+    .hkex-mode-btn.active{background:rgba(16,163,127,0.12);border-color:#10a37f;color:#10a37f}
+    .hkex-num-stepper{display:flex;align-items:center;gap:0}
+    .hkex-step-btn{width:28px;height:32px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:var(--t2);font-size:16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    :root.light .hkex-step-btn{border-color:rgba(0,0,0,0.08);background:rgba(0,0,0,0.03)}
+    .hkex-step-btn:hover{background:rgba(16,163,127,0.10);color:#10a37f}
+    .hkex-step-btn.minus{border-radius:var(--r1,8px) 0 0 var(--r1,8px);border-right:none}
+    .hkex-step-btn.plus{border-radius:0 var(--r1,8px) var(--r1,8px) 0;border-left:none}
+    .hkex-num-inp{border-radius:0;border-left:none;border-right:none}
+    .hkex-download-btn{width:100%;padding:10px;border-radius:var(--r2,12px);border:none;background:#10a37f;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;font-family:inherit}
+    .hkex-download-btn:hover,.hkex-download-btn:focus{background:#0d9268;outline:none}
+    .hkex-download-btn:active{transform:scale(0.98)}
+    .hkex-preset-btn:focus,.hkex-mode-btn:focus,.hkex-change-btn:focus{outline:1px solid #10a37f;outline-offset:1px;background:rgba(16,163,127,0.12);color:#10a37f}
+    .hkex-select:focus,.hkex-date-inp:focus,.hkex-num-inp:focus{border-color:#10a37f;outline:none}
+    .hkex-step-btn:focus{outline:1px solid #10a37f;outline-offset:-1px}
     .asst-content.streaming-active{transition:none;opacity:1;filter:none}
     .asst-content.streaming-active.sse-bump{animation:none}
     .trunc-bar{text-align:center;font-size:12px;color:var(--t3);padding:8px 24px 0;max-width:768px;margin:0 auto}
@@ -791,6 +886,7 @@
     }
     #sel-menu button:hover{background:var(--sb-hover)}
     #sel-menu button:active{background:var(--sb-active)}
+    #sel-menu button:focus{outline:none;background:var(--sb-hover);box-shadow:inset 0 0 0 2px var(--accent)}
     #sel-menu button svg{width:14px;height:14px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     #sel-menu .sel-sep{width:1px;background:var(--border);margin:4px 0;flex-shrink:0}
 
@@ -1567,6 +1663,7 @@ const STRINGS = {
   'slash.generate':           { en:'Generate files (Excel, Word, PPT)', zh:'生成文件（Excel、Word、PPT）' },
   'slash.hkex':               { en:'Download HKEX announcements by stock code', zh:'按股票代码下载港交所公告' },
   'slash.search':             { en:'Force web search for current query', zh:'强制搜索当前问题' },
+  'slash.deep_search':        { en:'Deep multi-round research with citations', zh:'深度多轮研究，带引用来源' },
   'slash.fetch':              { en:'Fetch and summarize a URL', zh:'抓取并总结网页' },
   'slash.template':           { en:'Fill Word/Excel template from data', zh:'用数据填充 Word/Excel 模板' },
   'slash.model':              { en:'Switch AI provider and model', zh:'切换 AI 模型' },
@@ -1862,6 +1959,8 @@ let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDe
 let dropProvider = null;
 let autoFollowStream = true;
 let forceWebSearch = false;
+let forceDeepSearch = false;
+let forceHkexDownload = false;
 let encryptedUploadEnabled = false;
 let encryptedUploadExt = null;
 let selectedProCategory = "";
@@ -2765,6 +2864,8 @@ function newChat(){
   streamText='';
   streamRow=null;
   pendingDelta='';
+  _bgTaskCard=null;
+  _bgTaskSteps=[];
   currentSid=null; messages=[];
   $('typ-row')?.remove();
   while(chatEl.lastChild&&chatEl.lastChild!==emptyEl) chatEl.removeChild(chatEl.lastChild);
@@ -3089,6 +3190,91 @@ function normalizeToolStatusText(st){
   if(lower.includes("done")||lower.includes("generated")) return "Done";
   return raw;
 }
+// ── Background Task Card (Deep Search, Casting) ──
+let _bgTaskCard = null;
+let _bgTaskSteps = [];
+
+const BG_TASK_TYPES = {
+  deep_search: { title: { en: 'Deep Research', zh: '深度研究' }, icon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>' },
+  casting:     { title: { en: 'Financial Analysis', zh: '财务报表分析' }, icon: '<rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/>' },
+  hkex:        { title: { en: 'HKEX Download', zh: '港交所公告下载' }, icon: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' },
+  agent:       { title: { en: 'Multi-step Task', zh: '多步骤任务' }, icon: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
+  parse:       { title: { en: 'Document Processing', zh: '文档处理' }, icon: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+};
+
+function createBgTaskCard(taskType, parentEl) {
+  const info = BG_TASK_TYPES[taskType] || BG_TASK_TYPES.deep_search;
+  const zh = _lang === 'zh';
+  const card = document.createElement('div');
+  card.className = 'bg-task-card running';
+  card.dataset.taskType = taskType;
+  card.innerHTML = `
+    <div class="bg-task-header">
+      <div class="bg-task-icon"><svg viewBox="0 0 24 24">${info.icon}</svg></div>
+      <div class="bg-task-title">${zh ? info.title.zh : info.title.en}</div>
+      <div class="bg-task-status">${zh ? '运行中...' : 'Running...'}</div>
+      <button class="bg-task-collapse-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
+    <div class="bg-task-body">
+      <div class="bg-task-progress"><div class="bg-task-progress-bar"></div></div>
+      <ul class="bg-task-steps"></ul>
+    </div>`;
+
+  // Toggle collapse
+  card.querySelector('.bg-task-header').addEventListener('click', () => {
+    card.classList.toggle('collapsed');
+  });
+
+  parentEl.appendChild(card);
+  _bgTaskCard = card;
+  _bgTaskSteps = [];
+  return card;
+}
+
+function updateBgTaskCard(st) {
+  if (!_bgTaskCard) return;
+  const zh = _lang === 'zh';
+  const statusEl = _bgTaskCard.querySelector('.bg-task-status');
+  const barEl = _bgTaskCard.querySelector('.bg-task-progress-bar');
+  const stepsEl = _bgTaskCard.querySelector('.bg-task-steps');
+
+  // Update status text
+  const msg = normalizeToolStatusText(st);
+  if (statusEl) statusEl.textContent = msg;
+
+  // Progress bar
+  if (st?.round && st?.total && barEl) {
+    const pct = Math.min(100, Math.round((st.round / st.total) * 100));
+    barEl.style.width = pct + '%';
+  }
+
+  // Add step
+  if (msg && stepsEl) {
+    // Mark previous steps as done
+    const prev = stepsEl.querySelectorAll('li.active');
+    prev.forEach(li => { li.classList.remove('active'); li.classList.add('done'); });
+
+    const li = document.createElement('li');
+    li.className = 'active';
+    li.innerHTML = `<span class="step-dot"></span><span>${msg}</span>`;
+    stepsEl.appendChild(li);
+    stepsEl.scrollTop = stepsEl.scrollHeight;
+    _bgTaskSteps.push(msg);
+  }
+
+  // Complete state
+  if (st?.done) {
+    _bgTaskCard.classList.remove('running');
+    _bgTaskCard.classList.add('complete');
+    if (barEl) barEl.style.width = '100%';
+    if (statusEl) statusEl.textContent = zh ? '完成' : 'Complete';
+    // Mark all steps as done
+    stepsEl?.querySelectorAll('li.active').forEach(li => { li.classList.remove('active'); li.classList.add('done'); });
+    // Auto-collapse after 2s
+    setTimeout(() => { if (_bgTaskCard) _bgTaskCard.classList.add('collapsed'); }, 2000);
+  }
+}
+
 function ensureToolStatusEl(){
   const typBubble=$('typ-row')?.querySelector('.typing');
   if(!typBubble) return null;
@@ -3676,6 +3862,14 @@ async function sendMessage(){
     const payload=useNative
       ? {model:_sendModel,messages:aiMsgs,stream:true,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})}
       : {provider:_sendProvider,model:_sendModel,messages:aiMsgs,stream:true,lang:_lang,user_query_text:text,attachment_contexts:attachmentContexts,...(forceWebSearch?{web_search:true}:{})};
+    if(forceDeepSearch){
+      payload.deep_search = true;
+      forceDeepSearch = false;
+    }
+    if(forceHkexDownload){
+      payload.hkex_download = true;
+      forceHkexDownload = false;
+    }
     if(selectedProTool){
       payload.specialist_mode = selectedProTool;
       payload.specialist_category = selectedProCategory || "";
@@ -3760,13 +3954,35 @@ async function sendMessage(){
           sseEventType=''; continue;
         }
 
-        // 1. tool_status — reuse typ-row dots, add status text below
+        // 1. tool_status — background task card for long ops, or inline status for quick ones
         if(sseEventType==='tool_status'){
           try{
             const st=JSON.parse(data);
-            if(streamRow) streamRow.style.display='';
-            statusEl = statusEl || ensureToolStatusEl();
-            if(statusEl) updateToolStatusBubble(statusEl, st);
+            // Detect long-running tasks → use background task card
+            const stText = st?.text || '';
+            const isLongTask = _bgTaskCard || forceDeepSearch || /round \d|\[step \d|synthesiz|深度|研究|casting|financial.*analy|分析.*财务|hkex|港交所|agent.*loop|iteration \d|multi.?step|parsing.*page|提取.*页|docling|正在分析/i.test(stText);
+            if(isLongTask) {
+              if(!_bgTaskCard) {
+                // Detect task type from status text
+                let taskType = 'agent';
+                if(forceDeepSearch || /round \d|deep|synthesiz|深度|研究/i.test(stText)) taskType = 'deep_search';
+                else if(/casting|financial.*analy|财务|报表|正在分析.*报表/i.test(stText)) taskType = 'casting';
+                else if(/hkex|港交所|公告|announcement/i.test(stText)) taskType = 'hkex';
+                else if(/pars|docling|提取|document.*process/i.test(stText)) taskType = 'parse';
+                const asstBubble = aEl || document.querySelector('.msg-row.asst:last-child .asst-content');
+                if(asstBubble) createBgTaskCard(taskType, asstBubble);
+              }
+              if(_bgTaskCard) {
+                // Parse round/total from text like "Round 2/5: ..."
+                const rm = st.text?.match(/[Rr]ound\s*(\d+)\/?(\d+)?/);
+                if(rm) { st.round = parseInt(rm[1]); st.total = parseInt(rm[2]) || 5; }
+                updateBgTaskCard(st);
+              }
+            } else {
+              if(streamRow) streamRow.style.display='';
+              statusEl = statusEl || ensureToolStatusEl();
+              if(statusEl) updateToolStatusBubble(statusEl, st);
+            }
             requestAnimationFrame(()=>{
               if(autoFollowStream) chatEl.scrollTop=chatEl.scrollHeight;
             });
@@ -6335,10 +6551,11 @@ const SLASH_COMMANDS = [
   { cmd:'/financial-statement', descKey:'slash.financial_statement', cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'financial_statement_analysis', toolCat:'finance' },
   { cmd:'/financial-review',    descKey:'slash.financial_review',    cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'financial_analytics_review', toolCat:'finance' },
   { cmd:'/audit',               descKey:'slash.audit',               cat:SLASH_CAT_ANALYSIS, action:'submenu', subKey:'audit' },
-  { cmd:'/hkex',                descKey:'slash.hkex',                cat:SLASH_CAT_ANALYSIS, action:'tool', toolId:'hkex_announcement', toolCat:'finance' },
+  { cmd:'/hkex',                descKey:'slash.hkex',                cat:SLASH_CAT_ANALYSIS, action:'immediate', fn:'slashHkex' },
   // ── Files ──
   { cmd:'/generate',            descKey:'slash.generate',            cat:SLASH_CAT_FILES,    action:'submenu', subKey:'generate' },
   { cmd:'/search',              descKey:'slash.search',              cat:SLASH_CAT_FILES,    action:'immediate', fn:'slashSearch' },
+  { cmd:'/deep-search',         descKey:'slash.deep_search',         cat:SLASH_CAT_FILES,    action:'immediate', fn:'slashDeepSearch' },
   { cmd:'/fetch',               descKey:'slash.fetch',               cat:SLASH_CAT_FILES,    action:'tool', toolId:'web_fetch', toolCat:'web' },
   { cmd:'/template',            descKey:'slash.template',            cat:SLASH_CAT_FILES,    action:'tool', toolId:'template_fill', toolCat:'generate' },
   // ── AI ──
@@ -6604,6 +6821,342 @@ function slashSearch(){
   }
   toast(_lang==='zh'?'网络搜索已开启':'Web search enabled',1500,'#10a37f');
 }
+function slashDeepSearch(){
+  forceDeepSearch = true;
+  toast(_lang==='zh'?'深度搜索已启用 — 输入研究问题后发送':'Deep Search enabled — type your research question',2000,'#10a37f');
+}
+
+// ── HKEX Search Modal ──
+let _hkexOverlay = null;
+let _hkexSearchTimer = null;
+let _hkexSelectedCode = '';
+let _hkexSelectedName = '';
+let _hkexSelectedNameEn = '';
+let _hkexSelIdx = -1;       // keyboard nav index in results list
+let _hkexResults = [];       // current result set for keyboard nav
+
+function slashHkex(){
+  if(!_hkexOverlay){
+    _hkexOverlay = document.createElement('div');
+    _hkexOverlay.className = 'hkex-overlay';
+    _hkexOverlay.innerHTML = `<div class="hkex-modal" id="hkex-modal-inner"></div>`;
+    document.body.appendChild(_hkexOverlay);
+    _hkexOverlay.addEventListener('click', e => { if(e.target===_hkexOverlay) closeHkex(); });
+  }
+  _hkexSelectedCode = '';
+  _hkexSelectedName = '';
+  _hkexSelectedNameEn = '';
+  _hkexSelIdx = -1;
+  _hkexResults = [];
+  _hkexRenderStep1();
+  requestAnimationFrame(() => {
+    _hkexOverlay.classList.add('show');
+    setTimeout(() => {
+      const inp = _hkexOverlay.querySelector('.hkex-search-input');
+      if(inp){ inp.value=''; inp.focus(); }
+    }, 50);
+  });
+}
+
+function _hkexRenderStep1(){
+  const zh = _lang==='zh';
+  const modal = document.getElementById('hkex-modal-inner');
+  modal.innerHTML = `
+    <h3>${zh?'港交所公告搜索':'HKEX Filing Search'}</h3>
+    <input class="hkex-search-input" placeholder="${zh?'搜索公司 (如 700、腾讯、Tencent)':'Search company (e.g. 700, Tencent, 騰訊)'}"/>
+    <div class="hkex-results"><div class="hkex-empty">${zh?'输入代码或名称开始搜索':'Type to search...'}</div></div>`;
+  const inp = modal.querySelector('.hkex-search-input');
+  inp.addEventListener('input', () => {
+    clearTimeout(_hkexSearchTimer);
+    _hkexSelIdx = -1;
+    _hkexSearchTimer = setTimeout(() => hkexSearch(inp.value), 250);
+  });
+  inp.addEventListener('keydown', e => {
+    const items = _hkexOverlay.querySelectorAll('.hkex-result-item');
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      _hkexSelIdx = items.length ? (_hkexSelIdx + 1) % items.length : -1;
+      _hkexHighlight(items);
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      _hkexSelIdx = items.length ? (_hkexSelIdx <= 0 ? items.length - 1 : _hkexSelIdx - 1) : -1;
+      _hkexHighlight(items);
+    } else if(e.key === 'Enter'){
+      e.preventDefault();
+      if(_hkexSelIdx >= 0 && items[_hkexSelIdx]){
+        items[_hkexSelIdx].click();
+      }
+    } else if(e.key === 'Escape'){
+      closeHkex();
+    }
+  });
+}
+
+function _hkexHighlight(items){
+  items.forEach((el, i) => {
+    el.classList.toggle('sel', i === _hkexSelIdx);
+    if(i === _hkexSelIdx) el.scrollIntoView({block:'nearest'});
+  });
+}
+
+async function hkexSearch(q){
+  q = q.trim();
+  const res = _hkexOverlay?.querySelector('.hkex-results');
+  if(!res) return;
+  if(!q){
+    _hkexResults = [];
+    res.innerHTML = `<div class="hkex-empty">${_lang==='zh'?'输入公司代码或名称':'Type company code or name'}</div>`;
+    return;
+  }
+  res.innerHTML = `<div class="hkex-empty">${_lang==='zh'?'搜索中...':'Searching...'}</div>`;
+  try{
+    const r = await apiFetch(`/lc/hkex/search?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    if(!d.ok || !d.results?.length){
+      _hkexResults = [];
+      res.innerHTML = `<div class="hkex-empty">${_lang==='zh'?'未找到匹配的公司':'No companies found'}</div>`;
+      return;
+    }
+    // Filter out warrants/CBBCs (codes > 09999 are usually derivatives)
+    const mainBoard = d.results.filter(s => parseInt(s.code) <= 9999 || !d.results.some(x => parseInt(x.code) <= 9999));
+    _hkexResults = mainBoard.length ? mainBoard : d.results;
+    res.innerHTML = _hkexResults.map(s => {
+      const nameZh = s.nameZh || s.name;
+      const nameEn = s.nameZh ? (s.name||'') : '';
+      const dispCode = s.code.replace(/^0+(\d)/, '$1');
+      return `<div class="hkex-result-item" data-code="${s.code}" data-namezh="${nameZh.replace(/"/g,'&quot;')}" data-nameen="${nameEn.replace(/"/g,'&quot;')}">
+        <span class="hkex-result-code">${dispCode}</span>
+        <span class="hkex-result-zh">${nameZh}</span>
+        ${nameEn ? `<span class="hkex-result-en">${nameEn}</span>` : ''}
+      </div>`;
+    }).join('');
+    _hkexSelIdx = -1;
+    res.querySelectorAll('.hkex-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        _hkexSelectedCode = item.dataset.code;
+        _hkexSelectedName = item.dataset.namezh;
+        _hkexSelectedNameEn = item.dataset.nameen || '';
+        _hkexRenderStep2();
+      });
+    });
+  }catch(e){
+    _hkexResults = [];
+    res.innerHTML = `<div class="hkex-empty">Error: ${e.message}</div>`;
+  }
+}
+
+function _hkexRenderStep2(){
+  const zh = _lang==='zh';
+  const modal = document.getElementById('hkex-modal-inner');
+  // Format display code (strip leading zeros except last digit)
+  const dispCode = _hkexSelectedCode.replace(/^0+(\d{4})$/, '$1').padStart(5,'0');
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const threeYearsAgo = new Date(today); threeYearsAgo.setFullYear(today.getFullYear()-3);
+  const threeYearsStr = threeYearsAgo.toISOString().slice(0,10);
+  const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear()-1);
+  const oneYearStr = oneYearAgo.toISOString().slice(0,10);
+
+  modal.innerHTML = `
+    <h3>${zh?'港交所公告搜索':'HKEX Filing Search'}</h3>
+    <div class="hkex-selected-bar">
+      <div class="hkex-selected-info">
+        <span class="hkex-selected-code">${dispCode}</span>
+        <span class="hkex-selected-name">${_hkexSelectedName}${_hkexSelectedNameEn ? ` <span style="font-weight:400;font-size:12px;color:var(--t3)">${_hkexSelectedNameEn}</span>` : ''}</span>
+      </div>
+      <button class="hkex-change-btn" id="hkex-change-btn">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:3px"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>${zh?'重新选择':'Change'}
+      </button>
+    </div>
+    <div class="hkex-step2 visible">
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:7px;font-weight:500;letter-spacing:.4px;text-transform:uppercase">${zh?'快捷选项':'Quick Presets'}</div>
+        <div class="hkex-presets">
+          <button class="hkex-preset-btn" data-preset="latest-annual">${zh?'最新年报':'Latest Annual'}</button>
+          <button class="hkex-preset-btn" data-preset="3yr-annual">${zh?'近三年年报':'3 Years Annual'}</button>
+          <button class="hkex-preset-btn" data-preset="latest-interim">${zh?'最新中报':'Latest Interim'}</button>
+        </div>
+      </div>
+      <div class="hkex-divider">${zh?'或自定义':'or customize'}</div>
+      <div class="hkex-form">
+        <div class="hkex-form-row">
+          <span class="hkex-form-label">${zh?'文件类型':'Doc Type'}</span>
+          <select class="hkex-select" id="hkex-doctype">
+            <option value="annual">${zh?'年报':'Annual'}</option>
+            <option value="interim">${zh?'中期报告':'Interim'}</option>
+            <option value="results">${zh?'业绩公告':'Results'}</option>
+            <option value="circular">${zh?'通函':'Circular'}</option>
+            <option value="all">${zh?'全部':'All'}</option>
+          </select>
+        </div>
+        <div class="hkex-form-row">
+          <span class="hkex-form-label">${zh?'查询方式':'By'}</span>
+          <div class="hkex-mode-toggle">
+            <button class="hkex-mode-btn active" id="hkex-mode-date">${zh?'日期范围':'Date Range'}</button>
+            <button class="hkex-mode-btn" id="hkex-mode-latest">${zh?'最新N条':'Latest N'}</button>
+          </div>
+        </div>
+        <div id="hkex-date-group" class="hkex-form-row">
+          <span class="hkex-form-label">${zh?'日期范围':'Date Range'}</span>
+          <div class="hkex-range-group">
+            <input type="date" class="hkex-date-inp" id="hkex-date-from" value="${oneYearStr}"/>
+            <span class="hkex-date-sep">${zh?'至':'to'}</span>
+            <input type="date" class="hkex-date-inp" id="hkex-date-to" value="${todayStr}"/>
+          </div>
+        </div>
+        <div id="hkex-latest-group" class="hkex-form-row" style="display:none">
+          <span class="hkex-form-label">${zh?'最新':'Latest'}</span>
+          <div class="hkex-num-stepper">
+            <button class="hkex-step-btn minus" id="hkex-minus">&#8722;</button>
+            <input type="number" class="hkex-num-inp" id="hkex-count" value="10" min="1" max="999"/>
+            <button class="hkex-step-btn plus" id="hkex-plus">&#43;</button>
+          </div>
+          <span style="font-size:12px;color:var(--t3);margin-left:6px">${zh?'条公告':'announcements'}</span>
+        </div>
+      </div>
+      <button class="hkex-download-btn" id="hkex-dl-btn">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="vertical-align:-2px;margin-right:6px"><path d="M8 2v8M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${zh?'下载':'Download'}
+      </button>
+    </div>`;
+
+  // Change button
+  document.getElementById('hkex-change-btn').addEventListener('click', () => {
+    _hkexSelectedCode=''; _hkexSelectedName=''; _hkexSelectedNameEn=''; _hkexSelIdx=-1; _hkexResults=[];
+    _hkexRenderStep1();
+    setTimeout(()=>{ const inp=_hkexOverlay.querySelector('.hkex-search-input'); if(inp){inp.value='';inp.focus();} },50);
+  });
+
+  // Mode toggle
+  const modeDate = document.getElementById('hkex-mode-date');
+  const modeLatest = document.getElementById('hkex-mode-latest');
+  const dateGroup = document.getElementById('hkex-date-group');
+  const latestGroup = document.getElementById('hkex-latest-group');
+  modeDate.addEventListener('click', () => {
+    modeDate.classList.add('active'); modeLatest.classList.remove('active');
+    dateGroup.style.display=''; latestGroup.style.display='none';
+  });
+  modeLatest.addEventListener('click', () => {
+    modeLatest.classList.add('active'); modeDate.classList.remove('active');
+    latestGroup.style.display=''; dateGroup.style.display='none';
+  });
+
+  // Stepper +/-
+  document.getElementById('hkex-minus').addEventListener('click', () => {
+    const c = document.getElementById('hkex-count');
+    c.value = Math.max(1, parseInt(c.value||'10') - 1);
+  });
+  document.getElementById('hkex-plus').addEventListener('click', () => {
+    const c = document.getElementById('hkex-count');
+    c.value = Math.min(999, parseInt(c.value||'10') + 1);
+  });
+
+  // Quick presets
+  modal.querySelectorAll('.hkex-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+      if(preset==='latest-annual'){
+        confirmHkex({docType:'annual', mode:'latest', count:1});
+      } else if(preset==='3yr-annual'){
+        confirmHkex({docType:'annual', mode:'date', dateFrom:threeYearsStr, dateTo:todayStr});
+      } else if(preset==='latest-interim'){
+        confirmHkex({docType:'interim', mode:'latest', count:1});
+      }
+    });
+  });
+
+  // Download button
+  document.getElementById('hkex-dl-btn').addEventListener('click', () => {
+    const docType = document.getElementById('hkex-doctype').value;
+    const isLatest = document.getElementById('hkex-mode-latest').classList.contains('active');
+    if(isLatest){
+      const count = parseInt(document.getElementById('hkex-count').value||'10');
+      confirmHkex({docType, mode:'latest', count});
+    } else {
+      const dateFrom = document.getElementById('hkex-date-from').value;
+      const dateTo = document.getElementById('hkex-date-to').value;
+      confirmHkex({docType, mode:'date', dateFrom, dateTo});
+    }
+  });
+
+  // Keyboard navigation for step 2
+  // Collect all focusable elements in order
+  const _s2Focusables = () => Array.from(modal.querySelectorAll('.hkex-preset-btn, .hkex-select, .hkex-mode-btn, .hkex-date-inp, .hkex-num-inp, .hkex-step-btn, .hkex-download-btn, .hkex-change-btn'));
+
+  modal.addEventListener('keydown', e => {
+    if(e.key==='Escape'){ closeHkex(); return; }
+    // Enter → activate focused element, or submit if on Download button
+    if(e.key==='Enter'){
+      const active = document.activeElement;
+      // If focused on a clickable button (preset, change, mode, stepper, download), let it click naturally
+      if(active?.tagName === 'BUTTON') return;
+      // If focused on a form input (select, date, number), move focus to Download button
+      if(active?.tagName === 'SELECT' || active?.tagName === 'INPUT') {
+        e.preventDefault();
+        document.getElementById('hkex-dl-btn')?.focus();
+        return;
+      }
+      // Nothing specific focused → submit download
+      e.preventDefault();
+      document.getElementById('hkex-dl-btn')?.click();
+      return;
+    }
+    // Tab / Shift+Tab — cycle through focusable elements
+    if(e.key==='Tab'){
+      const items = _s2Focusables();
+      if(!items.length) return;
+      const cur = items.indexOf(document.activeElement);
+      e.preventDefault();
+      const next = e.shiftKey
+        ? (cur <= 0 ? items.length - 1 : cur - 1)
+        : (cur >= items.length - 1 ? 0 : cur + 1);
+      items[next]?.focus();
+    }
+  });
+
+  // Auto-focus first preset button
+  const firstPreset = modal.querySelector('.hkex-preset-btn');
+  if(firstPreset) setTimeout(() => firstPreset.focus(), 50);
+}
+
+function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='', count=10}={}){
+  if(!_hkexSelectedCode) return;
+  closeHkex();
+  const zh = _lang==='zh';
+  const dispCode = _hkexSelectedCode.replace(/^0+(\d{4})$/, '$1').padStart(5,'0');
+  const docLabels = {
+    annual: zh?'年报':'annual reports',
+    interim: zh?'中期报告':'interim reports',
+    results: zh?'业绩公告':'results announcements',
+    circular: zh?'通函':'circulars',
+    all: zh?'所有公告':'all filings'
+  };
+  const docLabel = docLabels[docType] || (zh?'公告':'filings');
+  let msg;
+  if(zh){
+    if(mode==='latest'){
+      msg = `帮我从港交所下载 ${dispCode} (${_hkexSelectedName}) 的最新 ${count} 条${docLabel}`;
+    } else {
+      msg = `帮我从港交所下载 ${dispCode} (${_hkexSelectedName}) 的${docLabel} (${dateFrom} 至 ${dateTo})`;
+    }
+  } else {
+    if(mode==='latest'){
+      msg = `Download the latest ${count} ${docLabel} for ${dispCode} (${_hkexSelectedName || _hkexSelectedNameEn}) from HKEX`;
+    } else {
+      msg = `Download ${docLabel} for ${dispCode} (${_hkexSelectedName || _hkexSelectedNameEn}) from HKEX (${dateFrom} to ${dateTo})`;
+    }
+  }
+  forceHkexDownload = true; // signal backend to force hkex_download tool
+  const inp = document.getElementById('msg-in');
+  if(inp){ inp.value = msg; updateSendBtn && updateSendBtn(); }
+  setTimeout(() => {
+    const sendBtn = document.getElementById('send-btn');
+    if(sendBtn) sendBtn.click();
+  }, 100);
+}
+
+function closeHkex(){
+  if(_hkexOverlay) _hkexOverlay.classList.remove('show');
+}
 function slashRetry(){
   // Find last user message and re-send with current model
   if(!messages.length){ toast(_lang==='zh'?'没有可重试的消息':'No message to retry',2000,'#f59e0b'); return; }
@@ -6677,7 +7230,7 @@ function execSlashCommand(cmdStr, itemEl){
   // Immediate action commands
   if(fn && typeof window[fn] === 'function'){
     // Call via lookup to avoid eval
-    ({slashNew,slashClear,slashModel,slashThink,slashEncrypt,slashPreset,slashMemory,slashCopy,slashExport,slashVoice,slashTheme,slashLang,slashProject,slashSearch,slashRetry,slashHistory})[fn]?.();
+    ({slashNew,slashClear,slashModel,slashThink,slashEncrypt,slashPreset,slashMemory,slashCopy,slashExport,slashVoice,slashTheme,slashLang,slashProject,slashSearch,slashDeepSearch,slashHkex,slashRetry,slashHistory})[fn]?.();
     return;
   }
 
@@ -7005,6 +7558,261 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
       return;
     }
   };
+})();
+
+// ── KEYBOARD NAVIGATION ──────────────────────────────────────────────────────
+
+// 1. Model dropdown keyboard nav
+(function initMdlDropKeyboard(){
+  let _mdlKbdOptIdx = -1;
+  let _mdlKbdProvIdx = -1;
+
+  function getOpts(){ return Array.from(mdlDrop.querySelectorAll('.mdl-opt')); }
+  function getPills(){ return Array.from(mdlDrop.querySelectorAll('.mdl-prov-pill')); }
+  function clearOptHL(){ mdlDrop.querySelectorAll('.mdl-opt.kbd-sel').forEach(el=>el.classList.remove('kbd-sel')); }
+  function clearPillHL(){ mdlDrop.querySelectorAll('.mdl-prov-pill.kbd-sel').forEach(el=>el.classList.remove('kbd-sel')); }
+
+  function setOptIdx(idx){
+    const opts = getOpts();
+    if(!opts.length){ _mdlKbdOptIdx=-1; return; }
+    _mdlKbdOptIdx = (idx + opts.length) % opts.length;
+    clearOptHL();
+    const el = opts[_mdlKbdOptIdx];
+    el.classList.add('kbd-sel');
+    el.scrollIntoView({block:'nearest'});
+  }
+
+  function setProvIdx(idx){
+    const pills = getPills();
+    if(!pills.length){ _mdlKbdProvIdx=-1; return; }
+    _mdlKbdProvIdx = (idx + pills.length) % pills.length;
+    clearPillHL();
+    pills[_mdlKbdProvIdx].classList.add('kbd-sel');
+  }
+
+  // When dropdown opens, highlight the currently selected model
+  $('mdl-btn').addEventListener('click', ()=>{
+    requestAnimationFrame(()=>{
+      if(!mdlDrop.classList.contains('open')) return;
+      _mdlKbdProvIdx = -1;
+      const opts = getOpts();
+      const selIdx = opts.findIndex(el=>el.classList.contains('sel'));
+      _mdlKbdOptIdx = selIdx >= 0 ? selIdx : (opts.length ? 0 : -1);
+      clearOptHL();
+      if(_mdlKbdOptIdx >= 0){
+        opts[_mdlKbdOptIdx].classList.add('kbd-sel');
+        opts[_mdlKbdOptIdx].scrollIntoView({block:'nearest'});
+      }
+    });
+  });
+
+  document.addEventListener('keydown', e=>{
+    if(!mdlDrop.classList.contains('open')) return;
+    if(e.key==='Escape'){
+      e.preventDefault(); e.stopPropagation();
+      clearOptHL(); clearPillHL();
+      _mdlKbdOptIdx=-1; _mdlKbdProvIdx=-1;
+      mdlDrop.classList.remove('open');
+      return;
+    }
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      const opts=getOpts();
+      if(!opts.length) return;
+      setOptIdx(_mdlKbdOptIdx<0 ? 0 : _mdlKbdOptIdx+1);
+      return;
+    }
+    if(e.key==='ArrowUp'){
+      e.preventDefault();
+      const opts=getOpts();
+      if(!opts.length) return;
+      setOptIdx(_mdlKbdOptIdx<=0 ? opts.length-1 : _mdlKbdOptIdx-1);
+      return;
+    }
+    if(e.key==='ArrowRight'){
+      e.preventDefault();
+      const pills=getPills();
+      if(!pills.length) return;
+      const cur = _mdlKbdProvIdx<0 ? pills.findIndex(p=>p.classList.contains('sel')) : _mdlKbdProvIdx;
+      setProvIdx(cur<0 ? 0 : cur+1);
+      pills[_mdlKbdProvIdx]?.click();
+      requestAnimationFrame(()=>{
+        const opts=getOpts();
+        _mdlKbdOptIdx=opts.length?0:-1;
+        clearOptHL();
+        if(opts[0]) opts[0].classList.add('kbd-sel');
+      });
+      return;
+    }
+    if(e.key==='ArrowLeft'){
+      e.preventDefault();
+      const pills=getPills();
+      if(!pills.length) return;
+      const cur = _mdlKbdProvIdx<0 ? pills.findIndex(p=>p.classList.contains('sel')) : _mdlKbdProvIdx;
+      setProvIdx(cur<=0 ? pills.length-1 : cur-1);
+      pills[_mdlKbdProvIdx]?.click();
+      requestAnimationFrame(()=>{
+        const opts=getOpts();
+        _mdlKbdOptIdx=opts.length?0:-1;
+        clearOptHL();
+        if(opts[0]) opts[0].classList.add('kbd-sel');
+      });
+      return;
+    }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const opts=getOpts();
+      const sel=_mdlKbdOptIdx>=0?opts[_mdlKbdOptIdx]:null;
+      if(sel){
+        clearOptHL(); clearPillHL();
+        _mdlKbdOptIdx=-1; _mdlKbdProvIdx=-1;
+        sel.click();
+      }
+      return;
+    }
+  });
+})();
+
+// 2. Selection menu keyboard nav
+(function initSelMenuKeyboard(){
+  const menu = $('sel-menu');
+
+  // Watch style changes to focus first button when menu appears
+  let _prevDisplay = menu.style.display;
+  const observer = new MutationObserver(()=>{
+    const cur = menu.style.display;
+    if(cur==='flex' && _prevDisplay!=='flex'){
+      const btns=Array.from(menu.querySelectorAll('button'));
+      if(btns.length) setTimeout(()=>btns[0].focus(), 0);
+    }
+    _prevDisplay = cur;
+  });
+  observer.observe(menu, {attributes:true, attributeFilter:['style']});
+
+  menu.addEventListener('keydown', e=>{
+    const btns=Array.from(menu.querySelectorAll('button'));
+    if(!btns.length) return;
+    const cur=btns.indexOf(document.activeElement);
+
+    if(e.key==='ArrowRight'){
+      e.preventDefault();
+      btns[cur<btns.length-1?cur+1:0].focus();
+      return;
+    }
+    if(e.key==='ArrowLeft'){
+      e.preventDefault();
+      btns[cur>0?cur-1:btns.length-1].focus();
+      return;
+    }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(cur>=0) btns[cur].click();
+      return;
+    }
+    if(e.key==='Escape'){
+      e.preventDefault();
+      menu.style.display='none';
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
+  });
+})();
+
+// 3. Settings modal tab keyboard nav
+(function initStgTabKeyboard(){
+  const tabsEl = document.querySelector('.stg-tabs');
+  if(!tabsEl) return;
+
+  tabsEl.addEventListener('keydown', e=>{
+    const tabs=Array.from(tabsEl.querySelectorAll('.stg-tab'));
+    const cur=tabs.indexOf(document.activeElement);
+    if(cur<0) return;
+
+    if(e.key==='ArrowRight'){
+      e.preventDefault();
+      const next=cur<tabs.length-1?cur+1:0;
+      tabs[next].focus(); tabs[next].click();
+      return;
+    }
+    if(e.key==='ArrowLeft'){
+      e.preventDefault();
+      const prev=cur>0?cur-1:tabs.length-1;
+      tabs[prev].focus(); tabs[prev].click();
+      return;
+    }
+    if(e.key==='Tab'&&!e.shiftKey){
+      // Move focus into the active tab pane
+      e.preventDefault();
+      const activePane=document.querySelector('.stg-pane.active');
+      if(!activePane) return;
+      const focusable=activePane.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])');
+      if(focusable.length) focusable[0].focus();
+      return;
+    }
+  });
+})();
+
+// 4. Session sidebar keyboard nav
+(function initSbListKeyboard(){
+  let _sbKbdIdx = -1;
+
+  function getItems(){ return Array.from(sbList.querySelectorAll('.sess-item')); }
+  function clearHL(){ sbList.querySelectorAll('.sess-item.kbd-sel').forEach(el=>el.classList.remove('kbd-sel')); }
+
+  function setIdx(idx){
+    const items=getItems();
+    if(!items.length){ _sbKbdIdx=-1; return; }
+    _sbKbdIdx=Math.max(0,Math.min(idx,items.length-1));
+    clearHL();
+    const el=items[_sbKbdIdx];
+    el.classList.add('kbd-sel');
+    el.scrollIntoView({block:'nearest'});
+  }
+
+  sbList.setAttribute('tabindex','0');
+
+  sbList.addEventListener('keydown', e=>{
+    const items=getItems();
+    if(!items.length) return;
+
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      if(_sbKbdIdx<0){
+        const ai=items.findIndex(el=>el.classList.contains('active'));
+        setIdx(ai>=0?ai+1:0);
+      } else {
+        setIdx(_sbKbdIdx+1);
+      }
+      return;
+    }
+    if(e.key==='ArrowUp'){
+      e.preventDefault();
+      if(_sbKbdIdx<0){
+        const ai=items.findIndex(el=>el.classList.contains('active'));
+        setIdx(ai>0?ai-1:items.length-1);
+      } else {
+        setIdx(_sbKbdIdx-1);
+      }
+      return;
+    }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(_sbKbdIdx>=0&&items[_sbKbdIdx]){
+        const sid=items[_sbKbdIdx].dataset.sid;
+        clearHL(); _sbKbdIdx=-1;
+        if(sid){ openSession(sid); if(typeof isMobile==='function'&&isMobile()) closeMobileSidebar(); }
+      }
+      return;
+    }
+    if(e.key==='Escape'){
+      e.preventDefault();
+      clearHL(); _sbKbdIdx=-1;
+      return;
+    }
+  });
+
+  // Clear keyboard highlight when mouse moves over the list
+  sbList.addEventListener('mousemove', ()=>{ clearHL(); _sbKbdIdx=-1; });
 })();
 
 clientLog('info', 'boot_start', { build: '2026-03-19-v4' });

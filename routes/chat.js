@@ -348,6 +348,46 @@ async function executeWebSearchForChat(query, timeRange = "month") {
   return results;
 }
 
+// --- Memory tool handlers (GPT-style: AI decides when to save/recall) ---
+// Returns result for memory_save/memory_search, or null for non-memory tools.
+// userId must be a real PB user ID — no fallback to project name or "api".
+async function handleMemoryTool(toolName, toolInput, userId) {
+  if (toolName !== "memory_search" && toolName !== "memory_save") return null;
+  if (!userMemory) return { ok: false, error: "Memory service not available", duration: 0 };
+  if (!userId) return { ok: false, error: "Memory requires user login", duration: 0 };
+  const startTime = Date.now();
+  try {
+    if (toolName === "memory_search") {
+      const query = toolInput.query || toolInput.text || "";
+      const mode = toolInput.mode || "search";
+      if (mode === "all") {
+        const all = await userMemory._getAllMemories(userId, 100);
+        const profile = await userMemory._getProfile(userId);
+        const formatted = userMemory._formatContext(profile, userMemory._deduplicateMemories(all), { fullDump: true });
+        return { ok: true, data: { memories: formatted || "No memories stored yet.", count: all.length }, duration: Date.now() - startTime };
+      }
+      const result = await userMemory.recall(userId, query, { limit: 15 });
+      return { ok: true, data: { memories: result || "No relevant memories found.", query }, duration: Date.now() - startTime };
+    }
+    if (toolName === "memory_save") {
+      const text = toolInput.text || "";
+      if (!text) return { ok: false, error: "No text to save", duration: Date.now() - startTime };
+      await userMemory._ensureCollection(userId);
+      await userMemory._storeFact(userId, {
+        category: toolInput.category || "fact",
+        text: text.slice(0, 500),
+        entity_type: toolInput.entity_type || null,
+        entity_id: toolInput.entity_id || null,
+        importance: Math.min(5, Math.max(1, Number(toolInput.importance) || 3)),
+      }, { sessionId: toolInput._session_id || "" });
+      return { ok: true, data: { saved: true, text }, duration: Date.now() - startTime };
+    }
+  } catch (err) {
+    return { ok: false, error: err.message, duration: Date.now() - startTime };
+  }
+  return null;
+}
+
 function formatSearchContext(results) {
   if (!results.length) return "";
   // Pass all results — model decides relevance (like GPT/Claude approach)
@@ -429,9 +469,9 @@ function selectRelevantTools(userMessage, allSchemas, specialistMode) {
 
   // Core tools: always include
   const alwaysInclude = new Set([
-    'web_search', 'generate_spreadsheet', 'generate_document',
+    'web_search', 'deep_search', 'generate_spreadsheet', 'generate_document',
     'generate_presentation', 'code_run', 'parse_file', 'use_template',
-    'fill_template',
+    'fill_template', 'memory_search', 'memory_save',
   ]);
 
   // If specialist mode is an audit tool, always include all audit tools
@@ -560,6 +600,8 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   let userQueryText = String(req.body?.user_query_text || "").trim();
   const specialistMode = String(req.body?.specialist_mode || "").trim().toLowerCase();
   const specialistCategory = String(req.body?.specialist_category || "").trim().toLowerCase();
+  const isDeepSearch = req.body?.deep_search === true;
+  const isHkexDownload = req.body?.hkex_download === true;
   if (!userQueryText) {
     const lastUser = [...messages].reverse().find((m) => m?.role === "user");
     userQueryText = stripAttachmentContextBlocks(extractMessagePlainText(lastUser?.content));
@@ -770,11 +812,21 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   }
   let specialistAnalysisResult = null;
   if (specialistMode === "financial_statement_analysis") {
+    // Start SSE early so we can emit casting progress
+    if (wantStream && !res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+    }
+    if (wantStream) emitToolStatus({ text: lang === "zh" ? "正在分析财务报表..." : "Analyzing financial statements...", icon: "file" });
     specialistAnalysisResult = await runFinancialAnalysisForAttachments({
       query: userQueryText || "",
       attachments: requestAttachmentContexts,
       lang,
     });
+    if (wantStream) emitToolStatus({ text: lang === "zh" ? "财务分析完成" : "Financial analysis complete", icon: "file", done: true });
     const llmVStats = specialistAnalysisResult?.llm_verification?.stats;
     log("info", "Financial specialist pre-analysis completed", {
       ok: !!specialistAnalysisResult?.ok,
@@ -864,6 +916,10 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   }
   if ((specialistMode === "financial_statement_analysis" || SPECIALIST_MODE_TO_TOOLS[specialistMode]) && req.body.web_search !== true) {
     shouldAutoSearch = false;
+  }
+  if (isDeepSearch) {
+    shouldAutoSearch = false; // deep_search tool does its own searching
+    doSearch = false;
   }
 
   if (hasRichUserInput && attachmentMode === "assistant_decide" && req.body.web_search === undefined && !attachmentOnlyInterpretation && !shouldAutoSearch) {
@@ -1216,7 +1272,12 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         const allSchemas = lumigentRuntime.registry
           ? await lumigentRuntime.registry.getSchemas()
           : [];
-        const relevant = selectRelevantTools(userText, allSchemas, specialistMode);
+        let relevant = selectRelevantTools(userText, allSchemas, specialistMode);
+        // Force-include hkex_download when triggered by /hkex modal
+        if (isHkexDownload && !relevant.some(s => s.name === 'hkex_download')) {
+          const hkexSchema = allSchemas.find(s => s.name === 'hkex_download');
+          if (hkexSchema) relevant = [...relevant, hkexSchema];
+        }
         if (relevant.length > 0) {
           nativeToolsParam = formatNativeTools(pnLower, relevant);
           log("info", "Native tools enabled", { provider: pnLower, model: modelId, toolCount: relevant.length, tools: relevant.map(s => s.name) });
@@ -1227,7 +1288,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       }
       // For native tool providers, still inject a minimal tool usage hint (but not the full schema list)
       if (nativeToolsParam) {
-        injectedSystemPrompt += "\nYou have tools available via function calling. Use them when the user asks to generate files, search the web, run code, or perform analysis. Do NOT output [TOOL:...] text markers — use the native tool calling mechanism instead.\n";
+        injectedSystemPrompt += "\nYou have tools available via function calling. Use them when the user asks to generate files, search the web, run code, or perform analysis. Do NOT output [TOOL:...] text markers — use the native tool calling mechanism instead.\n\nMemory tools (use like ChatGPT memory):\n- memory_save: Proactively save anything worth remembering — personal info, projects they mention, decisions, preferences, key discussion points, deadlines. Do this silently.\n- memory_search: Use mode=\"search\" for targeted queries (\"what project were they working on\"). Use mode=\"all\" for broad recall (\"what do I know about this user\"). When the current topic might connect to past conversations, search proactively to provide continuity.\n- Be natural — never say \"I saved to memory\" or \"let me check my database\". Just know things.\n";
       } else {
         // Native tools preparation failed — fall back to prompt injection
         try {
@@ -1242,6 +1303,24 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         if (toolPrompt && !toolPrompt.includes("No tools")) injectedSystemPrompt += toolPrompt;
       } catch {}
     }
+  }
+
+  // ── Deep Search mode: force AI to use deep_search tool ──
+  if (isDeepSearch) {
+    injectedSystemPrompt += `\nIMPORTANT: The user has activated Deep Search mode. You MUST call the deep_search tool with the user's question as the query. Do not answer from your own knowledge — use the tool to perform multi-round research and return a comprehensive report with citations. Call deep_search now.\n`;
+  }
+
+  // ── HKEX Download mode: force AI to use hkex_download tool ──
+  if (isHkexDownload) {
+    injectedSystemPrompt += `\nIMPORTANT: The user wants to download HKEX filings. Follow these steps:
+1. First, briefly acknowledge the request in 1-2 sentences (e.g. "正在为您从港交所下载...").
+2. Then call the hkex_download tool with these EXACT parameter names:
+   - stock_code: string (e.g. "00700", pad to 5 digits)
+   - doc_type: "annual" | "interim" | "results" | "circular" | "all"
+   - date_from: "YYYY-MM-DD" (optional)
+   - date_to: "YYYY-MM-DD" (optional, defaults to today)
+   Do NOT use "start_date" or "end_date" — the correct names are date_from and date_to.
+3. Do NOT tell the user to visit hkexnews.hk — you have the tool to do it.\n`;
   }
 
   // ── Build provider request ──
@@ -1402,7 +1481,15 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           let toolInput = {};
           try { toolInput = JSON.parse(tc.arguments || "{}"); } catch {}
           try {
-            const result = await lumigentRuntime.executeToolCall(tc.name, { ...toolInput, _caller_user_id: lcUserId || projectName || "api" });
+            // Memory tools handled locally (need userMemory + userId context)
+            const memResult = await handleMemoryTool(tc.name, toolInput, lcUserId);
+            const result = memResult || await lumigentRuntime.executeToolCall(tc.name, {
+              ...toolInput,
+              _caller_user_id: lcUserId || projectName || "api",
+              _caller_provider: providerName,
+              _caller_model: modelId,
+              _progress_sink: wantStream ? (msg) => emitToolStatus({ text: msg?.text || "", icon: "search", done: msg?.done }) : undefined,
+            });
             if (result?.ok) {
               if (result.file) {
                 let downloadUrl = "";
@@ -1412,7 +1499,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
                 toolResults.push({ tool: tc.name, data: result.data });
               }
             } else if (result?._errorContext) {
-              // Include structured error in non-streaming response so client can display it
               toolResults.push({ tool: tc.name, ok: false, error: result._errorContext.message, suggestions: result._errorContext.suggestions });
             }
           } catch (e) { log("warn", "Non-stream native tool execution failed", { tool: tc.name, error: e.message }); }
@@ -1488,9 +1574,10 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     // Test route gets an even more aggressive "ultra-smooth" profile.
     const referer = String(req.headers.referer || "");
     const isLumichatTestClient = referer.includes("/lumichat/test");
-    const TOOL_TAG_HOLD_CHARS = isLumichatTestClient ? 4 : 8;
-    const TOOL_TAG_FAST_HOLD_CHARS = isLumichatTestClient ? 1 : 2;
-    const TOOL_TAG_FAST_FLUSH_MS = isLumichatTestClient ? 80 : 120;
+    // Hold buffer must be >= longest TOOL_TAG_MARKER (6 chars for "[TOOL:") to avoid leaking partial tags
+    const TOOL_TAG_HOLD_CHARS = isLumichatTestClient ? 8 : 12;
+    const TOOL_TAG_FAST_HOLD_CHARS = isLumichatTestClient ? 6 : 8;
+    const TOOL_TAG_FAST_FLUSH_MS = isLumichatTestClient ? 80 : 150;
     let pendingSinceTs = 0;
 
     const isAnthropic = pnLower === "anthropic";
@@ -1787,7 +1874,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     const agentOnToolStatus = (status) => {
       if (res.writableEnded) return;
       const icon = status.tool?.includes("search") ? "search" : status.tool?.includes("spread") ? "spreadsheet" : status.tool?.includes("present") ? "presentation" : "file";
-      emitToolStatus({ text: status.message, icon, done: status.state !== "running" });
+      // Include iteration info so frontend can detect multi-step agent tasks
+      const iterPrefix = status.iteration > 1 ? `[Step ${status.iteration}] ` : "";
+      emitToolStatus({ text: iterPrefix + status.message, icon, done: status.state !== "running" });
     };
     const agentOnFileDownload = (fileInfo) => {
       emitFileDownload({ filename: fileInfo.filename, size: fileInfo.size, mimeType: fileInfo.mimeType, downloadUrl: fileInfo.downloadUrl || "", base64: fileInfo.base64 || undefined });

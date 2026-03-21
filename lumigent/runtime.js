@@ -402,7 +402,12 @@ class LumigentRuntime {
           emitStatus({ tool: toolName, state: "running", message: zh ? `${toolName} 执行中...` : `Running ${toolName}...`, iteration: iterations });
 
           try {
-            const result = await this.executeToolCall(toolName, { ...toolInput, _caller_user_id: userId });
+            const result = await this.executeToolCall(toolName, {
+              ...toolInput,
+              _caller_user_id: userId,
+              // Inject progress sink for long-running tools (deep_search)
+              _progress_sink: (msg) => emitStatus({ tool: toolName, state: "running", message: msg?.text || msg?.message || "", iteration: iterations }),
+            });
             if (!result?.ok) {
               const errMsg = result?.error || "Tool returned not-ok";
               iterErrors.push({ tool: toolName, error: errMsg, id: tc.id });

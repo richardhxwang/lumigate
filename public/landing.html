@@ -362,6 +362,58 @@
   .reveal-d4 { transition-delay: 0.4s; }
   .reveal-d5 { transition-delay: 0.5s; }
 
+  /* ── Showcase: highlighted feature cards ── */
+  .showcase-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px;
+  }
+  .showcase-card {
+    padding: 28px 24px; border-radius: 16px;
+    background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.3s; position: relative; overflow: hidden;
+  }
+  .showcase-card:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
+  .showcase-card.highlight {
+    background: linear-gradient(135deg, rgba(16,163,127,0.08) 0%, rgba(16,163,127,0.03) 100%);
+    border-color: rgba(16,163,127,0.22);
+  }
+  .showcase-card.highlight:hover { border-color: rgba(16,163,127,0.38); background: linear-gradient(135deg, rgba(16,163,127,0.13) 0%, rgba(16,163,127,0.06) 100%); }
+  .sc-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent-dim); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .sc-icon svg { width: 20px; height: 20px; color: var(--accent); }
+  .showcase-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .showcase-card p { font-size: 13px; color: var(--t2); line-height: 1.6; font-weight: 300; }
+  .sc-badge {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--accent); background: var(--accent-dim);
+    padding: 2px 7px; border-radius: 4px; margin-bottom: 12px;
+  }
+
+  /* ── Tool chips ── */
+  .tool-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 48px; justify-content: center; }
+  .tool-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    color: var(--t2); background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.2s;
+  }
+  .tool-chip:hover { color: var(--t1); border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.07); }
+  .tool-chip svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
+
+  /* ── Infra pills ── */
+  .infra-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 48px; }
+  .infra-item {
+    padding: 20px 16px; border-radius: 14px; text-align: center;
+    background: var(--card); border: 1px solid var(--card-border);
+    transition: all 0.25s;
+  }
+  .infra-item:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-2px); }
+  .infra-item svg { width: 22px; height: 22px; color: var(--accent); margin-bottom: 10px; }
+  .infra-item span { display: block; font-size: 13px; font-weight: 500; color: var(--t1); }
+  .infra-item small { display: block; font-size: 11px; color: var(--t3); margin-top: 3px; }
+
   /* ── Responsive ── */
   @media (max-width: 768px) {
     nav { padding: 0 16px; }
@@ -373,9 +425,12 @@
     section { padding: 80px 20px; }
     .hero { padding: calc(100px + env(safe-area-inset-top, 0)) 20px 60px; }
     nav { padding: env(safe-area-inset-top, 0) 20px 0; }
+    .showcase-grid { grid-template-columns: 1fr; }
+    .infra-grid { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 480px) {
     .nav-link.hide-m { display: none; }
+    .infra-grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
@@ -424,10 +479,10 @@
 <section style="padding:80px 24px 0">
   <div class="section-inner">
     <div class="stats" style="justify-content:center;gap:64px">
-      <div class="reveal"><div class="stat-val">8</div><div class="stat-label">AI providers</div></div>
-      <div class="reveal reveal-d1"><div class="stat-val">224</div><div class="stat-label">Professional templates</div></div>
-      <div class="reveal reveal-d2"><div class="stat-val">6,400+</div><div class="stat-label">Requests/sec</div></div>
-      <div class="reveal reveal-d3"><div class="stat-val">~37 MB</div><div class="stat-label">Memory footprint</div></div>
+      <div class="reveal"><div class="stat-val">8</div><div class="stat-label">AI Providers</div></div>
+      <div class="reveal reveal-d1"><div class="stat-val">26</div><div class="stat-label">Built-in Tools</div></div>
+      <div class="reveal reveal-d2"><div class="stat-val">4</div><div class="stat-label">Auth Modes</div></div>
+      <div class="reveal reveal-d3"><div class="stat-val">1</div><div class="stat-label">Docker Compose</div></div>
     </div>
   </div>
 </section>
@@ -726,7 +781,7 @@
       </div>
       <div class="dp reveal reveal-d1">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        37 MB memory, single Docker stack
+        Single Docker Compose stack, runs on any hardware
       </div>
       <div class="dp reveal reveal-d2">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -761,6 +816,420 @@
         <div class="feat-icon" style="margin:0 auto 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
         <h3>Run anywhere</h3>
         <p>Docker on a $35 Raspberry Pi, a home NAS, a VPS, or a Kubernetes cluster. Same config, same performance, any scale.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Feature Showcase: Highlighted capabilities         -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<!-- Section 1: Architecture -->
+<section id="architecture" style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">Architecture</div>
+    <h2 class="section-title reveal reveal-d1">Six layers,<br>one clean API</h2>
+    <p class="section-desc reveal reveal-d2">Every request flows through a purpose-built stack — from client auth down to persistent storage — with clear boundaries at each layer.</p>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:56px">
+
+      <!-- Client Layer -->
+      <div class="reveal" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid #a78bfa;display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#a78bfa;margin-bottom:4px">Client Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">Applications</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);color:#c4b5fd">LumiChat</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);color:#c4b5fd">Mobile Apps</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);color:#c4b5fd">REST / SDK</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);color:#c4b5fd">MCP Clients</span>
+        </div>
+      </div>
+
+      <!-- Gateway Layer -->
+      <div class="reveal reveal-d1" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid #f59e0b;display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#f59e0b;margin-bottom:4px">Gateway Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">Security + Routing</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">Auth (HMAC/Token/Key)</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">RPM Limit</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">Budget Cap</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">IP ACL</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">PII Detection</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fcd34d">Secret Masking</span>
+        </div>
+      </div>
+
+      <!-- Intelligence Layer -->
+      <div class="reveal reveal-d2" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid var(--accent);display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:4px">Intelligence Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">Agent Runtime</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--accent-dim);border:1px solid rgba(16,163,127,0.25);color:#6ee7b7">Agent Runtime</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--accent-dim);border:1px solid rgba(16,163,127,0.25);color:#6ee7b7">Deep Search</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--accent-dim);border:1px solid rgba(16,163,127,0.25);color:#6ee7b7">Long-term Memory</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--accent-dim);border:1px solid rgba(16,163,127,0.25);color:#6ee7b7">RAG</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--accent-dim);border:1px solid rgba(16,163,127,0.25);color:#6ee7b7">Casting</span>
+        </div>
+      </div>
+
+      <!-- Provider Layer -->
+      <div class="reveal reveal-d3" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid #38bdf8;display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#38bdf8;margin-bottom:4px">Provider Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">8 AI Providers</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">OpenAI</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">Anthropic</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">Gemini</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">DeepSeek</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">Kimi</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">Doubao</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">Qwen</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#7dd3fc">MiniMax</span>
+        </div>
+      </div>
+
+      <!-- Tool Layer -->
+      <div class="reveal reveal-d4" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid #fb923c;display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fb923c;margin-bottom:4px">Tool Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">Server-side Tools</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">SearXNG</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">Whisper</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">Edge TTS</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">Docling</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">Code Sandbox</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">Doc-Gen</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">HKEX</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fdba74">MCP</span>
+        </div>
+      </div>
+
+      <!-- Data Layer -->
+      <div class="reveal reveal-d5" style="padding:20px 24px;border-radius:16px;background:var(--card);border:1px solid var(--card-border);border-left:3px solid #f472b6;display:flex;align-items:flex-start;gap:20px">
+        <div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#f472b6;margin-bottom:4px">Data Layer</div>
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">Persistence</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);color:#f9a8d4">PocketBase</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);color:#f9a8d4">Qdrant</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);color:#f9a8d4">Loki / Grafana</span>
+          <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);color:#f9a8d4">JSON Store</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Flagship Features -->
+<section id="flagship" style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">Flagship Features</div>
+    <h2 class="section-title reveal reveal-d1">Capabilities you won't<br>find in a proxy</h2>
+    <p class="section-desc reveal reveal-d2">Three features that push LumiGate from API gateway to full agent platform.</p>
+
+    <div class="showcase-grid" style="margin-top:56px">
+
+      <!-- Deep Search -->
+      <div class="showcase-card highlight reveal">
+        <div class="sc-badge">Flagship</div>
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
+        </div>
+        <h3>Deep Search</h3>
+        <p>Multi-round iterative research. Generates sub-questions, searches each angle independently. Cheap models handle grunt work; expensive models synthesise the final Markdown report with full citations.</p>
+      </div>
+
+      <!-- GPT-style Memory -->
+      <div class="showcase-card highlight reveal reveal-d1">
+        <div class="sc-badge">Flagship</div>
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <h3>GPT-style Memory</h3>
+        <p>memory_save and memory_search tools with background auto-extraction. Per-user Qdrant isolation keeps memories private. Profile summarisation surfaces the right context in every session.</p>
+      </div>
+
+      <!-- HKEX Filing Search -->
+      <div class="showcase-card highlight reveal reveal-d2">
+        <div class="sc-badge">Flagship</div>
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h4M9 17h2"/><path d="M15 3v4h4"/></svg>
+        </div>
+        <h3>HKEX Filing Search</h3>
+        <p>Type /hkex to activate. Autocomplete by stock code, English name, or Traditional Chinese. Date range and document type picker. One-click ZIP download — no browser switching required.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: LumiChat -->
+<section id="showcase" style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">LumiChat</div>
+    <h2 class="section-title reveal reveal-d1">A full-featured chat,<br>not a demo</h2>
+    <p class="section-desc reveal reveal-d2">Built on the Clean Proxy architecture — the server handles all tool execution while the browser renders clean text and file downloads.</p>
+
+    <div class="features" style="margin-top:56px">
+      <div class="feat reveal">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>
+        </div>
+        <h3>26+ Slash Commands</h3>
+        <p>/search, /deep, /hkex, /model, /clear, /export, /compact, /system and more. Every power-user shortcut accessible from the input bar.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><path d="M12 17h.01"/></svg>
+        </div>
+        <h3>Thinking Mode</h3>
+        <p>Three modes: Auto, Think (extended reasoning), and Fast. Toggle per-message. Extended thinking visible in a collapsible block before the answer.</p>
+      </div>
+      <div class="feat reveal reveal-d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/><path d="M3 9h18"/></svg>
+        </div>
+        <h3>Background Task Cards</h3>
+        <p>Long-running tasks appear as frosted-glass progress cards. Deep searches and report generation stay visible while you continue the conversation.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <h3>Encrypted Upload</h3>
+        <p>Files encrypted client-side with AES-256-GCM + RSA-OAEP before upload. The server never sees plaintext file content.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+        </div>
+        <h3>Edge TTS — 15 Voices</h3>
+        <p>Read aloud any AI response with Microsoft Edge TTS. Choose from 15 voices across multiple languages and accents.</p>
+      </div>
+      <div class="feat reveal reveal-d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </div>
+        <h3>Canvas / Artifacts Panel</h3>
+        <p>Live-rendered code, SVG, and rich documents appear in a resizable side panel. View output without leaving the chat.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </div>
+        <h3>Source Chips with Citations</h3>
+        <p>Search results appear as inline chips. Click any chip to open the source page. Citations pinned below the answer.</p>
+      </div>
+      <div class="feat reveal reveal-d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+        </div>
+        <h3>Voice Input (Whisper)</h3>
+        <p>Hold to record, release to transcribe. Powered by server-side Whisper — no browser speech API dependency.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4: 26 Registered Tools -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">Agent Tools</div>
+    <h2 class="section-title reveal reveal-d1">26 registered tools,<br>all server-side</h2>
+    <p class="section-desc reveal reveal-d2">Tools execute on the server. The client never sees raw tool tags — only clean text, status events, and file downloads.</p>
+
+    <div style="margin-top:48px;display:flex;flex-direction:column;gap:20px">
+
+      <!-- File Gen -->
+      <div class="reveal">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">File Generation</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h.01M15 9h.01M9 15h6"/></svg>generate_spreadsheet</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M13 2v7h7"/></svg>generate_document</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>generate_presentation</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>use_template</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>fill_template</span>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="reveal reveal-d1">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Search</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>web_search</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>deep_search</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h4M9 17h2"/><path d="M15 3v4h4"/></svg>hkex_download</span>
+        </div>
+      </div>
+
+      <!-- Memory -->
+      <div class="reveal reveal-d2">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Memory</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>memory_save</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>memory_search</span>
+        </div>
+      </div>
+
+      <!-- Parse -->
+      <div class="reveal">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Parse</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>parse_file</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>transcribe_audio</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>vision_analyze</span>
+        </div>
+      </div>
+
+      <!-- Code -->
+      <div class="reveal reveal-d1">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Code</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>code_run</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>sandbox_exec</span>
+        </div>
+      </div>
+
+      <!-- Audit -->
+      <div class="reveal reveal-d2">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Audit</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>audit_sampling</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>benford_analysis</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>journal_entry_testing</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>variance_analysis</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>materiality_calculator</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>reconciliation</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>going_concern_check</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>gl_extract</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>data_cleaning</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>audit_workpaper_fill</span>
+        </div>
+      </div>
+
+      <!-- Finance + Automation -->
+      <div class="reveal">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Finance + Automation</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>financial_statement_analyze</span>
+          <span class="tool-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>browser_action (Playwright via MCP)</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Section 5: Security -->
+<section style="border-top:1px solid var(--card-border)">
+  <div class="section-inner">
+    <div class="section-label reveal">Security</div>
+    <h2 class="section-title reveal reveal-d1">Defense in depth,<br>zero overhead</h2>
+    <p class="section-desc reveal reveal-d2">Every check is O(1) in-memory. Adding all security layers actually improved throughput in benchmarks — no measurable cost.</p>
+
+    <div class="showcase-grid" style="margin-top:56px">
+
+      <div class="showcase-card reveal">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <h3>Four Auth Modes</h3>
+        <p>Direct Key for server-to-server. HMAC Signature — key signs but never transmits. Ephemeral Token — short-lived bearer tokens. HMAC + Token Combo for maximum mobile security.</p>
+      </div>
+
+      <div class="showcase-card reveal reveal-d1">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+        </div>
+        <h3>PII + Secret Masking</h3>
+        <p>Regex + optional Ollama semantic PII detection. Secrets replaced with [SEC_xxx] placeholders in LLM context, restored only at tool execution. 17 command guard rules block dangerous shell patterns.</p>
+      </div>
+
+      <div class="showcase-card reveal reveal-d2">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2M8 7V5a2 2 0 014 0"/></svg>
+        </div>
+        <h3>Per-project Limits</h3>
+        <p>Each project has independent RPM cap, daily/monthly budget, IP allowlist (up to 50 entries), model allowlist, and anomaly auto-suspend on 5x traffic spike.</p>
+      </div>
+
+      <div class="showcase-card reveal">
+        <div class="sc-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>
+        </div>
+        <h3>Audit Trail + MFA</h3>
+        <p>All security events logged to PocketBase audit_log collection in real time. Dashboard protected by TOTP MFA. Admin actions require re-authentication.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Section 6: Infrastructure -->
+<section style="border-top:1px solid var(--card-border);background:linear-gradient(180deg,#0d0d0d 0%,var(--bg) 100%)">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-label reveal" style="text-align:center">Infrastructure</div>
+    <h2 class="section-title reveal reveal-d1" style="margin:0 auto">Battle-tested stack,<br>runs on a NAS</h2>
+    <p class="section-desc reveal reveal-d2" style="margin:16px auto 0">Docker Compose deployment, watchdog auto-recovery, Loki/Grafana monitoring, and PocketBase + Qdrant as the data backbone.</p>
+
+    <div class="infra-grid reveal reveal-d2" style="grid-template-columns:repeat(3,1fr);max-width:720px;margin-left:auto;margin-right:auto">
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>Docker Compose</span>
+        <small>Single-stack deployment</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Watchdog</span>
+        <small>&lt;10s crash recovery</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span>PocketBase</span>
+        <small>Auth + storage layer</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07M8.46 8.46a5 5 0 000 7.07"/></svg>
+        <span>Qdrant</span>
+        <small>Vector search / RAG</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Loki / Grafana</span>
+        <small>Logs + dashboards</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Nginx</span>
+        <small>Reverse proxy + gzip</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>Cloudflare Tunnel</span>
+        <small>Zero-config HTTPS</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+        <span>Whisper</span>
+        <small>Server-side STT</small>
+      </div>
+      <div class="infra-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span>SearXNG</span>
+        <small>Private web search</small>
       </div>
     </div>
   </div>

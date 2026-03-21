@@ -33,31 +33,17 @@ const upload = multer({
   },
 });
 
-function buildMultipartBody({ fieldName, buffer, filename, contentType, language }) {
+function buildMultipartBody({ fieldName, buffer, filename, contentType }) {
   const boundary = "----WhisperBoundary" + crypto.randomBytes(8).toString("hex");
   const safeName = sanitizeFilename(filename || "audio.wav");
   const parts = [];
-  // Audio file part
+  // Audio file part only — language/initial_prompt go as query params for this whisper image
   parts.push(Buffer.from(
     `--${boundary}\r\n` +
     `Content-Disposition: form-data; name="${fieldName}"; filename="${safeName}"\r\n` +
     `Content-Type: ${contentType}\r\n\r\n`
   ));
   parts.push(buffer);
-  // Language hint — force simplified Chinese output
-  if (language) {
-    parts.push(Buffer.from(
-      `\r\n--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="language"\r\n\r\n` +
-      language
-    ));
-    // initial_prompt biases Whisper toward simplified Chinese characters
-    parts.push(Buffer.from(
-      `\r\n--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="initial_prompt"\r\n\r\n` +
-      `以下是普通话的句子，请使用简体中文输出。`
-    ));
-  }
   parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
   return { boundary, body: Buffer.concat(parts) };
 }
@@ -69,8 +55,15 @@ function normalizeEndpoint(endpoint) {
 }
 
 async function whisperRequest({ endpoint, fieldName, buffer, filename, contentType, language }) {
-  const { boundary, body } = buildMultipartBody({ fieldName, buffer, filename, contentType, language });
-  const res = await fetch(`${WHISPER_URL}${endpoint}`, {
+  const { boundary, body } = buildMultipartBody({ fieldName, buffer, filename, contentType });
+  // onerahmet/openai-whisper-asr-webservice accepts language + initial_prompt as query params
+  const qp = new URLSearchParams({ encode: "true", task: "transcribe", output: "json" });
+  if (language) {
+    qp.set("language", language);
+    qp.set("initial_prompt", "以下是普通话的句子，请使用简体中文输出。");
+  }
+  const url = `${WHISPER_URL}${endpoint}?${qp}`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
     body,
@@ -135,7 +128,8 @@ router.post("/transcribe", upload.single("file"), async (req, res) => {
       req.file.mimetype || "audio/wav"
     );
 
-    const text = (result.text || "").trim();
+    // Whisper outputs one segment per line — collapse into single line for chat input
+    const text = (result.text || "").replace(/\n+/g, " ").replace(/\s{2,}/g, " ").trim();
     return res.json({
       ok: true,
       text,
@@ -162,7 +156,7 @@ router.post("/transcriptions", upload.single("file"), async (req, res) => {
       req.file.mimetype || "audio/wav"
     );
 
-    const text = (result.text || "").trim();
+    const text = (result.text || "").replace(/\n+/g, " ").replace(/\s{2,}/g, " ").trim();
 
     // OpenAI returns { text } by default (response_format=json gives { text })
     const format = req.body?.response_format || "json";

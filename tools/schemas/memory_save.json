@@ -1,0 +1,27 @@
+{
+  "name": "memory_save",
+  "description": "Save something worth remembering to long-term memory. Use for: personal info (name, job, preferences), project context (what they're working on, deadlines, decisions), topics discussed (key takeaways, conclusions), anything that would be useful in future conversations. Do NOT save: your own responses, generic knowledge, or trivial chit-chat.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The fact to remember (one concise sentence, e.g. 'User is working on a LumiTrade project for algorithmic trading')"
+      },
+      "category": {
+        "type": "string",
+        "enum": ["fact", "preference", "entity", "event", "relationship"],
+        "description": "fact=personal/project info, preference=likes/dislikes/style, entity=person/pet/org, event=date/milestone/deadline, relationship=people connections",
+        "default": "fact"
+      },
+      "importance": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5,
+        "description": "5=critical (identity, health), 4=significant (active projects, pets), 3=useful (preferences, decisions), 2=context (topics discussed), 1=minor",
+        "default": 3
+      }
+    },
+    "required": ["text"]
+  }
+}

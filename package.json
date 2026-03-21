@@ -8,6 +8,7 @@
     "logs:errors": "node scripts/error_log_summary.js --since-minutes 180 --only-errors"
   },
   "dependencies": {
+    "chinese-s2t": "^1.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",

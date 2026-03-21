@@ -3600,7 +3600,7 @@ app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
 // ── LumiTrader AI routes (MUST be before global knowledge mount) ──────────────
 try {
   const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
-  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL, INTERNAL_CHAT_KEY });
+  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL, INTERNAL_CHAT_KEY, parseCookies, validateLcTokenPayload });
   app.use(_lumitraderResult.router);
   log("info", "LumiTrader routes mounted at /lumitrader/*");
 } catch (e) {

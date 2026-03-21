@@ -32,21 +32,23 @@ const CATEGORIES = ["preference", "fact", "entity", "event", "relationship"];
  * Fact extraction prompt — sent to a lightweight LLM to extract structured
  * knowledge from a conversation turn.
  */
-const EXTRACTION_PROMPT = `Extract structured facts from this conversation turn. Return a JSON array only (no markdown, no explanation).
+const EXTRACTION_PROMPT = `Extract ALL meaningful facts from this conversation turn. Return a JSON array only (no markdown, no explanation).
 Each element:
 {
   "category": "fact|preference|entity|event|relationship",
   "text": "concise fact statement",
-  "entity_type": "pet|person|place|null",
+  "entity_type": "pet|person|place|document|topic|null",
   "entity_id": "identifier or null",
   "importance": 1-5
 }
 
 Rules:
-- Only extract NEW information. Skip greetings, pleasantries, and generic knowledge.
-- Focus on: personal details, preferences, pet info, health data, dates, relationships.
+- Extract EVERYTHING worth remembering: user personal info, document content, topics discussed, decisions made, questions asked, context shared.
+- User identity facts (name, job, preferences, pets, family) get importance 4-5.
+- Document/topic facts (what files were discussed, key data points, conclusions) get importance 2-3.
+- Conversation context (what was asked, what was decided) gets importance 1-2.
+- Skip: greetings, pleasantries, AI's generic responses, formatting instructions.
 - Keep "text" concise (one sentence max).
-- "importance": 5 = critical (pet health emergency, allergy), 1 = trivial.
 - If no new facts, return [].`;
 
 class UserMemory {
@@ -146,47 +148,48 @@ class UserMemory {
    * Recall relevant memories for a new query.
    * Called BEFORE sending to AI in /v1/chat.
    *
+   * Two modes (like GPT/Claude memory):
+   * 1. Self-query ("我是谁", "what do you know about me") → return ALL memories + profile
+   * 2. Normal query → vector similarity search for relevant memories
+   *
    * @param {string} userId
    * @param {string} query
    * @param {object} [opts]
    * @param {number} [opts.limit=10]
    * @param {number} [opts.recencyWeight=0.3]
-   * @param {number} [opts.scoreThreshold=0.55]
+   * @param {number} [opts.scoreThreshold=0.15]
    * @returns {Promise<string>} — formatted context for system prompt injection
    */
   async recall(userId, query, { limit = 10, recencyWeight = 0.3, scoreThreshold = 0.15 } = {}) {
     if (!userId || !query) return "";
 
     try {
-      // 1. Vector search for semantically relevant memories
       const collectionName = this._collectionName(userId);
       const collectionExists = this._ensuredCollections.has(userId);
       if (!collectionExists) {
-        // Check if collection exists before searching
         const exists = await this._collectionExists(userId);
-        if (!exists) return ""; // No memories yet
+        if (!exists) return "";
       }
 
+      const profile = await this._getProfile(userId);
+
+      // Background injection: semantic search only. Full dump is AI's decision via memory_search tool.
       const queryVector = await this.embedder.embedOne(query);
-      if (!queryVector) return "";
+      if (!queryVector) {
+        return profile ? this._formatContext(profile, []) : "";
+      }
 
       const raw = await this.vectorStore.search(collectionName, queryVector, {
         limit: limit * 2,
         scoreThreshold,
       });
 
-      if (!raw || raw.length === 0) return "";
+      if (!raw || raw.length === 0) {
+        return profile ? this._formatContext(profile, []) : "";
+      }
 
-      // 2. Apply recency boost
       const scored = this._applyRecencyBoost(raw, recencyWeight);
-
-      // 3. De-duplicate by text similarity
       const deduped = this._deduplicateMemories(scored);
-
-      // 4. Get user profile summary
-      const profile = await this._getProfile(userId);
-
-      // 5. Format for system prompt injection
       return this._formatContext(profile, deduped.slice(0, limit));
     } catch (err) {
       this.log("warn", "user_memory_recall_failed", {
@@ -194,7 +197,65 @@ class UserMemory {
         userId,
         error: err.message,
       });
-      return ""; // Graceful degradation
+      return "";
+    }
+  }
+
+  /**
+   * Detect if user is asking about themselves / their memory.
+   * Like GPT's "what do you remember about me" trigger.
+   */
+  _isSelfQuery(query) {
+    const q = (query || "").toLowerCase();
+    const patterns = [
+      // Chinese
+      /我是(谁|什么人|怎[样么]的人)/,
+      /你(了解|认识|知道|记得)(我|关于我)/,
+      /(关于|有关)我(的|什么)/,
+      /我的(信息|资料|画像|记忆|档案)/,
+      /你(对我|关于我)(了解|知道)(多少|什么|哪些)/,
+      /你记得我(吗|什么|哪些)/,
+      /我(之前|以前)(说过|提过|聊过)什么/,
+      // English
+      /what do you (know|remember) about me/i,
+      /who am i/i,
+      /tell me about myself/i,
+      /my (profile|memory|memories|info)/i,
+      /do you (remember|know) me/i,
+      /what have (i|we) (talked|discussed|said)/i,
+    ];
+    return patterns.some(p => p.test(q));
+  }
+
+  /**
+   * Get ALL memories for a user (scroll Qdrant).
+   * Used for self-queries where we want the full picture.
+   */
+  async _getAllMemories(userId, maxCount = 100) {
+    try {
+      const result = await this.vectorStore.scroll(this._collectionName(userId), {
+        limit: maxCount,
+        with_payload: true,
+        with_vector: false,
+      });
+      const points = result?.points || result || [];
+      return points.map(p => ({
+        id: p.id,
+        score: 1, // no relevance score for full dump
+        payload: p.payload,
+        category: p.payload?.category || "fact",
+        text: p.payload?.text || "",
+        date: p.payload?.created_at || "",
+        entity_type: p.payload?.entity_type || null,
+        entity_id: p.payload?.entity_id || null,
+      }));
+    } catch (err) {
+      this.log("warn", "user_memory_scroll_failed", {
+        component: "user-memory",
+        userId,
+        error: err.message,
+      });
+      return [];
     }
   }
 
@@ -714,42 +775,57 @@ Only include fields with actual data. Keep it concise.`,
    * Format memories + profile for system prompt injection.
    * @param {object|null} profile
    * @param {Array} memories
+   * @param {object} [opts]
+   * @param {boolean} [opts.fullDump=false] — true when AI requests mode="all"
    * @returns {string}
    */
-  _formatContext(profile, memories) {
+  _formatContext(profile, memories, { fullDump = false } = {}) {
     const parts = [];
 
+    if (fullDump) {
+      parts.push("=== Long-Term Memory (COMPLETE DUMP) ===");
+      parts.push("Below is everything you remember about this user from past conversations. Use it to answer naturally.");
+    } else if (memories.length > 0 || (profile && Object.keys(profile).length > 0)) {
+      parts.push("=== Context from Past Conversations ===");
+      parts.push("You have prior knowledge about this user from previous sessions. Use it naturally — refer to past projects, preferences, and context when relevant. Never mention 'memory system' or 'database'.");
+    }
+
     if (profile && Object.keys(profile).length > 0) {
-      parts.push("=== User Profile ===");
-      if (profile.name) parts.push(`Name: ${profile.name}`);
-      if (profile.preferences?.length) parts.push(`Preferences: ${profile.preferences.join("; ")}`);
+      parts.push("");
+      const pLines = [];
+      if (profile.name) pLines.push(`Name: ${profile.name}`);
+      if (profile.preferences?.length) pLines.push(`Preferences: ${profile.preferences.join("; ")}`);
       if (profile.pets?.length) {
         for (const pet of profile.pets) {
           const details = Object.entries(pet).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(", ");
-          parts.push(`Pet: ${details}`);
+          pLines.push(`Pet: ${details}`);
         }
       }
       if (profile.pet_profiles && Object.keys(profile.pet_profiles).length > 0) {
         for (const [petId, pet] of Object.entries(profile.pet_profiles)) {
           const details = Object.entries(pet).filter(([k, v]) => v && k !== "updated_at").map(([k, v]) => `${k}: ${v}`).join(", ");
-          parts.push(`Pet [${petId}]: ${details}`);
+          pLines.push(`Pet [${petId}]: ${details}`);
         }
       }
-      if (profile.important_dates?.length) parts.push(`Important dates: ${profile.important_dates.join("; ")}`);
-      if (profile.relationships?.length) parts.push(`Relationships: ${profile.relationships.join("; ")}`);
-      if (profile.notes?.length) parts.push(`Notes: ${profile.notes.join("; ")}`);
+      if (profile.important_dates?.length) pLines.push(`Important dates: ${profile.important_dates.join("; ")}`);
+      if (profile.relationships?.length) pLines.push(`Relationships: ${profile.relationships.join("; ")}`);
+      if (profile.notes?.length) pLines.push(`Notes: ${profile.notes.join("; ")}`);
+      if (pLines.length > 0) {
+        parts.push("[User Profile]");
+        parts.push(...pLines);
+      }
     }
 
     if (memories.length > 0) {
       parts.push("");
-      parts.push("=== Relevant Memories ===");
+      parts.push("[Past Conversations & Context]");
       for (const m of memories) {
         const dateStr = m.date ? ` (${m.date.slice(0, 10)})` : "";
-        parts.push(`[${m.category}] ${m.text}${dateStr}`);
+        parts.push(`- [${m.category}] ${m.text}${dateStr}`);
       }
     }
 
-    if (parts.length === 0) return "";
+    if (parts.length <= 2) return "";
 
     return parts.join("\n") + "\n";
   }
