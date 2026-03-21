@@ -116,6 +116,9 @@ module.exports = function createLumiTraderRouter(deps) {
       ftStatus: null, ftConfig: null, news: null,
     };
     const timings = {};
+    // User filter only for multi-user collections (lt_sessions, lt_user_settings).
+    // Bot-generated trade data (history, journal, mood, pnl) should be visible
+    // to any authenticated user — it's a single-tenant trading system.
     const userFilter = userId ? `&filter=(user_id='${userId}')` : '';
 
     const timed = (label, promise) => {
@@ -129,11 +132,12 @@ module.exports = function createLumiTraderRouter(deps) {
 
     const tasks = [
       timed("engine/positions", engineFetch("/positions").then(r => r.ok ? r.json() : null)),
-      timed("pb/trade_pnl", tradePbFetch(`/api/collections/trade_pnl/records?perPage=1${userFilter}`).then(r => r.ok ? r.json() : null)),
+      // Trade data: try user-scoped first, fallback to unscoped if empty (single-tenant friendly)
+      timed("pb/trade_pnl", tradePbFetch(`/api/collections/trade_pnl/records?perPage=1${userFilter}`).then(r => r.ok ? r.json() : null).then(d => d?.items?.length ? d : tradePbFetch("/api/collections/trade_pnl/records?perPage=1").then(r => r.ok ? r.json() : null))),
       timed("engine/signals", engineFetch("/signals?limit=5").then(r => r.ok ? r.json() : null)),
-      timed("pb/trade_history", tradePbFetch(`/api/collections/trade_history/records?perPage=15${userFilter}`).then(r => r.ok ? r.json() : null)),
-      timed("pb/trade_journal", tradePbFetch(`/api/collections/trade_journal/records?perPage=8${userFilter}`).then(r => r.ok ? r.json() : null)),
-      timed("pb/trade_mood_logs", tradePbFetch(`/api/collections/trade_mood_logs/records?perPage=5${userFilter}`).then(r => r.ok ? r.json() : null)),
+      timed("pb/trade_history", tradePbFetch(`/api/collections/trade_history/records?perPage=15${userFilter}`).then(r => r.ok ? r.json() : null).then(d => d?.items?.length ? d : tradePbFetch("/api/collections/trade_history/records?perPage=15").then(r => r.ok ? r.json() : null))),
+      timed("pb/trade_journal", tradePbFetch(`/api/collections/trade_journal/records?perPage=8${userFilter}`).then(r => r.ok ? r.json() : null).then(d => d?.items?.length ? d : tradePbFetch("/api/collections/trade_journal/records?perPage=8").then(r => r.ok ? r.json() : null))),
+      timed("pb/trade_mood_logs", tradePbFetch(`/api/collections/trade_mood_logs/records?perPage=5${userFilter}`).then(r => r.ok ? r.json() : null).then(d => d?.items?.length ? d : tradePbFetch("/api/collections/trade_mood_logs/records?perPage=5").then(r => r.ok ? r.json() : null))),
       timed("engine/rag", userMessage
         ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null)
         : Promise.resolve(null)),
