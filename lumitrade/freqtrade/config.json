@@ -34,7 +34,12 @@
         "password": "",
         "ccxt_config": { "enableRateLimit": true },
         "ccxt_async_config": { "enableRateLimit": true },
-        "pair_whitelist": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
+        "pair_whitelist": [
+            "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT",
+            "XRP/USDT", "ADA/USDT", "DOGE/USDT", "AVAX/USDT",
+            "DOT/USDT", "MATIC/USDT", "LINK/USDT", "UNI/USDT",
+            "ATOM/USDT", "LTC/USDT", "FIL/USDT", "APT/USDT"
+        ],
         "pair_blacklist": [".*DOWN/USDT", ".*UP/USDT", ".*BEAR/USDT", ".*BULL/USDT"],
         "enable_ws": false
     },
@@ -89,7 +94,8 @@
             "include_corr_pairlist": ["BTC/USDT"],
             "indicator_periods_candles": [10, 20, 50],
             "label_period_candles": 12,
-            "include_shifted_candles": 2
+            "include_shifted_candles": 2,
+            "noise_standard_deviation": 0.01
         },
         "data_split_parameters": {
             "test_size": 0.33,

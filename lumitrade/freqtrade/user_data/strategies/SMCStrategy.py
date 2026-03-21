@@ -1,6 +1,7 @@
 from freqtrade.strategy import IStrategy, IntParameter, DecimalParameter
 from pandas import DataFrame
 import talib as ta
+import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
@@ -131,8 +132,14 @@ class SMCStrategy(IStrategy):
         return dataframe
 
     def feature_engineering_standard(self, dataframe, metadata, **kwargs):
-        # Use SMC indicators as ML features
-        # SMC library returns NaN for non-signal candles — must fillna(0) or FreqAI drops them
+        # Use SMC indicators as ML features.
+        # SMC library returns NaN for non-signal candles — fillna(0) first.
+        # These features are sparse (mostly 0), so VarianceThreshold(threshold=0) in
+        # datasieve's pipeline would drop any column with zero variance across a training
+        # window where no signal fired. Adding tiny Gaussian noise (std=0.001) ensures
+        # every column has non-zero variance and survives the filter. The noise is small
+        # enough to not affect model signal — the actual signal values are ±1.
+        rng = np.random.default_rng(seed=42)
         for src, dst in [
             ("bos", "%-bos"),
             ("choch", "%-choch"),
@@ -142,10 +149,8 @@ class SMCStrategy(IStrategy):
             ("liquidity", "%-liquidity"),
             ("liq_swept", "%-liq_swept"),
         ]:
-            if src in dataframe.columns:
-                dataframe[dst] = dataframe[src].fillna(0)
-            else:
-                dataframe[dst] = 0
+            base = dataframe[src].fillna(0) if src in dataframe.columns else 0
+            dataframe[dst] = base + rng.normal(0, 0.001, len(dataframe))
         return dataframe
 
     def set_freqai_targets(self, dataframe, metadata, **kwargs):

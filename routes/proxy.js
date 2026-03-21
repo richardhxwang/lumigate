@@ -17,7 +17,7 @@ module.exports = function createProxyRouter(deps) {
     INTERNAL_CHAT_KEY,
     getSessionRole,
     parseCookies,
-    validateLcTokenPayload,
+    validateAuthToken,
     getLcUserTier,
     // Project data
     projects,
@@ -84,15 +84,15 @@ module.exports = function createProxyRouter(deps) {
       // H-01 fix: only root/admin sessions bypass project policy
       projectName = "_chat";
     } else {
-      // 0. LumiChat token (lc_token cookie) — only when no explicit project key is present
+      // 0. User auth token (auth_token cookie) — only when no explicit project key is present
       const lcCookies = parseCookies(req);
-      const lcToken = lcCookies.lc_token;
-      if (!projectKey && lcToken && validateLcTokenPayload(lcToken)) {
+      const lcToken = lcCookies.auth_token;
+      if (!projectKey && lcToken && validateAuthToken(lcToken)) {
         projectName = "_lumichat";
         req._proxyProjectName = "_lumichat";
 
         // Resolve LumiChat user tier for access control
-        const lcPayload = validateLcTokenPayload(lcToken);
+        const lcPayload = validateAuthToken(lcToken);
         if (lcPayload?.id) {
           try {
             const tierInfo = await getLcUserTier(lcPayload.id, lcToken);

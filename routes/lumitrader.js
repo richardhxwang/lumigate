@@ -40,24 +40,24 @@ module.exports = function createLumiTraderRouter(deps) {
     TRADE_ENGINE_URL,
     INTERNAL_CHAT_KEY,
     parseCookies,
-    validateLcTokenPayload,
+    validateAuthToken,
   } = deps;
 
   // ── Auth middleware ───────────────────────────────────────────────────────
 
-  // lcAuth — validates PB lc_token cookie; populates req.lcUser and req.lcToken
+  // lcAuth — validates PB auth_token cookie; populates req.user and req.authToken
   const lcAuth = (req, res, next) => {
     const cookies = parseCookies ? parseCookies(req) : {};
-    const token = cookies.lc_token;
+    const token = cookies.auth_token;
     if (!token) return res.status(401).json({ error: "Not authenticated" });
-    const payload = validateLcTokenPayload ? validateLcTokenPayload(token) : null;
+    const payload = validateAuthToken ? validateAuthToken(token) : null;
     if (!payload) return res.status(401).json({ error: "Session expired" });
-    req.lcUser = payload;
-    req.lcToken = token;
+    req.user = payload;
+    req.authToken = token;
     next();
   };
 
-  // chatAuth — accepts either an internal server key OR a valid lc_token cookie
+  // chatAuth — accepts either an internal server key OR a valid auth_token cookie
   const chatAuth = (req, res, next) => {
     const projectKey = req.headers["x-project-key"];
     if (projectKey && INTERNAL_CHAT_KEY && projectKey === INTERNAL_CHAT_KEY) return next();
@@ -315,7 +315,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   router.get("/lumitrader/settings", lcAuth, async (req, res) => {
     try {
-      const userId = req.lcUser.id;
+      const userId = req.user.id;
 
       const r = await tradePbFetch(
         `/api/collections/lt_user_settings/records?filter=(user='${userId}')&perPage=1`
@@ -336,7 +336,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   router.post("/lumitrader/settings", lcAuth, express.json(), async (req, res) => {
     try {
-      const userId = req.lcUser.id;
+      const userId = req.user.id;
       const { settings } = req.body;
       if (!settings || typeof settings !== "object") return res.status(400).json({ error: "settings object required" });
 
@@ -377,7 +377,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   router.get("/lumitrader/sessions", lcAuth, async (req, res) => {
     try {
-      const userId = req.lcUser.id;
+      const userId = req.user.id;
 
       const page = parseInt(req.query.page) || 1;
       const perPage = Math.min(parseInt(req.query.perPage) || 20, 50);
@@ -400,7 +400,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   router.post("/lumitrader/sessions", lcAuth, express.json(), async (req, res) => {
     try {
-      const userId = req.lcUser.id;
+      const userId = req.user.id;
       const { title } = req.body;
 
       const r = await tradePbFetch("/api/collections/lt_sessions/records", {

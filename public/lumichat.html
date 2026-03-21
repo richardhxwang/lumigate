@@ -435,8 +435,8 @@
     .hkex-search-input::placeholder{color:var(--t3)}
     .hkex-results{margin-top:8px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.10) transparent}
     .hkex-result-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r1,8px);cursor:pointer;transition:background .15s}
-    .hkex-result-item:hover,.hkex-result-item.sel{background:rgba(16,163,127,0.12)}
-    .hkex-result-item.sel{outline:1px solid rgba(16,163,127,0.35)}
+    .hkex-results:not(.kbd-active) .hkex-result-item:hover{background:rgba(16,163,127,0.12)}
+    .hkex-result-item.sel{background:rgba(16,163,127,0.12);outline:1px solid rgba(16,163,127,0.35)}
     .hkex-result-code{font-weight:600;font-size:14px;color:#10a37f;min-width:52px;flex-shrink:0}
     .hkex-result-zh{font-size:14px;font-weight:600;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .hkex-result-en{font-size:12px;color:var(--t3);flex-shrink:0;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
@@ -889,6 +889,18 @@
     #sel-menu button:focus{outline:none;background:var(--sb-hover);box-shadow:inset 0 0 0 2px var(--accent)}
     #sel-menu button svg{width:14px;height:14px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     #sel-menu .sel-sep{width:1px;background:var(--border);margin:4px 0;flex-shrink:0}
+
+    /* Mobile text-selection highlight — persists after native selection clears */
+    .lc-highlight{
+      background:rgba(16,163,127,0.25);
+      border-radius:2px;
+      border-bottom:2px solid rgba(16,163,127,0.5);
+      transition:background 0.15s;
+    }
+    :root.light .lc-highlight{
+      background:rgba(16,163,127,0.15);
+      border-bottom-color:rgba(16,163,127,0.3);
+    }
 
     /* ── CANVAS / ARTIFACTS SIDE PANEL ──────────────────────────────── */
     .canvas-panel{position:fixed;right:0;top:0;bottom:0;width:45%;min-width:420px;background:rgba(22,22,24,0.92);-webkit-backdrop-filter:blur(32px) saturate(170%);backdrop-filter:blur(32px) saturate(170%);border-left:1px solid rgba(255,255,255,0.08);transform:translateX(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);z-index:100;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.3)}
@@ -6871,14 +6883,24 @@ function _hkexRenderStep1(){
     _hkexSelIdx = -1;
     _hkexSearchTimer = setTimeout(() => hkexSearch(inp.value), 250);
   });
+  // Mouse move clears keyboard mode so hover works again
+  const resultsContainer = _hkexOverlay.querySelector('.hkex-results');
+  if(resultsContainer) resultsContainer.addEventListener('mousemove', () => {
+    resultsContainer.classList.remove('kbd-active');
+    _hkexSelIdx = -1;
+    resultsContainer.querySelectorAll('.hkex-result-item.sel').forEach(el => el.classList.remove('sel'));
+  });
+
   inp.addEventListener('keydown', e => {
     const items = _hkexOverlay.querySelectorAll('.hkex-result-item');
     if(e.key === 'ArrowDown'){
       e.preventDefault();
+      if(resultsContainer) resultsContainer.classList.add('kbd-active');
       _hkexSelIdx = items.length ? (_hkexSelIdx + 1) % items.length : -1;
       _hkexHighlight(items);
     } else if(e.key === 'ArrowUp'){
       e.preventDefault();
+      if(resultsContainer) resultsContainer.classList.add('kbd-active');
       _hkexSelIdx = items.length ? (_hkexSelIdx <= 0 ? items.length - 1 : _hkexSelIdx - 1) : -1;
       _hkexHighlight(items);
     } else if(e.key === 'Enter'){
@@ -7083,7 +7105,8 @@ function _hkexRenderStep2(){
   // Collect all focusable elements in order
   const _s2Focusables = () => Array.from(modal.querySelectorAll('.hkex-preset-btn, .hkex-select, .hkex-mode-btn, .hkex-date-inp, .hkex-num-inp, .hkex-step-btn, .hkex-download-btn, .hkex-change-btn'));
 
-  modal.addEventListener('keydown', e => {
+  // Listen on overlay (not just modal) to catch keys even when focus is elsewhere
+  _hkexOverlay.addEventListener('keydown', e => {
     if(e.key==='Escape'){ closeHkex(); return; }
     // Enter → activate focused element, or submit if on Download button
     if(e.key==='Enter'){
@@ -7101,13 +7124,14 @@ function _hkexRenderStep2(){
       document.getElementById('hkex-dl-btn')?.click();
       return;
     }
-    // Tab / Shift+Tab — cycle through focusable elements
-    if(e.key==='Tab'){
+    // ArrowDown/ArrowUp/Tab — cycle through focusable elements
+    if(e.key==='ArrowDown' || e.key==='ArrowUp' || e.key==='Tab'){
       const items = _s2Focusables();
       if(!items.length) return;
       const cur = items.indexOf(document.activeElement);
       e.preventDefault();
-      const next = e.shiftKey
+      const goBack = e.key === 'ArrowUp' || e.shiftKey;
+      const next = goBack
         ? (cur <= 0 ? items.length - 1 : cur - 1)
         : (cur >= items.length - 1 ? 0 : cur + 1);
       items[next]?.focus();
@@ -7449,74 +7473,170 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
 (function initSelectionMenu(){
   const menu = $('sel-menu');
   let _selText = '';
+  let _markEl = null;        // current <mark> wrapper on mobile
+  const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
-  function hideSelMenu(){ menu.style.display='none'; _selText=''; }
+  // ── Mobile highlight helpers ──────────────────────────────────────────────
 
-  function showSelMenu(sel, text){
-    _selText = text;
-    const range = sel.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
+  // Remove the <mark> wrapper, restoring original text nodes
+  function removeHighlight(){
+    if(!_markEl) return;
+    const parent = _markEl.parentNode;
+    if(!parent) { _markEl = null; return; }
+    // Move all children of <mark> back before it, then remove <mark>
+    while(_markEl.firstChild) parent.insertBefore(_markEl.firstChild, _markEl);
+    parent.removeChild(_markEl);
+    parent.normalize(); // merge adjacent text nodes
+    _markEl = null;
+  }
+
+  // Wrap the range in a <mark class="lc-highlight"> and return the element.
+  // Returns null if the range spans multiple block-level parents (unsafe to wrap).
+  function wrapRangeInMark(range){
+    try {
+      // surroundContents throws if range partially selects a non-Text node
+      const mark = document.createElement('mark');
+      mark.className = 'lc-highlight';
+      range.surroundContents(mark);
+      return mark;
+    } catch(e){
+      // Range crosses element boundaries — skip wrapping, just return null
+      return null;
+    }
+  }
+
+  // ── Shared positioning ────────────────────────────────────────────────────
+
+  function positionMenuNearRect(rect){
     menu.style.display = 'flex';
-    // Measure menu dimensions after display:flex
     const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    // Compensate for body offset — Safari with position:fixed on <body>
-    // can shift the containing block for position:fixed children
     const bodyRect = document.body.getBoundingClientRect();
     const ox = bodyRect.left, oy = bodyRect.top;
     let left = (rect.left - ox) + rect.width/2 - mw/2;
-    let top = (rect.top - oy) - mh - 8;
-    // If no room above, show below
+    let top  = (rect.top  - oy) - mh - 8;
     if((top + oy) < 4){ top = (rect.bottom - oy) + 8; }
-    // Clamp horizontal to viewport
     left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
     menu.style.left = left + 'px';
-    menu.style.top = top + 'px';
+    menu.style.top  = top  + 'px';
   }
 
-  // Listen for text selection on assistant messages
+  function hideSelMenu(){
+    menu.style.display = 'none';
+    _selText = '';
+    if(isTouchDevice) removeHighlight();
+  }
+
+  // ── Desktop path (mouseup) ────────────────────────────────────────────────
+
+  function showSelMenu(sel, text){
+    _selText = text;
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    positionMenuNearRect(rect);
+  }
+
   document.addEventListener('mouseup', e => {
+    if(isTouchDevice) return;           // handled by touch path
     if(e.target.closest('#sel-menu')) return;
     setTimeout(()=>{
       const sel = window.getSelection();
       if(!sel.rangeCount || sel.isCollapsed){ hideSelMenu(); return; }
       const text = sel.toString().trim();
       if(!text || text.length < 3){ hideSelMenu(); return; }
-      // Check if selection is inside an assistant message
       const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
-      const focus = sel.focusNode?.nodeType === 3 ? sel.focusNode.parentElement : sel.focusNode;
+      const focus  = sel.focusNode?.nodeType  === 3 ? sel.focusNode.parentElement  : sel.focusNode;
       if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')){ hideSelMenu(); return; }
       showSelMenu(sel, text);
     }, 10);
   });
 
-  // Mobile: touchend-based selection
-  document.addEventListener('selectionchange', (function(){
-    let timer = null;
-    return function(){
-      clearTimeout(timer);
-      timer = setTimeout(()=>{
-        const sel = window.getSelection();
-        if(!sel.rangeCount || sel.isCollapsed){ return; }
-        const text = sel.toString().trim();
-        if(!text || text.length < 3) return;
-        const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
-        const focus = sel.focusNode?.nodeType === 3 ? sel.focusNode.parentElement : sel.focusNode;
-        if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')) return;
-        showSelMenu(sel, text);
-      }, 300);
-    };
-  })());
+  // ── Mobile path (touchend + selectionchange) ──────────────────────────────
+  //
+  // Strategy:
+  //   1. On touchend, if there is a non-collapsed selection inside .asst-content,
+  //      immediately capture the range and wrap it in <mark class="lc-highlight">
+  //      before iOS collapses the native highlight.
+  //   2. Store the text in _selText.
+  //   3. Position #sel-menu relative to the <mark> element's bounding rect.
+  //   4. On touchstart outside menu/mark → remove mark and hide menu.
 
-  // Hide on click outside or scroll
+  if(isTouchDevice){
+    document.addEventListener('touchend', e => {
+      if(e.target.closest('#sel-menu')) return;
+
+      // Small delay — iOS finalises the selection a tick after touchend
+      setTimeout(()=>{
+        const sel = window.getSelection();
+        if(!sel || !sel.rangeCount || sel.isCollapsed){
+          // Tap on empty area — only hide if not tapping the mark itself
+          if(!e.target.closest('.lc-highlight')) hideSelMenu();
+          return;
+        }
+        const text = sel.toString().trim();
+        if(!text || text.length < 3){ hideSelMenu(); return; }
+
+        const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+        const focus  = sel.focusNode?.nodeType  === 3 ? sel.focusNode.parentElement  : sel.focusNode;
+        if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')){
+          hideSelMenu(); return;
+        }
+
+        // Remove any previous highlight before creating a new one
+        removeHighlight();
+
+        const range = sel.getRangeAt(0).cloneRange();
+        // Clear native selection now (before wrap) so iOS doesn't fight us
+        sel.removeAllRanges();
+
+        _selText = text;
+        _markEl  = wrapRangeInMark(range);
+
+        // Position menu relative to mark element if wrap succeeded, else use range rect
+        const anchorRect = _markEl
+          ? _markEl.getBoundingClientRect()
+          : range.getBoundingClientRect();
+        positionMenuNearRect(anchorRect);
+      }, 80);
+    }, {passive:true});
+
+    // Also react to selectionchange so the menu appears while the user is still
+    // dragging handles (optional — gives faster feedback on some Android browsers)
+    document.addEventListener('selectionchange', (function(){
+      let timer = null;
+      return function(){
+        // Only run while no mark is active (don't fight an existing highlight)
+        if(_markEl) return;
+        clearTimeout(timer);
+        timer = setTimeout(()=>{
+          const sel = window.getSelection();
+          if(!sel || !sel.rangeCount || sel.isCollapsed) return;
+          const text = sel.toString().trim();
+          if(!text || text.length < 3) return;
+          const anchor = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+          const focus  = sel.focusNode?.nodeType  === 3 ? sel.focusNode.parentElement  : sel.focusNode;
+          if(!anchor?.closest('.asst-content') && !focus?.closest('.asst-content')) return;
+          // Just pre-show menu at current position; touchend will do the wrap
+          _selText = text;
+          positionMenuNearRect(sel.getRangeAt(0).getBoundingClientRect());
+        }, 300);
+      };
+    })());
+  }
+
+  // ── Hide on outside interaction ───────────────────────────────────────────
+
   document.addEventListener('mousedown', e => {
+    if(isTouchDevice) return;
     if(!e.target.closest('#sel-menu')) hideSelMenu();
   });
   document.addEventListener('scroll', hideSelMenu, true);
   document.addEventListener('touchstart', e => {
-    if(!e.target.closest('#sel-menu')) hideSelMenu();
+    if(e.target.closest('#sel-menu')) return;
+    if(e.target.closest('.lc-highlight')) return;  // tapping own highlight is ok
+    hideSelMenu();
   }, {passive:true});
 
-  // Quote bar helpers
+  // ── Quote bar helpers ─────────────────────────────────────────────────────
+
   function showQuoteBar(text, prefill = '') {
     let bar = document.getElementById('quote-bar');
     if (!bar) {
@@ -7537,12 +7657,13 @@ $('sb-search-inp').addEventListener('keydown',e=>{ if(e.key==='Escape'){ $('sb-s
     if (bar) { bar.style.display = 'none'; bar._quotedText = ''; }
   };
 
-  // Action handler (global for onclick attributes)
+  // ── Action handler (global for onclick= attributes) ───────────────────────
+
   window.selAction = function(action){
     const text = _selText;
     if(!text) return;
     hideSelMenu();
-    window.getSelection()?.removeAllRanges();
+    if(!isTouchDevice) window.getSelection()?.removeAllRanges();
 
     if(action === 'copy'){
       navigator.clipboard.writeText(text).catch(()=>{});

@@ -40,8 +40,8 @@ module.exports = function createLumiChatRouter(deps) {
     isValidPbId,
     pbErrorSummary,
     clampPbMessageContent,
-    validateLcTokenPayload,
-    requireLcAuth,
+    validateAuthToken,
+    requireAuth,
     requireFnAuth,
     requireRole,
     adminAuth,
@@ -93,7 +93,7 @@ module.exports = function createLumiChatRouter(deps) {
     userMemory, // optional: UserMemory instance for long-term memory
   } = deps;
 
-// FurNote auth middleware — analogous to requireLcAuth but reads fn_token cookie
+// FurNote auth middleware — analogous to requireAuth but reads fn_token cookie
 // Defined here because it was not wired from server.js (passed as undefined)
 const _requireFnAuth = (typeof requireFnAuth === "function") ? requireFnAuth : function requireFnAuthFallback(req, res, next) {
   const cookies = parseCookies(req);
@@ -2236,8 +2236,8 @@ function collectionPbFetch(configKey, path, options = {}) {
 
 const DOMAIN_AUTH_ADAPTERS = {
   lc: {
-    middleware: requireLcAuth,
-    getContext: (req) => ({ ownerId: req.lcUser?.id, token: req.lcToken }),
+    middleware: requireAuth,
+    getContext: (req) => ({ ownerId: req.user?.id, token: req.authToken }),
   },
   fn: {
     middleware: _requireFnAuth,

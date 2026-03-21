@@ -16,7 +16,7 @@ module.exports = function createChatRouter(deps) {
     INTERNAL_CHAT_KEY,
     getSessionRole,
     parseCookies,
-    validateLcTokenPayload,
+    validateAuthToken,
     getLcUserTier,
     projects,
     projectKeyIndex,
@@ -467,9 +467,9 @@ function selectRelevantTools(userMessage, allSchemas, specialistMode) {
   const msg = String(userMessage || "").toLowerCase();
   const sMode = String(specialistMode || "").toLowerCase();
 
-  // Core tools: always include
+  // Core tools: always include (deep_search and hkex_download NOT here — only via explicit /slash command)
   const alwaysInclude = new Set([
-    'web_search', 'deep_search', 'generate_spreadsheet', 'generate_document',
+    'web_search', 'generate_spreadsheet', 'generate_document',
     'generate_presentation', 'code_run', 'parse_file', 'use_template',
     'fill_template', 'memory_search', 'memory_save',
   ]);
@@ -607,13 +607,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     userQueryText = stripAttachmentContextBlocks(extractMessagePlainText(lastUser?.content));
   }
 
-  // ── Auth: LumiChat cookie → admin session → project key/HMAC/token ──
-  let projectName, lcUserId;
+  // ── Auth: user auth cookie → admin session → project key/HMAC/token ──
+  let projectName, authUserId;
   const projectKey = req.headers["x-project-key"] || (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
   const lcCookies = parseCookies(req);
-  const lcToken = lcCookies.lc_token;
-  const lcPayload = lcToken ? validateLcTokenPayload(lcToken) : null;
-  if (lcPayload?.id) lcUserId = lcPayload.id;
+  const authToken = lcCookies.auth_token;
+  const authPayload = authToken ? validateAuthToken(authToken) : null;
+  if (authPayload?.id) authUserId = authPayload.id;
 
   // Optional encrypted upload bundle from LumiChat extension.
   if (typeof req.body?.encrypted_payload_text === "string" && req.body.encrypted_payload_text.trim()) {
@@ -648,16 +648,16 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             prompt: "Describe this image in detail, extract visible text exactly when possible, and summarize entities, numbers, and layout.",
           });
         }
-        if (lcToken && lcUserId && lcSessionId) {
+        if (authToken && authUserId && lcSessionId) {
           try {
-            await assertLcSessionOwned(lcSessionId, { ownerId: lcUserId, token: lcToken });
+            await assertLcSessionOwned(lcSessionId, { ownerId: authUserId, token: authToken });
             const saved = await uploadLcBufferRecord({
               buffer: data,
               originalName: name,
               mimeType: mime,
               sessionId: lcSessionId,
-              userId: lcUserId,
-              token: lcToken,
+              userId: authUserId,
+              token: authToken,
             });
             if (saved?.id) uploadedFileIds.push(saved.id);
           } catch (uploadErr) {
@@ -677,11 +677,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           });
         }
       }
-      if (uploadedFileIds.length && lcToken && lcUserMessageId) {
+      if (uploadedFileIds.length && authToken && lcUserMessageId) {
         try {
-          await assertRecordOwned("messages", { id: lcUserMessageId, ownerId: lcUserId, token: lcToken });
+          await assertRecordOwned("messages", { id: lcUserMessageId, ownerId: authUserId, token: authToken });
           const existingMsgResp = await lcPbFetch(`/api/collections/lc_messages/records/${lcUserMessageId}`, {
-            headers: { Authorization: `Bearer ${lcToken}` },
+            headers: { Authorization: `Bearer ${authToken}` },
           });
           const existingMsg = existingMsgResp.ok ? await existingMsgResp.json() : null;
           const nextFileIds = mergeArraysUnique(existingMsg?.file_ids, uploadedFileIds);
@@ -689,7 +689,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           if (lcSupportsField("messages", "updated_at")) patchBody.updated_at = lcNowIso();
           await lcPbFetch(`/api/collections/lc_messages/records/${lcUserMessageId}`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${lcToken}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
             body: JSON.stringify(patchBody),
           });
         } catch (patchErr) {
@@ -710,13 +710,13 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     projectName = "_chat";
   } else if (["root", "admin"].includes(getSessionRole(req))) {
     projectName = "_chat";
-  } else if (!projectKey && lcToken) {
-    if (lcPayload) {
+  } else if (!projectKey && authToken) {
+    if (authPayload) {
       // Allow embedded apps (e.g. LumiTrade) to track usage under their own project
       const appSource = (req.headers["x-app-source"] || "").trim().toLowerCase();
       const APP_SOURCE_PROJECTS = { lumitrade: "_lumitrade" };
       projectName = APP_SOURCE_PROJECTS[appSource] || "_lumichat";
-      if (lcPayload.id) lcUserId = lcPayload.id;
+      if (authPayload.id) authUserId = authPayload.id;
     }
   }
   if (!projectName) {
@@ -775,7 +775,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   const apiKey = useCollector ? null : (selectedKey?.apiKey || provider.apiKey);
   if (!apiKey && !useCollector) return res.status(403).json({ error: "No API key configured for this provider" });
 
-  if (lcToken && lcUserId) {
+  if (authToken && authUserId) {
     try {
       const queryTextForAttachments = (() => {
         if (userQueryText) return userQueryText;
@@ -789,8 +789,8 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       // URL-first questions should not be polluted by previous attachments in the same session.
       if (!hasDirectUrlInQuery && historicalFileIds.length) {
         const items = await fetchLcAttachmentContextsByIds(historicalFileIds, {
-          token: lcToken,
-          ownerId: lcUserId,
+          token: authToken,
+          ownerId: authUserId,
           queryText: queryTextForAttachments,
         });
         if (items.length) {
@@ -854,7 +854,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   let urlFetchContext = "";
   let officialFallbackLinkLines = "";
   const chatSessionId = normalizeChatSessionId(req.body?.session_id);
-  const urlFetchOwner = lcUserId || projectName || "api";
+  const urlFetchOwner = authUserId || projectName || "api";
   const rememberedUrlFetchContext = chatSessionId ? getUrlFetchMemoryContext(urlFetchOwner, chatSessionId) : "";
   const hasStoredAttachmentContext = !!req._hasHistoricalAttachmentContext || requestAttachmentContexts.length > 0 || messages.some((m) => contentHasAttachmentContext(m?.content));
   const hasRichUserInput = (() => {
@@ -1168,11 +1168,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
   // ── Long-term user memory recall (before system prompt) ──
   let memoryContext = "";
-  if (userMemory && lcUserId && userQueryText) {
+  if (userMemory && authUserId && userQueryText) {
     try {
-      memoryContext = await userMemory.recall(lcUserId, userQueryText, { limit: 8 });
+      memoryContext = await userMemory.recall(authUserId, userQueryText, { limit: 8 });
     } catch (memErr) {
-      log("warn", "User memory recall failed (non-blocking)", { userId: lcUserId, error: memErr.message });
+      log("warn", "User memory recall failed (non-blocking)", { userId: authUserId, error: memErr.message });
     }
   }
 
@@ -1273,7 +1273,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           ? await lumigentRuntime.registry.getSchemas()
           : [];
         let relevant = selectRelevantTools(userText, allSchemas, specialistMode);
-        // Force-include hkex_download when triggered by /hkex modal
+        // Force-include tools only when explicitly triggered by /slash commands
+        if (isDeepSearch && !relevant.some(s => s.name === 'deep_search')) {
+          const ds = allSchemas.find(s => s.name === 'deep_search');
+          if (ds) relevant = [...relevant, ds];
+        }
         if (isHkexDownload && !relevant.some(s => s.name === 'hkex_download')) {
           const hkexSchema = allSchemas.find(s => s.name === 'hkex_download');
           if (hkexSchema) relevant = [...relevant, hkexSchema];
@@ -1382,7 +1386,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         const hasCollectorTools = TOOL_TAG_MARKERS.some(m => _cFullText.includes(m));
         if (hasCollectorTools && !res.writableEnded) {
           log("info", "Collector: tool tags detected, executing", { provider: providerName });
-          const toolResults = await lumigentRuntime.executeTextToolCalls(_cFullText, lcUserId || projectName || "api").catch(e => {
+          const toolResults = await lumigentRuntime.executeTextToolCalls(_cFullText, authUserId || projectName || "api").catch(e => {
             log("error", "Collector tool exec failed", { error: e.message }); return [];
           });
           for (const tr of toolResults) {
@@ -1484,10 +1488,10 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           try { toolInput = JSON.parse(tc.arguments || "{}"); } catch {}
           try {
             // Memory tools handled locally (need userMemory + userId context)
-            const memResult = await handleMemoryTool(tc.name, toolInput, lcUserId);
+            const memResult = await handleMemoryTool(tc.name, toolInput, authUserId);
             const result = memResult || await lumigentRuntime.executeToolCall(tc.name, {
               ...toolInput,
-              _caller_user_id: lcUserId || projectName || "api",
+              _caller_user_id: authUserId || projectName || "api",
               _caller_provider: providerName,
               _caller_model: modelId,
               _progress_sink: wantStream ? (msg) => emitToolStatus({ text: msg?.text || "", icon: "search", done: msg?.done }) : undefined,
@@ -1495,7 +1499,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
             if (result?.ok) {
               if (result.file) {
                 let downloadUrl = "";
-                try { downloadUrl = await lumigentRuntime.persistFile({ userId: lcUserId || projectName || "api", toolName: tc.name, filename: result.filename, mimeType: result.mimeType, file: result.file }); } catch {}
+                try { downloadUrl = await lumigentRuntime.persistFile({ userId: authUserId || projectName || "api", toolName: tc.name, filename: result.filename, mimeType: result.mimeType, file: result.file }); } catch {}
                 toolResults.push({ tool: tc.name, filename: result.filename, mimeType: result.mimeType, size: result.file.length, downloadUrl, base64: !downloadUrl ? result.file.toString("base64") : undefined });
               } else if (result.data) {
                 toolResults.push({ tool: tc.name, data: result.data });
@@ -1506,14 +1510,14 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           } catch (e) { log("warn", "Non-stream native tool execution failed", { tool: tc.name, error: e.message }); }
         }
         const _nsContent1 = content || "已处理完成。";
-        if (userMemory && lcUserId && userQueryText && _nsContent1) {
-          userMemory.ingest(lcUserId, {
+        if (userMemory && authUserId && userQueryText && _nsContent1) {
+          userMemory.ingest(authUserId, {
             userMessage: userQueryText,
             assistantMessage: _nsContent1.slice(0, 4000),
             provider: providerName,
             model: modelId,
             sessionId: req.body?.session_id || "",
-          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: authUserId, error: e.message }));
         }
         return res.json({
           choices: [{ message: { role: "assistant", content: _nsContent1 } }],
@@ -1526,20 +1530,20 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       if (hasToolTags) {
         let toolResults = [];
         try {
-          toolResults = await lumigentRuntime.executeTextToolCalls(content, lcUserId || projectName || "api");
+          toolResults = await lumigentRuntime.executeTextToolCalls(content, authUserId || projectName || "api");
         } catch (e) { log("warn", "Non-stream tool execution failed", { error: e.message }); }
         const cleanContent = content.replace(/\[TOOL:\w+\][\s\S]*?\[\/TOOL\]/g, "")
           .replace(/<(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>[\s\S]*?<\/(?:｜DSML｜|︱DSML︱|\|DSML\|)function_calls>/g, "")
           .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/g, "").trim();
         const _nsContent2 = cleanContent !== "" ? cleanContent : "已处理完成。";
-        if (userMemory && lcUserId && userQueryText && _nsContent2) {
-          userMemory.ingest(lcUserId, {
+        if (userMemory && authUserId && userQueryText && _nsContent2) {
+          userMemory.ingest(authUserId, {
             userMessage: userQueryText,
             assistantMessage: _nsContent2.slice(0, 4000),
             provider: providerName,
             model: modelId,
             sessionId: req.body?.session_id || "",
-          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+          }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: authUserId, error: e.message }));
         }
         return res.json({
           choices: [{ message: { role: "assistant", content: _nsContent2 } }],
@@ -1547,14 +1551,14 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         });
       }
       // Plain non-streaming response (no tools)
-      if (userMemory && lcUserId && userQueryText && content) {
-        userMemory.ingest(lcUserId, {
+      if (userMemory && authUserId && userQueryText && content) {
+        userMemory.ingest(authUserId, {
           userMessage: userQueryText,
           assistantMessage: content.slice(0, 4000),
           provider: providerName,
           model: modelId,
           sessionId: req.body?.session_id || "",
-        }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+        }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: authUserId, error: e.message }));
       }
       return res.json({ choices: [{ message: { role: "assistant", content } }] });
     }
@@ -1926,7 +1930,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         onFileDownload: agentOnFileDownload,
         onIteration: agentOnIteration,
         maxIterations: 8,
-        userId: lcUserId || projectName || "api",
+        userId: authUserId || projectName || "api",
         planningEnabled: isComplexRequest(userText),
         lang,
       }).catch(e => {
@@ -2000,7 +2004,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         onFileDownload: agentOnFileDownload,
         onIteration: agentOnIteration,
         maxIterations: 8,
-        userId: lcUserId || projectName || "api",
+        userId: authUserId || projectName || "api",
         planningEnabled: isComplexRequest(userText),
         lang,
       }).catch(e => {
@@ -2127,14 +2131,14 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     res.end();
 
     // ── Long-term user memory ingest (fire-and-forget, after response) ──
-    if (userMemory && lcUserId && userQueryText && fullText) {
-      userMemory.ingest(lcUserId, {
+    if (userMemory && authUserId && userQueryText && fullText) {
+      userMemory.ingest(authUserId, {
         userMessage: userQueryText,
         assistantMessage: fullText.slice(0, 4000),
         provider: providerName,
         model: modelId,
         sessionId: req.body?.session_id || "",
-      }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: lcUserId, error: e.message }));
+      }).catch(e => log("warn", "memory_ingest_failed", { component: "user-memory", userId: authUserId, error: e.message }));
     }
   } catch (err) {
     log("error", "Clean chat proxy error", { provider: providerName, error: err.message });

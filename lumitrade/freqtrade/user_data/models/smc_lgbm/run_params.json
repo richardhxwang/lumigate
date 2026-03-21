@@ -21,6 +21,7 @@
             ],
             "label_period_candles": 12,
             "include_shifted_candles": 2,
+            "noise_standard_deviation": 0.01,
             "DI_threshold": 0,
             "weight_factor": 0,
             "principal_component_analysis": false,
@@ -58,6 +59,18 @@
         "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "BNB/USDT"
+        "BNB/USDT",
+        "XRP/USDT",
+        "ADA/USDT",
+        "DOGE/USDT",
+        "AVAX/USDT",
+        "DOT/USDT",
+        "MATIC/USDT",
+        "LINK/USDT",
+        "UNI/USDT",
+        "ATOM/USDT",
+        "LTC/USDT",
+        "FIL/USDT",
+        "APT/USDT"
     ]
 }
