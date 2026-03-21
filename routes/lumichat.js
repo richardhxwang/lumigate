@@ -17,6 +17,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { verifyFailedItems, mergeVerificationIntoResult } = require("../services/financial-analysis/llm-verify");
 const zlib = require("zlib");
 const { Readable, PassThrough } = require("stream");
 
@@ -785,6 +786,23 @@ function buildFinancialAnalysisPromptBlock(analysisResult = {}) {
   if (crossCheckBlock) {
     block += `\n\n${crossCheckBlock}`;
   }
+
+  // Append LLM verification results if present
+  const llmV = analysisResult.llm_verification;
+  if (llmV && Array.isArray(llmV.verified) && llmV.verified.length > 0) {
+    const lines = ["\n=== LLM FALLBACK VERIFICATION ==="];
+    lines.push(`Items checked: ${llmV.stats?.items_verified || 0}, rescued (pass_llm): ${llmV.stats?.pass_llm || 0}, confirmed fail: ${llmV.stats?.still_fail || 0}`);
+    for (const v of llmV.verified) {
+      const icon = v.final_status === "pass_llm" ? "[RESCUED]" : "[CONFIRMED FAIL]";
+      lines.push(`${icon} ${v.check}: ${v.llm_explanation || "no explanation"}`);
+      if (Array.isArray(v.llm_missing_items) && v.llm_missing_items.length) {
+        lines.push(`  Missing items found: ${v.llm_missing_items.map((mi) => `${mi.label}=${mi.value}`).join(", ")}`);
+      }
+    }
+    lines.push("Status legend: pass=program verified, pass_llm=program failed but LLM verified (lower confidence), fail=both confirm mismatch");
+    block += "\n" + lines.join("\n");
+  }
+
   return block;
 }
 async function runFinancialAnalysisForAttachments({ query = "", attachments = [], lang = "en" } = {}) {
@@ -805,6 +823,49 @@ async function runFinancialAnalysisForAttachments({ query = "", attachments = []
   }
   try {
     const analyzed = await analyzeFinancialStatements({ query, documents: docs, lang, strict: true });
+
+    // ── LLM fallback verification for failed/insufficient items ──
+    // Use the cheapest available model to double-check mismatches
+    const LLM_VERIFY_PROVIDERS = [
+      { p: "deepseek", m: "deepseek-chat" },
+      { p: "qwen", m: "qwen-turbo" },
+      { p: "openai", m: "gpt-4o-mini" },
+    ];
+    let llmVerified = false;
+    for (const candidate of LLM_VERIFY_PROVIDERS) {
+      if (llmVerified) break;
+      const prov = PROVIDERS[candidate.p];
+      if (!prov?.baseUrl) continue;
+      const keyInfo = selectApiKey(candidate.p, "_lumichat") || {};
+      const apiKey = keyInfo.apiKey || prov.apiKey;
+      if (!apiKey) continue;
+      try {
+        const originalText = docs.map((d) => d.text).join("\n\n---\n\n");
+        const verification = await verifyFailedItems(analyzed, originalText, {
+          baseUrl: prov.baseUrl,
+          apiKey,
+          provider: candidate.p,
+          model: candidate.m,
+          log,
+        });
+        if (verification.verified?.length > 0) {
+          const merged = mergeVerificationIntoResult(analyzed, verification);
+          llmVerified = true;
+          return merged;
+        }
+        // No failures to verify — return as-is
+        llmVerified = true;
+        return analyzed;
+      } catch (verifyErr) {
+        log("warn", "llm_verify_provider_failed", {
+          provider: candidate.p,
+          model: candidate.m,
+          error: verifyErr.message,
+        });
+        // Try next provider
+      }
+    }
+
     return analyzed;
   } catch (err) {
     return {

@@ -771,10 +771,12 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       attachments: requestAttachmentContexts,
       lang,
     });
+    const llmVStats = specialistAnalysisResult?.llm_verification?.stats;
     log("info", "Financial specialist pre-analysis completed", {
       ok: !!specialistAnalysisResult?.ok,
       checks: Array.isArray(specialistAnalysisResult?.checks) ? specialistAnalysisResult.checks.length : 0,
       missing: Array.isArray(specialistAnalysisResult?.missing_fields) ? specialistAnalysisResult.missing_fields.length : 0,
+      llm_verify: llmVStats ? { items: llmVStats.items_verified, rescued: llmVStats.pass_llm, still_fail: llmVStats.still_fail } : null,
       traceId: req.traceId,
     });
   }
@@ -1151,7 +1153,8 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     injectedSystemPrompt += "If a requested check cannot be completed from current evidence, explicitly list missing fields and do not guess.\n\n";
     const precomputedBlock = buildFinancialAnalysisPromptBlock(specialistAnalysisResult || {});
     if (precomputedBlock) {
-      injectedSystemPrompt += `${precomputedBlock}\n\nUse Financial Analysis JSON as deterministic ground truth for tie/not_tie status. You may explain it naturally, but do not contradict computed checks.\n\n`;
+      injectedSystemPrompt += `${precomputedBlock}\n\nUse Financial Analysis JSON as deterministic ground truth for tie/not_tie status. You may explain it naturally, but do not contradict computed checks.\n`;
+      injectedSystemPrompt += "Status meanings: 'pass'/'tie' = program verified correct. 'pass_llm' = program flagged mismatch but LLM verification confirmed it is actually correct (e.g. missing child item found) — treat as correct but note lower confidence. 'fail'/'not_tie' = both program and LLM confirm mismatch — this is a real discrepancy.\n\n";
     }
   }
   // ── Audit specialist mode: slash commands like /audit jet, /audit mus, etc. ──
