@@ -13,6 +13,9 @@ const { URL } = require("url");
 
 const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
 const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() || "lumitrade";
+const FREQTRADE_BT_URL = process.env.TRADE_FREQTRADE_BT_URL || "http://lumigate-freqtrade-bt:8080";
+const FREQTRADE_USERNAME = process.env.TRADE_FREQTRADE_USERNAME || "lumitrade";
+const FREQTRADE_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "123123@";
 
 module.exports = function createTradeRouter(deps) {
   const router = express.Router();
@@ -489,6 +492,173 @@ module.exports = function createTradeRouter(deps) {
     } catch (err) {
       res.status(500).json({ ok: false, error: "Webhook processing failed", detail: err.message });
     }
+  });
+
+  // ── Backtest results sync ────────────────────────────────────────────────
+
+  // POST /v1/trade/backtest/sync — sync all backtest results from freqtrade-bt into PB
+  router.post("/backtest/sync", async (_req, res) => {
+    const btAuth = "Basic " + Buffer.from(`${FREQTRADE_USERNAME}:${FREQTRADE_PASSWORD}`).toString("base64");
+
+    // 1. Fetch list of all backtest result files from freqtrade-bt webserver
+    let historyList;
+    try {
+      const r = await fetch(`${FREQTRADE_BT_URL}/api/v1/backtest/history`, {
+        headers: { Authorization: btAuth },
+      });
+      if (!r.ok) {
+        const err = await r.text().catch(() => "");
+        return res.status(502).json({ ok: false, error: "Failed to list backtest history", detail: err.slice(0, 300) });
+      }
+      historyList = await r.json();
+    } catch (err) {
+      return res.status(502).json({ ok: false, error: "freqtrade-bt unreachable", detail: err.message });
+    }
+
+    // freqtrade returns an array of { filename, strategy, ... }
+    if (!Array.isArray(historyList)) {
+      historyList = historyList.data || [];
+    }
+
+    const results = { synced: [], skipped: [], errors: [] };
+
+    // 2. For each entry, check if already in PB (by filename), then load + save
+    for (const entry of historyList) {
+      const filename = entry.filename || entry.file || "";
+      const strategyName = entry.strategy || "";
+
+      if (!filename) {
+        results.errors.push({ filename: "(unknown)", error: "No filename in history entry" });
+        continue;
+      }
+
+      try {
+        // Check if already saved
+        const checkQs = new URLSearchParams({ filter: `filename="${filename}"`, perPage: "1" }).toString();
+        const checkRes = await tradePbFetch(`/api/collections/trade_backtest_results/records?${checkQs}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if ((checkData.items || []).length > 0) {
+            results.skipped.push(filename);
+            continue;
+          }
+        }
+
+        // Load full result from freqtrade-bt
+        const resultQs = new URLSearchParams({ filename, strategy: strategyName }).toString();
+        const detailRes = await fetch(`${FREQTRADE_BT_URL}/api/v1/backtest/history/result?${resultQs}`, {
+          headers: { Authorization: btAuth },
+        });
+        if (!detailRes.ok) {
+          const errText = await detailRes.text().catch(() => "");
+          results.errors.push({ filename, error: `Failed to load result: ${detailRes.status} ${errText.slice(0, 200)}` });
+          continue;
+        }
+        const fullResult = await detailRes.json();
+
+        // Extract metrics from the result — freqtrade nests them under strategy key
+        const stratData = (fullResult.strategy && fullResult.strategy[strategyName]) || {};
+        const summary = stratData.results_per_pair
+          ? null  // multi-pair — use totals
+          : null;
+        void summary;  // not used, metrics come from totals below
+
+        const totalMetrics = stratData.total_trades != null ? stratData : (fullResult.stats || {});
+        const config = fullResult.config || {};
+        const backtest = fullResult.backtest || {};
+
+        // Determine next version number (count existing + 1)
+        const countRes = await tradePbFetch(`/api/collections/trade_backtest_results/records?perPage=1`);
+        let totalCount = 0;
+        if (countRes.ok) {
+          const countData = await countRes.json();
+          totalCount = countData.totalItems || 0;
+        }
+        const version = `v${totalCount + 1}`;
+
+        // Build PB record
+        const record = {
+          version,
+          description: entry.notes || `${strategyName} backtest`,
+          strategy_name: strategyName,
+          exchange: config.exchange ? (config.exchange.name || "") : "",
+          trading_mode: config.trading_mode || backtest.trading_mode || "spot",
+          timerange: config.timerange || backtest.timerange || "",
+          timeframe: config.timeframe || backtest.timeframe || "",
+          total_trades: totalMetrics.total_trades || 0,
+          wins: totalMetrics.wins || 0,
+          losses: totalMetrics.losses || 0,
+          winrate: totalMetrics.winrate != null ? totalMetrics.winrate : (totalMetrics.win_ratio || 0),
+          profit_total_abs: totalMetrics.profit_total_abs || 0,
+          profit_total_pct: totalMetrics.profit_total || 0,
+          max_drawdown_abs: totalMetrics.max_drawdown_abs || totalMetrics.max_drawdown || 0,
+          max_drawdown_pct: totalMetrics.max_drawdown_account || totalMetrics.max_drawdown_per || 0,
+          sharpe: totalMetrics.sharpe || 0,
+          profit_factor: totalMetrics.profit_factor || 0,
+          tags: [],
+          result_json: fullResult,
+          filename,
+          user_id: "",
+        };
+
+        // PB hard limit: 1MB per JSON field. Strip large arrays when over limit.
+        const PB_JSON_LIMIT = 900_000; // bytes, safe margin under 1MB
+        const STRIP_FIELDS = ["trades", "periodic_breakdown", "daily_profit"];
+        function stripLargeFields(obj) {
+          if (!obj || typeof obj !== "object") return obj;
+          const out = {};
+          for (const [k, v] of Object.entries(obj)) {
+            if (!STRIP_FIELDS.includes(k)) out[k] = v;
+          }
+          return out;
+        }
+        if (JSON.stringify(record.result_json).length > PB_JSON_LIMIT) {
+          // Deep-copy to avoid mutating fullResult
+          const slim = JSON.parse(JSON.stringify(fullResult));
+          // Handle nested backtest_result.strategy.{StrategyName} (freqtrade webserver format)
+          if (slim.backtest_result && slim.backtest_result.strategy) {
+            const slimStrat = {};
+            for (const [sName, sData] of Object.entries(slim.backtest_result.strategy)) {
+              slimStrat[sName] = stripLargeFields(sData);
+            }
+            slim.backtest_result.strategy = slimStrat;
+          }
+          // Handle flat strategy.{StrategyName} (alternative format)
+          if (slim.strategy) {
+            const slimStrat = {};
+            for (const [sName, sData] of Object.entries(slim.strategy)) {
+              slimStrat[sName] = stripLargeFields(sData);
+            }
+            slim.strategy = slimStrat;
+          }
+          record.result_json = slim;
+          record.description = (record.description || "") + " [large fields stripped: result exceeded 1MB PB limit]";
+        }
+
+        const saveRes = await tradePbFetch("/api/collections/trade_backtest_results/records", {
+          method: "POST",
+          body: JSON.stringify(record),
+        });
+
+        if (saveRes.ok) {
+          const saved = await saveRes.json();
+          results.synced.push({ filename, id: saved.id, version });
+        } else {
+          const errText = await saveRes.text().catch(() => "");
+          results.errors.push({ filename, error: `PB save failed: ${saveRes.status} ${errText.slice(0, 200)}` });
+        }
+      } catch (err) {
+        results.errors.push({ filename, error: err.message });
+      }
+    }
+
+    res.json({
+      ok: true,
+      synced: results.synced.length,
+      skipped: results.skipped.length,
+      errors: results.errors.length,
+      detail: results,
+    });
   });
 
   // ── WebSocket proxy ──────────────────────────────────────────────────────

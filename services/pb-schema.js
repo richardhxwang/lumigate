@@ -524,6 +524,37 @@ const PB_COLLECTIONS = [
     ],
   },
 
+  // ── LumiTrade backtest results ────────────────────────────────────────
+  {
+    name: "trade_backtest_results",
+    type: "base",
+    schema: [
+      { name: "version", type: "text", required: true },
+      { name: "description", type: "text" },
+      { name: "strategy_name", type: "text", required: true },
+      { name: "exchange", type: "text" },
+      { name: "trading_mode", type: "text" },
+      { name: "timerange", type: "text" },
+      { name: "timeframe", type: "text" },
+      { name: "total_trades", type: "number" },
+      { name: "wins", type: "number" },
+      { name: "losses", type: "number" },
+      { name: "winrate", type: "number" },
+      { name: "profit_total_abs", type: "number" },
+      { name: "profit_total_pct", type: "number" },
+      { name: "max_drawdown_abs", type: "number" },
+      { name: "max_drawdown_pct", type: "number" },
+      { name: "sharpe", type: "number" },
+      { name: "profit_factor", type: "number" },
+      { name: "tags", type: "json" },
+      { name: "result_json", type: "json" },
+      { name: "filename", type: "text" },
+      { name: "user_id", type: "text" },
+      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
+      { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
+    ],
+  },
+
   // ── LumiTrader (trading AI assistant) collections ──────────────────────
   {
     name: "lt_sessions",
@@ -615,6 +646,7 @@ const COLLECTION_PROJECT_MAP = {
   trade_pnl: "lumitrade",
   trade_news: "lumitrade",
   trade_strategies: "lumitrade",
+  trade_backtest_results: "lumitrade",
   trade_journal: "lumitrade",
   trade_mood_logs: "lumitrade",
   lt_sessions: "lumitrade",

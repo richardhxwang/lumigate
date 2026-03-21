@@ -3678,3 +3678,888 @@
 2026-03-21 17:27:07,997 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
 2026-03-21 17:27:08,011 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
 2026-03-21 17:27:08,012 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:14,164 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (6.17 secs) --------------------
+2026-03-21 17:27:14,206 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774113792
+2026-03-21 17:27:15,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:27:15,388 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:15,389 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:15,400 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:15,400 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:21,859 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (6.47 secs) --------------------
+2026-03-21 17:27:21,903 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1772409600
+2026-03-21 17:27:21,904 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774113799
+2026-03-21 17:27:23,034 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:27:23,045 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:23,046 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:23,057 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:23,058 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:27:28,884 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (5.85 secs) --------------------
+2026-03-21 17:27:28,925 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774113806
+2026-03-21 17:27:29,971 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:27:29,974 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:29,974 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:29,979 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:27:29,980 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:31,713 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:27:34,110 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.14 secs) --------------------
+2026-03-21 17:27:34,152 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774113813
+2026-03-21 17:27:35,352 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:27:35,357 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:35,357 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:35,369 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:35,370 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:41,041 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.69 secs) --------------------
+2026-03-21 17:27:41,089 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774113818
+2026-03-21 17:27:42,279 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:27:42,283 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:42,283 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:42,294 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:42,295 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:48,167 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.89 secs) --------------------
+2026-03-21 17:27:48,207 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774113825
+2026-03-21 17:27:49,362 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:27:49,367 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:49,368 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:49,381 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:49,381 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:27:55,180 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.82 secs) --------------------
+2026-03-21 17:27:55,220 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774113833
+2026-03-21 17:27:56,297 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:27:56,301 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:27:56,301 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:27:56,312 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:27:56,312 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:02,195 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (5.90 secs) --------------------
+2026-03-21 17:28:02,246 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1773014400
+2026-03-21 17:28:02,247 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774113841
+2026-03-21 17:28:03,367 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:28:03,372 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:03,372 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:03,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:03,386 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:09,306 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (5.94 secs) --------------------
+2026-03-21 17:28:09,359 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774113848
+2026-03-21 17:28:10,494 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:28:10,498 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:10,499 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:10,511 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:10,511 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:16,485 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (5.99 secs) --------------------
+2026-03-21 17:28:16,532 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774113856
+2026-03-21 17:28:16,534 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 91.64 seconds
+2026-03-21 17:28:17,617 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:28:17,620 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:17,621 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:17,631 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:17,632 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:23,602 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (5.99 secs) --------------------
+2026-03-21 17:28:23,653 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774113862
+2026-03-21 17:28:24,755 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:28:24,759 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:24,759 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:24,771 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:24,771 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:30,539 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (5.78 secs) --------------------
+2026-03-21 17:28:30,586 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774113869
+2026-03-21 17:28:31,670 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:28:31,674 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:31,674 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:31,686 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:31,686 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:31,735 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:28:37,672 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.00 secs) --------------------
+2026-03-21 17:28:37,715 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774113876
+2026-03-21 17:28:37,717 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1773619200
+2026-03-21 17:28:38,819 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:28:38,823 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:38,824 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:38,836 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:38,836 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:44,677 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (5.86 secs) --------------------
+2026-03-21 17:28:44,716 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774113884
+2026-03-21 17:28:45,816 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:28:45,820 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:45,821 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:45,836 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:45,836 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
+2026-03-21 17:28:52,267 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ATOM/USDT (6.45 secs) --------------------
+2026-03-21 17:28:52,314 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ATOM_1774113891
+2026-03-21 17:28:53,419 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LTC/USDT --------------------
+2026-03-21 17:28:53,423 - freqtrade.freqai.data_kitchen - INFO - LTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:28:53,423 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:28:53,435 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:28:53,435 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:28:59,298 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (5.88 secs) --------------------
+2026-03-21 17:28:59,345 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774113898
+2026-03-21 17:29:00,438 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:29:00,442 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:00,442 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:00,453 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:00,454 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:06,296 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (5.86 secs) --------------------
+2026-03-21 17:29:06,336 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774113905
+2026-03-21 17:29:07,489 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:29:07,494 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:07,494 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:07,504 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:07,505 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:29:13,405 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (5.92 secs) --------------------
+2026-03-21 17:29:13,470 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774113912
+2026-03-21 17:29:14,528 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:29:14,531 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:14,531 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:14,536 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:29:14,536 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:18,560 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.03 secs) --------------------
+2026-03-21 17:29:18,597 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1758499200
+2026-03-21 17:29:18,598 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774113919
+2026-03-21 17:29:19,699 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:29:19,705 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:19,706 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:19,718 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:19,718 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:25,733 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.03 secs) --------------------
+2026-03-21 17:29:25,773 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774113924
+2026-03-21 17:29:26,886 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:29:26,890 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:26,891 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:26,902 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:26,903 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:31,748 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:29:32,645 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.76 secs) --------------------
+2026-03-21 17:29:32,684 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774113931
+2026-03-21 17:29:33,767 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:29:33,771 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:33,771 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:33,783 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:33,783 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:39,688 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.92 secs) --------------------
+2026-03-21 17:29:39,731 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774113938
+2026-03-21 17:29:40,824 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:29:40,828 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:40,828 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:40,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:40,841 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:47,704 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (6.88 secs) --------------------
+2026-03-21 17:29:47,747 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774113945
+2026-03-21 17:29:48,860 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:29:48,865 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:48,867 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:48,881 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:48,881 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:29:54,938 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (6.08 secs) --------------------
+2026-03-21 17:29:54,979 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1759104000
+2026-03-21 17:29:54,980 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774113953
+2026-03-21 17:29:56,131 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:29:56,136 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:29:56,137 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:29:56,150 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:29:56,150 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:02,227 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,287 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,350 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,415 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,480 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,544 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:02,606 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:03,058 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (6.93 secs) --------------------
+2026-03-21 17:30:03,139 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774113961
+2026-03-21 17:30:03,141 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 91.51 seconds
+2026-03-21 17:30:04,277 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:30:04,283 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2878.
+2026-03-21 17:30:04,284 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:04,298 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:04,298 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:06,744 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:06,826 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:06,902 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:06,960 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:07,018 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:07,079 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:07,141 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:07,213 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:30:07,215 - freqtrade.freqai.freqai_interface - INFO - Total time spent inferencing pairlist 2.85 seconds
+2026-03-21 17:30:10,487 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (6.21 secs) --------------------
+2026-03-21 17:30:10,531 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774113990
+2026-03-21 17:30:11,632 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:30:11,636 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:11,636 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:11,648 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:11,648 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:17,542 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (5.91 secs) --------------------
+2026-03-21 17:30:17,605 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774113998
+2026-03-21 17:30:18,744 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:30:18,748 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:18,748 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:18,760 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:18,760 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:25,018 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.27 secs) --------------------
+2026-03-21 17:30:25,070 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774114006
+2026-03-21 17:30:26,186 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:30:26,190 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:26,190 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:26,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:26,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:32,136 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (5.95 secs) --------------------
+2026-03-21 17:30:32,193 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1759708800
+2026-03-21 17:30:32,193 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774114013
+2026-03-21 17:30:33,312 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:30:33,317 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:33,317 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:33,326 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:33,326 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
+2026-03-21 17:30:36,011 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:30:39,301 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ATOM/USDT (5.99 secs) --------------------
+2026-03-21 17:30:39,340 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ATOM_1774114020
+2026-03-21 17:30:40,448 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LTC/USDT --------------------
+2026-03-21 17:30:40,452 - freqtrade.freqai.data_kitchen - INFO - LTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:40,452 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:40,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:40,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:46,470 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (6.02 secs) --------------------
+2026-03-21 17:30:46,518 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774114027
+2026-03-21 17:30:47,673 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:30:47,677 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:47,678 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:47,690 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:47,690 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:30:53,460 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (5.79 secs) --------------------
+2026-03-21 17:30:53,499 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774114035
+2026-03-21 17:30:54,599 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:30:54,603 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:30:54,603 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:30:54,611 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:30:54,611 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:31:00,505 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (5.91 secs) --------------------
+2026-03-21 17:31:00,547 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774114042
+2026-03-21 17:31:01,613 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:31:01,616 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:01,617 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:01,622 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:31:01,622 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:05,259 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.64 secs) --------------------
+2026-03-21 17:31:05,300 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774114049
+2026-03-21 17:31:06,458 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:31:06,463 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:06,463 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:06,475 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:06,475 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:12,515 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.06 secs) --------------------
+2026-03-21 17:31:12,632 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1760313600
+2026-03-21 17:31:12,634 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774114055
+2026-03-21 17:31:13,752 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:31:13,756 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:13,757 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:13,769 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:13,769 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:19,643 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.89 secs) --------------------
+2026-03-21 17:31:19,682 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774114062
+2026-03-21 17:31:20,777 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:31:20,781 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:20,782 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:20,794 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:20,794 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:26,886 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.11 secs) --------------------
+2026-03-21 17:31:26,927 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774114069
+2026-03-21 17:31:28,017 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:31:28,021 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:28,022 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:28,033 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:28,033 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:34,148 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (6.13 secs) --------------------
+2026-03-21 17:31:34,199 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774114076
+2026-03-21 17:31:35,298 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:31:35,302 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:35,302 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:35,314 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:35,314 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:36,022 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:31:41,444 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (6.15 secs) --------------------
+2026-03-21 17:31:41,486 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774114083
+2026-03-21 17:31:42,609 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:31:42,613 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:42,613 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:42,624 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:42,625 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:48,735 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (6.13 secs) --------------------
+2026-03-21 17:31:48,781 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774114090
+2026-03-21 17:31:48,783 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1760918400
+2026-03-21 17:31:48,784 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 90.48 seconds
+2026-03-21 17:31:49,904 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:31:49,909 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:49,910 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:49,922 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:49,923 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:31:55,853 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (5.95 secs) --------------------
+2026-03-21 17:31:55,895 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774114097
+2026-03-21 17:31:56,997 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:31:57,002 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:31:57,002 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:31:57,013 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:31:57,014 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:02,945 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (5.95 secs) --------------------
+2026-03-21 17:32:03,003 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774114104
+2026-03-21 17:32:04,122 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:32:04,126 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:04,127 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:04,139 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:04,139 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:10,405 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.28 secs) --------------------
+2026-03-21 17:32:10,449 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774114111
+2026-03-21 17:32:11,551 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:32:11,555 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:11,555 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:11,567 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:11,567 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:17,412 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (5.86 secs) --------------------
+2026-03-21 17:32:17,461 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1761523200
+2026-03-21 17:32:17,462 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774114118
+2026-03-21 17:32:18,574 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:32:18,578 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:18,578 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:18,587 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:18,587 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
+2026-03-21 17:32:25,804 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ATOM/USDT (7.23 secs) --------------------
+2026-03-21 17:32:25,848 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ATOM_1774114125
+2026-03-21 17:32:26,961 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LTC/USDT --------------------
+2026-03-21 17:32:26,965 - freqtrade.freqai.data_kitchen - INFO - LTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:26,965 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:26,978 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:26,978 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:32,863 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (5.90 secs) --------------------
+2026-03-21 17:32:32,901 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774114133
+2026-03-21 17:32:34,021 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:32:34,026 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:34,027 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:34,040 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:34,041 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:36,034 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:32:43,087 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (9.06 secs) --------------------
+2026-03-21 17:32:43,149 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774114140
+2026-03-21 17:32:44,335 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:32:44,342 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:44,342 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:44,354 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:44,354 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:32:50,867 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (6.53 secs) --------------------
+2026-03-21 17:32:50,907 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1762128000
+2026-03-21 17:32:50,908 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774114147
+2026-03-21 17:32:51,954 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:32:51,957 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:51,958 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:51,965 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:32:51,965 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:32:55,822 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.87 secs) --------------------
+2026-03-21 17:32:55,857 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774114154
+2026-03-21 17:32:56,964 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:32:56,967 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:32:56,968 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:32:56,979 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:32:56,979 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:02,906 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.94 secs) --------------------
+2026-03-21 17:33:02,957 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774114159
+2026-03-21 17:33:04,049 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:33:04,052 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:04,053 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:04,063 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:04,064 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:09,893 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.84 secs) --------------------
+2026-03-21 17:33:09,930 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774114166
+2026-03-21 17:33:11,027 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:33:11,032 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:11,033 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:11,052 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:11,058 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:15,466 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-21 17:33:15,470 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-21 17:33:15,470 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-21 17:33:15,474 - freqtrade.freqai.freqai_interface - INFO - Stopping FreqAI
+2026-03-21 17:33:15,490 - freqtrade.freqai.freqai_interface - INFO - Waiting on Training iteration
+2026-03-21 17:33:20,843 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-21 17:33:20,843 - freqtrade.loggers - INFO - Logfile configured
+2026-03-21 17:33:20,844 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-21 17:33:20,844 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-21 17:33:20,844 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-21 17:33:20,844 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-21 17:33:20,844 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-21 17:33:20,845 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-21 17:33:20,845 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 8 ...
+2026-03-21 17:33:21,054 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-21 17:33:21,055 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-21 17:33:21,058 - freqtrade.configuration.configuration - INFO - Using freqaimodel class name: LightGBMRegressor
+2026-03-21 17:33:21,060 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-21 17:33:21,063 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-21 17:33:21,064 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-21 17:33:21,064 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-21 17:33:21,065 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-21 17:33:21,065 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-21 17:33:21,068 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-21 17:33:21,074 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-21 17:33:21,737 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-21 17:33:21,742 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-21 17:33:21,743 - freqtrade.strategy.hyper - INFO - Loading parameters from file /freqtrade/user_data/strategies/SMCStrategy.json
+2026-03-21 17:33:21,743 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-21 17:33:21,743 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 8.
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.094, '81': 0.077, '239': 0.019, '581': 0}
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.077
+2026-03-21 17:33:21,744 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-21 17:33:21,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.237
+2026-03-21 17:33:21,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.267
+2026-03-21 17:33:21,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-21 17:33:21,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-21 17:33:21,745 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-21 17:33:21,746 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-21 17:33:21,747 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-21 17:33:21,748 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 8
+2026-03-21 17:33:21,748 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-21 17:33:21,778 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-21 17:33:22,182 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-21 17:33:22,325 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-21 17:33:22,325 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-21 17:33:22,340 - uvicorn.error - INFO - Started server process [1]
+2026-03-21 17:33:22,340 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-21 17:33:22,341 - uvicorn.error - INFO - Application startup complete.
+2026-03-21 17:33:22,341 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-21 17:33:22,343 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-21 17:33:22,343 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-21 17:33:22,354 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 15 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT', 'DOT/USDT', 'LINK/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'FIL/USDT', 'APT/USDT']
+2026-03-21 17:33:22,355 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-21 17:33:23,413 - freqtrade.resolvers.iresolver - INFO - Using resolved freqaimodel LightGBMRegressor from '/freqtrade/freqtrade/freqai/prediction_models/LightGBMRegressor.py'...
+2026-03-21 17:33:23,424 - freqtrade.freqai.data_drawer - INFO - Found existing historic predictions at /freqtrade/user_data/models/smc_lgbm, but beware that statistics may be inaccurate if the bot has been offline for an extended period of time.
+2026-03-21 17:33:23,425 - freqtrade.freqai.freqai_interface - INFO - Set existing queue from trained timestamps. Best approximation queue: deque(['BNB/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT', 'DOT/USDT', 'LINK/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'FIL/USDT', 'APT/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
+2026-03-21 17:33:23,425 - freqtrade.strategy.interface - INFO - Downloading all training data for all pairs in whitelist and corr_pairlist, this may take a while if the data is not already on disk.
+2026-03-21 17:33:23,434 - freqtrade.freqai.utils - INFO - FreqAI auto-downloader using 300 startup candles.
+2026-03-21 17:33:23,490 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:23,696 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 15m, spot with length 3.
+2026-03-21 17:33:23,755 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:23,913 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 1h, spot with length 2.
+2026-03-21 17:33:24,063 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:24,221 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 4h, spot with length 2.
+2026-03-21 17:33:24,252 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:24,411 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 15m, spot with length 3.
+2026-03-21 17:33:24,477 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:24,632 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 1h, spot with length 2.
+2026-03-21 17:33:24,649 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:24,805 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 4h, spot with length 2.
+2026-03-21 17:33:24,834 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:24,984 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 15m, spot with length 3.
+2026-03-21 17:33:25,040 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:25,193 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 1h, spot with length 2.
+2026-03-21 17:33:25,229 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:25,409 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 4h, spot with length 2.
+2026-03-21 17:33:25,422 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:25,575 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 15m, spot with length 3.
+2026-03-21 17:33:25,642 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:25,794 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 1h, spot with length 2.
+2026-03-21 17:33:25,811 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:25,963 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 4h, spot with length 2.
+2026-03-21 17:33:25,979 - freqtrade.data.history.history_utils - INFO - Download history data for "XRP/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:26,129 - freqtrade.data.history.history_utils - INFO - Downloaded data for XRP/USDT, 15m, spot with length 3.
+2026-03-21 17:33:26,162 - freqtrade.data.history.history_utils - INFO - Download history data for "XRP/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:26,322 - freqtrade.data.history.history_utils - INFO - Downloaded data for XRP/USDT, 1h, spot with length 2.
+2026-03-21 17:33:26,344 - freqtrade.data.history.history_utils - INFO - Download history data for "XRP/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:26,504 - freqtrade.data.history.history_utils - INFO - Downloaded data for XRP/USDT, 4h, spot with length 2.
+2026-03-21 17:33:26,517 - freqtrade.data.history.history_utils - INFO - Download history data for "ADA/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:26,666 - freqtrade.data.history.history_utils - INFO - Downloaded data for ADA/USDT, 15m, spot with length 3.
+2026-03-21 17:33:26,691 - freqtrade.data.history.history_utils - INFO - Download history data for "ADA/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:26,845 - freqtrade.data.history.history_utils - INFO - Downloaded data for ADA/USDT, 1h, spot with length 2.
+2026-03-21 17:33:26,857 - freqtrade.data.history.history_utils - INFO - Download history data for "ADA/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,015 - freqtrade.data.history.history_utils - INFO - Downloaded data for ADA/USDT, 4h, spot with length 2.
+2026-03-21 17:33:27,026 - freqtrade.data.history.history_utils - INFO - Download history data for "DOGE/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,182 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOGE/USDT, 15m, spot with length 3.
+2026-03-21 17:33:27,284 - freqtrade.data.history.history_utils - INFO - Download history data for "DOGE/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,440 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOGE/USDT, 1h, spot with length 2.
+2026-03-21 17:33:27,449 - freqtrade.data.history.history_utils - INFO - Download history data for "DOGE/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,602 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOGE/USDT, 4h, spot with length 2.
+2026-03-21 17:33:27,614 - freqtrade.data.history.history_utils - INFO - Download history data for "AVAX/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,769 - freqtrade.data.history.history_utils - INFO - Downloaded data for AVAX/USDT, 15m, spot with length 3.
+2026-03-21 17:33:27,801 - freqtrade.data.history.history_utils - INFO - Download history data for "AVAX/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:27,957 - freqtrade.data.history.history_utils - INFO - Downloaded data for AVAX/USDT, 1h, spot with length 2.
+2026-03-21 17:33:27,968 - freqtrade.data.history.history_utils - INFO - Download history data for "AVAX/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,122 - freqtrade.data.history.history_utils - INFO - Downloaded data for AVAX/USDT, 4h, spot with length 2.
+2026-03-21 17:33:28,132 - freqtrade.data.history.history_utils - INFO - Download history data for "DOT/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,285 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOT/USDT, 15m, spot with length 3.
+2026-03-21 17:33:28,298 - freqtrade.data.history.history_utils - INFO - Download history data for "DOT/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,446 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOT/USDT, 1h, spot with length 2.
+2026-03-21 17:33:28,453 - freqtrade.data.history.history_utils - INFO - Download history data for "DOT/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,615 - freqtrade.data.history.history_utils - INFO - Downloaded data for DOT/USDT, 4h, spot with length 2.
+2026-03-21 17:33:28,632 - freqtrade.data.history.history_utils - INFO - Download history data for "LINK/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,786 - freqtrade.data.history.history_utils - INFO - Downloaded data for LINK/USDT, 15m, spot with length 3.
+2026-03-21 17:33:28,832 - freqtrade.data.history.history_utils - INFO - Download history data for "LINK/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:28,980 - freqtrade.data.history.history_utils - INFO - Downloaded data for LINK/USDT, 1h, spot with length 2.
+2026-03-21 17:33:28,994 - freqtrade.data.history.history_utils - INFO - Download history data for "LINK/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,151 - freqtrade.data.history.history_utils - INFO - Downloaded data for LINK/USDT, 4h, spot with length 2.
+2026-03-21 17:33:29,160 - freqtrade.data.history.history_utils - INFO - Download history data for "UNI/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,314 - freqtrade.data.history.history_utils - INFO - Downloaded data for UNI/USDT, 15m, spot with length 3.
+2026-03-21 17:33:29,326 - freqtrade.data.history.history_utils - INFO - Download history data for "UNI/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,478 - freqtrade.data.history.history_utils - INFO - Downloaded data for UNI/USDT, 1h, spot with length 2.
+2026-03-21 17:33:29,485 - freqtrade.data.history.history_utils - INFO - Download history data for "UNI/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,636 - freqtrade.data.history.history_utils - INFO - Downloaded data for UNI/USDT, 4h, spot with length 2.
+2026-03-21 17:33:29,645 - freqtrade.data.history.history_utils - INFO - Download history data for "ATOM/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,797 - freqtrade.data.history.history_utils - INFO - Downloaded data for ATOM/USDT, 15m, spot with length 3.
+2026-03-21 17:33:29,813 - freqtrade.data.history.history_utils - INFO - Download history data for "ATOM/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:29,976 - freqtrade.data.history.history_utils - INFO - Downloaded data for ATOM/USDT, 1h, spot with length 2.
+2026-03-21 17:33:29,988 - freqtrade.data.history.history_utils - INFO - Download history data for "ATOM/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:30,143 - freqtrade.data.history.history_utils - INFO - Downloaded data for ATOM/USDT, 4h, spot with length 2.
+2026-03-21 17:33:30,154 - freqtrade.data.history.history_utils - INFO - Download history data for "LTC/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:30,305 - freqtrade.data.history.history_utils - INFO - Downloaded data for LTC/USDT, 15m, spot with length 3.
+2026-03-21 17:33:30,320 - freqtrade.data.history.history_utils - INFO - Download history data for "LTC/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:30,467 - freqtrade.data.history.history_utils - INFO - Downloaded data for LTC/USDT, 1h, spot with length 2.
+2026-03-21 17:33:30,475 - freqtrade.data.history.history_utils - INFO - Download history data for "LTC/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:30,633 - freqtrade.data.history.history_utils - INFO - Downloaded data for LTC/USDT, 4h, spot with length 2.
+2026-03-21 17:33:30,769 - freqtrade.data.history.history_utils - INFO - Download history data for "FIL/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:30,919 - freqtrade.data.history.history_utils - INFO - Downloaded data for FIL/USDT, 15m, spot with length 3.
+2026-03-21 17:33:30,930 - freqtrade.data.history.history_utils - INFO - Download history data for "FIL/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:31,080 - freqtrade.data.history.history_utils - INFO - Downloaded data for FIL/USDT, 1h, spot with length 2.
+2026-03-21 17:33:31,088 - freqtrade.data.history.history_utils - INFO - Download history data for "FIL/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:31,244 - freqtrade.data.history.history_utils - INFO - Downloaded data for FIL/USDT, 4h, spot with length 2.
+2026-03-21 17:33:31,254 - freqtrade.data.history.history_utils - INFO - Download history data for "APT/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T16:45:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:31,406 - freqtrade.data.history.history_utils - INFO - Downloaded data for APT/USDT, 15m, spot with length 3.
+2026-03-21 17:33:31,416 - freqtrade.data.history.history_utils - INFO - Download history data for "APT/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T15:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:31,569 - freqtrade.data.history.history_utils - INFO - Downloaded data for APT/USDT, 1h, spot with length 2.
+2026-03-21 17:33:31,576 - freqtrade.data.history.history_utils - INFO - Download history data for "APT/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T17:33:23
+2026-03-21 17:33:31,729 - freqtrade.data.history.history_utils - INFO - Downloaded data for APT/USDT, 4h, spot with length 2.
+2026-03-21 17:33:31,735 - freqtrade.strategy.hyper - INFO - Strategy Parameter: ob_strength_min = 0.662
+2026-03-21 17:33:31,736 - freqtrade.strategy.hyper - INFO - Strategy Parameter: swing_length = 5
+2026-03-21 17:33:31,736 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-21 17:33:31,736 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-21 17:33:31,737 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-21 17:33:31,741 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-21 17:33:31,742 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.094, '81': 0.077, '239': 0.019, '581': 0}`\n*Trailing Stoploss:* `-0.077`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-21 17:33:31,742 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-21 17:33:34,973 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:34,986 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,093 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,106 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,174 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,185 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,268 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,275 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,346 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,356 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,426 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,434 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,498 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,505 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,570 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,579 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,646 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,654 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,733 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,740 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,809 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,816 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,881 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,890 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:35,984 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:35,996 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:36,083 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:36,097 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:36,208 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 17:33:36,228 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 17:33:36,253 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:33:36,257 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:36,258 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:36,270 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:36,271 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:36,744 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:33:41,916 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.66 secs) --------------------
+2026-03-21 17:33:41,959 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1762732800
+2026-03-21 17:33:41,960 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774114173
+2026-03-21 17:33:43,080 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:33:43,085 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:43,086 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:43,098 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:43,099 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:48,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (5.76 secs) --------------------
+2026-03-21 17:33:48,881 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774114180
+2026-03-21 17:33:49,981 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:33:49,985 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:49,985 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:49,996 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:49,997 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:33:56,530 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (6.55 secs) --------------------
+2026-03-21 17:33:56,567 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774114188
+2026-03-21 17:33:57,676 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:33:57,680 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:33:57,681 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:33:57,692 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:33:57,692 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:03,416 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (5.74 secs) --------------------
+2026-03-21 17:34:03,459 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774114195
+2026-03-21 17:34:04,575 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:34:04,582 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:04,583 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:04,597 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:04,598 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:10,412 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (5.83 secs) --------------------
+2026-03-21 17:34:10,456 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1763337600
+2026-03-21 17:34:10,457 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774114204
+2026-03-21 17:34:11,549 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:34:11,555 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:11,555 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:11,567 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:11,568 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:17,501 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (5.95 secs) --------------------
+2026-03-21 17:34:17,733 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774114211
+2026-03-21 17:34:18,825 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:34:18,828 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:18,829 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:18,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:18,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:19,986 - uvicorn.error - INFO - 172.23.0.3:41420 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDExNDY3NywiaWF0IjoxNzc0MTEzNzc3LCJ0eXBlIjoiYWNjZXNzIn0.3iH0YQwNX_l-ksRm_Og-FXQ-sTXVlhhSMmQryAFEDUA" [accepted]
+2026-03-21 17:34:19,988 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(e50ff7e5, ('172.23.0.3', 41420))
+2026-03-21 17:34:19,989 - uvicorn.error - INFO - connection open
+2026-03-21 17:34:25,065 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.24 secs) --------------------
+2026-03-21 17:34:25,108 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774114218
+2026-03-21 17:34:26,215 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:34:26,219 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:26,220 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:26,231 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:26,232 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:32,311 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (6.10 secs) --------------------
+2026-03-21 17:34:32,350 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774114226
+2026-03-21 17:34:33,444 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:34:33,449 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:33,449 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:33,458 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:33,458 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
+2026-03-21 17:34:36,756 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:34:39,470 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ATOM/USDT (6.03 secs) --------------------
+2026-03-21 17:34:39,510 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ATOM_1774114233
+2026-03-21 17:34:40,609 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LTC/USDT --------------------
+2026-03-21 17:34:40,614 - freqtrade.freqai.data_kitchen - INFO - LTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:40,615 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:40,627 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:40,627 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:46,438 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (5.83 secs) --------------------
+2026-03-21 17:34:46,480 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1763942400
+2026-03-21 17:34:46,481 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774114240
+2026-03-21 17:34:47,575 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:34:47,579 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:47,580 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:47,591 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:47,591 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:34:53,297 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (5.72 secs) --------------------
+2026-03-21 17:34:53,357 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774114247
+2026-03-21 17:34:54,511 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:34:54,516 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:34:54,517 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:34:54,527 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:34:54,527 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:35:00,225 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (5.71 secs) --------------------
+2026-03-21 17:35:00,270 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774114254
+2026-03-21 17:35:01,312 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:35:01,316 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:01,316 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:01,321 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:35:01,321 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:05,398 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.09 secs) --------------------
+2026-03-21 17:35:05,435 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774114261
+2026-03-21 17:35:06,576 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:35:06,581 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:06,581 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:06,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:06,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:12,722 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.15 secs) --------------------
+2026-03-21 17:35:12,762 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774114266
+2026-03-21 17:35:13,880 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:35:13,884 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:13,885 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:13,899 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:13,900 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:20,502 - uvicorn.error - INFO - connection closed
+2026-03-21 17:35:20,509 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(e50ff7e5, ('172.23.0.3', 41420))
+2026-03-21 17:35:21,465 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (7.58 secs) --------------------
+2026-03-21 17:35:21,653 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1764547200
+2026-03-21 17:35:21,656 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774114273
+2026-03-21 17:35:21,665 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 91.67 seconds
+2026-03-21 17:35:22,998 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:35:23,204 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:23,216 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:23,277 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:23,281 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:34,245 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (11.13 secs) --------------------
+2026-03-21 17:35:34,352 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774114280
+2026-03-21 17:35:35,645 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:35:35,653 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:35,654 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:35,668 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:35,668 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:36,769 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:35:46,248 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (10.60 secs) --------------------
+2026-03-21 17:35:46,310 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774114287
+2026-03-21 17:35:47,586 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:35:47,594 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:47,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:47,615 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:47,616 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:35:53,746 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (6.16 secs) --------------------
+2026-03-21 17:35:53,790 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774114295
+2026-03-21 17:35:54,879 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:35:54,883 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:35:54,883 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:35:54,896 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:35:54,896 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:01,483 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (6.60 secs) --------------------
+2026-03-21 17:36:01,554 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774114302
+2026-03-21 17:36:02,726 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:36:02,732 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:02,732 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:02,749 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:02,749 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:10,344 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (7.62 secs) --------------------
+2026-03-21 17:36:10,409 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1765152000
+2026-03-21 17:36:10,410 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774114309
+2026-03-21 17:36:11,580 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:36:11,585 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:11,585 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:11,598 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:11,598 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:18,258 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (6.68 secs) --------------------
+2026-03-21 17:36:18,304 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774114316
+2026-03-21 17:36:19,564 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:36:19,569 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:19,570 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:19,583 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:19,584 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:26,079 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.51 secs) --------------------
+2026-03-21 17:36:26,133 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774114324
+2026-03-21 17:36:27,243 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:36:27,247 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:27,248 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:27,259 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:27,260 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:33,381 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (6.14 secs) --------------------
+2026-03-21 17:36:33,433 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774114331
+2026-03-21 17:36:34,541 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:36:34,545 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:34,546 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:34,555 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:34,555 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
+2026-03-21 17:36:36,781 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:36:40,898 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ATOM/USDT (6.36 secs) --------------------
+2026-03-21 17:36:40,940 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ATOM_1774114338
+2026-03-21 17:36:42,036 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LTC/USDT --------------------
+2026-03-21 17:36:42,040 - freqtrade.freqai.data_kitchen - INFO - LTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:42,040 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:42,051 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:42,052 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:48,218 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LTC/USDT (6.18 secs) --------------------
+2026-03-21 17:36:48,268 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LTC_1774114346
+2026-03-21 17:36:48,270 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1765756800
+2026-03-21 17:36:49,372 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training FIL/USDT --------------------
+2026-03-21 17:36:49,376 - freqtrade.freqai.data_kitchen - INFO - FIL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:49,376 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:49,387 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:49,388 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:36:55,322 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training FIL/USDT (5.95 secs) --------------------
+2026-03-21 17:36:55,360 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-FIL_1774114353
+2026-03-21 17:36:56,450 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training APT/USDT --------------------
+2026-03-21 17:36:56,455 - freqtrade.freqai.data_kitchen - INFO - APT/USDT: dropped 21 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:36:56,455 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:36:56,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:36:56,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1914 data points
+2026-03-21 17:37:02,981 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training APT/USDT (6.53 secs) --------------------
+2026-03-21 17:37:03,023 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-APT_1774114364
+2026-03-21 17:37:04,065 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 17:37:04,068 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:04,068 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:04,073 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 115 features
+2026-03-21 17:37:04,073 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:08,097 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.03 secs) --------------------
+2026-03-21 17:37:08,137 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774114371
+2026-03-21 17:37:09,282 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 17:37:09,288 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:09,289 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:09,301 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:09,302 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:15,554 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.27 secs) --------------------
+2026-03-21 17:37:15,599 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774114376
+2026-03-21 17:37:16,694 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 17:37:16,698 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:16,698 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:16,711 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:16,711 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:22,855 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.16 secs) --------------------
+2026-03-21 17:37:22,895 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1766361600
+2026-03-21 17:37:22,896 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774114383
+2026-03-21 17:37:22,898 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 105.97 seconds
+2026-03-21 17:37:24,006 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 17:37:24,010 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:24,011 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:24,023 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:24,024 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:30,034 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.03 secs) --------------------
+2026-03-21 17:37:30,094 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774114415
+2026-03-21 17:37:31,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training XRP/USDT --------------------
+2026-03-21 17:37:31,207 - freqtrade.freqai.data_kitchen - INFO - XRP/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:31,207 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:31,219 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:31,220 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:36,794 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 17:37:38,000 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training XRP/USDT (6.80 secs) --------------------
+2026-03-21 17:37:38,056 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-XRP_1774114422
+2026-03-21 17:37:39,306 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ADA/USDT --------------------
+2026-03-21 17:37:39,314 - freqtrade.freqai.data_kitchen - INFO - ADA/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:39,314 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:39,340 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:39,341 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:46,266 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ADA/USDT (6.96 secs) --------------------
+2026-03-21 17:37:46,313 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ADA_1774114429
+2026-03-21 17:37:47,413 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOGE/USDT --------------------
+2026-03-21 17:37:47,417 - freqtrade.freqai.data_kitchen - INFO - DOGE/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:47,418 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:47,429 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:47,430 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:37:53,184 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOGE/USDT (5.77 secs) --------------------
+2026-03-21 17:37:53,267 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOGE_1774114437
+2026-03-21 17:37:54,368 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training AVAX/USDT --------------------
+2026-03-21 17:37:54,372 - freqtrade.freqai.data_kitchen - INFO - AVAX/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:37:54,373 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:37:54,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:37:54,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:38:00,282 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training AVAX/USDT (5.91 secs) --------------------
+2026-03-21 17:38:00,337 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-AVAX_1774114444
+2026-03-21 17:38:00,338 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1766966400
+2026-03-21 17:38:01,460 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training DOT/USDT --------------------
+2026-03-21 17:38:01,465 - freqtrade.freqai.data_kitchen - INFO - DOT/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:38:01,466 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:38:01,480 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:38:01,480 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:38:07,777 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training DOT/USDT (6.32 secs) --------------------
+2026-03-21 17:38:07,826 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-DOT_1774114451
+2026-03-21 17:38:08,913 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training LINK/USDT --------------------
+2026-03-21 17:38:08,917 - freqtrade.freqai.data_kitchen - INFO - LINK/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:38:08,918 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:38:08,929 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:38:08,929 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:38:15,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training LINK/USDT (6.29 secs) --------------------
+2026-03-21 17:38:15,263 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-LINK_1774114458
+2026-03-21 17:38:16,410 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training UNI/USDT --------------------
+2026-03-21 17:38:16,415 - freqtrade.freqai.data_kitchen - INFO - UNI/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:38:16,415 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:38:16,431 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:38:16,432 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 17:38:22,530 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training UNI/USDT (6.12 secs) --------------------
+2026-03-21 17:38:22,589 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-UNI_1774114466
+2026-03-21 17:38:23,837 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ATOM/USDT --------------------
+2026-03-21 17:38:23,846 - freqtrade.freqai.data_kitchen - INFO - ATOM/USDT: dropped 30 training points due to NaNs in populated dataset 2879.
+2026-03-21 17:38:23,847 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 17:38:23,864 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 223 features
+2026-03-21 17:38:23,865 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1908 data points
