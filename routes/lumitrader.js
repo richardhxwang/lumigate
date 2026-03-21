@@ -900,6 +900,29 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── Telegram command handlers ─────────────────────────────────────────────
 
+  function mdToTelegram(text) {
+    // Tables → monospace pre blocks
+    text = text.replace(/(\|[^\n]+\|\n\|[-| :]+\|\n(?:\|[^\n]+\|\n?)+)/g, (table) => {
+      const rows = table.trim().split("\n").filter(r => !r.match(/^\|[-| :]+\|$/));
+      const cells = rows.map(r => r.split("|").filter(c => c.trim()).map(c => c.trim()));
+      if (cells.length === 0) return table;
+      const colW = [];
+      for (const row of cells) row.forEach((c, i) => { colW[i] = Math.max(colW[i] || 0, c.replace(/<[^>]+>/g, "").length); });
+      return "<pre>" + cells.map(row => row.map((c, i) => c.replace(/<[^>]+>/g, "").padEnd(colW[i] || 0)).join("  ")).join("\n") + "</pre>";
+    });
+    // Bold
+    text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+    // Italic
+    text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
+    // Code blocks
+    text = text.replace(/```[\s\S]*?```/g, (m) => "<pre>" + m.slice(3, -3).trim() + "</pre>");
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Headers → bold
+    text = text.replace(/^#{1,3}\s+(.+)$/gm, "<b>$1</b>");
+    return text;
+  }
+
   async function callAiForTelegram(chatId, userMessage) {
     // Keep typing indicator alive while AI thinks
     const typingTimer = setInterval(() => sendTyping(chatId), 4000);
@@ -960,7 +983,7 @@ module.exports = function createLumiTraderRouter(deps) {
         if (breakIdx > CHUNK_THRESHOLD) {
           const chunk = unsent.slice(0, breakIdx).trim();
           if (chunk) {
-            const formatted = chunk.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+            const formatted = mdToTelegram(chunk);
             await sendTelegram(formatted, { chatId });
             lastSentLen += breakIdx + 2;
           }
@@ -970,7 +993,7 @@ module.exports = function createLumiTraderRouter(deps) {
       // Send remaining text
       const remaining = fullText.slice(lastSentLen).trim();
       if (remaining) {
-        const formatted = remaining.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+        const formatted = mdToTelegram(remaining);
         if (formatted.length > 4000) {
           // Split long remaining into 4000-char chunks
           for (let i = 0; i < formatted.length; i += 4000) {
