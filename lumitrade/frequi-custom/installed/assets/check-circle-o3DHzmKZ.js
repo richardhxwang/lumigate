@@ -1,2 +1,0 @@
-import{A as t,a as n,c as r,e}from"./index-D9ObOm2Q.js";const c={viewBox:"0 0 24 24",width:"1.2em",height:"1.2em"};function s(a,o){return n(),r("svg",c,[...o[0]||(o[0]=[e("g",{fill:"none",stroke:"currentColor","stroke-linecap":"round","stroke-linejoin":"round","stroke-width":"2"},[e("path",{d:"M21.801 10A10 10 0 1 1 17 3.335"}),e("path",{d:"m9 11l3 3L22 4"})],-1)])])}const l=t({name:"lucide-check-circle",render:s});export{l as _};
-//# sourceMappingURL=check-circle-o3DHzmKZ.js.map
