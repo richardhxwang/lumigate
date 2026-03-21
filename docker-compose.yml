@@ -435,7 +435,6 @@ services:
       - TWS_USERID=${IBKR_USERNAME:-}
       - TWS_PASSWORD=${IBKR_PASSWORD:-}
       - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
-      - CUSTOM_CONFIG=yes
       - TWS_SETTINGS_PATH=
       - TWS_ACCEPT_INCOMING=accept
       - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
