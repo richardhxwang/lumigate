@@ -917,6 +917,8 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders();
     }
+    // Early emitToolStatus for pre-search (before streaming consumer defines full version)
+    if (typeof emitToolStatus !== "function") { var emitToolStatus = function(p) { if (!wantStream || res.writableEnded) return; res.write("event: tool_status\ndata: " + JSON.stringify(p) + "\n\n"); res.write("data: " + JSON.stringify({ choices: [{ delta: { content: "" }, tool_status: p }] }) + "\n\n"); }; }
     try {
       const fetched = [];
       for (let i = 0; i < directUrls.length; i++) {
