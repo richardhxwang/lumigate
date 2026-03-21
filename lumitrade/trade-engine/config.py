@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # Freqtrade REST API
     freqtrade_url: str = "http://freqtrade:8080"
-    freqtrade_username: str = "freqtrader"
+    freqtrade_username: str = "lumitrade"
     freqtrade_password: str = ""
 
     # IBKR
