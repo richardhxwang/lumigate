@@ -870,26 +870,59 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
         res.write(`data: ${JSON.stringify({ model: modelId, choices: [{ delta: { content: "" }, tool_status: p }] })}\n\n`);
       } : () => {};
       const onProgress = (msg) => _toolStatus({ text: msg.text || "", icon: msg.icon || "file", done: !!msg.done });
-      const result = await downloadHKEXFilings({
+      const zh = lang === "zh";
+
+      // Cascading search for annual reports:
+      // 1. Try requested doc_type with given date range
+      // 2. If annual and 0 results → try previous 5 years
+      // 3. If still 0 → try results announcements
+      let result = await downloadHKEXFilings({
         stock_code: hkexCode,
         doc_type: hkexDocType,
         date_from: dateMatch ? dateMatch[1] : undefined,
         date_to: dateMatch ? dateMatch[2] : undefined,
       }, onProgress);
 
+      let note = "";
+      const isAnnualSearch = hkexDocType === "annual";
+
+      if (result.downloaded === 0 && isAnnualSearch && !dateMatch) {
+        // Try wider range (5 years back)
+        onProgress({ text: zh ? "当前范围未找到年报，扩大搜索至近5年..." : "No annual report in current range, searching last 5 years...", icon: "file" });
+        const fiveYearsAgo = new Date(); fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        result = await downloadHKEXFilings({
+          stock_code: hkexCode, doc_type: "annual",
+          date_from: fiveYearsAgo.toISOString().slice(0, 10),
+        }, onProgress);
+        if (result.downloaded > 0) {
+          note = zh ? "今年尚未发布年报，以下为最近的年报：" : "No annual report this year. Showing the most recent one:";
+        }
+      }
+
+      if (result.downloaded === 0 && isAnnualSearch) {
+        // Try results announcements as fallback
+        onProgress({ text: zh ? "未找到年报，尝试搜索业绩公告..." : "No annual report found, trying results announcements...", icon: "file" });
+        result = await downloadHKEXFilings({
+          stock_code: hkexCode, doc_type: "results",
+          date_from: dateMatch ? dateMatch[1] : undefined,
+          date_to: dateMatch ? dateMatch[2] : undefined,
+        }, onProgress);
+        if (result.downloaded > 0) {
+          note = zh ? "未找到年报 (Annual Report)，以下为业绩公告 (Results Announcement)：" : "No Annual Report found. Showing Results Announcement instead:";
+        }
+      }
+
+      onProgress({ text: zh ? `完成 — ${result.downloaded} 个文件` : `Done — ${result.downloaded} files`, icon: "file", done: true });
+
       // Build response text
-      const zh = lang === "zh";
       let responseText;
       if (result.downloaded > 0) {
         const fileList = result.files.filter(f => f.local_path && !f.error).map(f => `- ${f.name} (${f.date})`).join("\n");
-        responseText = zh
-          ? `已下载 ${result.downloaded} 个文件：\n${fileList}`
-          : `Downloaded ${result.downloaded} files:\n${fileList}`;
-        if (result.usedFallback) responseText = (zh ? `未找到年报原文，以下为${result.fallbackLabel}：\n` : `No Annual Report found. Showing ${result.fallbackLabel} instead:\n`) + responseText;
+        responseText = note ? `${note}\n\n${fileList}` : (zh ? `已下载 ${result.downloaded} 个文件：\n${fileList}` : `Downloaded ${result.downloaded} files:\n${fileList}`);
       } else {
-        responseText = result.usedFallback
-          ? (zh ? `未找到年报，也未找到${result.fallbackLabel}。请尝试其他文件类型或扩大日期范围。` : `No Annual Report or ${result.fallbackLabel} found. Try a different doc type or wider date range.`)
-          : (zh ? `在搜索范围内未找到匹配的公告。股票代码 ${hkexCode} 有效，但该时间段内没有此类型的文件。请尝试其他文件类型或日期范围。` : `No matching filings found for ${hkexCode} in this date range. Try a different doc type or wider date range.`);
+        responseText = zh
+          ? `在港交所搜索范围内未找到 ${hkexCode} 的相关公告。该股票代码有效，但搜索期间内没有此类型的文件。\n\n建议：尝试选择"全部"类型，或调整日期范围。`
+          : `No filings found for ${hkexCode} in this period. The code is valid but no matching documents exist. Try selecting "All" type or adjusting the date range.`;
       }
 
       if (wantStream) {
