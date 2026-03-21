@@ -111,29 +111,37 @@ module.exports = function createLumiTraderRouter(deps) {
 
   async function fetchTradingContext(userMessage, userId) {
     const ctx = { positions: null, pnl: null, signals: null, history: null, journal: null, mood: null, rag: null, backtestHistory: null, backtestResultsPB: null };
+    const timings = {};
 
     // PB user filter — only return records belonging to the authenticated user
     const userFilter = userId ? `&filter=(user_id='${userId}')` : '';
 
+    const timed = (label, promise) => {
+      const start = Date.now();
+      return promise
+        .then(r => { timings[label] = { ms: Date.now() - start, ok: true }; return r; })
+        .catch(e => { timings[label] = { ms: Date.now() - start, ok: false, err: e.message }; return null; });
+    };
+
     // All fetches in parallel — best-effort, any failure returns null
     const tasks = [
-      engineFetch("/positions").then(r => r.ok ? r.json() : null).catch(() => null),
-      engineFetch("/pnl").then(r => r.ok ? r.json() : null).catch(() => null),
-      engineFetch("/signals?limit=5").then(r => r.ok ? r.json() : null).catch(() => null),
+      timed("engine/positions", engineFetch("/positions").then(r => r.ok ? r.json() : null)),
+      timed("engine/pnl", engineFetch("/pnl").then(r => r.ok ? r.json() : null)),
+      timed("engine/signals", engineFetch("/signals?limit=5").then(r => r.ok ? r.json() : null)),
       // PB historical data — scoped to the requesting user
-      tradePbFetch(`/api/collections/trade_history/records?perPage=10${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
-      tradePbFetch(`/api/collections/trade_journal/records?perPage=5${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
-      tradePbFetch(`/api/collections/trade_mood_logs/records?perPage=3${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      timed("pb/trade_history", tradePbFetch(`/api/collections/trade_history/records?perPage=10${userFilter}`).then(r => r.ok ? r.json() : null)),
+      timed("pb/trade_journal", tradePbFetch(`/api/collections/trade_journal/records?perPage=5${userFilter}`).then(r => r.ok ? r.json() : null)),
+      timed("pb/trade_mood_logs", tradePbFetch(`/api/collections/trade_mood_logs/records?perPage=3${userFilter}`).then(r => r.ok ? r.json() : null)),
       // RAG search — use user's last message as query for relevant knowledge
-      userMessage
-        ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null).catch(() => null)
-        : Promise.resolve(null),
+      timed("engine/rag", userMessage
+        ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null)
+        : Promise.resolve(null)),
       // Latest backtest result history from backtest webserver
-      fetch("http://lumigate-freqtrade-bt:8080/api/v1/backtest/history", {
+      timed("ft-bt/history", fetch("http://lumigate-freqtrade-bt:8080/api/v1/backtest/history", {
         headers: { Authorization: "Basic " + Buffer.from("lumitrade:123123@").toString("base64") },
-      }).then(r => r.ok ? r.json() : null).catch(() => null),
+      }).then(r => r.ok ? r.json() : null)),
       // PB backtest results with full metrics
-      tradePbFetch("/api/collections/trade_backtest_results/records?perPage=5&sort=-created").then(r => r.ok ? r.json() : null).catch(() => null),
+      timed("pb/backtest_results", tradePbFetch("/api/collections/trade_backtest_results/records?perPage=5&sort=-created").then(r => r.ok ? r.json() : null)),
     ];
 
     const [positions, pnl, signals, history, journal, mood, rag, backtestHistory, backtestResultsPB] = await Promise.all(tasks);
@@ -146,6 +154,29 @@ module.exports = function createLumiTraderRouter(deps) {
     ctx.rag = rag;
     ctx.backtestHistory = backtestHistory;
     ctx.backtestResultsPB = backtestResultsPB?.items || null;
+
+    // Detailed chain logging
+    const chainLog = {
+      timestamp: new Date().toISOString(),
+      userId,
+      userQuery: (userMessage || "").slice(0, 100),
+      timings,
+      dataCounts: {
+        positions: Array.isArray(ctx.positions?.items) ? ctx.positions.items.length : (ctx.positions ? "non-array" : null),
+        pnl: ctx.pnl ? "yes" : null,
+        signals: Array.isArray(ctx.signals?.items) ? ctx.signals.items.length : null,
+        history: ctx.history?.items?.length ?? null,
+        journal: ctx.journal?.items?.length ?? null,
+        mood: ctx.mood?.items?.length ?? null,
+        rag: Array.isArray(ctx.rag?.results) ? ctx.rag.results.length : null,
+        backtestHistory: Array.isArray(ctx.backtestHistory) ? ctx.backtestHistory.length : null,
+        backtestResultsPB: Array.isArray(ctx.backtestResultsPB) ? ctx.backtestResultsPB.length : null,
+      },
+    };
+    console.log("[lumitrader][chain] fetchTradingContext:", JSON.stringify(chainLog));
+    const fs = require("fs");
+    fs.appendFileSync("/tmp/lumitrader-chain.log", JSON.stringify(chainLog, null, 2) + "\n---\n");
+
     return ctx;
   }
 
