@@ -589,6 +589,26 @@ const PB_COLLECTIONS = [
  */
 // Map collection name → PB project ID for project-scoped creation
 const COLLECTION_PROJECT_MAP = {
+  // LumiGate core
+  security_events: "lumigate",
+  audit_log: "lumigate",
+  tool_calls: "lumigate",
+  generated_files: "lumigate",
+  async_tasks: "lumigate",
+  traces: "lumigate",
+  trace_evaluations: "lumigate",
+  entity_versions: "lumigate",
+  plugins: "lumigate",
+  // LumiChat
+  user_memories: "lumichat",
+  user_profiles: "lumichat",
+  // Knowledge / RAG
+  knowledge_bases: "lumigate",
+  kb_documents: "lumigate",
+  // Workflows
+  workflows: "lumigate",
+  workflow_executions: "lumigate",
+  // LumiTrade
   trade_signals: "lumitrade",
   trade_positions: "lumitrade",
   trade_history: "lumitrade",
@@ -656,11 +676,15 @@ async function ensureCollections(pbUrl, adminToken, log) {
         }),
       };
 
-      // Use project-scoped API if collection belongs to a project
+      // Every collection MUST be mapped to a project — fail loudly if missing
       const project = COLLECTION_PROJECT_MAP[collection.name];
-      const apiPath = project
-        ? `${pbUrl}/api/p/${project}/collections`
-        : `${pbUrl}/api/collections`;
+      if (!project) {
+        const errMsg = `Collection "${collection.name}" has no project mapping in COLLECTION_PROJECT_MAP. Add it before deploying.`;
+        errors.push(errMsg);
+        _log("error", "pb_collection_no_project", { component: "pb-schema", collection: collection.name, error: errMsg });
+        continue;
+      }
+      const apiPath = `${pbUrl}/api/p/${project}/collections`;
 
       const res = await fetch(apiPath, {
         method: "POST",
