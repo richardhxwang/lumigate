@@ -985,6 +985,92 @@ module.exports = function createLumiTraderRouter(deps) {
     await callAiForTelegram(chatId, "分析我的策略和回测结果，给出 3 个具体的优化建议，按优先级排序。包括参数调整、风控改进、pair 选择。");
   }
 
+  // ── Freqtrade Telegram proxy — call freqtrade REST API, format in Chinese ──
+
+  const FT_AUTH = "Basic " + Buffer.from("lumitrade:123123@").toString("base64");
+  const FT_URL = TRADE_ENGINE_URL || "http://localhost:3200";
+
+  async function ftApiCall(path) {
+    try {
+      const r = await engineFetch(path);
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  }
+
+  async function handleFreqtradeStatus(chatId) {
+    const data = await ftApiCall("/freqtrade/status");
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      await sendTelegram("当前没有开仓交易", { chatId });
+      return;
+    }
+    const trades = Array.isArray(data) ? data : (data.open_trades || []);
+    if (trades.length === 0) {
+      await sendTelegram("当前没有开仓交易", { chatId });
+      return;
+    }
+    let msg = `<b>当前持仓 (${trades.length})</b>\n\n`;
+    for (const t of trades.slice(0, 10)) {
+      const dir = t.is_short ? "空" : "多";
+      const pnl = t.profit_abs != null ? (t.profit_abs >= 0 ? "+" : "") + Number(t.profit_abs).toFixed(2) : "?";
+      const pct = t.profit_ratio != null ? (t.profit_ratio * 100).toFixed(1) + "%" : "?";
+      const dur = t.trade_duration || "?";
+      msg += `<b>${t.pair}</b> ${dir}\n`;
+      msg += `  盈亏: ${pnl} USDT (${pct})\n`;
+      msg += `  持仓时间: ${dur}\n`;
+      msg += `  入场价: ${t.open_rate || "?"}\n\n`;
+    }
+    await sendTelegram(msg, { chatId });
+  }
+
+  async function handleFreqtradeProfit(chatId) {
+    const data = await ftApiCall("/freqtrade/performance");
+    const balance = await ftApiCall("/freqtrade/balance");
+    let msg = "<b>盈亏统计</b>\n\n";
+    if (balance) {
+      msg += `总资产: ${Number(balance.total || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${balance.currency || "USDT"}\n`;
+      msg += `可用: ${Number(balance.free || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${balance.currency || "USDT"}\n\n`;
+    }
+    if (Array.isArray(data) && data.length > 0) {
+      msg += "<b>交易对表现:</b>\n";
+      for (const p of data.slice(0, 10)) {
+        const pnl = Number(p.profit_abs || 0);
+        const sign = pnl >= 0 ? "+" : "";
+        msg += `  ${p.pair}: ${sign}${pnl.toFixed(2)} USDT (${p.count || 0} 笔)\n`;
+      }
+    } else {
+      msg += "暂无交易记录";
+    }
+    await sendTelegram(msg, { chatId });
+  }
+
+  async function handleFreqtradeBalance(chatId) {
+    const data = await ftApiCall("/freqtrade/balance");
+    if (!data) {
+      await sendTelegram("无法获取余额信息", { chatId });
+      return;
+    }
+    let msg = "<b>账户余额</b>\n\n";
+    msg += `总资产: ${Number(data.total || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
+    msg += `可用余额: ${Number(data.free || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
+    msg += `已用: ${Number(data.used || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
+    if (data.currencies) {
+      msg += "\n<b>币种明细:</b>\n";
+      for (const c of data.currencies.filter(x => x.balance > 0).slice(0, 10)) {
+        msg += `  ${c.currency}: ${Number(c.balance).toFixed(4)} (${Number(c.est_stake || 0).toFixed(2)} USDT)\n`;
+      }
+    }
+    await sendTelegram(msg, { chatId });
+  }
+
+  async function handleFreqtradeCommand(chatId, action, successMsg) {
+    try {
+      const r = await engineFetch(`/freqtrade/${action}`, { method: "POST" });
+      await sendTelegram(r.ok ? successMsg : `操作失败: ${action}`, { chatId });
+    } catch (err) {
+      await sendTelegram(`操作失败: ${err.message}`, { chatId });
+    }
+  }
+
   // ── Telegram webhook — handles slash commands and button callbacks ─────────
 
   router.post("/lumitrader/telegram/webhook", express.json(), async (req, res) => {
@@ -1011,21 +1097,36 @@ module.exports = function createLumiTraderRouter(deps) {
           await handleJournalCommand(chatId);
         } else if (text === "/optimize") {
           await handleOptimizeCommand(chatId);
+        } else if (text === "/status") {
+          await handleFreqtradeStatus(chatId);
+        } else if (text === "/profit") {
+          await handleFreqtradeProfit(chatId);
+        } else if (text === "/balance") {
+          await handleFreqtradeBalance(chatId);
+        } else if (text === "/start") {
+          await handleFreqtradeCommand(chatId, "start", "交易已启动");
+        } else if (text === "/stop") {
+          await handleFreqtradeCommand(chatId, "stop", "交易已停止");
         } else if (text === "/help") {
           await sendTelegram(
-            "<b>LumiTrader AI Commands</b>\n\n" +
-            "/ai [问题] — AI 分析 (默认: 市场概览)\n" +
-            "/signals — 当前 SMC 信号\n" +
-            "/risk — 风控状态\n" +
-            "/news — 最新新闻 + 情绪\n" +
-            "/journal — 今日交易日志\n" +
-            "/optimize — 策略优化建议\n" +
-            "/help — 显示此帮助\n\n" +
-            "<i>freqtrade 命令: /status /profit /balance /start /stop</i>",
+            "<b>LumiTrader 指令</b>\n\n" +
+            "<b>AI 分析:</b>\n" +
+            "/ai [问题] — AI 智能分析\n" +
+            "/signals — 当前交易信号\n" +
+            "/risk — 风控状态检查\n" +
+            "/news — 最新新闻情绪\n" +
+            "/journal — 今日交易总结\n" +
+            "/optimize — 策略优化建议\n\n" +
+            "<b>交易控制:</b>\n" +
+            "/status — 当前持仓状态\n" +
+            "/profit — 盈亏统计\n" +
+            "/balance — 账户余额\n" +
+            "/start — 启动交易\n" +
+            "/stop — 停止交易\n" +
+            "/help — 显示此帮助",
             { chatId }
           );
         }
-        // Ignore other messages (let freqtrade handle /status /profit etc)
       }
 
       // Handle callback queries (inline keyboard button presses)
