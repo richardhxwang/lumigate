@@ -1062,7 +1062,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   async function handleAnalysisCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "扫描所有交易对，分析当前是否有交易机会。对每个有机会的 pair：1) 当前 SMC 结构（BOS/CHoCH/OB/FVG）2) 入场方向和价位 3) SL/TP/R:R 4) 置信度和入场等级（Tier 1/2/3）。如果没有机会就明确说没有，不要勉强。结合新闻情绪和当前时段综合判断。");
+    await callAiForTelegram(chatId, "综合所有可用数据（SMC 结构、新闻情绪、当前持仓、回测表现、时段、风控状态、bot 状态），分析当前是否有交易机会。对每个有机会的 pair 给出完整交易计划（方向、入场、SL、TP、R:R、仓位%、置信度、Tier 等级）。如果当前没有好的机会就直接说没有，不要勉强。先说结论。");
   }
 
   // ── Freqtrade Telegram proxy — call freqtrade REST API, format in Chinese ──
