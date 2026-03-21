@@ -908,6 +908,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   } else if (hasRichUserInput && doSearch) {
     log("info", "Auto-search enabled for attachment task", { provider: providerName, model: modelId, traceId: req.traceId });
   }
+  // emitToolStatus — available throughout the handler for pre-search + streaming phases
+  let emitToolStatus = function(p) { if (!wantStream || res.writableEnded) return; res.write("event: tool_status\ndata: " + JSON.stringify(p) + "\n\n"); res.write("data: " + JSON.stringify({ choices: [{ delta: { content: "" }, tool_status: p }] }) + "\n\n"); };
+
   if (hasDirectUrl) {
     // Start SSE early so frontend sees url fetch status
     if (wantStream && !res.headersSent) {
@@ -917,8 +920,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders();
     }
-    // Early emitToolStatus for pre-search (before streaming consumer defines full version)
-    let emitToolStatus = function(p) { if (!wantStream || res.writableEnded) return; res.write("event: tool_status\ndata: " + JSON.stringify(p) + "\n\n"); res.write("data: " + JSON.stringify({ choices: [{ delta: { content: "" }, tool_status: p }] }) + "\n\n"); };
     try {
       const fetched = [];
       for (let i = 0; i < directUrls.length; i++) {
