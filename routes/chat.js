@@ -467,7 +467,7 @@ function selectRelevantTools(userMessage, allSchemas, specialistMode) {
   const msg = String(userMessage || "").toLowerCase();
   const sMode = String(specialistMode || "").toLowerCase();
 
-  // Core tools: always include (deep_search and hkex_download NOT here — only via explicit /slash command)
+  // Core tools: always include (deep_search NOT here — only via /deep-search slash command)
   const alwaysInclude = new Set([
     'web_search', 'generate_spreadsheet', 'generate_document',
     'generate_presentation', 'code_run', 'parse_file', 'use_template',
@@ -485,10 +485,6 @@ function selectRelevantTools(userMessage, allSchemas, specialistMode) {
   const financeKeywords = /financial.?statement|tie.?out|balance.?sheet|income.?statement|cash.?flow|variance|财务报表|资产负债|利润表|现金流/i;
   const includeFinance = financeKeywords.test(msg);
 
-  // HKEX
-  const hkexKeywords = /hkex|stock.?exchange|公告|年报|annual\s*report|filing|披露/i;
-  const includeHkex = hkexKeywords.test(msg);
-
   // Vision/audio
   const mediaKeywords = /image|picture|photo|vision|看图|图片|截图|audio|transcribe|录音|语音|voice/i;
   const includeMedia = mediaKeywords.test(msg);
@@ -501,7 +497,6 @@ function selectRelevantTools(userMessage, allSchemas, specialistMode) {
     if (alwaysInclude.has(s.name)) return true;
     if (includeAudit && ALL_AUDIT_TOOL_NAMES.has(s.name)) return true;
     if (includeFinance && s.name === 'financial_statement_analyze') return true;
-    if (includeHkex && s.name === 'hkex_download') return true;
     if (includeMedia && /^(vision_analyze|transcribe_audio)$/.test(s.name)) return true;
     if (includeBrowser && s.name === 'browser_action') return true;
     return false;
@@ -601,7 +596,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   const specialistMode = String(req.body?.specialist_mode || "").trim().toLowerCase();
   const specialistCategory = String(req.body?.specialist_category || "").trim().toLowerCase();
   const isDeepSearch = req.body?.deep_search === true;
-  const isHkexDownload = req.body?.hkex_download === true;
   if (!userQueryText) {
     const lastUser = [...messages].reverse().find((m) => m?.role === "user");
     userQueryText = stripAttachmentContextBlocks(extractMessagePlainText(lastUser?.content));
@@ -1278,10 +1272,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
           const ds = allSchemas.find(s => s.name === 'deep_search');
           if (ds) relevant = [...relevant, ds];
         }
-        if (isHkexDownload && !relevant.some(s => s.name === 'hkex_download')) {
-          const hkexSchema = allSchemas.find(s => s.name === 'hkex_download');
-          if (hkexSchema) relevant = [...relevant, hkexSchema];
-        }
         if (relevant.length > 0) {
           nativeToolsParam = formatNativeTools(pnLower, relevant);
           log("info", "Native tools enabled", { provider: pnLower, model: modelId, toolCount: relevant.length, tools: relevant.map(s => s.name) });
@@ -1312,21 +1302,6 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
   // ── Deep Search mode: force AI to use deep_search tool ──
   if (isDeepSearch) {
     injectedSystemPrompt += `\nIMPORTANT: The user has activated Deep Search mode. You MUST call the deep_search tool with the user's question as the query. Do not answer from your own knowledge — use the tool to perform multi-round research and return a comprehensive report with citations. Call deep_search now.\n`;
-  }
-
-  // ── HKEX Download mode: force AI to use hkex_download tool ──
-  if (isHkexDownload) {
-    injectedSystemPrompt += `\nIMPORTANT: The user wants to download HKEX filings. Follow these steps:
-1. First, briefly acknowledge the request in 1-2 sentences (e.g. "正在为您从港交所下载...").
-2. Then call the hkex_download tool with these EXACT parameter names:
-   - stock_code: string (e.g. "00700", pad to 5 digits)
-   - doc_type: "annual" | "interim" | "results" | "circular" | "all"
-   - date_from: "YYYY-MM-DD" (optional)
-   - date_to: "YYYY-MM-DD" (optional, defaults to today)
-   Do NOT use "start_date" or "end_date" — the correct names are date_from and date_to.
-3. Do NOT tell the user to visit hkexnews.hk — you have the tool to do it.
-4. If the tool returns 0 results: the stock code is CORRECT (it was selected from the official HKEX stock list). Simply relay the tool's message — do NOT say the code is wrong or invalid. Suggest trying a different doc_type or date range.
-5. If the tool indicates fallback results (e.g. Annual Results instead of Annual Report), clearly tell the user what was found and that no Annual Report exists for this period.\n`;
   }
 
   // ── Build provider request ──

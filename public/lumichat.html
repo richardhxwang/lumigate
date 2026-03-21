@@ -1967,7 +1967,7 @@ let isStreaming = false, abortCtrl = null, pendingFiles = [], pendingQueue = nul
 let providersData = [], modelsData = {};
 let _settingsUi = null;
 let _tierData = null; // { tier, rpm, providers: [{ name, access, keyUrl }] }
-let toastTimer = null, rafId = null, streamEl = null, streamText = '', pendingDelta = '', streamRow = null;
+let toastTimer = null, rafId = null, streamEl = null, streamText = '', streamRow = null;
 let dropProvider = null;
 let autoFollowStream = true;
 let forceWebSearch = false;
@@ -2874,7 +2874,6 @@ function newChat(){
   streamEl=null;
   streamText='';
   streamRow=null;
-  pendingDelta='';
   _bgTaskCard=null;
   _bgTaskSteps=[];
   currentSid=null; messages=[];
@@ -3855,7 +3854,7 @@ async function sendMessage(){
     aRow.style.display='none'; // hidden until first content
     streamRow=aRow;
     const aEl=aRow.querySelector('.asst-content');
-    streamEl=aEl; streamText=''; pendingDelta='';
+    streamEl=aEl; streamText='';
 
     abortCtrl=new AbortController();
 
@@ -4288,7 +4287,7 @@ async function sendMessage(){
     }
   }finally{
     const queued=pendingQueue; pendingQueue=null;
-    isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; pendingDelta=''; streamRow=null;
+    isStreaming=false; abortCtrl=null; streamEl=null; streamText=''; streamRow=null;
     cancelAnimationFrame(rafId);
     updateSendBtn(); scrollBot(); msgIn.focus();
     // Process queued message (sent during streaming) — after partial save resolved
@@ -7324,7 +7323,7 @@ msgIn.addEventListener('input',()=>{
         const afterPrefix = c.cmd.slice(prefix.length - 1); // include space
         return _fuzzySlashMatch(subTyped.slice(prefix.length - 1), afterPrefix) > 0 || c.cmd.includes(subTyped.slice(1));
       }) : items;
-      showSlashPanel(filtered.length ? null : null, key);
+      showSlashPanel(filtered.length ? filtered : null, key);
       if(filtered.length && subTyped){
         _renderSlashItems(filtered, true);
       }
