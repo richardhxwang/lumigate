@@ -109,18 +109,21 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── Trading context fetcher ───────────────────────────────────────────────
 
-  async function fetchTradingContext(userMessage) {
+  async function fetchTradingContext(userMessage, userId) {
     const ctx = { positions: null, pnl: null, signals: null, history: null, journal: null, mood: null, rag: null };
+
+    // PB user filter — only return records belonging to the authenticated user
+    const userFilter = userId ? `&filter=(user_id='${userId}')` : '';
 
     // All fetches in parallel — best-effort, any failure returns null
     const tasks = [
       engineFetch("/positions").then(r => r.ok ? r.json() : null).catch(() => null),
       engineFetch("/pnl").then(r => r.ok ? r.json() : null).catch(() => null),
       engineFetch("/signals?limit=5").then(r => r.ok ? r.json() : null).catch(() => null),
-      // PB historical data
-      tradePbFetch("/api/collections/trade_history/records?perPage=10").then(r => r.ok ? r.json() : null).catch(() => null),
-      tradePbFetch("/api/collections/trade_journal/records?perPage=5").then(r => r.ok ? r.json() : null).catch(() => null),
-      tradePbFetch("/api/collections/trade_mood_logs/records?perPage=3").then(r => r.ok ? r.json() : null).catch(() => null),
+      // PB historical data — scoped to the requesting user
+      tradePbFetch(`/api/collections/trade_history/records?perPage=10${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      tradePbFetch(`/api/collections/trade_journal/records?perPage=5${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      tradePbFetch(`/api/collections/trade_mood_logs/records?perPage=3${userFilter}`).then(r => r.ok ? r.json() : null).catch(() => null),
       // RAG search — use user's last message as query for relevant knowledge
       userMessage
         ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null).catch(() => null)
@@ -218,12 +221,13 @@ module.exports = function createLumiTraderRouter(deps) {
       }
 
       // Fetch trading context and prepend to system prompt
-      // Use last user message for RAG search
+      // Use last user message for RAG search; scope PB queries to the authenticated user
+      const userId = req.user?.id || '';
       const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
       const userQuery = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
       let contextBlock = "";
       try {
-        const ctx = await fetchTradingContext(userQuery);
+        const ctx = await fetchTradingContext(userQuery, userId);
         contextBlock = formatTradingContext(ctx);
       } catch { /* context fetch is best-effort */ }
 
