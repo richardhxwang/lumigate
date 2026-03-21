@@ -1580,10 +1580,10 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     // Test route gets an even more aggressive "ultra-smooth" profile.
     const referer = String(req.headers.referer || "");
     const isLumichatTestClient = referer.includes("/lumichat/test");
-    // Hold buffer must be >= longest TOOL_TAG_MARKER (6 chars for "[TOOL:") to avoid leaking partial tags
-    const TOOL_TAG_HOLD_CHARS = isLumichatTestClient ? 8 : 12;
-    const TOOL_TAG_FAST_HOLD_CHARS = isLumichatTestClient ? 6 : 8;
-    const TOOL_TAG_FAST_FLUSH_MS = isLumichatTestClient ? 80 : 150;
+    // Hold buffer: just enough to detect "[TOOL:" (6 chars). Keep small to avoid stutter.
+    const TOOL_TAG_HOLD_CHARS = isLumichatTestClient ? 4 : 7;
+    const TOOL_TAG_FAST_HOLD_CHARS = isLumichatTestClient ? 1 : 3;
+    const TOOL_TAG_FAST_FLUSH_MS = isLumichatTestClient ? 80 : 100;
     let pendingSinceTs = 0;
 
     const isAnthropic = pnLower === "anthropic";

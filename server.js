@@ -1754,6 +1754,9 @@ app.get("/lumichat", (req, res) => {
   res.send(html);
 });
 
+// /lumichat.html → redirect to /lumichat (canonical route)
+app.get("/lumichat.html", (req, res) => res.redirect(301, "/lumichat"));
+
 // FreqUI auto-login token endpoint — password stays server-side
 app.post("/lumitrade/frequi-token", async (req, res) => {
   const ftUrl = process.env.TRADE_FREQTRADE_URL || "http://lumigate-freqtrade:8080";
