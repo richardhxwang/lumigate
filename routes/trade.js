@@ -556,16 +556,16 @@ module.exports = function createTradeRouter(deps) {
         }
         const fullResult = await detailRes.json();
 
-        // Extract metrics from the result — freqtrade nests them under strategy key
-        const stratData = (fullResult.strategy && fullResult.strategy[strategyName]) || {};
+        // Extract metrics — freqtrade nests: { backtest_result: { strategy: { SMCStrategy: {...} } } }
+        const btResult = fullResult.backtest_result || fullResult;
+        const stratData = (btResult.strategy && btResult.strategy[strategyName]) || (fullResult.strategy && fullResult.strategy[strategyName]) || {};
         const summary = stratData.results_per_pair
           ? null  // multi-pair — use totals
           : null;
         void summary;  // not used, metrics come from totals below
 
-        const totalMetrics = stratData.total_trades != null ? stratData : (fullResult.stats || {});
-        const config = fullResult.config || {};
-        const backtest = fullResult.backtest || {};
+        const totalMetrics = stratData.total_trades != null ? stratData : {};
+        const config = stratData; // strategy data contains timeframe, trading_mode, etc.
 
         // Determine next version number (count existing + 1)
         const countRes = await tradePbFetch(`/api/collections/trade_backtest_results/records?perPage=1`);
@@ -579,23 +579,31 @@ module.exports = function createTradeRouter(deps) {
         // Build PB record
         const record = {
           version,
-          description: entry.notes || `${strategyName} backtest`,
+          description: `${strategyName} | ${stratData.trading_mode || "spot"} | ${stratData.backtest_start || "?"} to ${stratData.backtest_end || "?"} | ${stratData.total_trades || 0} trades`,
           strategy_name: strategyName,
-          exchange: config.exchange ? (config.exchange.name || "") : "",
-          trading_mode: config.trading_mode || backtest.trading_mode || "spot",
-          timerange: config.timerange || backtest.timerange || "",
-          timeframe: config.timeframe || backtest.timeframe || "",
-          total_trades: totalMetrics.total_trades || 0,
-          wins: totalMetrics.wins || 0,
-          losses: totalMetrics.losses || 0,
-          winrate: totalMetrics.winrate != null ? totalMetrics.winrate : (totalMetrics.win_ratio || 0),
-          profit_total_abs: totalMetrics.profit_total_abs || 0,
-          profit_total_pct: totalMetrics.profit_total || 0,
-          max_drawdown_abs: totalMetrics.max_drawdown_abs || totalMetrics.max_drawdown || 0,
-          max_drawdown_pct: totalMetrics.max_drawdown_account || totalMetrics.max_drawdown_per || 0,
-          sharpe: totalMetrics.sharpe || 0,
-          profit_factor: totalMetrics.profit_factor || 0,
-          tags: [],
+          exchange: stratData.exchange || entry.exchange || "",
+          trading_mode: stratData.trading_mode || "spot",
+          timerange: `${stratData.backtest_start || ""} - ${stratData.backtest_end || ""}`,
+          timeframe: stratData.timeframe || entry.timeframe || "",
+          total_trades: stratData.total_trades || 0,
+          wins: stratData.wins || 0,
+          losses: stratData.losses || 0,
+          winrate: stratData.winrate != null ? stratData.winrate : 0,
+          profit_total_abs: stratData.profit_total_abs || 0,
+          profit_total_pct: stratData.profit_total || 0,
+          max_drawdown_abs: stratData.max_drawdown_abs || 0,
+          max_drawdown_pct: stratData.max_drawdown_account || 0,
+          sharpe: stratData.sharpe || 0,
+          profit_factor: stratData.profit_factor || 0,
+          sortino: stratData.sortino || 0,
+          calmar: stratData.calmar || 0,
+          avg_duration: stratData.holding_avg || "",
+          pairs_count: (stratData.pairlist || []).length || 0,
+          tags: [
+            stratData.freqaimodel ? "lumilearning" : "pure-smc",
+            stratData.trading_mode || "spot",
+            stratData.can_short ? "long+short" : "long-only",
+          ].filter(Boolean),
           result_json: fullResult,
           filename,
           user_id: "",
