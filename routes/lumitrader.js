@@ -110,7 +110,7 @@ module.exports = function createLumiTraderRouter(deps) {
   // ── Trading context fetcher ───────────────────────────────────────────────
 
   async function fetchTradingContext(userMessage, userId) {
-    const ctx = { positions: null, pnl: null, signals: null, history: null, journal: null, mood: null, rag: null };
+    const ctx = { positions: null, pnl: null, signals: null, history: null, journal: null, mood: null, rag: null, backtestHistory: null };
 
     // PB user filter — only return records belonging to the authenticated user
     const userFilter = userId ? `&filter=(user_id='${userId}')` : '';
@@ -128,9 +128,13 @@ module.exports = function createLumiTraderRouter(deps) {
       userMessage
         ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null).catch(() => null)
         : Promise.resolve(null),
+      // Latest backtest result history from backtest webserver
+      fetch("http://lumigate-freqtrade-bt:8080/api/v1/backtest/history", {
+        headers: { Authorization: "Basic " + Buffer.from("lumitrade:123123@").toString("base64") },
+      }).then(r => r.ok ? r.json() : null).catch(() => null),
     ];
 
-    const [positions, pnl, signals, history, journal, mood, rag] = await Promise.all(tasks);
+    const [positions, pnl, signals, history, journal, mood, rag, backtestHistory] = await Promise.all(tasks);
     ctx.positions = positions;
     ctx.pnl = pnl;
     ctx.signals = signals;
@@ -138,6 +142,7 @@ module.exports = function createLumiTraderRouter(deps) {
     ctx.journal = journal;
     ctx.mood = mood;
     ctx.rag = rag;
+    ctx.backtestHistory = backtestHistory;
     return ctx;
   }
 
@@ -205,6 +210,26 @@ module.exports = function createLumiTraderRouter(deps) {
       if (lines.length > 0) {
         parts.push(`[Relevant Knowledge]\n${lines.join("\n")}`);
       }
+    }
+
+    // Latest backtest results
+    const btHistory = ctx.backtestHistory;
+    if (Array.isArray(btHistory) && btHistory.length > 0) {
+      const latest = btHistory[0];
+      const lines = [
+        `  strategy:${latest.strategy || "?"} timeframe:${latest.timeframe || "?"} file:${latest.filename || "?"}`,
+      ];
+      // Include key stats if present (freqtrade backtest history response shape)
+      if (latest.wins !== undefined || latest.losses !== undefined) {
+        lines.push(`  wins:${latest.wins ?? "?"} losses:${latest.losses ?? "?"} draws:${latest.draws ?? "?"}`);
+      }
+      if (latest.profit_total_abs !== undefined) {
+        lines.push(`  total_profit:${latest.profit_total_abs ?? "?"} profit_factor:${latest.profit_factor ?? "?"}`);
+      }
+      if (latest.backtest_start && latest.backtest_end) {
+        lines.push(`  period:${latest.backtest_start} → ${latest.backtest_end}`);
+      }
+      parts.push(`[Latest Backtest]\n${lines.join("\n")}`);
     }
 
     if (parts.length === 0) return "";
