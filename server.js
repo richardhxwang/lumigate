@@ -2766,8 +2766,75 @@ try {
     log,
   });
   log("info", "User memory service initialized", { component: "user-memory" });
+
+  // Register memory tools in unified registry (GPT-style: AI decides when to save/recall)
+  if (unifiedRegistry) {
+    unifiedRegistry.registerTool({
+      name: "memory_search",
+      description: "Search your long-term memory about this user.",
+      input_schema: { type: "object", properties: { query: { type: "string" }, mode: { type: "string", enum: ["search", "all"], default: "search" } }, required: ["query"] },
+    }, async (input) => {
+      const userId = input._caller_user_id;
+      // Only real PB user IDs — reject project names, "api", empty
+      if (!userId || userId === "api" || userId.length < 10) return { data: { memories: "Memory requires user login." } };
+      if (input.mode === "all") {
+        const all = await userMemory._getAllMemories(userId, 100);
+        const profile = await userMemory._getProfile(userId);
+        const formatted = userMemory._formatContext(profile, userMemory._deduplicateMemories(all), { fullDump: true });
+        return { data: { memories: formatted || "No memories stored yet.", count: all.length } };
+      }
+      const result = await userMemory.recall(userId, input.query || "", { limit: 15 });
+      return { data: { memories: result || "No relevant memories found.", query: input.query } };
+    });
+
+    unifiedRegistry.registerTool({
+      name: "memory_save",
+      description: "Save a fact about the user to long-term memory.",
+      input_schema: { type: "object", properties: { text: { type: "string" }, category: { type: "string", default: "fact" }, importance: { type: "integer", default: 3 } }, required: ["text"] },
+    }, async (input) => {
+      const userId = input._caller_user_id;
+      if (!userId || userId === "api" || userId.length < 10) return { data: { saved: false, error: "Memory requires user login" } };
+      await userMemory._ensureCollection(userId);
+      await userMemory._storeFact(userId, {
+        category: input.category || "fact",
+        text: (input.text || "").slice(0, 500),
+        entity_type: input.entity_type || null,
+        entity_id: input.entity_id || null,
+        importance: Math.min(5, Math.max(1, Number(input.importance) || 3)),
+      }, { sessionId: input._session_id || "" });
+      return { data: { saved: true, text: input.text } };
+    });
+
+    log("info", "Memory tools registered in unified registry", { component: "user-memory", tools: ["memory_search", "memory_save"] });
+  }
 } catch (err) {
   log("warn", "User memory service init failed (non-fatal)", { component: "user-memory", error: err.message });
+}
+
+// --- Deep Search tool ---
+try {
+  const { createLlmHelper } = require("./services/deep-search/llm-helper");
+  const { createOrchestrator } = require("./services/deep-search/orchestrator");
+  const deepSearchLlm = createLlmHelper({ PROVIDERS, selectApiKey, log });
+  const deepSearchOrchestrator = createOrchestrator({ llm: deepSearchLlm, log });
+
+  unifiedRegistry.registerTool(
+    require("./tools/schemas/deep_search.json"),
+    async (input) => {
+      const userId = input._caller_user_id;
+      const onProgress = typeof input._progress_sink === "function" ? input._progress_sink : () => {};
+      const result = await deepSearchOrchestrator.run(input.query, {
+        maxRounds: input.max_rounds || 5,
+        callerProvider: input._caller_provider,
+        callerModel: input._caller_model,
+        onProgress: (msg) => onProgress({ text: msg.message, icon: "search", done: msg.phase === "complete" }),
+      });
+      return { data: result };
+    }
+  );
+  log("info", "Deep Search tool registered", { component: "deep-search" });
+} catch (err) {
+  log("warn", "Deep Search tool init failed (non-fatal)", { component: "deep-search", error: err.message });
 }
 
 // Retry a failed proxy request with a different API key using fetch
@@ -3535,6 +3602,16 @@ try {
   log("info", "LumiTrade routes mounted at /v1/trade/*");
 } catch (e) {
   log("warn", "LumiTrade routes not loaded", { error: e.message });
+}
+
+// ── LumiTrader AI routes ──────────────────────────────────────────────────────
+try {
+  const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
+  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL });
+  app.use(_lumitraderResult.router);
+  log("info", "LumiTrader routes mounted at /lumitrader/*");
+} catch (e) {
+  log("warn", "LumiTrader routes not loaded", { error: e.message });
 }
 
 // Template filler REST endpoint

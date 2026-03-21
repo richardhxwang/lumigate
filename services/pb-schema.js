@@ -523,6 +523,56 @@ const PB_COLLECTIONS = [
       { name: "user_id", type: "text" },
     ],
   },
+
+  // ── LumiTrader (trading AI assistant) collections ──────────────────────
+  {
+    name: "lt_sessions",
+    type: "base",
+    schema: [
+      { name: "title", type: "text" },
+      { name: "user_id", type: "text" },
+      { name: "model", type: "text" },
+      { name: "preset", type: "text" },
+      { name: "message_count", type: "number" },
+      { name: "last_message_at", type: "text" },
+      { name: "context_snapshot", type: "json" },
+    ],
+  },
+  {
+    name: "lt_messages",
+    type: "base",
+    schema: [
+      { name: "session_id", type: "text", required: true },
+      { name: "role", type: "text" },
+      { name: "content", type: "text" },
+      { name: "model", type: "text" },
+      { name: "tokens_in", type: "number" },
+      { name: "tokens_out", type: "number" },
+      { name: "tool_calls", type: "json" },
+      { name: "context_data", type: "json" },
+    ],
+  },
+  {
+    name: "lt_user_settings",
+    type: "base",
+    schema: [
+      { name: "user_id", type: "text", required: true },
+      { name: "chat_style", type: "text" },
+      { name: "auto_execute", type: "text" },
+      { name: "language", type: "text" },
+      { name: "chart_analysis", type: "text" },
+      { name: "context_injection", type: "text" },
+      { name: "notification_mode", type: "text" },
+      { name: "journal_mode", type: "text" },
+      { name: "strategy_dev", type: "text" },
+      { name: "risk_control", type: "text" },
+      { name: "data_scope", type: "text" },
+      { name: "history_retention", type: "text" },
+      { name: "preferred_model", type: "text" },
+      { name: "presets", type: "json" },
+      { name: "custom_prompt", type: "text" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------

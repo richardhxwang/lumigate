@@ -402,9 +402,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:5000/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     logging: *logging-default
 
   ib-gateway:
@@ -416,13 +416,18 @@ services:
       - "127.0.0.1:4001:4001"
       - "127.0.0.1:4002:4002"
       - "127.0.0.1:5900:5900"
+    volumes:
+      - ./lumitrade/ib-gateway/jts.ini:/home/ibgateway/Jts/jts.ini
     environment:
       - TWS_USERID=${IBKR_USERNAME:-}
       - TWS_PASSWORD=${IBKR_PASSWORD:-}
       - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
+      - CUSTOM_CONFIG=yes
+      - TWS_SETTINGS_PATH=
       - TWS_ACCEPT_INCOMING=accept
       - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
       - VNC_SERVER_PASSWORD=${IBKR_VNC_PASSWORD:-lumitrade}
+      - TIME_ZONE=Asia/Hong_Kong
     ulimits:
       nofile:
         soft: 10000
