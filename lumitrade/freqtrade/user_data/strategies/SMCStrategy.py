@@ -17,19 +17,21 @@ class SMCStrategy(IStrategy):
     timeframe = "15m"
     startup_candle_count = 200
     process_only_new_candles = True
-    use_exit_signal = True
+    use_exit_signal = True  # CHoCH exit limits SL damage (saves ~2000 USDT vs no exit signal)
+    use_custom_stoploss = False
 
-    # Risk management
-    minimal_roi = {"0": 0.06, "30": 0.04, "60": 0.02, "120": 0.01}
-    stoploss = -0.03
+    # Risk management — hyperopt-optimized (2025-06 to 2026-03, 292 days)
+    # Wide ROI lets winners run; wide SL avoids noise stops; trailing locks profit at 20%+
+    minimal_roi = {"0": 0.306, "109": 0.107, "273": 0.039, "625": 0}
+    stoploss = -0.077
     trailing_stop = True
-    trailing_stop_positive = 0.01
-    trailing_stop_positive_offset = 0.02
+    trailing_stop_positive = 0.201
+    trailing_stop_positive_offset = 0.203
     trailing_only_offset_is_reached = True
 
-    # Hyperoptable parameters
-    swing_length = IntParameter(5, 50, default=10, space="buy", optimize=True)
-    ob_strength_min = DecimalParameter(0.3, 0.8, default=0.5, space="buy", optimize=True)
+    # Hyperoptable parameters (optimized values baked in)
+    swing_length = IntParameter(5, 50, default=5, space="buy", optimize=True)
+    ob_strength_min = DecimalParameter(0.3, 0.8, default=0.381, space="buy", optimize=True)
 
     def informative_pairs(self):
         pairs = self.dp.current_whitelist()
