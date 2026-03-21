@@ -14,7 +14,7 @@ class SMCStrategy(IStrategy):
     """
 
     INTERFACE_VERSION = 3
-    can_short = False
+    can_short = True  # Futures mode — long + short
 
     timeframe = "15m"
     startup_candle_count = 200
@@ -112,8 +112,9 @@ class SMCStrategy(IStrategy):
             dataframe["liq_level"] = 0.0
             dataframe["liq_swept"] = 0
 
-        # FreqAI entry point — REQUIRED for model training and prediction
-        dataframe = self.freqai.start(dataframe, metadata, self)
+        # FreqAI / LumiLearning — only run if enabled in config
+        if self.freqai and hasattr(self, 'freqai') and self.config.get('freqai', {}).get('enabled', False):
+            dataframe = self.freqai.start(dataframe, metadata, self)
 
         return dataframe
 
@@ -204,13 +205,58 @@ class SMCStrategy(IStrategy):
             "enter_long",
         ] = 1
 
+        # Short entries — mirror of long with bearish signals (-1)
+        # Primary: bearish BOS/CHoCH + bearish OB + bearish FVG
+        dataframe.loc[
+            (
+                ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
+                & (dataframe["ob_direction"] == -1)
+                & (dataframe["fvg_direction"] == -1)
+                & (dataframe["close"] >= dataframe["ob_bottom"])
+                & (dataframe["close"] <= dataframe["ob_top"])
+                & (dataframe["volume"] > 0)
+                & freqai_ok
+            ),
+            "enter_short",
+        ] = 1
+
+        # Fallback: bearish BOS/CHoCH + bearish FVG
+        dataframe.loc[
+            (
+                (dataframe["enter_short"] != 1)
+                & ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
+                & (dataframe["fvg_direction"] == -1)
+                & (dataframe["volume"] > 0)
+                & freqai_ok
+            ),
+            "enter_short",
+        ] = 1
+
+        # Minimal: bearish FVG + liquidity swept (BSL sweep → short)
+        dataframe.loc[
+            (
+                (dataframe["enter_short"] != 1)
+                & (dataframe["fvg_direction"] == -1)
+                & (dataframe["liq_swept"] == 1)
+                & (dataframe["volume"] > 0)
+                & freqai_ok
+            ),
+            "enter_short",
+        ] = 1
+
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Exit on bearish CHoCH (change of character = trend reversal)
+        # Exit long on bearish CHoCH
         dataframe.loc[
             ((dataframe["choch"] == -1) & (dataframe["volume"] > 0)),
             "exit_long",
+        ] = 1
+
+        # Exit short on bullish CHoCH
+        dataframe.loc[
+            ((dataframe["choch"] == 1) & (dataframe["volume"] > 0)),
+            "exit_short",
         ] = 1
 
         return dataframe

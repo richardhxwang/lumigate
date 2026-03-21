@@ -6867,6 +6867,8 @@ function slashHkex(){
 }
 
 function _hkexRenderStep1(){
+  // Remove Step 2 keydown handler when returning to Step 1
+  if(_hkexStep2KeyHandler) { _hkexOverlay.removeEventListener('keydown', _hkexStep2KeyHandler); _hkexStep2KeyHandler = null; }
   const zh = _lang==='zh';
   const modal = document.getElementById('hkex-modal-inner');
   modal.innerHTML = `
@@ -7206,6 +7208,7 @@ async function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='
 }
 
 function closeHkex(){
+  if(_hkexStep2KeyHandler) { _hkexOverlay?.removeEventListener('keydown', _hkexStep2KeyHandler); _hkexStep2KeyHandler = null; }
   if(_hkexOverlay) _hkexOverlay.classList.remove('show');
 }
 function slashRetry(){
