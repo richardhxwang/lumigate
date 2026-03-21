@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 QDRANT_URL = "http://lumigate-qdrant:6333"
 COLLECTION = "lumitrade_rag"
-EMBED_DIM = 384  # all-MiniLM-L6-v2 dimension
+EMBED_DIM = 256  # hash-based pseudo-embedding dimension (matches Qdrant collection)
 
 
 class TradingRAG:
@@ -36,9 +36,12 @@ class TradingRAG:
     def _text_to_embedding(self, text: str) -> list[float]:
         """Simple hash-based pseudo-embedding (replace with real model later)."""
         # For MVP: use hash-based vectors. In production, use sentence-transformers.
+        # SHA-256 = 32 bytes. Repeat to fill EMBED_DIM floats, then trim.
         h = hashlib.sha256(text.encode()).digest()
-        vec = [float(b) / 255.0 for b in h[:EMBED_DIM // 8] * (EMBED_DIM // (EMBED_DIM // 8))]
-        return vec[:EMBED_DIM]
+        repeats = (EMBED_DIM // len(h)) + 1
+        vec = [float(b) / 255.0 for b in (h * repeats)[:EMBED_DIM]]
+        assert len(vec) == EMBED_DIM, f"embedding dim {len(vec)} != {EMBED_DIM}"
+        return vec
 
     def _make_id(self, text: str) -> int:
         """Generate deterministic point ID from text."""

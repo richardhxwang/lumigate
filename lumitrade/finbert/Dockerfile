@@ -5,7 +5,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir \
     flask==3.1.0 \
     transformers==4.47.1 \
-    torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.5.1 --extra-index-url https://download.pytorch.org/whl/cpu \
     gunicorn==23.0.0
 
 COPY server.py .

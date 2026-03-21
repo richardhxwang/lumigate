@@ -398,7 +398,7 @@ services:
     expose:
       - "5000"
     ports:
-      - "127.0.0.1:18792:5000"
+      - "127.0.0.1:18796:5000"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:5000/health"]
       interval: 30s
