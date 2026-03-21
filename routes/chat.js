@@ -1053,7 +1053,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       }
       // Deduplicate by URL
       const seen = new Set();
-      allResults = allResults.filter(r => { if (seen.has(r.url)) return false; seen.add(r.url); return true; }).slice(0, 8);
+      allResults = allResults.filter(r => { if (seen.has(r.url)) return false; seen.add(r.url); return true; }).slice(0, 30);
       // Hard fallback for official tax-form lookup when upstream search is empty.
       if ((chatIntent.officialFormLookup || isTaxFormDownloadIntent) && allResults.length === 0) {
         allResults = getOfficialFormFallbackResults(userText);
