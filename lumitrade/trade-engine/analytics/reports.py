@@ -3,9 +3,22 @@ import logging
 from datetime import datetime
 from io import StringIO
 
+import math
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(val, decimals: int = 2, multiplier: float = 1.0) -> float:
+    """Convert a value to a JSON-safe float, replacing NaN/Inf with 0."""
+    try:
+        f = float(val) * multiplier
+        if math.isnan(f) or math.isinf(f):
+            return 0.0
+        return round(f, decimals)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 async def generate_performance_report(trades: list[dict], benchmark: str = "SPY") -> dict:
@@ -47,20 +60,20 @@ async def generate_performance_report(trades: list[dict], benchmark: str = "SPY"
     # Calculate metrics
     try:
         metrics = {
-            "total_return": round(float(qs.stats.comp(df)) * 100, 2),
-            "cagr": round(float(qs.stats.cagr(df)) * 100, 2) if len(df) > 1 else 0,
-            "sharpe": round(float(qs.stats.sharpe(df)), 3),
-            "sortino": round(float(qs.stats.sortino(df)), 3),
-            "max_drawdown": round(float(qs.stats.max_drawdown(df)) * 100, 2),
-            "calmar": round(float(qs.stats.calmar(df)), 3) if len(df) > 1 else 0,
-            "win_rate": round(float(qs.stats.win_rate(df)) * 100, 1),
-            "profit_factor": round(float(qs.stats.profit_factor(df)), 2),
-            "avg_win": round(float(qs.stats.avg_win(df)) * 100, 2),
-            "avg_loss": round(float(qs.stats.avg_loss(df)) * 100, 2),
-            "payoff_ratio": round(float(qs.stats.payoff_ratio(df)), 2),
-            "volatility": round(float(qs.stats.volatility(df)) * 100, 2),
-            "best_day": round(float(df.max()) * 100, 2),
-            "worst_day": round(float(df.min()) * 100, 2),
+            "total_return": _safe_float(qs.stats.comp(df), 2, 100),
+            "cagr": _safe_float(qs.stats.cagr(df), 2, 100) if len(df) > 1 else 0,
+            "sharpe": _safe_float(qs.stats.sharpe(df), 3),
+            "sortino": _safe_float(qs.stats.sortino(df), 3),
+            "max_drawdown": _safe_float(qs.stats.max_drawdown(df), 2, 100),
+            "calmar": _safe_float(qs.stats.calmar(df), 3) if len(df) > 1 else 0,
+            "win_rate": _safe_float(qs.stats.win_rate(df), 1, 100),
+            "profit_factor": _safe_float(qs.stats.profit_factor(df), 2),
+            "avg_win": _safe_float(qs.stats.avg_win(df), 2, 100),
+            "avg_loss": _safe_float(qs.stats.avg_loss(df), 2, 100),
+            "payoff_ratio": _safe_float(qs.stats.payoff_ratio(df), 2),
+            "volatility": _safe_float(qs.stats.volatility(df), 2, 100),
+            "best_day": _safe_float(df.max(), 2, 100),
+            "worst_day": _safe_float(df.min(), 2, 100),
             "total_trades": len(trades),
             "trading_days": len(df),
         }

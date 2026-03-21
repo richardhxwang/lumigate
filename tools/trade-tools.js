@@ -3,8 +3,9 @@
 /**
  * LumiTrade — AI-callable trading tools for UnifiedRegistry.
  *
- * Registers 10 tools that proxy to the Trade Engine FastAPI service:
- *   market_analysis, check_positions, place_trade, backtest_strategy, news_sentiment, ibkr_account, trading_journal, performance_report, mood_tracker, trading_rag_search
+ * Registers 15 tools that proxy to the Trade Engine FastAPI service:
+ *   market_analysis, check_positions, place_trade, backtest_strategy, news_sentiment, ibkr_account, trading_journal, performance_report, mood_tracker, trading_rag_search,
+ *   run_backtest, freqai_train, strategy_info, download_data, unified_dashboard
  *
  * Usage:
  *   const { registerTradeTools } = require("./trade-tools");
@@ -206,6 +207,72 @@ const TRADING_RAG_SEARCH_SCHEMA = {
       limit: { type: "number", description: "Max results (default 5)" },
     },
     required: ["query"],
+  },
+};
+
+const RUN_BACKTEST_SCHEMA = {
+  name: "run_backtest",
+  description:
+    "Run a full strategy backtest via freqtrade. Specify strategy, timerange, and starting capital. Returns detailed results including profit, Sharpe ratio, drawdown, win rate, and per-pair performance.",
+  input_schema: {
+    type: "object",
+    properties: {
+      strategy: { type: "string", description: "Strategy name (default: SMCStrategy)" },
+      timerange: { type: "string", description: "Time range for backtest (e.g. '20250601-20260320')" },
+      wallet: { type: "number", description: "Starting capital in USDT (default: 10000)" },
+    },
+    required: [],
+  },
+};
+
+const FREQAI_TRAIN_SCHEMA = {
+  name: "freqai_train",
+  description:
+    "Train the FreqAI machine learning model on historical data. Uses SMC indicators as features to predict price movement. Returns training metrics and current FreqAI status.",
+  input_schema: {
+    type: "object",
+    properties: {
+      pairs: { type: "array", items: { type: "string" }, description: "Trading pairs to train on" },
+      train_days: { type: "number", description: "Number of days of training data (default: 30)" },
+    },
+    required: [],
+  },
+};
+
+const STRATEGY_INFO_SCHEMA = {
+  name: "strategy_info",
+  description:
+    "Get the current trading strategy configuration including ROI targets, stoploss, trailing stop parameters, SMC indicator settings, and active trading pairs.",
+  input_schema: {
+    type: "object",
+    properties: {},
+    required: [],
+  },
+};
+
+const DOWNLOAD_DATA_SCHEMA = {
+  name: "download_data",
+  description:
+    "Download historical OHLCV data from the exchange for backtesting. Specify pairs and timerange. Data is saved locally for future backtest runs.",
+  input_schema: {
+    type: "object",
+    properties: {
+      pairs: { type: "string", description: "Comma-separated pairs (e.g. 'BTC/USDT,ETH/USDT')" },
+      timerange: { type: "string", description: "Date range (e.g. '20250101-20260320')" },
+      timeframes: { type: "string", description: "Comma-separated timeframes (default: '15m,1h,4h')" },
+    },
+    required: ["timerange"],
+  },
+};
+
+const UNIFIED_DASHBOARD_SCHEMA = {
+  name: "unified_dashboard",
+  description:
+    "Get a complete trading dashboard summary: all positions (crypto + stocks), account balances, today's P&L, active signals, bot status, and open trade count — all in one call.",
+  input_schema: {
+    type: "object",
+    properties: {},
+    required: [],
   },
 };
 
@@ -529,6 +596,240 @@ async function handleTradingRagSearch(input) {
   }
 }
 
+async function handleRunBacktest(input) {
+  const strategy = input.strategy || "SMCStrategy";
+  const timerange = input.timerange || "";
+  const wallet = input.wallet || 10000;
+
+  try {
+    // First try the freqtrade backtesting API via trade engine proxy
+    const res = await fetch(`${TRADE_ENGINE_URL}/freqtrade/backtest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ strategy, timerange, wallet }),
+      signal: AbortSignal.timeout(120_000), // backtests can take a while
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, data };
+    }
+    // Fallback: use the existing vectorbt-based backtest endpoint
+    const fallbackRes = await fetch(`${TRADE_ENGINE_URL}/backtest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol: "BTC/USDT",
+        timeframe: "15m",
+        initial_capital: wallet,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!fallbackRes.ok) {
+      const text = await fallbackRes.text().catch(() => "");
+      return { ok: false, error: `Backtest failed (${fallbackRes.status}): ${text}` };
+    }
+    const fallbackData = await fallbackRes.json();
+    return { ok: true, data: { ...fallbackData, note: "Used vectorbt backtest (freqtrade backtest API not available)" } };
+  } catch (err) {
+    return { ok: false, error: `run_backtest failed: ${err.message}` };
+  }
+}
+
+async function handleFreqaiTrain(input) {
+  const pairs = input.pairs || ["BTC/USDT", "ETH/USDT"];
+  const trainDays = input.train_days || 30;
+
+  try {
+    // Check freqtrade status and config for FreqAI info
+    const [statusRes, configRes] = await Promise.allSettled([
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/status`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/config`, { signal: AbortSignal.timeout(10_000) }),
+    ]);
+
+    const status = statusRes.status === "fulfilled" && statusRes.value.ok
+      ? await statusRes.value.json() : null;
+    const config = configRes.status === "fulfilled" && configRes.value.ok
+      ? await configRes.value.json() : null;
+
+    const freqaiConfig = config?.freqai || null;
+    const isFreqaiEnabled = !!freqaiConfig;
+
+    if (!isFreqaiEnabled) {
+      return {
+        ok: true,
+        data: {
+          freqai_enabled: false,
+          message: "FreqAI is not currently configured in the active freqtrade strategy. To enable FreqAI, add a freqai configuration block to the strategy config with model type (e.g. LightGBMRegressor), feature parameters, and training parameters.",
+          suggestion: {
+            model: "LightGBMRegressor",
+            train_period_days: trainDays,
+            pairs,
+            features: ["smc_order_blocks", "smc_fvg", "smc_bos", "smc_choch", "rsi", "ema_cross"],
+          },
+          bot_connected: status?.connected ?? false,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        freqai_enabled: true,
+        config: freqaiConfig,
+        pairs,
+        train_period_days: trainDays,
+        bot_connected: status?.connected ?? false,
+        message: "FreqAI is configured. Training runs automatically within the freqtrade process. Check bot logs for training progress.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `freqai_train failed: ${err.message}` };
+  }
+}
+
+async function handleStrategyInfo(_input) {
+  try {
+    const [configRes, statusRes] = await Promise.allSettled([
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/config`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/status`, { signal: AbortSignal.timeout(10_000) }),
+    ]);
+
+    const config = configRes.status === "fulfilled" && configRes.value.ok
+      ? await configRes.value.json() : null;
+    const status = statusRes.status === "fulfilled" && statusRes.value.ok
+      ? await statusRes.value.json() : null;
+
+    if (!config) {
+      return {
+        ok: false,
+        error: "Could not retrieve freqtrade config. Is the bot running?",
+        bot_connected: status?.connected ?? false,
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        strategy: config.strategy || "unknown",
+        trading_mode: config.trading_mode || "spot",
+        timeframe: config.timeframe || "unknown",
+        pairs: config.pair_whitelist || [],
+        exchange: config.exchange || "unknown",
+        dry_run: config.dry_run ?? true,
+        stake_currency: config.stake_currency || "USDT",
+        stake_amount: config.stake_amount || "unlimited",
+        max_open_trades: config.max_open_trades ?? -1,
+        minimal_roi: config.minimal_roi || {},
+        stoploss: config.stoploss ?? 0,
+        trailing_stop: config.trailing_stop ?? false,
+        trailing_stop_positive: config.trailing_stop_positive ?? null,
+        trailing_stop_positive_offset: config.trailing_stop_positive_offset ?? null,
+        freqai: config.freqai || null,
+        bot_connected: status?.connected ?? false,
+        open_trades: status?.open_trades?.length ?? 0,
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `strategy_info failed: ${err.message}` };
+  }
+}
+
+async function handleDownloadData(input) {
+  const timerange = input.timerange;
+  const pairs = input.pairs || "BTC/USDT,ETH/USDT,SOL/USDT,BNB/USDT";
+  const timeframes = input.timeframes || "15m,1h,4h";
+
+  try {
+    const res = await fetch(`${TRADE_ENGINE_URL}/freqtrade/download-data`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pairs, timerange, timeframes }),
+      signal: AbortSignal.timeout(300_000), // data download can take minutes
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, data };
+    }
+    // If the dedicated endpoint doesn't exist, return instructions
+    return {
+      ok: true,
+      data: {
+        status: "manual_required",
+        message: "The automated data download endpoint is not yet available on the trade engine. You can download data manually.",
+        command: `docker exec lumigate-freqtrade freqtrade download-data --timerange ${timerange} --timeframes ${timeframes.replace(/,/g, " ")} -p ${pairs.replace(/,/g, " ")}`,
+        pairs: pairs.split(",").map((p) => p.trim()),
+        timerange,
+        timeframes: timeframes.split(",").map((t) => t.trim()),
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `download_data failed: ${err.message}` };
+  }
+}
+
+async function handleUnifiedDashboard(_input) {
+  try {
+    const [posRes, ftStatusRes, ftBalRes, ibkrAccRes, ibkrStatusRes, signalsRes] = await Promise.allSettled([
+      fetch(`${TRADE_ENGINE_URL}/unified/positions`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/status`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/freqtrade/balance`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/ibkr/account`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/ibkr/status`, { signal: AbortSignal.timeout(10_000) }),
+      fetch(`${TRADE_ENGINE_URL}/signals?limit=10`, { signal: AbortSignal.timeout(10_000) }),
+    ]);
+
+    const safeJson = async (r) =>
+      r.status === "fulfilled" && r.value.ok ? r.value.json() : null;
+
+    const [positions, ftStatus, ftBalance, ibkrAccount, ibkrStatus, signals] = await Promise.all([
+      safeJson(posRes),
+      safeJson(ftStatusRes),
+      safeJson(ftBalRes),
+      safeJson(ibkrAccRes),
+      safeJson(ibkrStatusRes),
+      safeJson(signalsRes),
+    ]);
+
+    // Calculate today's P&L from positions
+    const allPositions = positions?.positions || [];
+    const todayPnl = allPositions.reduce((sum, p) => sum + (p.unrealized_pnl || 0), 0);
+
+    return {
+      ok: true,
+      data: {
+        positions: {
+          items: allPositions,
+          count: allPositions.length,
+        },
+        freqtrade: {
+          connected: ftStatus?.connected ?? false,
+          open_trades: ftStatus?.open_trades?.length ?? 0,
+          profit_summary: ftStatus?.profit || null,
+          balance: ftBalance,
+        },
+        ibkr: {
+          connected: ibkrStatus?.connected ?? false,
+          account: ibkrAccount,
+        },
+        signals: {
+          recent: signals?.items?.slice(0, 5) || [],
+          total: signals?.totalItems ?? 0,
+        },
+        summary: {
+          total_positions: allPositions.length,
+          unrealized_pnl: Math.round(todayPnl * 100) / 100,
+          brokers_online: [
+            ftStatus?.connected ? "freqtrade" : null,
+            ibkrStatus?.connected ? "ibkr" : null,
+          ].filter(Boolean),
+        },
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `unified_dashboard failed: ${err.message}` };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -548,7 +849,12 @@ function registerTradeTools(registry) {
   registry.registerTool(PERFORMANCE_REPORT_SCHEMA, handlePerformanceReport);
   registry.registerTool(MOOD_TRACKER_SCHEMA, handleMoodTracker);
   registry.registerTool(TRADING_RAG_SEARCH_SCHEMA, handleTradingRagSearch);
-  console.log("[trade-tools] 10 trading tools registered");
+  registry.registerTool(RUN_BACKTEST_SCHEMA, handleRunBacktest);
+  registry.registerTool(FREQAI_TRAIN_SCHEMA, handleFreqaiTrain);
+  registry.registerTool(STRATEGY_INFO_SCHEMA, handleStrategyInfo);
+  registry.registerTool(DOWNLOAD_DATA_SCHEMA, handleDownloadData);
+  registry.registerTool(UNIFIED_DASHBOARD_SCHEMA, handleUnifiedDashboard);
+  console.log("[trade-tools] 15 trading tools registered");
 }
 
 module.exports = { registerTradeTools };

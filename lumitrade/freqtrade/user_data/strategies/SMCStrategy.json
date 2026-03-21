@@ -1,0 +1,29 @@
+{
+  "strategy_name": "SMCStrategy",
+  "params": {
+    "max_open_trades": {
+      "max_open_trades": 8
+    },
+    "buy": {
+      "ob_strength_min": 0.662,
+      "swing_length": 5
+    },
+    "roi": {
+      "0": 0.094,
+      "81": 0.077,
+      "239": 0.019,
+      "581": 0
+    },
+    "stoploss": {
+      "stoploss": -0.077
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.237,
+      "trailing_stop_positive_offset": 0.267,
+      "trailing_only_offset_is_reached": true
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-03-21 05:12:43.810280+00:00"
+}

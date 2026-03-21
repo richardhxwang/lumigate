@@ -566,6 +566,86 @@ async def ft_balance():
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@app.get("/freqtrade/config")
+async def ft_config():
+    """Return freqtrade show_config (strategy, pairs, ROI, stoploss, etc.)."""
+    try:
+        return await ft_connector.get_config()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class FreqtradeBacktestRequest(BaseModel):
+    strategy: str = "SMCStrategy"
+    timerange: str = ""
+    wallet: float = 10000
+
+
+@app.post("/freqtrade/backtest")
+async def ft_backtest(req: FreqtradeBacktestRequest):
+    """Trigger a freqtrade backtest via its REST API."""
+    try:
+        body = {
+            "strategy": req.strategy,
+            "timerange": req.timerange,
+            "dry_run_wallet": req.wallet,
+        }
+        resp = await http_client.post(
+            f"{settings.freqtrade_url}/api/v1/backtest",
+            json=body,
+            auth=(settings.freqtrade_username, settings.freqtrade_password),
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Freqtrade backtest error: {e}")
+
+
+class DownloadDataRequest(BaseModel):
+    pairs: str = "BTC/USDT,ETH/USDT,SOL/USDT,BNB/USDT"
+    timerange: str
+    timeframes: str = "15m,1h,4h"
+
+
+@app.post("/freqtrade/download-data")
+async def ft_download_data(req: DownloadDataRequest):
+    """Download historical data via freqtrade for backtesting."""
+    import subprocess
+    pair_list = [p.strip() for p in req.pairs.split(",") if p.strip()]
+    tf_list = [t.strip() for t in req.timeframes.split(",") if t.strip()]
+
+    cmd = [
+        "freqtrade", "download-data",
+        "--timerange", req.timerange,
+        "--timeframes", *tf_list,
+        "-p", *pair_list,
+        "--config", "/freqtrade/user_data/config.json",
+    ]
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        return {
+            "ok": proc.returncode == 0,
+            "command": " ".join(cmd),
+            "stdout": proc.stdout[-2000:] if proc.stdout else "",
+            "stderr": proc.stderr[-2000:] if proc.stderr else "",
+            "pairs": pair_list,
+            "timeframes": tf_list,
+            "timerange": req.timerange,
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "Data download timed out after 5 minutes"}
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "error": "freqtrade binary not found in trade-engine container. Run download-data from the freqtrade container instead.",
+            "suggestion": f"docker exec lumigate-freqtrade freqtrade download-data --timerange {req.timerange} --timeframes {' '.join(tf_list)} -p {' '.join(pair_list)}",
+        }
+
+
 # --- Unified Endpoints (cross-broker) ---
 
 def detect_broker(symbol: str) -> str:

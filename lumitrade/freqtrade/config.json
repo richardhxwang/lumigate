@@ -1,7 +1,7 @@
 {
     "trading_mode": "spot",
     "margin_mode": "",
-    "max_open_trades": 5,
+    "max_open_trades": 8,
     "stake_currency": "USDT",
     "stake_amount": "unlimited",
     "tradable_balance_ratio": 0.99,
@@ -77,5 +77,28 @@
     "force_entry_enable": true,
     "internals": {
         "process_throttle_secs": 5
+    },
+    "freqai": {
+        "enabled": true,
+        "purge_old_models": 2,
+        "train_period_days": 30,
+        "backtest_period_days": 7,
+        "identifier": "smc_lgbm",
+        "feature_parameters": {
+            "include_timeframes": ["15m", "1h", "4h"],
+            "include_corr_pairlist": ["BTC/USDT"],
+            "indicator_periods_candles": [10, 20, 50],
+            "label_period_candles": 12,
+            "include_shifted_candles": 2
+        },
+        "data_split_parameters": {
+            "test_size": 0.33,
+            "random_state": 1
+        },
+        "model_training_parameters": {
+            "n_estimators": 1000,
+            "learning_rate": 0.02,
+            "max_depth": 8
+        }
     }
 }

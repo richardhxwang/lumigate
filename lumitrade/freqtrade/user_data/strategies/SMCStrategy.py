@@ -1,5 +1,6 @@
 from freqtrade.strategy import IStrategy, IntParameter, DecimalParameter
 from pandas import DataFrame
+import talib as ta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,12 @@ class SMCStrategy(IStrategy):
     trailing_stop_positive = 0.201
     trailing_stop_positive_offset = 0.203
     trailing_only_offset_is_reached = True
+
+    # FreqAI configuration
+    freqai_info = {
+        "model": "LightGBMRegressor",
+        "conv_width": 10,
+    }
 
     # Hyperoptable parameters (optimized values baked in)
     swing_length = IntParameter(5, 50, default=5, space="buy", optimize=True)
@@ -106,7 +113,44 @@ class SMCStrategy(IStrategy):
 
         return dataframe
 
+    # --- FreqAI feature engineering methods ---
+
+    def feature_engineering_expand_all(self, dataframe, period, metadata, **kwargs):
+        dataframe["%-close_pct"] = dataframe["close"].pct_change(period)
+        dataframe["%-volume_pct"] = dataframe["volume"].pct_change(period)
+        dataframe["%-high_low_pct"] = (dataframe["high"] - dataframe["low"]) / dataframe["close"]
+        return dataframe
+
+    def feature_engineering_expand_basic(self, dataframe, metadata, **kwargs):
+        dataframe["%-rsi"] = ta.RSI(dataframe["close"], timeperiod=14)
+        dataframe["%-mfi"] = ta.MFI(dataframe["high"], dataframe["low"], dataframe["close"], dataframe["volume"], timeperiod=14)
+        dataframe["%-adx"] = ta.ADX(dataframe["high"], dataframe["low"], dataframe["close"], timeperiod=14)
+        return dataframe
+
+    def feature_engineering_standard(self, dataframe, metadata, **kwargs):
+        # Use SMC indicators as ML features
+        dataframe["%-bos"] = dataframe["bos"]
+        dataframe["%-choch"] = dataframe["choch"]
+        dataframe["%-ob_direction"] = dataframe["ob_direction"]
+        dataframe["%-fvg_direction"] = dataframe["fvg_direction"]
+        dataframe["%-swing_hl"] = dataframe["swing_hl"]
+        dataframe["%-liquidity"] = dataframe["liquidity"]
+        dataframe["%-liq_swept"] = dataframe["liq_swept"]
+        return dataframe
+
+    def set_freqai_targets(self, dataframe, metadata, **kwargs):
+        # Predict if price will go up by more than 1% in next 12 candles
+        dataframe["&-target"] = (
+            dataframe["close"].shift(-12) / dataframe["close"] - 1
+        ).clip(-0.05, 0.05)
+        return dataframe
+
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # FreqAI prediction filter: require ML model predicts >= 0.5% upside
+        freqai_ok = True  # default: pass through if FreqAI column missing
+        if "&-target" in dataframe.columns:
+            freqai_ok = dataframe["&-target"] > 0.005
+
         # Primary: BOS/CHoCH + OB + FVG (strict SMC confluence)
         dataframe.loc[
             (
@@ -116,6 +160,7 @@ class SMCStrategy(IStrategy):
                 & (dataframe["close"] >= dataframe["ob_bottom"])
                 & (dataframe["close"] <= dataframe["ob_top"])
                 & (dataframe["volume"] > 0)
+                & freqai_ok
             ),
             "enter_long",
         ] = 1
@@ -127,6 +172,7 @@ class SMCStrategy(IStrategy):
                 & ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
                 & (dataframe["fvg_direction"] == 1)
                 & (dataframe["volume"] > 0)
+                & freqai_ok
             ),
             "enter_long",
         ] = 1
@@ -138,6 +184,7 @@ class SMCStrategy(IStrategy):
                 & (dataframe["fvg_direction"] == 1)
                 & (dataframe["liq_swept"] == 1)
                 & (dataframe["volume"] > 0)
+                & freqai_ok
             ),
             "enter_long",
         ] = 1

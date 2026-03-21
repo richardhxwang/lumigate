@@ -401,9 +401,14 @@ class SMCAnalyzer:
 
     @staticmethod
     def _df_to_records(df: Optional[pd.DataFrame]) -> list[dict]:
-        """Convert DataFrame to list of dicts, keeping only rows with data."""
+        """Convert DataFrame to list of dicts, keeping only rows with data.
+
+        Replaces NaN/Inf with None so the result is JSON-serializable.
+        """
         if df is None or df.empty:
             return []
         # Drop rows where all indicator columns are NaN
         cleaned = df.dropna(how="all")
-        return cleaned.to_dict(orient="records")
+        # Replace NaN and Inf with None for JSON compliance
+        cleaned = cleaned.replace([np.inf, -np.inf], np.nan)
+        return cleaned.where(cleaned.notna(), other=None).to_dict(orient="records")
