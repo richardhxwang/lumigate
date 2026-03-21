@@ -1320,7 +1320,9 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
    - date_from: "YYYY-MM-DD" (optional)
    - date_to: "YYYY-MM-DD" (optional, defaults to today)
    Do NOT use "start_date" or "end_date" — the correct names are date_from and date_to.
-3. Do NOT tell the user to visit hkexnews.hk — you have the tool to do it.\n`;
+3. Do NOT tell the user to visit hkexnews.hk — you have the tool to do it.
+4. If the tool returns 0 results: the stock code is CORRECT (it was selected from the official HKEX stock list). Simply relay the tool's message — do NOT say the code is wrong or invalid. Suggest trying a different doc_type or date range.
+5. If the tool indicates fallback results (e.g. Annual Results instead of Annual Report), clearly tell the user what was found and that no Annual Report exists for this period.\n`;
   }
 
   // ── Build provider request ──

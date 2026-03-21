@@ -6883,8 +6883,9 @@ function _hkexRenderStep1(){
       _hkexHighlight(items);
     } else if(e.key === 'Enter'){
       e.preventDefault();
+      e.stopImmediatePropagation(); // prevent event from reaching Step 2's handler
       if(_hkexSelIdx >= 0 && items[_hkexSelIdx]){
-        items[_hkexSelIdx].click();
+        items[_hkexSelIdx].click(); // → _hkexRenderStep2()
       }
     } else if(e.key === 'Escape'){
       closeHkex();
@@ -7113,9 +7114,11 @@ function _hkexRenderStep2(){
     }
   });
 
-  // Auto-focus first preset button
-  const firstPreset = modal.querySelector('.hkex-preset-btn');
-  if(firstPreset) setTimeout(() => firstPreset.focus(), 50);
+  // Delay focus to avoid Enter key bleed-through from Step 1
+  setTimeout(() => {
+    const firstPreset = modal.querySelector('.hkex-preset-btn');
+    if(firstPreset) firstPreset.focus();
+  }, 250);
 }
 
 function confirmHkex({docType='annual', mode='date', dateFrom='', dateTo='', count=10}={}){

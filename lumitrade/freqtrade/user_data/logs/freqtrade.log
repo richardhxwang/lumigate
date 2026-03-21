@@ -31234,3 +31234,855 @@ FileNotFoundError: [Errno 2] No such file or directory: '/freqtrade/user_data/mo
 2026-03-21 08:48:48,827 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
 2026-03-21 08:48:48,827 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
 2026-03-21 08:48:51,077 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:48:54,046 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.23 secs) --------------------
+2026-03-21 08:48:54,076 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082879
+2026-03-21 08:48:55,128 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:48:55,132 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:48:55,132 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:48:55,135 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:48:55,136 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:48:55,137 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:48:59,058 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.93 secs) --------------------
+2026-03-21 08:48:59,083 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774082885
+2026-03-21 08:49:00,233 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:49:00,237 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:00,238 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:00,241 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:00,244 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:00,246 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:03,414 - uvicorn.error - INFO - connection closed
+2026-03-21 08:49:03,415 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(56178dc6, ('172.23.0.3', 42410))
+2026-03-21 08:49:03,778 - uvicorn.error - INFO - connection closed
+2026-03-21 08:49:03,779 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(36fce3d6, ('172.23.0.3', 42416))
+2026-03-21 08:49:04,009 - uvicorn.error - INFO - connection closed
+2026-03-21 08:49:04,009 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(8d5c8c28, ('172.23.0.3', 42426))
+2026-03-21 08:49:05,090 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.86 secs) --------------------
+2026-03-21 08:49:05,120 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774082891
+2026-03-21 08:49:05,121 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.85 seconds
+2026-03-21 08:49:06,204 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:49:06,208 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:06,208 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:06,211 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:06,212 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:06,213 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:11,006 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (4.80 secs) --------------------
+2026-03-21 08:49:11,032 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774082897
+2026-03-21 08:49:12,149 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:49:12,152 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:12,153 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:12,156 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:12,158 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:12,158 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:13,606 - uvicorn.error - INFO - 172.23.0.3:51132 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:49:13,607 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(e30ed775, ('172.23.0.3', 51132))
+2026-03-21 08:49:13,608 - uvicorn.error - INFO - connection open
+2026-03-21 08:49:13,998 - uvicorn.error - INFO - 172.23.0.3:51148 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:49:13,998 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(68a4b51f, ('172.23.0.3', 51148))
+2026-03-21 08:49:13,998 - uvicorn.error - INFO - connection open
+2026-03-21 08:49:14,281 - uvicorn.error - INFO - 172.23.0.3:51158 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:49:14,281 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(887fed05, ('172.23.0.3', 51158))
+2026-03-21 08:49:14,281 - uvicorn.error - INFO - connection open
+2026-03-21 08:49:17,163 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.01 secs) --------------------
+2026-03-21 08:49:17,186 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082903
+2026-03-21 08:49:18,260 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:49:18,263 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:18,264 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:18,266 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:18,267 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:49:18,267 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:22,229 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.97 secs) --------------------
+2026-03-21 08:49:22,250 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774082909
+2026-03-21 08:49:23,356 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:49:23,359 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:23,360 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:23,362 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:23,364 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:23,364 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:28,134 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.78 secs) --------------------
+2026-03-21 08:49:28,158 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774082914
+2026-03-21 08:49:28,159 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.01 seconds
+2026-03-21 08:49:29,255 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:49:29,259 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:29,259 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:29,262 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:29,264 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:29,265 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:34,052 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (4.80 secs) --------------------
+2026-03-21 08:49:34,081 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774082922
+2026-03-21 08:49:35,183 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:49:35,187 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:35,188 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:35,191 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:35,192 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:35,193 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:40,255 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.07 secs) --------------------
+2026-03-21 08:49:40,296 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082928
+2026-03-21 08:49:41,374 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:49:41,378 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:41,379 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:41,382 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:41,383 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:49:41,384 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:45,376 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.00 secs) --------------------
+2026-03-21 08:49:45,400 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774082935
+2026-03-21 08:49:46,529 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:49:46,532 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:46,533 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:46,535 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:46,537 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:46,537 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:51,091 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:49:51,375 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.85 secs) --------------------
+2026-03-21 08:49:51,399 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774082940
+2026-03-21 08:49:51,400 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.21 seconds
+2026-03-21 08:49:52,509 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:49:52,512 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:52,512 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:52,515 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:52,517 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:52,517 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:49:57,130 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (4.62 secs) --------------------
+2026-03-21 08:49:57,165 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774082946
+2026-03-21 08:49:58,288 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:49:58,393 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:49:58,393 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:49:58,396 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:49:58,398 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:49:58,399 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:03,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.20 secs) --------------------
+2026-03-21 08:50:03,621 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082952
+2026-03-21 08:50:04,674 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:50:04,677 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:04,677 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:04,679 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:04,681 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:50:04,681 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:08,697 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.02 secs) --------------------
+2026-03-21 08:50:08,719 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774082958
+2026-03-21 08:50:09,833 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:50:09,836 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:09,836 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:09,839 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:09,841 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:09,841 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:13,777 - uvicorn.error - INFO - connection closed
+2026-03-21 08:50:13,780 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(e30ed775, ('172.23.0.3', 51132))
+2026-03-21 08:50:14,151 - uvicorn.error - INFO - connection closed
+2026-03-21 08:50:14,151 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(68a4b51f, ('172.23.0.3', 51148))
+2026-03-21 08:50:14,480 - uvicorn.error - INFO - connection closed
+2026-03-21 08:50:14,480 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(887fed05, ('172.23.0.3', 51158))
+2026-03-21 08:50:14,670 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.84 secs) --------------------
+2026-03-21 08:50:14,693 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774082963
+2026-03-21 08:50:14,694 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.27 seconds
+2026-03-21 08:50:15,789 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:50:15,793 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:15,794 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:15,796 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:15,798 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:15,799 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:20,739 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (4.95 secs) --------------------
+2026-03-21 08:50:20,774 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774082969
+2026-03-21 08:50:21,878 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:50:21,882 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:21,882 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:21,885 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:21,886 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:21,887 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:24,015 - uvicorn.error - INFO - 172.23.0.3:54970 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:50:24,015 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(77d0b76f, ('172.23.0.3', 54970))
+2026-03-21 08:50:24,016 - uvicorn.error - INFO - connection open
+2026-03-21 08:50:24,337 - uvicorn.error - INFO - 172.23.0.3:54974 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:50:24,337 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(0da4ab39, ('172.23.0.3', 54974))
+2026-03-21 08:50:24,338 - uvicorn.error - INFO - connection open
+2026-03-21 08:50:24,659 - uvicorn.error - INFO - 172.23.0.3:54980 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:50:24,660 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(c0c3676b, ('172.23.0.3', 54980))
+2026-03-21 08:50:24,660 - uvicorn.error - INFO - connection open
+2026-03-21 08:50:28,303 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.42 secs) --------------------
+2026-03-21 08:50:28,329 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082975
+2026-03-21 08:50:29,369 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:50:29,372 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:29,372 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:29,375 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:29,377 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:50:29,377 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:33,257 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.89 secs) --------------------
+2026-03-21 08:50:33,278 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774082981
+2026-03-21 08:50:34,390 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:50:34,393 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:34,394 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:34,396 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:34,398 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:34,398 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:39,251 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.86 secs) --------------------
+2026-03-21 08:50:39,277 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774082986
+2026-03-21 08:50:39,278 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 20.56 seconds
+2026-03-21 08:50:40,381 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:50:40,385 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:40,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:40,388 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:40,390 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:40,390 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:46,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.08 secs) --------------------
+2026-03-21 08:50:46,501 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774082992
+2026-03-21 08:50:47,925 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:50:47,931 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:47,931 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:47,935 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:47,938 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:50:47,939 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:50:51,105 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:50:56,070 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (8.14 secs) --------------------
+2026-03-21 08:50:56,133 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774082998
+2026-03-21 08:50:57,189 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:50:57,192 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:50:57,193 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:50:57,196 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:50:57,199 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:50:57,199 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:01,127 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.94 secs) --------------------
+2026-03-21 08:51:01,249 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083004
+2026-03-21 08:51:02,422 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:51:02,428 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:02,428 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:02,432 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:02,434 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:02,435 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:09,868 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (7.44 secs) --------------------
+2026-03-21 08:51:09,914 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083009
+2026-03-21 08:51:09,917 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 26.62 seconds
+2026-03-21 08:51:11,025 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:51:11,029 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:11,029 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:11,032 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:11,035 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:11,035 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:17,286 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.26 secs) --------------------
+2026-03-21 08:51:17,338 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083015
+2026-03-21 08:51:18,610 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:51:18,613 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:18,614 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:18,617 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:18,619 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:18,619 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:24,175 - uvicorn.error - INFO - connection closed
+2026-03-21 08:51:24,181 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(77d0b76f, ('172.23.0.3', 54970))
+2026-03-21 08:51:24,489 - uvicorn.error - INFO - connection closed
+2026-03-21 08:51:24,490 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(0da4ab39, ('172.23.0.3', 54974))
+2026-03-21 08:51:24,543 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.93 secs) --------------------
+2026-03-21 08:51:24,584 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083021
+2026-03-21 08:51:24,814 - uvicorn.error - INFO - connection closed
+2026-03-21 08:51:24,815 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(c0c3676b, ('172.23.0.3', 54980))
+2026-03-21 08:51:25,650 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:51:25,653 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:25,653 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:25,656 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:25,658 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:51:25,658 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:29,738 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.09 secs) --------------------
+2026-03-21 08:51:29,767 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083029
+2026-03-21 08:51:30,951 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:51:30,956 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:30,957 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:30,960 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:30,962 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:30,962 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:34,423 - uvicorn.error - INFO - 172.23.0.3:40472 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:51:34,424 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(246d1663, ('172.23.0.3', 40472))
+2026-03-21 08:51:34,426 - uvicorn.error - INFO - connection open
+2026-03-21 08:51:34,732 - uvicorn.error - INFO - 172.23.0.3:40478 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:51:34,733 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(29858874, ('172.23.0.3', 40478))
+2026-03-21 08:51:34,733 - uvicorn.error - INFO - connection open
+2026-03-21 08:51:35,034 - uvicorn.error - INFO - 172.23.0.3:40492 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" [accepted]
+2026-03-21 08:51:35,034 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(52573dcf, ('172.23.0.3', 40492))
+2026-03-21 08:51:35,035 - uvicorn.error - INFO - connection open
+2026-03-21 08:51:36,626 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.67 secs) --------------------
+2026-03-21 08:51:36,655 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083034
+2026-03-21 08:51:36,657 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 22.53 seconds
+2026-03-21 08:51:37,748 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:51:37,752 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:37,753 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:37,755 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:37,758 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:37,758 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:43,783 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.03 secs) --------------------
+2026-03-21 08:51:43,810 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083040
+2026-03-21 08:51:44,919 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:51:44,923 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:44,923 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:44,927 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:44,929 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:44,929 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:51,120 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:51:51,153 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.23 secs) --------------------
+2026-03-21 08:51:51,218 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083047
+2026-03-21 08:51:52,265 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:51:52,268 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:52,268 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:52,270 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:52,272 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:51:52,272 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:51:55,828 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.56 secs) --------------------
+2026-03-21 08:51:55,856 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083057
+2026-03-21 08:51:57,170 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:51:57,175 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:51:57,176 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:51:57,179 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:51:57,181 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:51:57,182 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:03,044 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.87 secs) --------------------
+2026-03-21 08:52:03,106 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083062
+2026-03-21 08:52:03,110 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 22.24 seconds
+2026-03-21 08:52:04,253 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:52:04,258 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:04,258 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:04,265 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:04,268 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:04,268 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:10,203 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.95 secs) --------------------
+2026-03-21 08:52:10,236 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083070
+2026-03-21 08:52:11,460 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:52:11,465 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:11,466 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:11,470 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:11,472 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:11,473 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:19,035 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (7.57 secs) --------------------
+2026-03-21 08:52:19,065 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083078
+2026-03-21 08:52:20,109 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:52:20,112 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:20,113 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:20,116 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:20,118 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:52:20,118 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:24,981 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.87 secs) --------------------
+2026-03-21 08:52:25,009 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083085
+2026-03-21 08:52:26,191 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:52:26,195 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:26,196 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:26,200 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:26,204 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:26,204 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:31,536 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:31,537 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:31,538 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:31,538 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(52573dcf, ('172.23.0.3', 40492))
+2026-03-21 08:52:31,539 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(29858874, ('172.23.0.3', 40478))
+2026-03-21 08:52:31,541 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(246d1663, ('172.23.0.3', 40472))
+2026-03-21 08:52:32,606 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.41 secs) --------------------
+2026-03-21 08:52:32,635 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083090
+2026-03-21 08:52:32,636 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 25.48 seconds
+2026-03-21 08:52:33,822 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:52:33,828 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:33,828 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:33,832 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:33,835 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:33,835 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:38,863 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.04 secs) --------------------
+2026-03-21 08:52:38,902 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083097
+2026-03-21 08:52:39,985 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:52:39,990 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:39,990 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:39,993 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:39,995 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:39,995 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:41,887 - uvicorn.error - INFO - 172.23.0.3:48598 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" 403
+2026-03-21 08:52:41,888 - uvicorn.error - INFO - connection rejected (403 Forbidden)
+2026-03-21 08:52:41,888 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:42,159 - uvicorn.error - INFO - 172.23.0.3:48606 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" 403
+2026-03-21 08:52:42,159 - uvicorn.error - INFO - connection rejected (403 Forbidden)
+2026-03-21 08:52:42,160 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:42,443 - uvicorn.error - INFO - 172.23.0.3:48610 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4MzA5NywiaWF0IjoxNzc0MDgyMTk3LCJ0eXBlIjoiYWNjZXNzIn0.y4zSePbgqYuMLXWDT1pLoOd7p3KyFDeIDqQADU5pzqM" 403
+2026-03-21 08:52:42,445 - uvicorn.error - INFO - connection rejected (403 Forbidden)
+2026-03-21 08:52:42,446 - uvicorn.error - INFO - connection closed
+2026-03-21 08:52:45,088 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.10 secs) --------------------
+2026-03-21 08:52:45,115 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083104
+2026-03-21 08:52:46,195 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:52:46,199 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:46,199 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:46,201 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:46,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:52:46,203 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:50,177 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.98 secs) --------------------
+2026-03-21 08:52:50,203 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083112
+2026-03-21 08:52:51,136 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:52:51,331 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:52:51,336 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:51,337 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:51,339 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:51,341 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:51,342 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:52:56,276 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (4.94 secs) --------------------
+2026-03-21 08:52:56,310 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083117
+2026-03-21 08:52:56,313 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.65 seconds
+2026-03-21 08:52:57,470 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:52:57,690 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:52:57,690 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:52:57,696 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:52:57,698 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:52:57,698 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:04,977 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (7.29 secs) --------------------
+2026-03-21 08:53:05,013 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083124
+2026-03-21 08:53:06,189 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:53:06,193 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:06,194 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:06,199 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:06,201 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:06,201 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:11,216 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.03 secs) --------------------
+2026-03-21 08:53:11,248 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083131
+2026-03-21 08:53:12,300 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:53:12,303 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:12,303 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:12,305 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:12,307 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:53:12,307 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:16,326 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.03 secs) --------------------
+2026-03-21 08:53:16,347 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083140
+2026-03-21 08:53:17,455 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:53:17,459 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:17,459 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:17,462 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:17,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:17,464 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:22,536 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.08 secs) --------------------
+2026-03-21 08:53:22,562 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083146
+2026-03-21 08:53:22,564 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 22.22 seconds
+2026-03-21 08:53:23,668 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:53:23,672 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:23,673 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:23,675 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:23,677 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:23,678 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:30,981 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (7.31 secs) --------------------
+2026-03-21 08:53:31,027 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083153
+2026-03-21 08:53:32,255 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:53:32,260 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:32,260 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:32,264 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:32,266 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:32,267 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:38,149 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.89 secs) --------------------
+2026-03-21 08:53:38,181 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083159
+2026-03-21 08:53:39,373 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:53:39,378 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:39,379 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:39,382 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:39,385 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:53:39,386 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:44,686 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (5.31 secs) --------------------
+2026-03-21 08:53:44,719 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083166
+2026-03-21 08:53:45,864 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:53:45,868 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:45,869 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:45,873 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:45,876 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:45,876 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:50,973 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.11 secs) --------------------
+2026-03-21 08:53:50,998 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 24.28 seconds
+2026-03-21 08:53:51,152 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:53:52,086 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:53:52,089 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:52,090 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:52,093 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:52,094 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:52,095 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:53:57,031 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (4.94 secs) --------------------
+2026-03-21 08:53:58,167 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:53:58,320 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:53:58,320 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:53:58,323 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:53:58,325 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:53:58,325 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:03,481 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (5.16 secs) --------------------
+2026-03-21 08:54:04,578 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:54:04,584 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:04,585 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:04,587 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:04,588 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:54:04,589 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:08,526 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (3.94 secs) --------------------
+2026-03-21 08:54:09,657 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:54:09,660 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:09,661 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:09,663 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:09,665 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:09,665 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:14,683 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.03 secs) --------------------
+2026-03-21 08:54:14,710 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 19.69 seconds
+2026-03-21 08:54:15,796 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:54:15,799 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:15,800 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:15,802 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:15,804 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:15,804 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:18,195 - freqtrade.commands.trade_commands - INFO - worker found ... calling exit
+2026-03-21 08:54:18,197 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'process died'}
+2026-03-21 08:54:18,198 - freqtrade.freqtradebot - INFO - Cleaning up modules ...
+2026-03-21 08:54:18,199 - freqtrade.freqai.freqai_interface - INFO - Stopping FreqAI
+2026-03-21 08:54:18,204 - freqtrade.freqai.freqai_interface - INFO - Waiting on Training iteration
+2026-03-21 08:54:20,931 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-03-21 08:54:20,931 - freqtrade.loggers - INFO - Logfile configured
+2026-03-21 08:54:20,931 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-03-21 08:54:20,931 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+2026-03-21 08:54:20,932 - freqtrade.configuration.configuration - INFO - Parameter --db-url detected ...
+2026-03-21 08:54:20,932 - freqtrade.configuration.configuration - WARNING - `force_entry_enable` RPC message enabled.
+2026-03-21 08:54:20,932 - freqtrade.configuration.configuration - INFO - Dry run is enabled
+2026-03-21 08:54:20,932 - freqtrade.configuration.configuration - INFO - Using DB: "sqlite:////freqtrade/user_data/tradesv3.sqlite"
+2026-03-21 08:54:20,933 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 8 ...
+2026-03-21 08:54:20,990 - freqtrade.configuration.configuration - INFO - Using user-data directory: /freqtrade/user_data ...
+2026-03-21 08:54:20,991 - freqtrade.configuration.configuration - INFO - Using data directory: /freqtrade/user_data/data/okx ...
+2026-03-21 08:54:20,991 - freqtrade.configuration.configuration - INFO - Using freqaimodel class name: LightGBMRegressor
+2026-03-21 08:54:20,992 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-03-21 08:54:20,995 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-03-21 08:54:20,995 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-03-21 08:54:20,996 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-03-21 08:54:20,996 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.39
+2026-03-21 08:54:20,996 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-21 08:54:20,999 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'enableRateLimit': True}
+2026-03-21 08:54:21,001 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-03-21 08:54:21,625 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange 'Okx'...
+2026-03-21 08:54:21,638 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy SMCStrategy from '/freqtrade/user_data/strategies/SMCStrategy.py'...
+2026-03-21 08:54:21,639 - freqtrade.strategy.hyper - INFO - Loading parameters from file /freqtrade/user_data/strategies/SMCStrategy.json
+2026-03-21 08:54:21,639 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-03-21 08:54:21,639 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-03-21 08:54:21,640 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'unfilledtimeout' with value from the configuration: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}.
+2026-03-21 08:54:21,640 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 8.
+2026-03-21 08:54:21,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.094, '81': 0.077, '239': 0.019, '581': 0}
+2026-03-21 08:54:21,640 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 15m
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.077
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: True
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.237
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.267
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-03-21 08:54:21,641 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 'stoploss_on_exchange_interval': 60}
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-03-21 08:54:21,642 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 200
+2026-03-21 08:54:21,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using unfilledtimeout: {'entry': 10, 'exit': 10, 'exit_timeout_count': 0, 'unit': 'minutes'}
+2026-03-21 08:54:21,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-03-21 08:54:21,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-03-21 08:54:21,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-03-21 08:54:21,643 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-03-21 08:54:21,644 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-03-21 08:54:21,644 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-03-21 08:54:21,644 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-03-21 08:54:21,644 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-03-21 08:54:21,644 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 8
+2026-03-21 08:54:21,644 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-03-21 08:54:21,666 - freqtrade.wallets - INFO - Wallets synced.
+2026-03-21 08:54:22,074 - freqtrade.rpc.rpc_manager - INFO - Enabling rpc.api_server
+2026-03-21 08:54:22,212 - freqtrade.rpc.api_server.webserver - INFO - Starting HTTP Server at 0.0.0.0:8080
+2026-03-21 08:54:22,213 - freqtrade.rpc.api_server.webserver - INFO - Starting Local Rest Server.
+2026-03-21 08:54:22,227 - uvicorn.error - INFO - Started server process [1]
+2026-03-21 08:54:22,227 - uvicorn.error - INFO - Waiting for application startup.
+2026-03-21 08:54:22,228 - uvicorn.error - INFO - Application startup complete.
+2026-03-21 08:54:22,228 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2026-03-21 08:54:22,232 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from '/freqtrade/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-03-21 08:54:22,232 - freqtrade.freqtradebot - INFO - Starting initial pairlist refresh
+2026-03-21 08:54:22,239 - freqtrade.plugins.pairlistmanager - INFO - Whitelist with 4 pairs: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+2026-03-21 08:54:22,240 - freqtrade.freqtradebot - INFO - Initial Pairlist refresh took 0.01s
+2026-03-21 08:54:22,771 - freqtrade.resolvers.iresolver - INFO - Using resolved freqaimodel LightGBMRegressor from '/freqtrade/freqtrade/freqai/prediction_models/LightGBMRegressor.py'...
+2026-03-21 08:54:22,775 - freqtrade.freqai.data_drawer - INFO - Found existing historic predictions at /freqtrade/user_data/models/smc_lgbm, but beware that statistics may be inaccurate if the bot has been offline for an extended period of time.
+2026-03-21 08:54:22,775 - freqtrade.freqai.freqai_interface - INFO - Set existing queue from trained timestamps. Best approximation queue: deque(['SOL/USDT', 'BNB/USDT', 'BTC/USDT', 'ETH/USDT'])
+2026-03-21 08:54:22,776 - freqtrade.strategy.interface - INFO - Downloading all training data for all pairs in whitelist and corr_pairlist, this may take a while if the data is not already on disk.
+2026-03-21 08:54:22,779 - freqtrade.freqai.utils - INFO - FreqAI auto-downloader using 300 startup candles.
+2026-03-21 08:54:22,859 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:23,070 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 15m, spot with length 3.
+2026-03-21 08:54:23,114 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T06:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:23,316 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 1h, spot with length 2.
+2026-03-21 08:54:23,329 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T00:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:23,486 - freqtrade.data.history.history_utils - INFO - Downloaded data for BTC/USDT, 4h, spot with length 2.
+2026-03-21 08:54:23,500 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:23,653 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 15m, spot with length 3.
+2026-03-21 08:54:23,686 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T06:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:23,882 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 1h, spot with length 2.
+2026-03-21 08:54:23,896 - freqtrade.data.history.history_utils - INFO - Download history data for "ETH/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T00:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:24,052 - freqtrade.data.history.history_utils - INFO - Downloaded data for ETH/USDT, 4h, spot with length 2.
+2026-03-21 08:54:24,064 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:24,218 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 15m, spot with length 3.
+2026-03-21 08:54:24,266 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T06:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:24,463 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 1h, spot with length 2.
+2026-03-21 08:54:24,484 - freqtrade.data.history.history_utils - INFO - Download history data for "SOL/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T00:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:24,641 - freqtrade.data.history.history_utils - INFO - Downloaded data for SOL/USDT, 4h, spot with length 2.
+2026-03-21 08:54:24,654 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 15m, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T08:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:24,802 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 15m, spot with length 3.
+2026-03-21 08:54:24,851 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 1h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T06:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:25,049 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 1h, spot with length 2.
+2026-03-21 08:54:25,066 - freqtrade.data.history.history_utils - INFO - Download history data for "BNB/USDT", 4h, spot and store in /freqtrade/user_data/data/okx. From 2026-03-21T00:00:00 to 2026-03-21T08:54:22
+2026-03-21 08:54:25,222 - freqtrade.data.history.history_utils - INFO - Downloaded data for BNB/USDT, 4h, spot with length 2.
+2026-03-21 08:54:25,230 - freqtrade.strategy.hyper - INFO - Strategy Parameter: ob_strength_min = 0.662
+2026-03-21 08:54:25,231 - freqtrade.strategy.hyper - INFO - Strategy Parameter: swing_length = 5
+2026-03-21 08:54:25,231 - freqtrade.plugins.protectionmanager - INFO - No protection Handlers defined.
+2026-03-21 08:54:25,231 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': status, 'status': 'running'}
+2026-03-21 08:54:25,232 - freqtrade.worker - INFO - Changing state to: RUNNING
+2026-03-21 08:54:25,236 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': warning, 'status': 'Dry run is enabled. All trades are simulated.'}
+2026-03-21 08:54:25,236 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "*Exchange:* `okx`\n*Stake per trade:* `unlimited USDT`\n*Minimum ROI:* `{'0': 0.094, '81': 0.077, '239': 0.019, '581': 0}`\n*Trailing Stoploss:* `-0.077`\n*Position adjustment:* `Off`\n*Timeframe:* `15m`\n*Strategy:* `SMCStrategy`"}
+2026-03-21 08:54:25,236 - freqtrade.rpc.rpc_manager - INFO - Sending rpc message: {'type': startup, 'status': "Searching for USDT pairs to buy and sell based on [{'StaticPairList': 'StaticPairList'}]"}
+2026-03-21 08:54:26,353 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 08:54:26,364 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 08:54:26,487 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 08:54:26,491 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 08:54:26,550 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 08:54:26,554 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 08:54:26,618 - freqtrade.freqai.data_kitchen - INFO - dropped 52 of 299 prediction data points due to NaNs.
+2026-03-21 08:54:26,623 - datasieve.pipeline - WARNING - Could not find step di in pipeline, returning None
+2026-03-21 08:54:27,559 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:54:27,563 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:27,563 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:27,566 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:27,568 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:27,568 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:30,238 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:54:32,879 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (5.32 secs) --------------------
+2026-03-21 08:54:34,047 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:54:34,051 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:34,052 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:34,055 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:34,057 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:34,058 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:40,472 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.42 secs) --------------------
+2026-03-21 08:54:41,550 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:54:41,553 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:41,553 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:41,556 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:41,558 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:54:41,558 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:46,532 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.98 secs) --------------------
+2026-03-21 08:54:47,820 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:54:47,830 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:47,831 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:47,836 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:47,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:47,840 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:54:56,728 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (8.91 secs) --------------------
+2026-03-21 08:54:56,768 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083225
+2026-03-21 08:54:56,770 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 26.45 seconds
+2026-03-21 08:54:57,951 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:54:57,958 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:54:57,958 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:54:57,963 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:54:57,966 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:54:57,966 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:04,202 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.25 secs) --------------------
+2026-03-21 08:55:04,235 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083232
+2026-03-21 08:55:05,346 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:55:05,351 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:05,351 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:05,355 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:05,358 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:05,358 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:11,910 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.56 secs) --------------------
+2026-03-21 08:55:11,946 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083238
+2026-03-21 08:55:12,999 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:55:13,003 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:13,004 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:13,007 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:13,008 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:55:13,009 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:17,199 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.20 secs) --------------------
+2026-03-21 08:55:17,222 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083244
+2026-03-21 08:55:18,364 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:55:18,367 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:18,368 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:18,371 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:18,373 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:18,373 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:24,315 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.95 secs) --------------------
+2026-03-21 08:55:24,351 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083249
+2026-03-21 08:55:24,352 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 23.57 seconds
+2026-03-21 08:55:25,570 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:55:25,581 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:25,583 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:25,589 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:25,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:25,594 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:28,842 - uvicorn.error - INFO - 172.23.0.3:59802 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:55:28,843 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(5da4918f, ('172.23.0.3', 59802))
+2026-03-21 08:55:28,844 - uvicorn.error - INFO - connection open
+2026-03-21 08:55:29,078 - uvicorn.error - INFO - 172.23.0.3:59822 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:55:29,078 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(2030124f, ('172.23.0.3', 59822))
+2026-03-21 08:55:29,079 - uvicorn.error - INFO - connection open
+2026-03-21 08:55:29,348 - uvicorn.error - INFO - 172.23.0.3:59828 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:55:29,348 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(08cad7a3, ('172.23.0.3', 59828))
+2026-03-21 08:55:29,349 - uvicorn.error - INFO - connection open
+2026-03-21 08:55:30,251 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:55:32,522 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.95 secs) --------------------
+2026-03-21 08:55:32,558 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083267
+2026-03-21 08:55:33,763 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:55:33,768 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:33,769 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:33,773 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:33,776 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:33,776 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:39,762 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.00 secs) --------------------
+2026-03-21 08:55:39,801 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083273
+2026-03-21 08:55:40,866 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:55:40,872 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:40,872 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:40,875 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:40,877 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:55:40,877 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:45,095 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.23 secs) --------------------
+2026-03-21 08:55:45,152 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083281
+2026-03-21 08:55:46,294 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:55:46,298 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:46,299 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:46,302 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:46,304 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:46,305 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:55:52,376 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (6.08 secs) --------------------
+2026-03-21 08:55:52,427 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083287
+2026-03-21 08:55:52,428 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 24.06 seconds
+2026-03-21 08:55:53,621 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:55:53,625 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:55:53,625 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:55:53,628 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:55:53,630 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:55:53,631 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:01,011 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (7.39 secs) --------------------
+2026-03-21 08:56:01,114 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083297
+2026-03-21 08:56:02,278 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:56:02,284 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:02,284 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:02,288 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:02,291 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:56:02,292 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:08,822 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.54 secs) --------------------
+2026-03-21 08:56:08,861 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083305
+2026-03-21 08:56:09,908 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:56:09,912 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:09,912 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:09,915 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:09,916 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:56:09,916 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:14,217 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (4.31 secs) --------------------
+2026-03-21 08:56:14,305 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083312
+2026-03-21 08:56:15,657 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:56:15,662 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:15,662 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:15,666 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:15,669 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:56:15,669 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:21,196 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training ETH/USDT (5.54 secs) --------------------
+2026-03-21 08:56:21,221 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-ETH_1774083318
+2026-03-21 08:56:21,222 - freqtrade.freqai.freqai_interface - INFO - Total time spent training pairlist 24.77 seconds
+2026-03-21 08:56:22,313 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training SOL/USDT --------------------
+2026-03-21 08:56:22,316 - freqtrade.freqai.data_kitchen - INFO - SOL/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:22,317 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:22,320 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:22,323 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:56:22,324 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:28,420 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training SOL/USDT (6.11 secs) --------------------
+2026-03-21 08:56:28,474 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-SOL_1774083325
+2026-03-21 08:56:28,997 - uvicorn.error - INFO - connection closed
+2026-03-21 08:56:28,998 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(5da4918f, ('172.23.0.3', 59802))
+2026-03-21 08:56:29,117 - uvicorn.error - INFO - connection closed
+2026-03-21 08:56:29,117 - uvicorn.error - INFO - connection closed
+2026-03-21 08:56:29,118 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(08cad7a3, ('172.23.0.3', 59828))
+2026-03-21 08:56:29,118 - freqtrade.rpc.api_server.ws.channel - INFO - Disconnected from channel - WebSocketChannel(2030124f, ('172.23.0.3', 59822))
+2026-03-21 08:56:29,639 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BNB/USDT --------------------
+2026-03-21 08:56:29,644 - freqtrade.freqai.data_kitchen - INFO - BNB/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:29,644 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:29,648 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:29,651 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:56:29,651 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:30,265 - freqtrade.worker - INFO - Bot heartbeat. PID=1, version='2026.2', state='RUNNING'
+2026-03-21 08:56:35,671 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BNB/USDT (6.03 secs) --------------------
+2026-03-21 08:56:35,714 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BNB_1774083333
+2026-03-21 08:56:36,768 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training BTC/USDT --------------------
+2026-03-21 08:56:36,771 - freqtrade.freqai.data_kitchen - INFO - BTC/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:36,771 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:36,774 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:36,776 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 108 features
+2026-03-21 08:56:36,776 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points
+2026-03-21 08:56:39,227 - uvicorn.error - INFO - 172.23.0.3:35474 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:56:39,228 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(8999cbf1, ('172.23.0.3', 35474))
+2026-03-21 08:56:39,229 - uvicorn.error - INFO - connection open
+2026-03-21 08:56:39,500 - uvicorn.error - INFO - 172.23.0.3:35476 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:56:39,501 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(69000ca7, ('172.23.0.3', 35476))
+2026-03-21 08:56:39,501 - uvicorn.error - INFO - connection open
+2026-03-21 08:56:39,775 - uvicorn.error - INFO - 172.23.0.3:35480 - "WebSocket /api/v1/message/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZGVudGl0eSI6eyJ1IjoibHVtaXRyYWRlIn0sImV4cCI6MTc3NDA4Mzk5NywiaWF0IjoxNzc0MDgzMDk3LCJ0eXBlIjoiYWNjZXNzIn0.0iHMQqhTCRf8pNz87QdHgozYEYJSSH-hU-NU8q3dGaA" [accepted]
+2026-03-21 08:56:39,776 - freqtrade.rpc.api_server.ws.channel - INFO - Connected to channel - WebSocketChannel(48e84719, ('172.23.0.3', 35480))
+2026-03-21 08:56:39,776 - uvicorn.error - INFO - connection open
+2026-03-21 08:56:41,912 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Done training BTC/USDT (5.14 secs) --------------------
+2026-03-21 08:56:41,936 - freqtrade.freqai.data_drawer - INFO - Freqai purging old model file /freqtrade/user_data/models/smc_lgbm/sub-train-BTC_1774083340
+2026-03-21 08:56:43,055 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Starting training ETH/USDT --------------------
+2026-03-21 08:56:43,059 - freqtrade.freqai.data_kitchen - INFO - ETH/USDT: dropped 12 training points due to NaNs in populated dataset 2879.
+2026-03-21 08:56:43,060 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - -------------------- Training on data from 2026-02-19 to 2026-03-21 --------------------
+2026-03-21 08:56:43,062 - datasieve.pipeline - INFO - VarianceThreshold will remove 7 features from the dataset.on transform. ['%-bos' '%-choch' '%-ob_direction' '%-fvg_direction' '%-swing_hl'
+ '%-liquidity' '%-liq_swept']
+2026-03-21 08:56:43,064 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 216 features
+2026-03-21 08:56:43,065 - freqtrade.freqai.base_models.BaseRegressionModel - INFO - Training model on 1920 data points

@@ -131,7 +131,8 @@ class SMCStrategy(IStrategy):
         return dataframe
 
     def feature_engineering_standard(self, dataframe, metadata, **kwargs):
-        # Use SMC indicators as ML features (defensive — columns may be missing if SMC lib failed)
+        # Use SMC indicators as ML features
+        # SMC library returns NaN for non-signal candles — must fillna(0) or FreqAI drops them
         for src, dst in [
             ("bos", "%-bos"),
             ("choch", "%-choch"),
@@ -141,7 +142,10 @@ class SMCStrategy(IStrategy):
             ("liquidity", "%-liquidity"),
             ("liq_swept", "%-liq_swept"),
         ]:
-            dataframe[dst] = dataframe[src] if src in dataframe.columns else 0
+            if src in dataframe.columns:
+                dataframe[dst] = dataframe[src].fillna(0)
+            else:
+                dataframe[dst] = 0
         return dataframe
 
     def set_freqai_targets(self, dataframe, metadata, **kwargs):

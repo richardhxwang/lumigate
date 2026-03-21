@@ -434,16 +434,23 @@ function registerHKEXTool(registry) {
         };
       }
 
-      // No files downloaded — return data only
+      // No files downloaded — return clear message for AI to relay
+      let message;
+      if (result.total === 0 && result.usedFallback) {
+        message = `No Annual Report found for ${result.stock_code}. Also searched for Annual Results as fallback — none found either. The company may not have published reports in the searched date range.`;
+      } else if (result.total === 0 && fallbackNote) {
+        message = fallbackNote;
+      } else if (result.total === 0) {
+        message = `No matching filings found for stock code ${result.stock_code} in the searched date range. The stock code is valid — this company simply has no filings of this type in the period. Try a different document type or wider date range.`;
+      } else {
+        message = `Found ${result.total} filings but could not download any.`;
+      }
       return {
         data: {
           stock_code: result.stock_code,
           total_found: result.total,
           downloaded: result.downloaded,
-          message:
-            result.total === 0
-              ? `No filings found for stock code ${result.stock_code}`
-              : `Found ${result.total} filings but could not download any`,
+          message,
           files: result.files.map((f) => ({
             name: f.name,
             date: f.date,
