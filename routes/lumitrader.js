@@ -929,7 +929,7 @@ module.exports = function createLumiTraderRouter(deps) {
     return text;
   }
 
-  async function callAiForTelegram(chatId, userMessage) {
+  async function callAiForTelegram(chatId, userMessage, overrideModel) {
     // Keep typing indicator alive while AI thinks
     const typingTimer = setInterval(() => sendTyping(chatId), 4000);
     try {
@@ -949,8 +949,8 @@ module.exports = function createLumiTraderRouter(deps) {
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
           ],
-          model: "claude-sonnet-4-6",
-          provider: "anthropic",
+          model: overrideModel || getTgModel(chatId),
+          provider: (overrideModel || getTgModel(chatId)).startsWith("gpt") ? "openai" : "anthropic",
           stream: true,
         }),
       });
@@ -1146,6 +1146,19 @@ module.exports = function createLumiTraderRouter(deps) {
     }
   }
 
+  // ── Per-chat model preference ────────────────────────────────────────────
+  const _tgModelPref = {}; // chatId → model name
+  const TG_MODELS = {
+    "opus": "claude-opus-4-6",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-haiku-4-5-20251001",
+    "gpt4o": "gpt-4o",
+  };
+
+  function getTgModel(chatId) {
+    return _tgModelPref[chatId] || "claude-sonnet-4-6";
+  }
+
   // ── Telegram webhook — handles slash commands and button callbacks ─────────
 
   router.post("/lumitrader/telegram/webhook", express.json(), async (req, res) => {
@@ -1154,7 +1167,7 @@ module.exports = function createLumiTraderRouter(deps) {
     try {
       const update = req.body;
 
-      // Handle slash commands
+      // Handle slash commands and free-form chat
       if (update.message?.text) {
         const text = update.message.text.trim();
         const chatId = update.message.chat.id;
@@ -1182,6 +1195,18 @@ module.exports = function createLumiTraderRouter(deps) {
           await handleFreqtradeCommand(chatId, "start", "交易已启动");
         } else if (text === "/stop") {
           await handleFreqtradeCommand(chatId, "stop", "交易已停止");
+        } else if (text === "/model" || text.startsWith("/model ")) {
+          const arg = text.slice(6).trim().toLowerCase();
+          if (!arg) {
+            const current = getTgModel(chatId);
+            const modelList = Object.entries(TG_MODELS).map(([k, v]) => `  /${k === "gpt4o" ? "model gpt4o" : "model " + k} → ${v}${v === current ? " (当前)" : ""}`).join("\n");
+            await sendTelegram(`<b>当前模型:</b> ${current}\n\n<b>可选:</b>\n${modelList}\n\n用法: /model opus`, { chatId });
+          } else if (TG_MODELS[arg]) {
+            _tgModelPref[chatId] = TG_MODELS[arg];
+            await sendTelegram(`已切换模型: <b>${TG_MODELS[arg]}</b>`, { chatId });
+          } else {
+            await sendTelegram(`未知模型: ${arg}\n可选: ${Object.keys(TG_MODELS).join(", ")}`, { chatId });
+          }
         } else if (text === "/help") {
           await sendTelegram(
             "<b>LumiTrader 指令</b>\n\n" +
@@ -1191,16 +1216,21 @@ module.exports = function createLumiTraderRouter(deps) {
             "/risk — 风控状态检查\n" +
             "/news — 最新新闻情绪\n" +
             "/journal — 今日交易总结\n" +
-            "/optimize — 策略优化建议\n\n" +
+            "/optimize — 策略优化建议\n" +
+            "/model [名称] — 切换 AI 模型\n\n" +
             "<b>交易控制:</b>\n" +
             "/status — 当前持仓状态\n" +
             "/profit — 盈亏统计\n" +
             "/balance — 账户余额\n" +
             "/start — 启动交易\n" +
             "/stop — 停止交易\n" +
-            "/help — 显示此帮助",
+            "/help — 显示此帮助\n\n" +
+            "<i>直接发文字 = 和 AI 对话（不需要加 /ai）</i>",
             { chatId }
           );
+        } else if (!text.startsWith("/")) {
+          // Non-slash text → treat as AI chat
+          await handleAiCommand(chatId, text);
         }
       }
 
