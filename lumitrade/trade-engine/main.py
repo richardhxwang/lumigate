@@ -9,11 +9,45 @@ from datetime import datetime, timezone
 import asyncio
 import json
 import logging
+import math
 import random
 
 import httpx
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+
+class _SafeEncoder(json.JSONEncoder):
+    """JSON encoder that converts NaN/Inf to null instead of raising."""
+
+    def default(self, o):
+        return str(o)
+
+    def encode(self, o):
+        return super().encode(self._sanitize(o))
+
+    def _sanitize(self, obj):
+        if isinstance(obj, float):
+            if math.isnan(obj) or math.isinf(obj):
+                return None
+            return obj
+        if isinstance(obj, dict):
+            return {k: self._sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [self._sanitize(v) for v in obj]
+        return obj
+
+
+class SafeJSONResponse(JSONResponse):
+    """JSONResponse that replaces NaN/Inf with null for JSON compliance."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            cls=_SafeEncoder,
+            ensure_ascii=False,
+        ).encode("utf-8")
 
 from config import settings
 from connectors.ibkr import IBKRConnector
@@ -176,7 +210,12 @@ async def lifespan(app: FastAPI):
     await http_client.aclose()
 
 
-app = FastAPI(title="LumiTrade Engine", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="LumiTrade Engine",
+    version="0.1.0",
+    lifespan=lifespan,
+    default_response_class=SafeJSONResponse,
+)
 
 
 # --- Health ---
@@ -527,6 +566,119 @@ async def ft_balance():
         raise HTTPException(status_code=502, detail=str(e))
 
 
+# --- Unified Endpoints (cross-broker) ---
+
+def detect_broker(symbol: str) -> str:
+    """Auto-detect broker from symbol format."""
+    return "freqtrade" if "/" in symbol else "ibkr"
+
+
+@app.get("/unified/pairs")
+async def unified_pairs():
+    """Combined pair list from freqtrade (crypto) and IBKR (stocks)."""
+    pairs = []
+    # Crypto from freqtrade
+    try:
+        config = await ft_connector.get_config()
+        for p in config.get("pair_whitelist", settings.default_crypto_pairs):
+            pairs.append({"symbol": p, "broker": "freqtrade", "type": "crypto", "active": True})
+    except Exception:
+        for p in settings.default_crypto_pairs:
+            pairs.append({"symbol": p, "broker": "freqtrade", "type": "crypto", "active": False})
+    # Stocks from IBKR
+    ibkr_connected = ibkr_connector is not None and ibkr_connector.connected
+    for s in settings.default_symbols:
+        pairs.append({"symbol": s, "broker": "ibkr", "type": "stock", "active": ibkr_connected})
+    return {"pairs": pairs}
+
+
+@app.get("/unified/positions")
+async def unified_positions():
+    """Merged positions from freqtrade and IBKR."""
+    positions = []
+    # Freqtrade open trades
+    try:
+        trades = await ft_connector.get_status()
+        for t in (trades if isinstance(trades, list) else []):
+            positions.append({
+                "symbol": t.get("pair", ""),
+                "broker": "freqtrade", "type": "crypto",
+                "direction": "long" if t.get("is_short") is False else "short",
+                "quantity": t.get("amount", 0),
+                "entry_price": t.get("open_rate", 0),
+                "current_price": t.get("current_rate", 0),
+                "unrealized_pnl": t.get("profit_abs", 0),
+                "unrealized_pnl_pct": t.get("profit_ratio", 0) * 100,
+                "duration": t.get("trade_duration", ""),
+            })
+    except Exception:
+        pass
+    # IBKR positions
+    if ibkr_connector is not None and ibkr_connector.connected:
+        try:
+            ibkr_pos = await ibkr_connector.positions()
+            for p in ibkr_pos:
+                positions.append({
+                    "symbol": p.get("symbol", ""),
+                    "broker": "ibkr", "type": "stock",
+                    "direction": "long" if p.get("quantity", 0) > 0 else "short",
+                    "quantity": abs(p.get("quantity", 0)),
+                    "entry_price": p.get("avg_cost", 0),
+                    "current_price": 0,
+                    "unrealized_pnl": 0,
+                    "unrealized_pnl_pct": 0,
+                    "duration": "",
+                })
+        except Exception:
+            pass
+    return {"positions": positions, "count": len(positions)}
+
+
+@app.get("/unified/history")
+async def unified_history(limit: int = 50):
+    """Merged trade history from freqtrade and PocketBase."""
+    history = []
+    # Freqtrade closed trades
+    try:
+        ft_trades = await ft_connector.get_trades(limit)
+        for t in ft_trades.get("trades", []):
+            history.append({
+                "symbol": t.get("pair", ""),
+                "broker": "freqtrade", "type": "crypto",
+                "direction": "short" if t.get("is_short") else "long",
+                "entry_price": t.get("open_rate", 0),
+                "exit_price": t.get("close_rate", 0),
+                "pnl": t.get("profit_abs", 0),
+                "pnl_pct": round((t.get("profit_ratio", 0) or 0) * 100, 2),
+                "entry_time": t.get("open_date", ""),
+                "exit_time": t.get("close_date", ""),
+                "duration": t.get("trade_duration", ""),
+            })
+    except Exception:
+        pass
+    # PB trade_history (includes IBKR trades)
+    try:
+        resp = await pb_get("/api/collections/trade_history/records", params={"perPage": limit})
+        if resp.is_success:
+            for t in resp.json().get("items", []):
+                history.append({
+                    "symbol": t.get("symbol", ""),
+                    "broker": t.get("broker", "unknown"),
+                    "type": "stock" if "/" not in t.get("symbol", "/") else "crypto",
+                    "direction": t.get("direction", ""),
+                    "entry_price": t.get("entry_price", 0),
+                    "exit_price": t.get("exit_price", 0),
+                    "pnl": t.get("pnl", 0),
+                    "pnl_pct": t.get("pnl_pct", 0),
+                    "entry_time": t.get("entry_time", ""),
+                    "exit_time": t.get("exit_time", ""),
+                    "duration": "",
+                })
+    except Exception:
+        pass
+    return {"history": history, "count": len(history)}
+
+
 # --- Backtest ---
 
 class BacktestRequest(BaseModel):
@@ -584,13 +736,17 @@ class ExecuteRequest(BaseModel):
     take_profit: float
     position_size_pct: float
     portfolio_value: float
-    broker: str  # ibkr / okx
+    broker: str | None = None  # ibkr / okx / freqtrade — auto-detected from symbol if omitted
     auto: bool = False
 
 
 @app.post("/execute")
 async def execute_trade(req: ExecuteRequest):
     """Execute a trade after risk check. Auto-executes only if position <= auto_exec_max_pct."""
+    # Auto-detect broker from symbol format if not specified
+    if not req.broker:
+        req.broker = detect_broker(req.symbol)
+
     # Mandatory risk check
     risk_result = risk_manager.check(
         symbol=req.symbol,
@@ -614,7 +770,7 @@ async def execute_trade(req: ExecuteRequest):
         }
 
     # Route to broker
-    if req.broker == "okx":
+    if req.broker in ("okx", "freqtrade"):
         return await _execute_via_freqtrade(req)
     elif req.broker == "ibkr":
         return await _execute_via_lumibot(req)

@@ -238,6 +238,42 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
+  // ── Unified endpoints (IBKR + Crypto combined) ──────────────────────────
+
+  // GET /v1/trade/unified/pairs — all tradeable pairs (crypto + stocks)
+  router.get("/unified/pairs", async (req, res) => {
+    try {
+      const r = await engineFetch("/unified/pairs");
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/unified/positions — merged positions from all brokers
+  router.get("/unified/positions", async (req, res) => {
+    try {
+      const r = await engineFetch("/unified/positions");
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/unified/history — merged trade history
+  router.get("/unified/history", async (req, res) => {
+    try {
+      const qs = new URLSearchParams(req.query).toString();
+      const r = await engineFetch(`/unified/history${qs ? `?${qs}` : ""}`);
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
   // ── PocketBase data routes ────────────────────────────────────────────────
 
   // GET /v1/trade/signals — list signals

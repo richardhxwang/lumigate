@@ -239,7 +239,7 @@ async function handleMarketAnalysis(input) {
 async function handleCheckPositions(input) {
   const status = input.status || "open";
   try {
-    const res = await fetch(`${TRADE_ENGINE_URL}/positions?status=${encodeURIComponent(status)}`, {
+    const res = await fetch(`${TRADE_ENGINE_URL}/unified/positions?status=${encodeURIComponent(status)}`, {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
@@ -264,6 +264,11 @@ async function handlePlaceTrade(input) {
     broker: input.broker,
     portfolio_value: input.portfolio_value ?? 100000,
   };
+
+  // Auto-detect broker from symbol format if not specified
+  if (!body.broker) {
+    body.broker = body.symbol.includes('/') ? 'okx' : 'ibkr';
+  }
 
   try {
     const res = await fetch(`${TRADE_ENGINE_URL}/execute`, {
