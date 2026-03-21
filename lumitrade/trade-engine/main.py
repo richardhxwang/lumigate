@@ -96,6 +96,37 @@ class ConnectionManager:
 ws_manager = ConnectionManager()
 
 
+_pb_token: str = ""
+_pb_token_exp: float = 0
+
+async def get_pb_token() -> str:
+    """Get PB admin token, cached for 30 min."""
+    global _pb_token, _pb_token_exp
+    import time
+    if _pb_token and time.time() < _pb_token_exp:
+        return _pb_token
+    if not settings.pb_admin_email or not settings.pb_admin_password:
+        return ""
+    try:
+        resp = await http_client.post(
+            f"{settings.pb_url}/api/collections/_superusers/auth-with-password",
+            json={"identity": settings.pb_admin_email, "password": settings.pb_admin_password},
+        )
+        if resp.is_success:
+            _pb_token = resp.json().get("token", "")
+            _pb_token_exp = time.time() + 1800
+            return _pb_token
+    except Exception:
+        pass
+    return ""
+
+async def pb_get(path: str, params: dict = None) -> httpx.Response:
+    """GET from PocketBase with admin auth."""
+    token = await get_pb_token()
+    headers = {"Authorization": token} if token else {}
+    return await http_client.get(f"{settings.pb_url}{path}", params=params, headers=headers)
+
+
 async def notify_clients(event_type: str, data: dict):
     """Broadcast an event to all connected WebSocket clients."""
     message = {
@@ -227,8 +258,8 @@ async def list_signals(symbol: str | None = None, limit: int = 50):
     """List recent signals from PocketBase."""
     filter_q = f"symbol='{symbol}'" if symbol else ""
     try:
-        resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_signals/records",
+        resp = await pb_get(
+            "/api/collections/trade_signals/records",
             params={"filter": filter_q, "sort": "-created", "perPage": limit},
         )
         resp.raise_for_status()
@@ -243,8 +274,8 @@ async def list_signals(symbol: str | None = None, limit: int = 50):
 async def list_positions(status: str = "open"):
     """List positions from PocketBase."""
     try:
-        resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_positions/records",
+        resp = await pb_get(
+            "/api/collections/trade_positions/records",
             params={"filter": f"status='{status}'", "sort": "-created", "perPage": 100},
         )
         resp.raise_for_status()
@@ -259,8 +290,8 @@ async def list_positions(status: str = "open"):
 async def journal_analytics(days: int = 30):
     """Analyze trading performance by session, killzone, and day of week."""
     try:
-        resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_history/records",
+        resp = await pb_get(
+            "/api/collections/trade_history/records",
             params={"sort": "-created", "perPage": 500},
         )
         if not resp.is_success:
@@ -277,14 +308,14 @@ async def journal_analytics(days: int = 30):
 async def mood_analysis():
     """Analyze correlation between mood and trading performance."""
     try:
-        trades_resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_history/records",
+        trades_resp = await pb_get(
+            "/api/collections/trade_history/records",
             params={"sort": "-created", "perPage": 500},
         )
         trades = trades_resp.json().get("items", []) if trades_resp.is_success else []
 
-        mood_resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_mood_logs/records",
+        mood_resp = await pb_get(
+            "/api/collections/trade_mood_logs/records",
             params={"sort": "-created", "perPage": 500},
         )
         mood_logs = mood_resp.json().get("items", []) if mood_resp.is_success else []
@@ -300,8 +331,8 @@ async def mood_analysis():
 async def performance_report():
     """Return QuantStats performance metrics from trade history."""
     try:
-        resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_history/records",
+        resp = await pb_get(
+            "/api/collections/trade_history/records",
             params={"sort": "-created", "perPage": 500},
         )
         trades = resp.json().get("items", []) if resp.is_success else []
@@ -316,8 +347,8 @@ async def tearsheet_report():
     """Return full HTML tear sheet report."""
     from fastapi.responses import HTMLResponse
     try:
-        resp = await http_client.get(
-            f"{settings.pb_url}/api/collections/trade_history/records",
+        resp = await pb_get(
+            "/api/collections/trade_history/records",
             params={"sort": "-created", "perPage": 500},
         )
         trades = resp.json().get("items", []) if resp.is_success else []

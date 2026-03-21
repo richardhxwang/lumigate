@@ -312,6 +312,8 @@ services:
       - "127.0.0.1:18793:3200"
     environment:
       - TRADE_PB_URL=http://host.docker.internal:8090
+      - TRADE_PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-richard.hx.wang@gmail.com}
+      - TRADE_PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-}
       - TRADE_LUMIGATE_URL=http://lumigate:9471
       - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
       - TRADE_FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
