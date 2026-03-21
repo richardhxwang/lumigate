@@ -260,7 +260,7 @@ async def list_signals(symbol: str | None = None, limit: int = 50):
     try:
         resp = await pb_get(
             "/api/collections/trade_signals/records",
-            params={"filter": filter_q, "sort": "-created", "perPage": limit},
+            params={"filter": filter_q, "perPage": limit},
         )
         resp.raise_for_status()
         return resp.json()
@@ -276,7 +276,7 @@ async def list_positions(status: str = "open"):
     try:
         resp = await pb_get(
             "/api/collections/trade_positions/records",
-            params={"filter": f"status='{status}'", "sort": "-created", "perPage": 100},
+            params={"filter": f"status='{status}'", "perPage": 100},
         )
         resp.raise_for_status()
         return resp.json()
@@ -292,7 +292,7 @@ async def journal_analytics(days: int = 30):
     try:
         resp = await pb_get(
             "/api/collections/trade_history/records",
-            params={"sort": "-created", "perPage": 500},
+            params={"perPage": 500},
         )
         if not resp.is_success:
             return {"error": "Failed to fetch trades from PB"}
@@ -310,13 +310,13 @@ async def mood_analysis():
     try:
         trades_resp = await pb_get(
             "/api/collections/trade_history/records",
-            params={"sort": "-created", "perPage": 500},
+            params={"perPage": 500},
         )
         trades = trades_resp.json().get("items", []) if trades_resp.is_success else []
 
         mood_resp = await pb_get(
             "/api/collections/trade_mood_logs/records",
-            params={"sort": "-created", "perPage": 500},
+            params={"perPage": 500},
         )
         mood_logs = mood_resp.json().get("items", []) if mood_resp.is_success else []
 
@@ -333,7 +333,7 @@ async def performance_report():
     try:
         resp = await pb_get(
             "/api/collections/trade_history/records",
-            params={"sort": "-created", "perPage": 500},
+            params={"perPage": 500},
         )
         trades = resp.json().get("items", []) if resp.is_success else []
         result = await generate_performance_report(trades)
@@ -349,7 +349,7 @@ async def tearsheet_report():
     try:
         resp = await pb_get(
             "/api/collections/trade_history/records",
-            params={"sort": "-created", "perPage": 500},
+            params={"perPage": 500},
         )
         trades = resp.json().get("items", []) if resp.is_success else []
         html = await generate_html_report(trades)
