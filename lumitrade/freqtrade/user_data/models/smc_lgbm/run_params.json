@@ -54,7 +54,7 @@
     "timeframe": "15m",
     "stake_amount": "unlimited",
     "stake_currency": "USDT",
-    "max_open_trades": 8,
+    "max_open_trades": 8.0,
     "pairs": [
         "BTC/USDT",
         "ETH/USDT",
