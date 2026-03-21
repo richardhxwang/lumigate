@@ -1060,6 +1060,11 @@ module.exports = function createLumiTraderRouter(deps) {
     await callAiForTelegram(chatId, "分析我的策略和回测结果，给出 3 个具体的优化建议，按优先级排序。包括参数调整、风控改进、pair 选择。");
   }
 
+  async function handleAnalysisCommand(chatId) {
+    await sendTyping(chatId);
+    await callAiForTelegram(chatId, "扫描所有交易对，分析当前是否有交易机会。对每个有机会的 pair：1) 当前 SMC 结构（BOS/CHoCH/OB/FVG）2) 入场方向和价位 3) SL/TP/R:R 4) 置信度和入场等级（Tier 1/2/3）。如果没有机会就明确说没有，不要勉强。结合新闻情绪和当前时段综合判断。");
+  }
+
   // ── Freqtrade Telegram proxy — call freqtrade REST API, format in Chinese ──
 
   const FT_AUTH = "Basic " + Buffer.from("lumitrade:123123@").toString("base64");
@@ -1185,6 +1190,8 @@ module.exports = function createLumiTraderRouter(deps) {
           await handleJournalCommand(chatId);
         } else if (text === "/optimize") {
           await handleOptimizeCommand(chatId);
+        } else if (text === "/analysis") {
+          await handleAnalysisCommand(chatId);
         } else if (text === "/status") {
           await handleFreqtradeStatus(chatId);
         } else if (text === "/profit") {
@@ -1217,6 +1224,7 @@ module.exports = function createLumiTraderRouter(deps) {
             "/news — 最新新闻情绪\n" +
             "/journal — 今日交易总结\n" +
             "/optimize — 策略优化建议\n" +
+            "/analysis — 扫描当前交易机会\n" +
             "/model [名称] — 切换 AI 模型\n\n" +
             "<b>交易控制:</b>\n" +
             "/status — 当前持仓状态\n" +
