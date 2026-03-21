@@ -2827,7 +2827,11 @@ try {
         maxRounds: input.max_rounds || 5,
         callerProvider: input._caller_provider,
         callerModel: input._caller_model,
-        onProgress: (msg) => onProgress({ text: msg.message, icon: "search", done: msg.phase === "complete" }),
+        onProgress: (msg) => onProgress({
+          text: `Round ${msg.round || 0}/${msg.total || 5}: ${msg.message}`,
+          icon: "search",
+          done: msg.phase === "complete",
+        }),
       });
       return { data: result };
     }
@@ -3592,6 +3596,20 @@ app.use("/v1/audio", apiLimiter, platformAuth, audioRouter);
 app.use("/v1/audio", apiLimiter, platformAuth, ttsRouter);         // TTS: /v1/audio/tts
 app.use("/v1/vision", apiLimiter, platformAuth, visionRouter);
 app.use("/v1/code", apiLimiter, platformAuth, codeRouter);
+
+// ── LumiTrader AI routes (MUST be before global knowledge mount) ──────────────
+try {
+  const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
+  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL, INTERNAL_CHAT_KEY });
+  app.use(_lumitraderResult.router);
+  log("info", "LumiTrader routes mounted at /lumitrader/*");
+} catch (e) {
+  log("warn", "LumiTrader routes not loaded", { error: e.message });
+}
+
+// Knowledge router — defines its own /v1/knowledge + /platform/knowledge paths.
+// WARNING: global mount (no path prefix) → platformAuth runs for ALL unmatched requests.
+// Any routes mounted AFTER this will be rejected by platformAuth unless they match first.
 app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ manager: knowledgeManager, log }));
 
 // ── LumiTrade API routes ──────────────────────────────────────────────────────
@@ -3602,16 +3620,6 @@ try {
   log("info", "LumiTrade routes mounted at /v1/trade/*");
 } catch (e) {
   log("warn", "LumiTrade routes not loaded", { error: e.message });
-}
-
-// ── LumiTrader AI routes ──────────────────────────────────────────────────────
-try {
-  const TRADE_ENGINE_URL = process.env.TRADE_ENGINE_URL || "http://localhost:3200";
-  const _lumitraderResult = require("./routes/lumitrader")({ PB_URL, getPbAdminToken, TRADE_ENGINE_URL });
-  app.use(_lumitraderResult.router);
-  log("info", "LumiTrader routes mounted at /lumitrader/*");
-} catch (e) {
-  log("warn", "LumiTrader routes not loaded", { error: e.message });
 }
 
 // Template filler REST endpoint
@@ -3708,6 +3716,33 @@ const createHKEXRouter = require("./routes/hkex");
 const hkexRouter = createHKEXRouter({ log });
 app.use("/v1/hkex", apiLimiter, platformAuth, hkexRouter);
 app.use("/platform/hkex", apiLimiter, platformAuth, hkexRouter);
+// HKEX search for LumiChat (admin cookie auth)
+app.get("/lc/hkex/search", apiLimiter, (req, res, next) => {
+  // Accept LumiChat auth (lc_token) OR admin auth (admin_token)
+  const cookies = parseCookies(req);
+  const lcToken = cookies.lc_token;
+  const adminToken = cookies.admin_token || req.headers["x-admin-token"];
+  if (!lcToken && !adminToken) return res.status(401).json({ error: "Login required" });
+  next();
+}, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    if (!q) return res.json({ ok: true, results: [] });
+    const { getFullStockList } = require("./routes/hkex");
+    const { s2t, t2s } = require("chinese-s2t");
+    const list = await getFullStockList();
+    const qTrad = s2t(q), qSimp = t2s(q);
+    const matched = list.filter(s => s.code.includes(q) || s.name.toLowerCase().includes(q) || (s.nameZh && (s.nameZh.includes(q) || s.nameZh.includes(qTrad) || s.nameZh.includes(qSimp))));
+    matched.sort((a, b) => {
+      const aExact = a.code === q.padStart(5, "0") ? 0 : 1;
+      const bExact = b.code === q.padStart(5, "0") ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      return (parseInt(a.code) <= 9999 ? 0 : 1) - (parseInt(b.code) <= 9999 ? 0 : 1);
+    });
+    const results = matched.slice(0, 10).map(s => ({ code: s.code, name: s.name, nameZh: s.nameZh || "" }));
+    res.json({ ok: true, results });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
 
 // ── RBAC / Organization routes ────────────────────────────────────────────────
 const rbacRouter = require("./routes/rbac");

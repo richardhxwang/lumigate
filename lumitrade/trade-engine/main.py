@@ -195,10 +195,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("IBKR startup connection error (non-fatal): %s", e)
 
-    # Ensure Qdrant RAG collection exists
+    # Ensure Qdrant RAG collection exists + load SMC knowledge
     try:
         await trading_rag.ensure_collection()
         logger.info("Trading RAG collection ready")
+        # Load SMC knowledge docs on startup (idempotent — same content → same IDs)
+        import pathlib
+        knowledge_path = pathlib.Path(__file__).parent / "knowledge" / "smc_knowledge.json"
+        if knowledge_path.exists():
+            docs = json.loads(knowledge_path.read_text())
+            await trading_rag.embed_knowledge(docs)
+            logger.info("SMC knowledge loaded into RAG (%d docs)", len(docs))
     except Exception as e:
         logger.warning("Qdrant RAG init error (non-fatal): %s", e)
 
@@ -804,6 +811,18 @@ async def rag_embed(body: dict):
         raise HTTPException(400, "text required")
     await trading_rag.embed_text(text, metadata)
     return {"ok": True}
+
+
+@app.post("/rag/knowledge")
+async def rag_add_knowledge(body: dict):
+    """Add knowledge documents to trading RAG.
+    Body: {"docs": [{"title": str, "content": str, "category": str}]}
+    """
+    docs = body.get("docs", [])
+    if not docs:
+        raise HTTPException(400, "docs array required")
+    await trading_rag.embed_knowledge(docs)
+    return {"ok": True, "count": len(docs)}
 
 
 # --- Execute Trade ---

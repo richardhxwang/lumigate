@@ -1,251 +1,155 @@
-# LumiTrade — Dev Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
 
-LumiTrade is a sub-module of LumiGate — an AI-assisted SMC/ICT trading platform. Connects to IBKR (via ib_insync + IB Gateway) and OKX (via freqtrade), runs Smart Money Concepts strategy analysis, integrates news/sentiment (FinBERT + Finnhub), and sends alerts via Telegram. Scope: semi-automatic trading (signals + small-position auto-execution with human override).
+LumiTrade is a sub-module of LumiGate — an AI-assisted SMC/ICT trading platform. Connects to IBKR (stocks, via ib_insync + IB Gateway) and OKX (crypto, via freqtrade), runs Smart Money Concepts strategy analysis with FreqAI ML optimization, integrates news/sentiment (FinBERT + Finnhub), and provides LumiTrader — an independent trading AI assistant.
 
-**Status**: Phase 1 built. Trade Engine, freqtrade, FinBERT, IB Gateway containers all defined and deployable. IBKR credentials not yet configured (paper trading ready). Freqtrade running OKX dry-run.
-
-## File structure
+## Architecture
 
 ```
-lumitrade/
-  CLAUDE.md                    # this file
-  PLAN.md                      # full architecture spec + implementation roadmap
-  .env.example                 # env var template for standalone NAS deployment
-  docker-compose.yml           # standalone compose (NAS deployment, 3 services)
-  trade-engine/                # Python FastAPI service (:3200)
-    main.py                    # FastAPI app — all endpoints, WebSocket manager, lifespan
-    config.py                  # pydantic-settings, env vars prefixed TRADE_
-    requirements.txt           # smartmoneyconcepts, ib_insync, httpx, etc.
-    Dockerfile
-    pb_collections.py          # 6 PB collection schemas + auto-provisioning
-    strategies/
-      smc_strategy.py          # SMCAnalyzer — wraps smart-money-concepts library
-      backtester.py            # vectorbt-based SMC backtest runner
-    risk/
-      manager.py               # RiskManager — position size, daily loss, R:R checks
-    news/
-      sentiment.py             # Finnhub + FinBERT + LLM sentiment pipeline
-    connectors/
-      ibkr.py                  # IBKRConnector — async ib_insync wrapper (connect, positions, orders, history)
-      freqtrade.py             # FreqtradeConnector — REST API client (JWT auth, status, trades, balance)
-    notifications/
-      telegram.py              # TelegramNotifier — signal/trade/risk alerts via Telegram bot
-    analytics/
-      sessions.py              # SessionAnalyzer — ICT killzone/session/day-of-week P&L breakdown
-  freqtrade/                   # Crypto trading bot
-    config.json                # dry_run mode, OKX exchange, 4 pairs, API server on :8080
-    Dockerfile                 # extends freqtradeorg/freqtrade:stable + smartmoneyconcepts
-    docker-compose.freqtrade.yml  # standalone compose for NAS deployment
-    user_data/
-      strategies/
-        SMCStrategy.py         # freqtrade Strategy class — 3-tier entry (BOS+OB+FVG, BOS+FVG, FVG+liq sweep)
-      logs/freqtrade.log
-      tradesv3.sqlite          # freqtrade trade database
-  finbert/
-    server.py                  # Flask sentiment scoring endpoint (:5000)
-    Dockerfile
-
-../docker-compose.yml          # parent compose — trade profile adds 4 containers (trade-engine, freqtrade, finbert, ib-gateway)
-../routes/trade.js             # Node.js glue layer — proxies to trade-engine, PB data access, WebSocket proxy, TV webhook
-../tools/trade-tools.js        # 7 AI tools registered in UnifiedRegistry
-../public/lumitrade.html       # Trading UI — FreqUI iframe + LumiChat floating window + splash animation
-../services/pb-schema.js       # modified — includes trade collection schemas
-../nginx/nginx.conf            # modified — trade route proxying
+User → LumiTrade UI (FreqUI reskinned at /lumitrade/)
+         ├── Trade/Dashboard/Chart+TV/Backtest/LumiTrader/Logs
+         ├── Floating LumiTrader panel (every page)
+         └── nginx (:9471) proxies to:
+              ├── freqtrade (:8080) — crypto trading + FreqUI
+              ├── freqtrade-bt (:8080) — backtest webserver instance
+              └── LumiGate (server.js) proxies to:
+                   ├── Trade Engine (FastAPI :3200) — unified data layer
+                   │    ├── connectors/ibkr.py → IB Gateway (:4002)
+                   │    ├── connectors/freqtrade.py → freqtrade API
+                   │    ├── analytics/ — sessions, mood, RAG, reports
+                   │    └── strategies/ — SMC analyzer, backtester
+                   ├── FinBERT (:5000) — sentiment analysis
+                   └── PocketBase — lumitrade project (11 collections)
 ```
 
 ## How to start
 
-**With LumiGate (recommended):**
 ```bash
+# Full stack (with LumiGate)
 docker compose --profile trade up -d --build
-```
-This starts 4 containers alongside existing LumiGate services:
-- `lumigate-trade-engine` (:3200, exposed at 127.0.0.1:18793)
-- `lumigate-freqtrade` (:8080, FreqUI at 127.0.0.1:18790)
-- `lumigate-finbert` (:5000)
-- `lumigate-ibgateway` (:4001 live, :4002 paper, :5900 VNC)
 
-**Standalone freqtrade (NAS deployment):**
-```bash
-cd lumitrade/freqtrade && docker compose -f docker-compose.freqtrade.yml up -d
-```
+# Rebuild FreqUI after source changes
+cd lumitrade/frequi-src && pnpm build
+rm -rf ../frequi-custom/installed/assets ../frequi-custom/installed/index.html
+cp -r dist/* ../frequi-custom/installed/
+docker compose --profile trade up -d --no-deps --force-recreate freqtrade freqtrade-backtest
 
-**Standalone all (NAS deployment):**
-```bash
-cd lumitrade && cp .env.example .env  # fill in credentials
-docker compose up -d --build
+# Rebuild trade-engine only
+docker compose --profile trade up -d --no-deps --build trade-engine
+
+# CRITICAL: always rm old assets before cp (Vite generates new hashed filenames each build)
 ```
 
 ## Containers and ports
 
-| Container | Port | Description |
-|-----------|------|-------------|
-| `lumigate-trade-engine` | 3200 (internal), 18793 (host) | FastAPI — SMC analysis, risk mgmt, broker routing |
-| `lumigate-freqtrade` | 8080 (internal), 18790 (host) | Freqtrade bot + FreqUI |
-| `lumigate-finbert` | 5000 | FinBERT sentiment analysis |
-| `lumigate-ibgateway` | 4001 (live), 4002 (paper), 5900 (VNC) | IB Gateway — IBKR paper trading (not yet configured with credentials) |
+| Container | Port | Purpose |
+|-----------|------|---------|
+| `lumigate-trade-engine` | 3200→18793 | FastAPI — unified API, SMC, risk, connectors |
+| `lumigate-freqtrade` | 8080→18790 | Trade mode — live crypto trading |
+| `lumigate-freqtrade-bt` | 8080→18795 | Webserver mode — backtesting UI |
+| `lumigate-finbert` | 5000→18796 | FinBERT sentiment scoring |
+| `lumigate-ibgateway` | 4002, 5900 | IB Gateway (paper), VNC for 2FA |
 
-## API endpoints
+## Key integration points
 
-All under `/v1/trade/` prefix (Node.js `routes/trade.js` proxying to trade-engine):
+**Three layers of proxying:**
+1. nginx → FreqUI at `/lumitrade/` (sub_filter rewrites asset paths)
+2. nginx → LumiGate at `/v1/trade/*` (platformAuth required)
+3. LumiGate → Trade Engine at `:3200` (internal Docker network)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/trade/health` | Health check (trade-engine status) |
-| POST | `/v1/trade/analyze` | SMC analysis on symbol across timeframes |
-| POST | `/v1/trade/risk-check` | Validate trade against risk rules |
-| POST | `/v1/trade/execute` | Execute trade (auto or manual confirm) |
-| POST | `/v1/trade/backtest` | Run SMC backtest via vectorbt |
-| GET | `/v1/trade/market/:symbol` | Market data for symbol |
-| GET | `/v1/trade/freqtrade/status` | Freqtrade connection + open trades + profit |
-| GET | `/v1/trade/freqtrade/trades` | Freqtrade completed trade history |
-| GET | `/v1/trade/freqtrade/performance` | Freqtrade per-pair performance |
-| GET | `/v1/trade/freqtrade/balance` | Freqtrade exchange balance |
-| GET | `/v1/trade/ibkr/status` | IBKR connection status |
-| GET | `/v1/trade/ibkr/positions` | IBKR open positions |
-| GET | `/v1/trade/ibkr/account` | IBKR account summary (balance, P&L, buying power) |
-| GET | `/v1/trade/ibkr/history/:symbol` | IBKR historical OHLCV bars |
-| POST | `/v1/trade/ibkr/order` | Place IBKR order (mandatory risk check) |
-| GET | `/v1/trade/signals` | List signals from PB |
-| GET | `/v1/trade/positions` | List positions from PB |
-| GET | `/v1/trade/history` | Trade history from PB |
-| GET | `/v1/trade/pnl` | P&L summary from PB |
-| GET | `/v1/trade/journal` | List journal entries from PB |
-| POST | `/v1/trade/journal` | Create/update journal entry |
-| GET | `/v1/trade/journal/analytics` | Session/killzone analytics (via trade-engine) |
-| POST | `/v1/trade/tv-webhook` | TradingView webhook receiver |
-| WS | `/v1/trade/ws/market` | Real-time market data feed (price_update, signal, position_update) |
-| WS | `/v1/trade/ws/signals` | Real-time SMC signal feed |
+**FreqUI customization:** Source at `frequi-src/`, built output mounted at `frequi-custom/installed/` into freqtrade container. Key customizations:
+- `index.html` — splash animation, favicon, localStorage migration
+- `src/components/layout/NavBar.vue` — LumiTrade branding, nav items
+- `src/styles/tailwind.css` — frosted glass, Apple fonts, border-radius
+- `src/plugins/primevue.ts` — green accent (#10a37f) theme preset
+- `src/main.ts` — auto-login via `/lumitrade/auto-auth`
+- `vite.config.ts` — `base: '/lumitrade/'`
 
-## AI tools (7, registered in UnifiedRegistry)
+**PocketBase:** All trade collections in `lumitrade` PB project. Schema defined in `services/pb-schema.js` using `fields` key (NOT `schema` — PB 0.23+ breaking change). Collections auto-created on LumiGate startup. Project isolation via `toTradeProjectPath()` in `routes/trade.js`.
 
-Defined in `tools/trade-tools.js`, callable from LumiChat:
+**FreqUI asset paths:** Vite CSS preloads use absolute `/assets/` paths. nginx has a fallback `location /assets/` proxying to freqtrade. Vue Router base is `/lumitrade/`.
 
-1. **market_analysis** — SMC analysis on a symbol (OB, FVG, BOS, CHoCH, signals)
-2. **check_positions** — List current open positions across brokers
-3. **place_trade** — Execute trade with mandatory risk check (>1% requires confirmation)
-4. **backtest_strategy** — Run SMC backtest on historical data
-5. **news_sentiment** — Get news sentiment score for a symbol (Finnhub + FinBERT)
-6. **ibkr_account** — Get IBKR account status, positions, portfolio summary
-7. **trading_journal** — Session/killzone analytics, daily recap, mood logging
+## API structure (30+ endpoints)
 
-## PocketBase collections (6)
+```
+/v1/trade/                    — Node.js proxy layer (routes/trade.js)
+  /health, /analyze, /risk-check, /execute, /backtest
+  /unified/pairs              — merged crypto + stock pair list
+  /unified/positions          — combined positions from all brokers
+  /unified/history            — merged trade history
+  /freqtrade/{status,trades,performance,balance,config,backtest,download-data}
+  /ibkr/{status,positions,account,history/:symbol,order}
+  /signals, /positions, /history, /pnl  — PocketBase CRUD
+  /journal, /journal/analytics          — trading journal + session analytics
+  /mood/{analysis,log,logs}             — mood tracking
+  /rag/{search,embed}                   — Qdrant RAG
+  /reports/{performance,tearsheet}      — QuantStats
+  /tv-webhook                           — TradingView alerts
+  /ws/market, /ws/signals               — WebSocket feeds
 
-Defined in `trade-engine/pb_collections.py`, auto-provisioned on startup. Plus `trade_journal` accessed via `routes/trade.js`.
+/lumitrader/                  — LumiTrader AI assistant (routes/lumitrader.js)
+  /chat                       — POST, auto-injects trading context
+  /settings                   — GET/POST user preferences
+  /sessions                   — GET/POST chat history
+```
 
-- `trade_signals` — SMC signals (symbol, direction, entry/SL/TP, confidence, source, status)
-- `trade_positions` — Open/closed positions (broker, quantity, unrealized/realized P&L)
-- `trade_history` — Completed trades (entry/exit prices, P&L, duration, strategy)
-- `trade_pnl` — Daily P&L snapshots (cumulative, win rate, drawdown)
-- `trade_news` — News articles with multi-layer sentiment (Finnhub + FinBERT + LLM)
-- `trade_strategies` — Strategy configs and backtest results
-- `trade_journal` — Trading journal entries (mood, notes) [accessed via routes/trade.js]
+## AI tools (15, in tools/trade-tools.js)
 
-## Telegram notifications
+market_analysis, check_positions, place_trade, backtest_strategy, news_sentiment, ibkr_account, trading_journal, performance_report, mood_tracker, trading_rag_search, run_backtest, freqai_train, strategy_info, download_data, unified_dashboard
 
-Bot: LumigateAlertBot. Sends HTML-formatted alerts for:
-- New SMC signals (direction, entry, SL/TP, R:R, confidence)
-- Trade executions (symbol, action, quantity, broker, status)
-- Risk alerts (rule violated, detail)
+Auto-detection: symbols with `/` route to freqtrade (crypto), others to IBKR (stocks).
 
-Configured via `TRADE_TELEGRAM_BOT_TOKEN` and `TRADE_TELEGRAM_CHAT_ID`.
+## LumiTrader (trading AI assistant)
 
-## Freqtrade config
+Independent from LumiChat. Uses same PB project (lumitrade) but separate:
+- Token tracking: `_lumitrade` (via `X-App-Source: lumitrade` header)
+- Collections: `lt_sessions`, `lt_messages`, `lt_user_settings`
+- RAG: `lumitrade_rag` Qdrant collection (256-dim, hash-based pseudo-embeddings)
+- System prompt: `trade-engine/lumitrader_prompts.py` (SYSTEM_PROMPT, PRESETS, QUICK_COMMANDS)
+- 4 presets: Analyst, Risk Manager, Journal Coach, Strategy Dev
 
-- **dry_run: true** — no real trading, simulated with $10,000 wallet
-- OKX configured for **data fetching only** (OHLCV), not live execution
-- 4 pairs: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT
-- Timeframe: 15m (with 1h and 4h informative pairs)
-- API server enabled on :8080 (FreqUI + REST, JWT auth)
-- Strategy: `SMCStrategy` — 3-tier entry system:
-  - Tier 1 (strict): BOS/CHoCH + Order Block + FVG confluence
-  - Tier 2 (moderate): BOS/CHoCH + FVG
-  - Tier 3 (reversal): FVG + liquidity sweep
-- Exit: bearish CHoCH (change of character)
-- Custom stoploss: dynamic swing-low based SL
-- Trailing stop: 1% positive, 2% offset
+## FreqAI integration
 
-## IBKR connector
+Dockerfile uses `freqtradeorg/freqtrade:stable_freqai`. Config in `freqtrade/config.json` under `freqai` key. SMCStrategy has 4 feature engineering methods using SMC indicators as ML features. LightGBM regressor predicts 12-candle forward returns.
 
-`trade-engine/connectors/ibkr.py` — async wrapper around `ib_insync`:
-- Connection management (connect/disconnect/status)
-- Account summary (NetLiquidation, BuyingPower, UnrealizedPnL, etc.)
-- Position listing
-- Historical OHLCV bars (configurable duration, bar size, security type)
-- Order placement (MKT/LMT/STP) with pre-order risk check
-- Supports STK and CASH/Forex contracts
-- IB Gateway container: `ghcr.io/gnzsnz/ib-gateway:stable`, paper mode default, VNC on :5900
+## Risk management (non-negotiable)
 
-## Session analytics (ICT killzones)
-
-`trade-engine/analytics/sessions.py` — analyzes trades by:
-- **Sessions**: Asian (00-08 UTC), London (07-16 UTC), New York (12-21 UTC), Off-hours
-- **Killzones**: Asian, London KZ (07-10), NY AM KZ (12-15), NY PM KZ (15-17), London-NY overlap (12-16)
-- **Breakdowns**: hourly P&L heatmap, day-of-week performance, best/worst trade
-- **Auto-insights**: identifies best session, best killzone, best/worst day, win rate warnings
-
-## WebSocket
-
-Trade-engine provides two WS endpoints via `ConnectionManager`:
-- `/ws/market` — subscribes to symbols, pushes `price_update` every 3s (placeholder data for now)
-- `/ws/signals` — pushes new SMC signals as generated (placeholder every 10s for testing)
-
-Node.js `routes/trade.js` proxies WS upgrade requests from `/v1/trade/ws/*` to trade-engine.
-
-## Risk management (non-negotiable defaults)
-
-- Max position size: 2% of portfolio
-- Max daily loss: 3% (circuit breaker)
-- Max open positions: 5
-- Min risk:reward ratio: 2:1
-- News blackout: 30 min before major events
-- Auto-execution limit: 1% (larger positions require manual confirmation)
-
-## Frontend: lumitrade.html
-
-Located at `public/lumitrade.html`:
-- FreqUI iframe (full-width, full-height)
-- LumiChat floating window (bottom-right, collapsible)
-- Splash animation on load
-- Light/dark theme (persisted in `lt_theme` localStorage)
-- Follows LumiGate UI style (frosted glass, macOS HIG)
+Enforced in `trade-engine/risk/manager.py`. Cannot be loosened:
+- Max position: 2%, Max daily loss: 3% (circuit breaker), Max positions: 5
+- Min R:R: 2:1, News blackout: 30min, Auto-exec limit: 1%
 
 ## Key env vars
 
-Trade Engine (prefix `TRADE_`):
-- `TRADE_PB_URL` — PocketBase URL (default: `http://pocketbase:8090`)
-- `TRADE_FINNHUB_API_KEY` — Finnhub API for news/sentiment/calendar
-- `TRADE_TELEGRAM_BOT_TOKEN` / `TRADE_TELEGRAM_CHAT_ID` — alert notifications
-- `TRADE_LUMIGATE_URL` / `TRADE_LUMIGATE_PROJECT_KEY` — LumiGate AI access for deep sentiment
-- `TRADE_FREQTRADE_URL` / `TRADE_FREQTRADE_USERNAME` / `TRADE_FREQTRADE_PASSWORD` — freqtrade REST API
-- `TRADE_IBKR_HOST` / `TRADE_IBKR_PORT` / `TRADE_IBKR_CLIENT_ID` — IBKR connection
+Trade Engine uses `TRADE_` prefix (pydantic-settings). Critical:
+- `TRADE_PB_URL` + `TRADE_PB_ADMIN_EMAIL` + `TRADE_PB_ADMIN_PASSWORD` — PB auth
+- `TRADE_FINNHUB_API_KEY` — news/sentiment
+- `TRADE_FREQTRADE_PASSWORD` — freqtrade REST API auth (basic auth, NOT JWT)
+- `TRADE_IBKR_HOST` / `TRADE_IBKR_PORT` — IB Gateway connection
+- `IBKR_USERNAME` / `IBKR_PASSWORD` — IB Gateway login (HK region, jts.ini mounted)
 
-IBKR (IB Gateway container):
-- `IBKR_USERNAME` / `IBKR_PASSWORD` — IBKR credentials
-- `IBKR_TRADING_MODE` — `paper` or `live` (default: paper)
-- `IBKR_READ_ONLY` — `yes` or `no` (default: yes)
-- `IBKR_VNC_PASSWORD` — VNC password for IB Gateway UI
+## Known issues and gotchas
 
-OKX (via Freqtrade env override):
-- `OKX_API_KEY` / `OKX_API_SECRET` / `OKX_PASSPHRASE` — OKX credentials
+- **PB sort param**: PB 0.23+ rejects `sort: "-created"` — causes 400. Omit sort params.
+- **PB schema key**: Use `fields` not `schema` in collection definitions.
+- **PB project isolation**: Collections MUST be in lumitrade PB project. Create project in `pocketbase/pb_data/projects.json` BEFORE creating collections.
+- **FreqUI asset cache**: Browser aggressively caches old JS/CSS. nginx sends `Cache-Control: no-store` on `/lumitrade/` HTML.
+- **Vite build output**: Always `rm -rf` old assets before `cp -r dist/*`. Stale files with old hashes accumulate otherwise.
+- **Freqtrade auth**: Use HTTP Basic Auth, NOT JWT token login. FreqtradeConnector uses `auth=(username, password)`.
+- **OKX WebSocket**: Blocked by GFW. Config has `enable_ws: false`, uses REST polling.
+- **IB Gateway region**: Must use `Region=hk` in jts.ini for HK accounts. Without it, login fails silently.
+- **Docker PB pull**: `pocketbase/pocketbase:latest` not on Docker Hub. Use `--no-deps` when starting trade containers.
+- **Trade engine PB access**: Uses `host.docker.internal:8090` (cross-network), needs `extra_hosts` in compose.
 
-## Key constraints
+## Parent project files modified
 
-- All trading tools must register in LumiGate's UnifiedRegistry (AI-callable from chat)
-- Parent project rules apply: see `../CLAUDE.md` for LumiGate conventions (atomic writes, port 9471, no secret logging, etc.)
-- Trade Engine runs on port 3200 internally, accessed via Node.js proxy at `/v1/trade/*`
-- Risk management defaults are non-negotiable minimums (can tighten but not loosen)
-- PocketBase data access in `routes/trade.js` uses project-scoped paths (`/api/p/lumitrade/collections/...`) with fallback to unscoped
-
-## Parent project modifications
-
-Files modified/added in `ai-api-proxy/` for LumiTrade integration:
-- `docker-compose.yml` — added 4 containers under `--profile trade`
-- `routes/trade.js` — Node.js glue layer (new file)
-- `tools/trade-tools.js` — 7 AI tools (new file)
-- `public/lumitrade.html` — trading UI (new file)
-- `services/pb-schema.js` — trade collection schemas
-- `nginx/nginx.conf` — trade route proxying
-- `server.js` — `TRADE_ENGINE_URL` env var, route mounting
+- `server.js` — trade tools registration, lumitrader route mounting, `/lumitrade/auto-auth`
+- `routes/trade.js` — 30+ proxy routes with PB project scoping
+- `routes/lumitrader.js` — LumiTrader AI chat backend
+- `tools/trade-tools.js` — 15 AI tools
+- `services/pb-schema.js` — 11 trade collections (use `fields` key)
+- `nginx/nginx.conf` — `/lumitrade/`, `/assets/`, `/lumitrade/bt/api/`, WebSocket proxy
+- `docker-compose.yml` — 5 containers under `--profile trade`
+- `public/lumichat.html` — `X-App-Source` header support, `frame-ancestors 'self'`

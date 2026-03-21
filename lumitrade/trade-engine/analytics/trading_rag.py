@@ -84,6 +84,19 @@ class TradingRAG:
         """Embed arbitrary text with metadata."""
         await self._upsert(text, metadata or {})
 
+    async def embed_knowledge(self, docs: list[dict]):
+        """Embed a batch of knowledge documents.
+        Each doc: {"title": str, "content": str, "category": str}
+        """
+        for doc in docs:
+            text = f"{doc.get('title','')}: {doc.get('content','')}"
+            await self._upsert(text, {
+                "type": "knowledge",
+                "category": doc.get("category", "smc"),
+                "title": doc.get("title", ""),
+            })
+        logger.info(f"Embedded {len(docs)} knowledge documents")
+
     async def search(self, query: str, limit: int = 5) -> list[dict]:
         """Search trading RAG for relevant context."""
         vec = self._text_to_embedding(query)

@@ -1,0 +1,2 @@
+import{d as t,o as a,a as o,c,f as s,t as i}from"./index-xfr-OmMV.js";const n={class:"lt-chat-fullpage"},r=t({__name:"LumiChatView",setup(l){const e=window.location.origin+"/lumichat?app=lumitrade";return a(()=>{window.dispatchEvent(new CustomEvent("lumichat-close-panel"))}),(m,p)=>(o(),c("div",n,[s("iframe",{src:e,class:"lt-chat-iframe",title:"LumiTrader",allow:"microphone; clipboard-write"})]))}}),_=i(r,[["__scopeId","data-v-b84e8f76"]]);export{_ as default};
+//# sourceMappingURL=LumiChatView-BDwsLHZP.js.map

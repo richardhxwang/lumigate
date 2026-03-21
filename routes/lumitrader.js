@@ -38,6 +38,7 @@ module.exports = function createLumiTraderRouter(deps) {
     PB_URL,
     getPbAdminToken,
     TRADE_ENGINE_URL,
+    INTERNAL_CHAT_KEY,
   } = deps;
 
   const engineUrl = TRADE_ENGINE_URL || TRADE_ENGINE_URL_DEFAULT;
@@ -85,24 +86,39 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── Trading context fetcher ───────────────────────────────────────────────
 
-  async function fetchTradingContext() {
-    const ctx = { positions: null, pnl: null, signals: null };
+  async function fetchTradingContext(userMessage) {
+    const ctx = { positions: null, pnl: null, signals: null, history: null, journal: null, mood: null, rag: null };
+
+    // All fetches in parallel — best-effort, any failure returns null
     const tasks = [
       engineFetch("/positions").then(r => r.ok ? r.json() : null).catch(() => null),
       engineFetch("/pnl").then(r => r.ok ? r.json() : null).catch(() => null),
       engineFetch("/signals?limit=5").then(r => r.ok ? r.json() : null).catch(() => null),
+      // PB historical data
+      tradePbFetch("/api/collections/trade_history/records?perPage=10").then(r => r.ok ? r.json() : null).catch(() => null),
+      tradePbFetch("/api/collections/trade_journal/records?perPage=5").then(r => r.ok ? r.json() : null).catch(() => null),
+      tradePbFetch("/api/collections/trade_mood_logs/records?perPage=3").then(r => r.ok ? r.json() : null).catch(() => null),
+      // RAG search — use user's last message as query for relevant knowledge
+      userMessage
+        ? engineFetch(`/rag/search?q=${encodeURIComponent(userMessage)}&limit=3`).then(r => r.ok ? r.json() : null).catch(() => null)
+        : Promise.resolve(null),
     ];
 
-    const [positions, pnl, signals] = await Promise.all(tasks);
+    const [positions, pnl, signals, history, journal, mood, rag] = await Promise.all(tasks);
     ctx.positions = positions;
     ctx.pnl = pnl;
     ctx.signals = signals;
+    ctx.history = history;
+    ctx.journal = journal;
+    ctx.mood = mood;
+    ctx.rag = rag;
     return ctx;
   }
 
   function formatTradingContext(ctx) {
     const parts = [];
 
+    // Open positions
     if (ctx.positions && Array.isArray(ctx.positions.items) && ctx.positions.items.length > 0) {
       const posLines = ctx.positions.items.map(p =>
         `  ${p.symbol} ${p.direction || "?"} qty:${p.quantity || "?"} uPnL:${p.unrealized_pnl ?? "?"}`
@@ -112,16 +128,57 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push("[Open Positions] None");
     }
 
+    // P&L
     if (ctx.pnl) {
       const p = ctx.pnl;
       parts.push(`[P&L] today:${p.daily_pnl ?? "?"} cumulative:${p.cumulative_pnl ?? "?"} win_rate:${p.win_rate ?? "?"}`);
     }
 
+    // Recent signals
     if (ctx.signals && Array.isArray(ctx.signals.items) && ctx.signals.items.length > 0) {
       const sigLines = ctx.signals.items.slice(0, 5).map(s =>
         `  ${s.symbol} ${s.direction || "?"} confidence:${s.confidence ?? "?"} entry:${s.entry_price ?? "?"}`
       );
       parts.push(`[Recent Signals]\n${sigLines.join("\n")}`);
+    }
+
+    // Trade history (from PB)
+    const histItems = ctx.history?.items;
+    if (Array.isArray(histItems) && histItems.length > 0) {
+      const lines = histItems.slice(0, 10).map(t =>
+        `  ${t.symbol || "?"} ${t.direction || "?"} pnl:${t.pnl ?? "?"} R:${t.r_multiple ?? "?"} setup:${t.setup_type || "?"} ${t.exit_time || t.created || ""}`
+      );
+      parts.push(`[Recent Trades (last ${lines.length})]\n${lines.join("\n")}`);
+    }
+
+    // Journal entries (from PB)
+    const journalItems = ctx.journal?.items;
+    if (Array.isArray(journalItems) && journalItems.length > 0) {
+      const lines = journalItems.slice(0, 5).map(j =>
+        `  [${j.created || "?"}] mood:${j.mood_before || "?"} → ${j.mood_after || "?"} | ${(j.notes || j.reflection || "").slice(0, 100)}`
+      );
+      parts.push(`[Journal Entries]\n${lines.join("\n")}`);
+    }
+
+    // Mood logs (from PB)
+    const moodItems = ctx.mood?.items;
+    if (Array.isArray(moodItems) && moodItems.length > 0) {
+      const lines = moodItems.slice(0, 3).map(m =>
+        `  [${m.created || "?"}] ${m.mood_label || "?"} score:${m.mood_score ?? "?"} ${m.notes || ""}`
+      );
+      parts.push(`[Recent Mood]\n${lines.join("\n")}`);
+    }
+
+    // RAG knowledge results
+    const ragResults = ctx.rag?.results;
+    if (Array.isArray(ragResults) && ragResults.length > 0) {
+      const lines = ragResults
+        .filter(r => r.score > 0.5)
+        .slice(0, 3)
+        .map(r => `  [${r.category || r.type || "?"}] ${r._text || r.title || "?"}`);
+      if (lines.length > 0) {
+        parts.push(`[Relevant Knowledge]\n${lines.join("\n")}`);
+      }
     }
 
     if (parts.length === 0) return "";
@@ -138,9 +195,12 @@ module.exports = function createLumiTraderRouter(deps) {
       }
 
       // Fetch trading context and prepend to system prompt
+      // Use last user message for RAG search
+      const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+      const userQuery = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
       let contextBlock = "";
       try {
-        const ctx = await fetchTradingContext();
+        const ctx = await fetchTradingContext(userQuery);
         contextBlock = formatTradingContext(ctx);
       } catch { /* context fetch is best-effort */ }
 
@@ -173,7 +233,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Internal-Chat": process.env.INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": INTERNAL_CHAT_KEY || "",
         },
         body: JSON.stringify(upstreamBody),
       });

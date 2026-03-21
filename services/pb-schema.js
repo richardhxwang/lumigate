@@ -587,6 +587,21 @@ const PB_COLLECTIONS = [
  * @param {function} [log] - Optional logger (level, msg, ctx)
  * @returns {Promise<{created: string[], skipped: string[], errors: string[]}>}
  */
+// Map collection name → PB project ID for project-scoped creation
+const COLLECTION_PROJECT_MAP = {
+  trade_signals: "lumitrade",
+  trade_positions: "lumitrade",
+  trade_history: "lumitrade",
+  trade_pnl: "lumitrade",
+  trade_news: "lumitrade",
+  trade_strategies: "lumitrade",
+  trade_journal: "lumitrade",
+  trade_mood_logs: "lumitrade",
+  lt_sessions: "lumitrade",
+  lt_messages: "lumitrade",
+  lt_user_settings: "lumitrade",
+};
+
 async function ensureCollections(pbUrl, adminToken, log) {
   const _log = log || (() => {});
   const created = [];
@@ -641,7 +656,13 @@ async function ensureCollections(pbUrl, adminToken, log) {
         }),
       };
 
-      const res = await fetch(`${pbUrl}/api/collections`, {
+      // Use project-scoped API if collection belongs to a project
+      const project = COLLECTION_PROJECT_MAP[collection.name];
+      const apiPath = project
+        ? `${pbUrl}/api/p/${project}/collections`
+        : `${pbUrl}/api/collections`;
+
+      const res = await fetch(apiPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

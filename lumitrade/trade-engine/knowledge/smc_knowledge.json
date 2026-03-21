@@ -1,0 +1,87 @@
+[
+  {
+    "title": "OB+FVG Confluence 入场 Setup",
+    "category": "setup",
+    "content": "最高概率入场：在 HTF 确定方向后，LTF 出现 CHoCH → 找到最近的 OB → 该 OB 区域内或紧邻有 FVG → 在 FVG 50%(CE) 挂限价单入场。止损放在 OB 之外（看多放 OB low 下方，看空放 OB high 上方）。目标至少 2R，理想 3R。确认条件：① HTF bias 一致 ② LTF CHoCH/BOS 已发生 ③ 在正确 zone（做多在 Discount，做空在 Premium）④ OB 未被 mitigate。"
+  },
+  {
+    "title": "Liquidity Sweep + MSS 反转 Setup",
+    "category": "setup",
+    "content": "经典反转入场：价格扫掉关键流动性（EQH/EQL 或 session high/low）→ 快速反转 → 形成 MSS (Market Structure Shift，即 CHoCH) → 回撤到产生 MSS 的 OB/FVG → 入场。止损放在 liquidity sweep 的极值点之外。这个 setup 特别适合 London Open 扫 Asian Range 后的反转，以及 NY Open 扫 London session 极值后的反转。关键：sweep 必须是快速的（1-3 根 K 线），如果是慢慢磨上去的不算 sweep。"
+  },
+  {
+    "title": "Silver Bullet Setup",
+    "category": "setup",
+    "content": "ICT Silver Bullet 是在特定 1 小时窗口内寻找 FVG 入场的策略。三个窗口（UTC）：London SB 10:00-11:00, NY AM SB 14:00-15:00, NY PM SB 19:00-20:00。步骤：① 在窗口开始前确定 HTF bias ② 窗口内等待价格创造新的 swing high/low ③ 找到该 move 中产生的 FVG ④ 在 FVG 入场，止损在 swing 极值外。Silver Bullet 的优势是时间精确、入场窗口短（减少过度交易），适合兼职交易者。"
+  },
+  {
+    "title": "Asian Range Manipulation Setup",
+    "category": "setup",
+    "content": "基于 PO3 (Power of 3) 的日内 setup。步骤：① 标记 Asian Session (00:00-08:00 UTC) 的 High 和 Low ② London Open 时观察价格先突破 Asian Range 哪一侧 ③ 如果先向下突破 Asian Low（扫 SSL）→ 预期当日看涨，等回撤入场做多 ④ 如果先向上突破 Asian High（扫 BSL）→ 预期当日看跌，等回撤入场做空。统计上 London 先扫的方向大概率是 Manipulation（假突破），真正的日内方向是反方向。配合 HTF bias 过滤可提高胜率到 65%+。"
+  },
+  {
+    "title": "Breaker Block Setup",
+    "category": "setup",
+    "content": "Breaker Block 是失败的 OB（被价格突破后角色反转）。看涨 Breaker：之前的看跌 OB 被强力上破 → 该区域从阻力变成支撑 → 价格回测时提供买入机会。看跌 Breaker：之前的看涨 OB 被强力下破 → 从支撑变阻力。Breaker 的力量来自：被困在错误方向的交易者的止损被扫，他们的止损单为新方向提供燃料。入场：等价格回到 Breaker Block 区域 + LTF 确认（CHoCH/FVG）。"
+  },
+  {
+    "title": "Mitigation Block",
+    "category": "concept",
+    "content": "Mitigation Block 出现在趋势反转中。当一个 OB 被突破（失效）后，该区域的未平仓订单需要被'清算'(mitigate)。价格回到这个区域时，机构平掉之前的亏损仓位，同时建立新方向的仓位。与 Breaker Block 的区别：Breaker 是角色反转后的第一次回测（新鲜的），Mitigation Block 可能是第二次或更多次回测。交易优先级：新鲜 OB > Breaker > Mitigation Block。"
+  },
+  {
+    "title": "Inducement / Trap",
+    "category": "concept",
+    "content": "Inducement 是机构故意制造的假信号，目的是诱骗散户入场然后反向收割。常见形态：① Minor BOS（小级别突破但大级别结构不变）→ 散户以为突破了跟进 → 被反转扫止损 ② Equal Highs/Lows 形成后的第一次突破（可能是 sweep 不是真突破）③ 新闻发布时的快速 spike。识别方法：看大级别结构是否改变。如果 HTF 结构没变，LTF 的反向信号很可能是 inducement。对策：不要在 inducement 区域入场，等 sweep 完成后的 MSS 再入。"
+  },
+  {
+    "title": "ICT Optimal Trade Entry (OTE) 详解",
+    "category": "concept",
+    "content": "OTE 是 ICT 的核心入场方法。在一个 impulse move（推动浪）之后，价格回撤。用 Fib 工具从 impulse 起点画到终点：① 0.5 = Equilibrium（均衡点）② 0.62 = OTE 区域起点 ③ 0.705 = Sweet Spot（最佳位置）④ 0.786 = OTE 区域终点 ⑤ 0.886+ = 深度回撤，OB 可能在这里。最佳入场：OTE 区域（0.62-0.786）内找到 OB 或 FVG 的位置。止损放在 impulse 起点之外。如果价格回撤超过 0.886 且没有快速反弹，这个 setup 可能失效。"
+  },
+  {
+    "title": "Session 时段与品种选择",
+    "category": "practical",
+    "content": "不同 session 适合不同品种：London Session 最适合：EUR/USD, GBP/USD, EUR/GBP, 黄金(XAU/USD)。NY Session 最适合：USD pairs, 美股指数(SPY/QQQ/NQ/ES), 黄金。Asian Session 最适合：AUD/USD, NZD/USD, USD/JPY, 加密货币(BTC/ETH 24h 但 Asian 波动相对大)。加密货币：无固定 session 但通常在 US 工作时间（13:00-21:00 UTC）波动最大，周末波动降低。美股：只在 NY session (13:30-20:00 UTC) 交易，盘前盘后流动性差。"
+  },
+  {
+    "title": "风控实操指南",
+    "category": "risk",
+    "content": "仓位计算公式：Position Size = (Account Balance × Risk%) / (Entry - StopLoss)。例：账户 $10,000, 风险 1%, 入场 $100, 止损 $98 → Size = (10000 × 0.01) / (100 - 98) = 50 股。每日最大亏损 = 账户 × 3% = $300。如果当日已亏 $200，下一笔只能冒 $100 风险。连续 3 笔亏损 → 强制休息 30 分钟，记录情绪。连续 5 笔亏损 → 当日停止交易。周亏损超过 5% → 降低下周仓位到 0.5%。月亏损超过 8% → 回到模拟盘 1 周。"
+  },
+  {
+    "title": "持仓管理与移动止损",
+    "category": "risk",
+    "content": "入场后的管理规则：① 到 1R（止损等距利润）→ 部分平仓 50%，止损移到入场价（保本）② 到 1.5R → 启动 trailing stop，距离为 0.5R ③ 到 2R → 再平 25%，trailing 收紧到 0.3R ④ 剩余 25% 让利润奔跑，trailing 0.3R。特殊情况：如果检测到对面方向的 CHoCH → 立即全部平仓，不等 trailing 触发。如果到达 HTF 的关键 OB/FVG（强阻力/支撑）→ 考虑全部平仓。永远不要加仓到亏损的仓位（不摊平）。"
+  },
+  {
+    "title": "新闻事件交易规则",
+    "category": "risk",
+    "content": "高影响新闻（红色日历事件）：NFP, CPI, FOMC, GDP, 央行利率决议。规则：① 新闻前 30 分钟：不开新仓 ② 新闻前 15 分钟：收紧现有仓位止损到保本（如果有利润）或手动平仓 ③ 新闻发布后：等 15-30 分钟让波动稳定，不追 spike ④ 新闻后的第一个 FVG + MSS 通常是好的入场机会。加密货币特殊：关注 SEC 公告、ETF 相关新闻、大交易所事件。美股特殊：关注财报季（earnings），财报前后 24h 不交易该股票。"
+  },
+  {
+    "title": "情绪管理与交易心理",
+    "category": "psychology",
+    "content": "常见情绪陷阱：① FOMO（错失恐惧）：看到大行情没参与 → 冲动入场。对策：永远有下一个机会，等符合规则的 setup ② 报复性交易：亏损后想立刻赚回来。对策：连亏后强制休息，记录情绪 ③ 过度交易：一天开太多仓位。对策：每日最多 3 笔交易，质量 > 数量 ④ 过早止盈：害怕利润回吐。对策：用机械化的部分平仓规则，不凭感觉 ⑤ 移动止损到更远：不想被扫出去。对策：止损位由结构决定，设好就不动。情绪评分：每笔交易前记录 1-10 分。低于 5 分 → 不交易。"
+  },
+  {
+    "title": "SMC 与传统技术分析的区别",
+    "category": "concept",
+    "content": "核心区别：传统 TA 看指标（RSI/MACD/均线），SMC 看价格行为和机构行为。① 支撑/阻力 vs OB/FVG：传统支撑阻力是多次触及的价格线，SMC 的 OB 是单次的机构订单区域，精度更高 ② 趋势线 vs 市场结构：传统用趋势线判断趋势，SMC 用 HH/HL、LH/LL 和 BOS/CHoCH，更客观 ③ 指标滞后 vs 价格领先：RSI 超买不代表要跌（可以持续超买），SMC 看实际的结构变化 ④ 成交量 vs 流动性：传统看成交量确认突破，SMC 看流动性被扫的方式判断真假突破。SMC 不排斥传统 TA，但以价格结构为主，指标为辅。"
+  },
+  {
+    "title": "加密货币 SMC 特殊注意事项",
+    "category": "practical",
+    "content": "加密货币与传统市场的 SMC 差异：① 24/7 市场：没有明确的 session open/close，但 US 时段（13:00-21:00 UTC）波动最大 ② 流动性更薄：相同的 liquidity sweep 幅度更大（可能 2-5%），止损要留更多空间 ③ Funding rate：永续合约的 funding rate 影响持仓成本，高 funding 时空头有优势 ④ 链上数据：大额转账到交易所 = 可能抛售，从交易所转出 = 可能囤币。可作为 HTF bias 参考 ⑤ BTC 主导：山寨币的 SMC 分析必须先看 BTC 的方向，BTC 反转时山寨币通常跌更多 ⑥ 波动率更高：建议加密货币仓位降到 1%（不是 2%），止损用 ATR 的 1.5-2 倍。"
+  },
+  {
+    "title": "美股 SMC 特殊注意事项",
+    "category": "practical",
+    "content": "美股 SMC 策略要点：① 只在正式交易时段操作（09:30-16:00 ET / 13:30-20:00 UTC），前 30 分钟（09:30-10:00 ET）波动大但可能是 manipulation ② Opening Range (OR)：开盘前 15-30 分钟的高低点类似 Asian Range，后续突破方向有参考价值 ③ 午间低波动（12:00-14:00 ET）：不适合入场，适合分析和计划 ④ Power Hour（15:00-16:00 ET）：最后一小时经常有大行情，机构调仓 ⑤ Gaps（跳空缺口）：美股因为有休市所以有真实缺口，缺口 = 大型 FVG，填补概率高 ⑥ 板块联动：SPY 定方向，个股跟随。做多选强势板块的强势股，做空选弱势板块的弱势股 ⑦ 期权到期日(OPEX)：每月第三个周五，经常有 pinning 行为（价格被钉在某个价位），SMC 信号可能失效。"
+  },
+  {
+    "title": "多时间框架分析实战示例",
+    "category": "practical",
+    "content": "做多 BTC/USDT 的 MTF 分析流程：1) Daily：确认上升结构（HH+HL），价格在 Discount Zone（低于 EQ），有看涨 OB 在 $60,000-61,000 2) 4H：最近出现看涨 BOS，正在回撤向 Daily OB 3) 1H：在 Daily OB 区域内等待 1H CHoCH（从 LH/LL 变成 HL/HH）4) 15m：1H CHoCH 出现后，在 15m 找到新鲜的看涨 OB + FVG confluence → 在 FVG CE 处入场 5) 止损：15m OB low 下方（或 Daily OB low 下方如果要宽止损）6) 目标：至少 2R，理想是 4H 的前一个 Swing High。关键：如果 Daily 是下降结构，不管 LTF 怎么看涨都不做多。"
+  }
+]
