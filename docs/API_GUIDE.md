@@ -380,13 +380,6 @@ GET  /lc/memory/recall        recall memories relevant to current user
 POST /lc/memory/ingest        { "text": "User prefers dark mode" }
 ```
 
-FurNote pet profile sync:
-
-```http
-GET  /fn/memory/profile/:userId
-POST /fn/memory/profile/:userId  { "pet": { "name": "Mochi", "breed": "Shiba" } }
-```
-
 ---
 
 ## HKEX Filing Download — /v1/hkex/*

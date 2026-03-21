@@ -45,7 +45,7 @@ curl http://localhost:9471/health
 - Keep 10MB body limit unless there is a scoped and tested reason to change it.
 
 ## Clean Chat Proxy: POST /v1/chat
-统一端点，所有 App（LumiChat、FurNote、未来 App）都用。前端只收 3 种 SSE 事件：
+统一端点，所有 App（LumiChat、移动端、未来 App）都用。前端只收 3 种 SSE 事件：
 - `data:` — 干净文字（无工具标记）
 - `event: tool_status` — 灰色状态提示（后端控制显示内容）
 - `event: file_download` — 文件下载卡数据

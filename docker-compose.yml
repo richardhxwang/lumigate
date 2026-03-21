@@ -7,11 +7,25 @@ x-logging-default: &logging-default
     max-file: "10"
 
 services:
+  # Custom PocketBase fork with multi-project support. See: https://github.com/richardhxwang/pocketbase
   pocketbase:
-    image: pocketbase/pocketbase:latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        RUN apk add --no-cache git
+        RUN git clone --depth 1 https://github.com/richardhxwang/pocketbase.git /src
+        WORKDIR /src
+        RUN CGO_ENABLED=0 go build -o /pocketbase ./cmd/pocketbase
+        FROM alpine:latest
+        RUN apk add --no-cache ca-certificates
+        COPY --from=builder /pocketbase /usr/local/bin/pocketbase
+        EXPOSE 8090
+        CMD ["pocketbase", "serve", "--http=0.0.0.0:8090"]
+    profiles: ["standalone"]
     container_name: lumigate-pocketbase
     restart: unless-stopped
-    command: ["serve", "--http=0.0.0.0:8090", "--dir=/pb_data"]
+    command: ["pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb_data"]
     ports:
       - "127.0.0.1:8090:8090"
     volumes:

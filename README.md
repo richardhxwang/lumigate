@@ -16,8 +16,8 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          Client Layer                                │
 │                                                                      │
-│   LumiChat    FurNote    Whenever    REST / SDK    MCP Clients      │
-│  (built-in)  (iOS pet)  (iOS rem.)  (server-side)  (external)      │
+│   LumiChat    Mobile Apps    REST / SDK    MCP Clients              │
+│  (built-in)  (third-party)  (server-side)  (external)              │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ HTTPS / SSE
 ┌──────────────────────────────▼──────────────────────────────────────┐
