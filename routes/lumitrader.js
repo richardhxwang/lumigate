@@ -544,8 +544,8 @@ module.exports = function createLumiTraderRouter(deps) {
       // the full AI response including post-tool-execution text.
       const upstreamBody = {
         messages: outMessages,
-        model: model || "gpt-4o",
-        provider: provider || "openai",
+        model: model || "claude-sonnet-4-6",
+        provider: provider || "anthropic",
         stream: true, // always stream internally
       };
 
