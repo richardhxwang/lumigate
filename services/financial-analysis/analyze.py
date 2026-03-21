@@ -1697,7 +1697,19 @@ _SECTION_PATTERNS: List[Tuple[str, str]] = [
         r"^(?:\s*(?:consolidated\s*)?(?:statement\s*of\s*changes\s*in\s*equity)"
         r"|綜合權益變動表|综合权益变动表|權益變動表|股东权益变动表|股東權益變動表)\s*$"
     )),
+    # Sentinel sections: these terminate the preceding section but are not
+    # themselves parsed for line items.  They act as boundary markers so that
+    # equity_changes (the last real statement) does not swallow the entire
+    # notes section that follows it.
+    ("_notes_sentinel", (
+        r"^(?:\s*(?:notes?\s*to\s*(?:the\s*)?(?:consolidated\s*)?(?:financial\s*)?(?:statements?|报表|報表))"
+        r"|綜合財務報告附註|综合财务报告附注|財務報表附註|财务报表附注"
+        r"|附註|附注)\s*$"
+    )),
 ]
+
+# Section IDs that are sentinel-only (used for boundary detection, not parsed)
+_SENTINEL_SECTIONS = {"_notes_sentinel"}
 
 # Number pattern that captures financial numbers (with commas, parens, decimals)
 _CAST_NUM_RE = re.compile(
@@ -1721,6 +1733,16 @@ _SKIP_LINE_RE = re.compile(
 _TOTAL_LABEL_RE = re.compile(
     r"\btotal\b|\bsubtotal\b|\bnet\b.*\b(?:assets?|liabilities|equity|income|profit|loss|cash)\b"
     r"|合[计計]|总[计計]|總[計计]|小[计計]|淨額|净额"
+, re.IGNORECASE)
+
+# Subtotal indicators: lines that summarize the immediately preceding item(s)
+# but are NOT top-level totals.  Used to deduplicate children in addition checks.
+# E.g., "Other comprehensive income for the year, net of tax" is a subtotal
+# of the OCI detail lines above it.
+_SUBTOTAL_INDICATOR_RE = re.compile(
+    r"\bfor\s+the\s+(?:year|period),?\s*net\s+of\s+(?:income\s+)?tax\b"
+    r"|除稅後|除税后"
+    r"|\bnet\s+of\s+tax\b"
 , re.IGNORECASE)
 
 
@@ -2038,6 +2060,57 @@ def _extract_line_items(section_text: str) -> List[Dict[str, Any]]:
     return items
 
 
+def _label_relates_to_total(total_label: str, child_labels: List[str]) -> bool:
+    """Check if a total label has a plausible relationship with its children.
+
+    Financial totals typically relate to their children via:
+    - "Total X" where X appears in the group (e.g., "Total equity" for equity items)
+    - "Gross profit" = revenue - COGS (known accounting relationship)
+    - "Net X" = subtotal of X items
+    - Chinese: "合计"/"小计"/"总额" patterns
+
+    Returns True if the relationship seems plausible, False if suspicious.
+    """
+    tl = total_label.lower().strip()
+
+    # Always trust generic totals (just "Total" / "合計" / "小計" etc.)
+    if re.match(r'^(?:total|subtotal|sub[\-\s]*total|合[计計]|小[计計]|总[计計額额]|總[計计額额])\s*$', tl, re.IGNORECASE):
+        return True
+
+    # For "Total X" or "Net X", check if any child label contains related terms
+    # Extract the subject from the total label
+    subject_match = re.search(
+        r'(?:total|net|subtotal|sub[\-\s]*total)\s+(.+)', tl, re.IGNORECASE
+    )
+    if subject_match:
+        subject = subject_match.group(1).strip().lower()
+        # Remove trailing punctuation
+        subject = re.sub(r'[,.:;]+$', '', subject).strip()
+        if len(subject) >= 3:
+            # Check if any child has a related label (substring match or fuzzy)
+            for cl in child_labels:
+                cl_lower = cl.lower()
+                # Direct keyword overlap
+                subject_words = set(re.findall(r'\w{3,}', subject))
+                child_words = set(re.findall(r'\w{3,}', cl_lower))
+                if subject_words & child_words:
+                    return True
+            # No child has any relation -- suspicious
+            # But allow if there are few children (2-3) which is common
+            if len(child_labels) <= 3:
+                return True
+            return False
+
+    # Chinese totals with subject: check for common patterns
+    # e.g., "流動負債淨值" (Net current liabilities) should have liability children
+    # For Chinese, we're more lenient -- trust the total detection
+    if any('\u4e00' <= ch <= '\u9fff' for ch in tl):
+        return True
+
+    # Default: trust the relationship
+    return True
+
+
 def _build_hierarchy(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Auto-detect parent-child relationships using multiple strategies:
 
@@ -2050,6 +2123,9 @@ def _build_hierarchy(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     For pdftotext -layout format, indent-based hierarchy is unreliable because
     Chinese + English labels create varying indentation.  The total-detection
     approach is more robust for financial statements.
+
+    Includes validation: rejects parent-child relationships where the total
+    label has no plausible connection to its children (prevents false groupings).
 
     Returns items annotated with 'children_indices' and 'parent_index'.
     """
@@ -2077,26 +2153,37 @@ def _build_hierarchy(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 break
             if items[j]["is_total"]:
                 break  # Stop at previous total
+            # Stop at unlabeled subtotal rows (numbers-only lines that act as
+            # section separators in balance sheets and other statements)
+            if not items[j]["label"].strip():
+                break
             children.append(j)
 
         if children:
             children.reverse()
-            items[i]["children_indices"] = children
-            for ci in children:
-                items[ci]["parent_index"] = i
-                assigned.add(ci)
+            # Validate: check that this total label relates to the children
+            child_labels = [items[ci]["label"] for ci in children]
+            if _label_relates_to_total(items[i]["label"], child_labels):
+                items[i]["children_indices"] = children
+                for ci in children:
+                    items[ci]["parent_index"] = i
+                    assigned.add(ci)
 
     # Strategy 2: indent-based fallback for items not yet assigned
-    # Only apply to items that weren't handled by total-detection
-    # Use a simple rule: if an item has MORE indent than the preceding item,
-    # it's a child of that preceding item.
+    # Only apply to labeled items that weren't handled by total-detection.
+    # Skip unlabeled rows (subtotal separators) -- they should not form
+    # parent-child relationships.
     for i in range(1, n):
         if items[i]["parent_index"] is not None:
             continue  # Already assigned
         if i in assigned:
             continue
-        # Look for a parent with less indent
+        if not items[i]["label"].strip():
+            continue  # Skip unlabeled rows
+        # Look for a labeled parent with less indent
         for j in range(i - 1, -1, -1):
+            if not items[j]["label"].strip():
+                continue  # Skip unlabeled potential parents
             if items[j]["indent"] < items[i]["indent"] and items[j]["parent_index"] is None:
                 items[i]["parent_index"] = j
                 items[j]["children_indices"].append(i)
@@ -2112,6 +2199,9 @@ def _verify_item(item: Dict[str, Any], all_items: List[Dict[str, Any]],
 
     If it has children, check that children's current_year values sum to
     this item's current_year (addition check).
+
+    Tolerance: uses adaptive rounding tolerance -- max(base_tolerance, 0.1% of expected).
+    Financial statements in millions often have +/-1 rounding differences.
 
     Returns a casting entry dict.
     """
@@ -2143,20 +2233,56 @@ def _verify_item(item: Dict[str, Any], all_items: List[Dict[str, Any]],
         child_labels: List[str] = []
         child_values: List[Optional[float]] = []
         all_have_values = True
+
+        # Deduplicate subtotals: if a child is a subtotal of preceding
+        # children (same value, labeled as subtotal), exclude the detail
+        # items it summarizes to avoid double-counting.
+        # Example: OCI detail (-31) + OCI subtotal (-31) should only count once.
+        skip_indices: set = set()
+        for k, ci in enumerate(children_idx):
+            child = all_items[ci]
+            if _SUBTOTAL_INDICATOR_RE.search(child["label"]):
+                # This child is a subtotal -- find preceding children with
+                # values that sum to this subtotal's value
+                subtotal_val = child.get("current_year")
+                if subtotal_val is not None:
+                    running = 0.0
+                    for prev_k in range(k - 1, -1, -1):
+                        prev_ci = children_idx[prev_k]
+                        if prev_ci in skip_indices:
+                            continue
+                        prev_val = all_items[prev_ci].get("current_year")
+                        if prev_val is not None:
+                            running += prev_val
+                            if abs(running - subtotal_val) < 0.01:
+                                # These detail items are summarized by the subtotal
+                                for dedup_k in range(prev_k, k):
+                                    skip_indices.add(children_idx[dedup_k])
+                                break
+
         for ci in children_idx:
             child = all_items[ci]
             cv = child.get("current_year")
             child_labels.append(child["label"])
             child_values.append(cv)
+            if ci in skip_indices:
+                continue  # Skip detail items replaced by their subtotal
             if cv is not None:
                 child_sum += cv
             else:
                 all_have_values = False
 
-        if all_have_values and len(children_idx) >= 2:
+        effective_count = sum(1 for ci in children_idx if ci not in skip_indices)
+        if all_have_values and effective_count >= 2:
             diff = cur - child_sum
-            if abs(diff) <= tolerance:
-                entry["addition_check"] = "pass"
+            # Adaptive tolerance: 0.1% of expected value or base tolerance,
+            # whichever is larger.  Handles rounding in millions.
+            adaptive_tol = max(tolerance, abs(child_sum) * 0.001)
+            if abs(diff) <= adaptive_tol:
+                if abs(diff) > tolerance and abs(diff) > 0:
+                    entry["addition_check"] = "pass_with_rounding"
+                else:
+                    entry["addition_check"] = "pass"
             else:
                 entry["addition_check"] = "fail"
             entry["addition_expected"] = round(child_sum, 2)
@@ -2180,10 +2306,14 @@ def _fuzzy_match_score(a: str, b: str) -> float:
 
 
 # Known cross-statement label equivalences (label fragment -> canonical)
+# Each entry: (canonical_id, variant_list, optional_section_filter)
+# Section filter: if provided, only match items from these sections.
+# This prevents false matches, e.g., equity_changes "Profit for the year"
+# (which is attributable-only) matching IS "Profit for the year" (group total).
 _LABEL_EQUIVALENCES: List[Tuple[str, List[str]]] = [
     ("net_profit", [
         "net income", "net profit", "profit for the year", "profit for the period",
-        "profit attributable", "本年度溢利", "净利润", "淨利潤", "纯利", "純利",
+        "本年度溢利", "净利润", "淨利潤", "纯利", "純利",
         "年度溢利", "本期利润", "本期利潤",
     ]),
     ("total_equity", [
@@ -2191,9 +2321,11 @@ _LABEL_EQUIVALENCES: List[Tuple[str, List[str]]] = [
         "總權益", "总权益", "股东权益合计", "股東權益合計",
     ]),
     ("cash_closing", [
-        "cash and cash equivalents", "closing cash", "期末现金", "期末現金",
+        "closing cash", "期末现金", "期末現金",
         "年末现金", "年末現金", "cash at end", "cash at 31 december",
         "於十二月三十一日之現金", "于十二月三十一日之现金",
+        "於十二月三十一日之 現金及現金等價物",
+        "于十二月三十一日之 现金及现金等价物",
     ]),
     ("cash_opening", [
         "cash at beginning", "opening cash", "期初现金", "期初現金",
@@ -2205,13 +2337,22 @@ _LABEL_EQUIVALENCES: List[Tuple[str, List[str]]] = [
     ]),
     ("dividends", [
         "dividends declared", "dividends paid", "已宣派股息", "已派发股息",
-        "已派發股息", "股息", "股利", "分红", "分紅",
+        "已派發股息",
     ]),
     ("depreciation", [
         "depreciation", "depreciation and amortisation", "depreciation and amortization",
         "折旧", "折舊", "折旧及摊销", "折舊及攤銷",
     ]),
 ]
+
+# Labels that should NOT be canonicalized (too ambiguous or represent
+# different things in different statements)
+_CROSS_STMT_EXCLUDE_LABELS = re.compile(
+    r"profit\s*attributable"           # IS attributable != group profit
+    r"|net\s*(?:decrease|increase)\s*in\s*cash"  # CF net change != BS cash balance
+    r"|cash\s*and\s*cash\s*equivalents"  # Ambiguous: BS balance vs CF line
+    r"|股息|股利|分红|分紅"              # dividends -- too many variants
+, re.IGNORECASE)
 
 
 def _canonicalize_label(label: str) -> Optional[str]:
@@ -2223,6 +2364,10 @@ def _canonicalize_label(label: str) -> Optional[str]:
     label_lower = label.lower().strip()
     # Skip very short labels (too ambiguous) and very long labels (notes text)
     if len(label_lower) < 3 or len(label_lower) > 80:
+        return None
+
+    # Exclude labels known to be ambiguous across statements
+    if _CROSS_STMT_EXCLUDE_LABELS.search(label_lower):
         return None
 
     for canon_id, variants in _LABEL_EQUIVALENCES:
@@ -2257,20 +2402,27 @@ def _cross_statement_checks(
 
     For items that appear in multiple statements, verify their values match.
     """
+    # Primary statement sections (prefer matching across these, not equity sub-tables)
+    _primary_sections = {"income_statement", "comprehensive_income", "balance_sheet",
+                         "cash_flow"}
+
     # Build a map: canonical_id -> list of (section_id, label, current_year)
+    # Exclude equity_changes for certain canonical IDs where the equity matrix
+    # shows different amounts (e.g., "profit for the year" in equity = attributable
+    # only, vs IS = group total including NCI).
+    _equity_exclude_canonicals = {"net_profit", "total_equity", "revenue"}
     canonical_map: Dict[str, List[Tuple[str, str, Optional[float]]]] = {}
     for sec_id, items in section_items.items():
         for item in items:
             canon = _canonicalize_label(item["label"])
             if canon is None:
                 continue
+            # Skip equity_changes for items known to differ structurally
+            if sec_id == "equity_changes" and canon in _equity_exclude_canonicals:
+                continue
             canonical_map.setdefault(canon, []).append(
                 (sec_id, item["label"], item.get("current_year"))
             )
-
-    # Primary statement sections (for cross-statement, prefer matching across these)
-    _primary_sections = {"income_statement", "comprehensive_income", "balance_sheet",
-                         "cash_flow", "equity_changes"}
 
     results: List[Dict[str, Any]] = []
     for canon_id, entries in canonical_map.items():
@@ -2279,9 +2431,12 @@ def _cross_statement_checks(
         if len(sections_seen) < 2:
             continue
 
-        # Compare values across sections — only use first occurrence per section
+        # Compare values across sections -- prefer primary statement sections.
+        # Use first occurrence per section.
         by_section: Dict[str, Tuple[str, str, Optional[float]]] = {}
-        for s, l, v in entries:
+        # Process primary sections first, then others
+        sorted_entries = sorted(entries, key=lambda e: (0 if e[0] in _primary_sections else 1))
+        for s, l, v in sorted_entries:
             if s not in by_section and v is not None:
                 by_section[s] = (s, l, v)
 
@@ -2289,7 +2444,7 @@ def _cross_statement_checks(
         if len(valued) < 2:
             continue
 
-        # Use first occurrence as reference
+        # Use first occurrence (preferably from primary section) as reference
         ref_sec, ref_label, ref_val = valued[0]
         for other_sec, other_label, other_val in valued[1:]:
             if other_sec == ref_sec:
@@ -2297,7 +2452,12 @@ def _cross_statement_checks(
             diff = abs(ref_val - other_val) if ref_val is not None and other_val is not None else None
             status = "not_applicable"
             if diff is not None:
-                status = "pass" if diff <= tolerance else "fail"
+                # Adaptive tolerance for cross-statement: 0.1% or base
+                adaptive_tol = max(tolerance, abs(ref_val) * 0.001)
+                if diff <= adaptive_tol:
+                    status = "pass" if diff <= tolerance else "pass_with_rounding"
+                else:
+                    status = "fail"
 
             results.append({
                 "canonical_id": canon_id,
@@ -2336,6 +2496,10 @@ def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, An
     section_summaries: Dict[str, Dict[str, Any]] = {}
 
     for sec in sections:
+        # Skip sentinel sections (boundaries only, not parsed)
+        if sec["id"] in _SENTINEL_SECTIONS:
+            continue
+
         sec_text = text[sec["start"]:sec["end"]]
         items = _extract_line_items(sec_text)
 
@@ -2343,8 +2507,15 @@ def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, An
         for item in items:
             item["_section_id"] = sec["id"]
 
-        # Build hierarchy
-        items = _build_hierarchy(items)
+        # For equity changes: detect matrix format (multiple numeric columns
+        # per row representing different equity components).  These are NOT
+        # parent-child relationships -- they are columns.  Skip hierarchy
+        # building entirely and only do flat extraction.
+        is_equity_matrix = sec["id"] == "equity_changes"
+
+        # Build hierarchy (skip for equity matrix)
+        if not is_equity_matrix:
+            items = _build_hierarchy(items)
 
         # Store for cross-statement checks
         section_items_map[sec["id"]] = items
@@ -2360,7 +2531,7 @@ def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, An
         casting_sheet.extend(sec_entries)
 
         # Section summary
-        pass_c = sum(1 for e in sec_entries if e.get("addition_check") == "pass")
+        pass_c = sum(1 for e in sec_entries if e.get("addition_check") in ("pass", "pass_with_rounding"))
         fail_c = sum(1 for e in sec_entries if e.get("addition_check") == "fail")
         na_c = sum(1 for e in sec_entries if e.get("addition_check") == "not_applicable")
         section_summaries[sec["id"]] = {
@@ -2375,10 +2546,10 @@ def cast_financial_statements(text: str, tolerance: float = 1.0) -> Dict[str, An
     cross_matches = _cross_statement_checks(section_items_map, tolerance=tolerance)
 
     # Overall stats
-    total_pass = sum(1 for e in casting_sheet if e.get("addition_check") == "pass")
+    total_pass = sum(1 for e in casting_sheet if e.get("addition_check") in ("pass", "pass_with_rounding"))
     total_fail = sum(1 for e in casting_sheet if e.get("addition_check") == "fail")
     total_na = sum(1 for e in casting_sheet if e.get("addition_check") == "not_applicable")
-    xstmt_pass = sum(1 for m in cross_matches if m.get("status") == "pass")
+    xstmt_pass = sum(1 for m in cross_matches if m.get("status") in ("pass", "pass_with_rounding"))
     xstmt_fail = sum(1 for m in cross_matches if m.get("status") == "fail")
 
     return {
