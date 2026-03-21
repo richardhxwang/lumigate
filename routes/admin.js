@@ -805,7 +805,7 @@ module.exports = function createAdminRouter(deps) {
         }
       }
     }
-    usageCache = { key: cacheKey, data: result, ts: now };
+    usageCache.key = cacheKey; usageCache.data = result; usageCache.ts = now;
     res.json(result);
   });
 
@@ -866,7 +866,7 @@ module.exports = function createAdminRouter(deps) {
       for (const m of Object.values(p.models)) m.cost = Math.round(m.cost * 1e6) / 1e6;
     }
     const data = { days, totalRequests, totalCost: Math.round(totalCost * 1e4) / 1e4, byProject };
-    summaryCache = { key: cacheKey, data, ts: Date.now() };
+    summaryCache.key = cacheKey; summaryCache.data = data; summaryCache.ts = Date.now();
     res.json(data);
   });
 
