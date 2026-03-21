@@ -12,6 +12,33 @@ const express = require("express");
 const TRADE_ENGINE_URL_DEFAULT = "http://localhost:3200";
 const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() || "lumitrade";
 const LUMIGATE_INTERNAL_URL = process.env.LUMIGATE_INTERNAL_URL || "http://localhost:9471";
+const TG_BOT_TOKEN = process.env.LUMITRADER_TELEGRAM_TOKEN || process.env.TRADE_TELEGRAM_BOT_TOKEN || "";
+const TG_CHAT_ID = process.env.LUMITRADER_TELEGRAM_CHAT_ID || process.env.TRADE_TELEGRAM_CHAT_ID || "";
+
+// ── Telegram send helper ──────────────────────────────────────────────────
+
+async function sendTelegram(text, options = {}) {
+  if (!TG_BOT_TOKEN || !TG_CHAT_ID) return false;
+  try {
+    const body = {
+      chat_id: options.chatId || TG_CHAT_ID,
+      text,
+      parse_mode: options.parseMode || "HTML",
+    };
+    if (options.replyMarkup) body.reply_markup = JSON.stringify(options.replyMarkup);
+    const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!data.ok) console.error("[lumitrader][telegram] send failed:", data.description);
+    return data.ok;
+  } catch (err) {
+    console.error("[lumitrader][telegram] error:", err.message);
+    return false;
+  }
+}
 
 const TRADING_SYSTEM_PROMPT = `你是 LumiTrader，一个专业的 SMC/ICT 交易 AI 助手。
 

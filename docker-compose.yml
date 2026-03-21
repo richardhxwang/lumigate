@@ -100,6 +100,8 @@ services:
       - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
       - TRADE_FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-lumitrade}
       - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-123123@}
+      - LUMITRADER_TELEGRAM_TOKEN=${LUMITRADER_TELEGRAM_TOKEN:-}
+      - LUMITRADER_TELEGRAM_CHAT_ID=${LUMITRADER_TELEGRAM_CHAT_ID:-}
     volumes:
       - ./data:/app/data
       - collector-chrome-profile:/home/chrome/.chrome-profile
