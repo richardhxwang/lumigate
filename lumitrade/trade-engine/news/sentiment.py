@@ -301,8 +301,11 @@ async def get_sentiment_score(symbol: str, http_client: httpx.AsyncClient) -> di
 
         for article in articles[:50]:  # cap at 50 most recent
             headline = article.get("headline", "")
+            summary = article.get("summary", "")
             if headline:
-                headlines.append(headline)
+                # For FinBERT: combine headline + summary for better accuracy
+                full_text = headline + (". " + summary if summary else "")
+                headlines.append(full_text)
 
             # Finnhub news endpoint includes a 'sentiment' field in some responses
             sent = article.get("sentiment")
