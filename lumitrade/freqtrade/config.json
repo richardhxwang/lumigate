@@ -32,8 +32,8 @@
         "key": "",
         "secret": "",
         "password": "",
-        "ccxt_config": { "enableRateLimit": true },
-        "ccxt_async_config": { "enableRateLimit": true },
+        "ccxt_config": { "enableRateLimit": true, "rateLimit": 200 },
+        "ccxt_async_config": { "enableRateLimit": true, "rateLimit": 200 },
         "pair_whitelist": [
             "BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT",
             "XRP/USDT:USDT", "ADA/USDT:USDT", "DOGE/USDT:USDT", "AVAX/USDT:USDT",

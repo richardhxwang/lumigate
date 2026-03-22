@@ -36,10 +36,12 @@
         "secret": "",
         "password": "",
         "ccxt_config": {
-            "enableRateLimit": true
+            "enableRateLimit": true,
+            "rateLimit": 200
         },
         "ccxt_async_config": {
-            "enableRateLimit": true
+            "enableRateLimit": true,
+            "rateLimit": 200
         },
         "pair_whitelist": [
             "BTC/USDT:USDT",
@@ -107,7 +109,7 @@
     "initial_state": "running",
     "force_entry_enable": true,
     "internals": {
-        "process_throttle_secs": 5
+        "process_throttle_secs": 15
     },
     "freqai": {
         "enabled": false,

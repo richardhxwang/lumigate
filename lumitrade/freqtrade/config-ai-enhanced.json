@@ -20,7 +20,10 @@
         "use_order_book": true,
         "order_book_top": 1,
         "price_last_balance": 0.0,
-        "check_depth_of_market": { "enabled": false, "bids_to_ask_delta": 1 }
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
     },
     "exit_pricing": {
         "price_side": "same",
@@ -32,19 +35,43 @@
         "key": "",
         "secret": "",
         "password": "",
-        "ccxt_config": { "enableRateLimit": true },
-        "ccxt_async_config": { "enableRateLimit": true },
+        "ccxt_config": {
+            "enableRateLimit": true,
+            "rateLimit": 200
+        },
+        "ccxt_async_config": {
+            "enableRateLimit": true,
+            "rateLimit": 200
+        },
         "pair_whitelist": [
-            "BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT",
-            "XRP/USDT:USDT", "ADA/USDT:USDT", "DOGE/USDT:USDT", "AVAX/USDT:USDT",
-            "DOT/USDT:USDT", "LINK/USDT:USDT", "UNI/USDT:USDT",
-            "ATOM/USDT:USDT", "LTC/USDT:USDT", "FIL/USDT:USDT", "APT/USDT:USDT"
+            "BTC/USDT:USDT",
+            "ETH/USDT:USDT",
+            "SOL/USDT:USDT",
+            "BNB/USDT:USDT",
+            "XRP/USDT:USDT",
+            "ADA/USDT:USDT",
+            "DOGE/USDT:USDT",
+            "AVAX/USDT:USDT",
+            "DOT/USDT:USDT",
+            "LINK/USDT:USDT",
+            "UNI/USDT:USDT",
+            "ATOM/USDT:USDT",
+            "LTC/USDT:USDT",
+            "FIL/USDT:USDT",
+            "APT/USDT:USDT"
         ],
-        "pair_blacklist": [".*DOWN/USDT:USDT", ".*UP/USDT:USDT", ".*BEAR/USDT:USDT", ".*BULL/USDT:USDT"],
+        "pair_blacklist": [
+            ".*DOWN/USDT:USDT",
+            ".*UP/USDT:USDT",
+            ".*BEAR/USDT:USDT",
+            ".*BULL/USDT:USDT"
+        ],
         "enable_ws": false
     },
     "pairlists": [
-        { "method": "StaticPairList" }
+        {
+            "method": "StaticPairList"
+        }
     ],
     "telegram": {
         "enabled": false,
@@ -82,7 +109,7 @@
     "initial_state": "running",
     "force_entry_enable": true,
     "internals": {
-        "process_throttle_secs": 5
+        "process_throttle_secs": 25
     },
     "freqai": {
         "enabled": true,
@@ -91,9 +118,19 @@
         "backtest_period_days": 7,
         "identifier": "smc_lgbm_enhanced",
         "feature_parameters": {
-            "include_timeframes": ["15m", "1h", "4h"],
-            "include_corr_pairlist": ["BTC/USDT:USDT"],
-            "indicator_periods_candles": [10, 20, 50],
+            "include_timeframes": [
+                "15m",
+                "1h",
+                "4h"
+            ],
+            "include_corr_pairlist": [
+                "BTC/USDT:USDT"
+            ],
+            "indicator_periods_candles": [
+                10,
+                20,
+                50
+            ],
             "label_period_candles": 12,
             "include_shifted_candles": 2,
             "noise_standard_deviation": 0.01
