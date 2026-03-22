@@ -45,11 +45,30 @@ docker compose --profile trade up -d --no-deps --build trade-engine
 
 ## Containers and ports
 
+**A-Group (spot, unlimited stake, 1x leverage):**
+
+| Container | Port | Purpose |
+|-----------|------|---------|
+| `lumigate-freqtrade` | 8080→18790 | LumiLearning — SMC + FreqAI |
+| `lumigate-freqtrade-pure` | 8080→18791 | PureSMC — SMC only, no ML |
+| `lumigate-freqtrade-ai` | 8080→18792 | AI-Enhanced — full FreqAI features |
+
+**B-Group (futures, fixed stake_amount=1250, leveraged):**
+
+| Container | Port | Purpose |
+|-----------|------|---------|
+| `lumigate-freqtrade-lev` | 8080→18800 | LumiLearning Lev — 3x max |
+| `lumigate-freqtrade-pure-lev` | 8080→18801 | PureSMC Lev — 3x max |
+| `lumigate-freqtrade-ai-lev` | 8080→18802 | AI-Enhanced Lev — 5x max |
+
+**Infrastructure:**
+
 | Container | Port | Purpose |
 |-----------|------|---------|
 | `lumigate-trade-engine` | 3200→18793 | FastAPI — unified API, SMC, risk, connectors |
-| `lumigate-freqtrade` | 8080→18790 | Trade mode — live crypto trading |
 | `lumigate-freqtrade-bt` | 8080→18795 | Webserver mode — backtesting UI |
+| `lumigate-freqtrade-hyperopt` | (no port) | Hyperopt runner (weekly, Sunday 02:00 UTC) |
+| `lumigate-rsshub` | (internal) | Self-hosted RSSHub for crypto news feeds |
 | `lumigate-finbert` | 5000→18796 | FinBERT sentiment scoring |
 | `lumigate-ibgateway` | 4002, 5900 | IB Gateway (paper), VNC for 2FA |
 
@@ -111,6 +130,14 @@ Independent from LumiChat. Uses same PB project (lumitrade) but separate:
 - System prompt: `trade-engine/lumitrader_prompts.py` (SYSTEM_PROMPT, PRESETS, QUICK_COMMANDS)
 - 4 presets: Analyst, Risk Manager, Journal Coach, Strategy Dev
 
+## Leverage system
+
+SMCStrategy has a `leverage()` callback that dynamically selects leverage based on signal quality (primary/fallback entry tag) and FreqAI confidence. Key rule:
+
+- **`stake_amount` must be fixed** (e.g. 1250) for leverage to work. With `"unlimited"`, freqtrade allocates the entire wallet per trade, so leverage multiplies nothing useful.
+- B-group configs use `leverage_config` with `max_leverage`, `primary`, `fallback` keys.
+- A-group configs use `"stake_amount": "unlimited"` and no leverage (1x).
+
 ## FreqAI integration
 
 Dockerfile uses `freqtradeorg/freqtrade:stable_freqai`. Config in `freqtrade/config.json` under `freqai` key. SMCStrategy has 4 feature engineering methods using SMC indicators as ML features. LightGBM regressor predicts 12-candle forward returns.
@@ -120,6 +147,37 @@ Dockerfile uses `freqtradeorg/freqtrade:stable_freqai`. Config in `freqtrade/con
 Enforced in `trade-engine/risk/manager.py`. Cannot be loosened:
 - Max position: 2%, Max daily loss: 3% (circuit breaker), Max positions: 5
 - Min R:R: 2:1, News blackout: 30min, Auto-exec limit: 1%
+- Max leverage: 5x global ceiling, Max notional: 10%, Min liquidation distance: 12%
+- **30s polling**: Bot risk monitor polls all bots every 30s for position/loss checks
+- **Circuit breaker**: At 3% daily loss, all new trades blocked for the day
+- **News blackout**: Fetches Finnhub economic calendar, blocks trades 30min around high-impact events
+
+## Alert system
+
+5 alert types pushed to Telegram (`trade-engine/notifications/alerts.py`):
+1. **Daily loss warning** — loss >= 2% (approaching 3% breaker), 30min cooldown
+2. **Losing streak** — 3+ consecutive losses, alerts on each new loss
+3. **Bot offline** — unreachable > 5min, per-bot 5min cooldown
+4. **Drawdown exceeded** — surpasses backtest max drawdown, 1h cooldown
+5. **FreqAI training failure** — detected in logs, per-bot 1h cooldown
+
+## News pipeline
+
+Multi-source news collection with sentiment scoring:
+- **Finnhub** — aggregate news + economic calendar (news blackout source)
+- **CoinGecko** — market data fallback
+- **Fear & Greed Index** — periodic fetch every 1h (free API)
+- **RSSHub** (self-hosted) — crypto news RSS feeds
+- **SearXNG** — periodic crypto news search (every 15min)
+- **FinBERT** — local transformer sentiment scoring
+- **LumiGate LLM** — deep contextual trading sentiment analysis
+- All articles stored in PB `trade_news` collection, deduped by URL
+
+## Data sync
+
+- **Trade sync**: Every 5min, fetches closed trades from ALL bots → PB `trade_history`
+- **Backtest results**: Stored in PB after each run
+- **Hyperopt**: Weekly scheduler (Sunday 02:00 UTC)
 
 ## Key env vars
 
@@ -130,18 +188,27 @@ Trade Engine uses `TRADE_` prefix (pydantic-settings). Critical:
 - `TRADE_IBKR_HOST` / `TRADE_IBKR_PORT` — IB Gateway connection
 - `IBKR_USERNAME` / `IBKR_PASSWORD` — IB Gateway login (HK region, jts.ini mounted)
 
+## Dashboard URLs
+
+- `/lumitrade/status` — project status dashboard (P0-P3 progress, bot health, OOS validation)
+- `/lumitrade/dashboard` — backtest vs live comparison dashboard
+
 ## Known issues and gotchas
 
 - **PB sort param**: PB 0.23+ rejects `sort: "-created"` — causes 400. Omit sort params.
 - **PB schema key**: Use `fields` not `schema` in collection definitions.
-- **PB project isolation**: Collections MUST be in lumitrade PB project. Create project in `pocketbase/pb_data/projects.json` BEFORE creating collections.
+- **PB project isolation**: Collections MUST be in lumitrade PB project. All Python-side PB calls now use project-scoped paths (`/api/collections/lumitrade/...`). Node.js side uses `toTradeProjectPath()`.
 - **FreqUI asset cache**: Browser aggressively caches old JS/CSS. nginx sends `Cache-Control: no-store` on `/lumitrade/` HTML.
 - **Vite build output**: Always `rm -rf` old assets before `cp -r dist/*`. Stale files with old hashes accumulate otherwise.
 - **Freqtrade auth**: Use HTTP Basic Auth, NOT JWT token login. FreqtradeConnector uses `auth=(username, password)`.
 - **OKX WebSocket**: Blocked by GFW. Config has `enable_ws: false`, uses REST polling.
+- **OKX rate limit**: Bots stagger startup throttle (5/15/25s) + 200ms rateLimit to avoid 429s.
 - **IB Gateway region**: Must use `Region=hk` in jts.ini for HK accounts. Without it, login fails silently.
 - **Docker PB pull**: `pocketbase/pocketbase:latest` not on Docker Hub. Use `--no-deps` when starting trade containers.
 - **Trade engine PB access**: Uses `host.docker.internal:8090` (cross-network), needs `extra_hosts` in compose.
+- **Leverage + unlimited stake**: `leverage()` callback is ignored when `stake_amount: "unlimited"`. B-group configs must use fixed `stake_amount: 1250`.
+- **Bot cache stale**: FreqUI auto-clears stale bot cache when bot count changes (6 bots expected).
+- **Anthropic setup token**: For Claude 4.6 adaptive thinking, set `ANTHROPIC_SETUP_TOKEN` in provider config. Without it, extended thinking features are unavailable.
 
 ## Parent project files modified
 
@@ -151,5 +218,5 @@ Trade Engine uses `TRADE_` prefix (pydantic-settings). Critical:
 - `tools/trade-tools.js` — 15 AI tools
 - `services/pb-schema.js` — 11 trade collections (use `fields` key)
 - `nginx/nginx.conf` — `/lumitrade/`, `/assets/`, `/lumitrade/bt/api/`, WebSocket proxy
-- `docker-compose.yml` — 5 containers under `--profile trade`
+- `docker-compose.yml` — 12 containers under `--profile trade` (6 bots + hyperopt + bt + trade-engine + rsshub + finbert + ibgateway)
 - `public/lumichat.html` — `X-App-Source` header support, `frame-ancestors 'self'`
