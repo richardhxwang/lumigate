@@ -1,5 +1,6 @@
 from freqtrade.strategy import IStrategy, IntParameter, DecimalParameter
 from pandas import DataFrame
+import pandas as pd
 import talib as ta
 import numpy as np
 import logging
@@ -251,42 +252,48 @@ class SMCStrategy(IStrategy):
 
         close = dataframe["close"]
 
+        # Helper: safe column access — always returns a Series, never bare int
+        def _col(name, default=0):
+            if name in dataframe.columns:
+                return dataframe[name]
+            return pd.Series(default, index=dataframe.index)
+
         # 1. OB distance: how far price is relative to active OB zone
-        ob_top = dataframe["active_ob_top"] if "active_ob_top" in dataframe.columns else 0
-        ob_bot = dataframe["active_ob_bottom"] if "active_ob_bottom" in dataframe.columns else 0
+        ob_top = _col("active_ob_top")
+        ob_bot = _col("active_ob_bottom")
         ob_range = ob_top - ob_bot
         ob_range_safe = ob_range.replace(0, np.nan)
         dataframe["%-ob_distance"] = ((close - ob_bot) / ob_range_safe).fillna(-1)
         dataframe["%-ob_width"] = (ob_range / close).fillna(0)
 
         # 2. FVG distance: how far price is relative to last FVG zone
-        fvg_top = dataframe["fvg_top"].replace(0, np.nan).ffill().fillna(0) if "fvg_top" in dataframe.columns else 0
-        fvg_bot = dataframe["fvg_bottom"].replace(0, np.nan).ffill().fillna(0) if "fvg_bottom" in dataframe.columns else 0
+        fvg_top = _col("fvg_top").replace(0, np.nan).ffill().fillna(0)
+        fvg_bot = _col("fvg_bottom").replace(0, np.nan).ffill().fillna(0)
         fvg_range = fvg_top - fvg_bot
         fvg_range_safe = fvg_range.replace(0, np.nan)
         dataframe["%-fvg_distance"] = ((close - fvg_bot) / fvg_range_safe).fillna(-1)
         dataframe["%-fvg_width"] = (fvg_range / close).fillna(0)
 
         # 3. Liquidity distance: % distance to nearest liquidity level
-        liq_level = dataframe["liq_level"].replace(0, np.nan).ffill().fillna(0) if "liq_level" in dataframe.columns else 0
+        liq_level = _col("liq_level").replace(0, np.nan).ffill().fillna(0)
         liq_safe = liq_level.replace(0, np.nan)
         dataframe["%-liq_distance"] = ((close - liq_safe) / close).fillna(0)
 
         # 4. Structure signal accumulation (rolling counts over 20 candles)
-        dataframe["%-recent_bos_count"] = dataframe["bos"].abs().rolling(20, min_periods=1).sum().fillna(0) if "bos" in dataframe.columns else 0
-        dataframe["%-recent_choch_count"] = dataframe["choch"].abs().rolling(20, min_periods=1).sum().fillna(0) if "choch" in dataframe.columns else 0
-        dataframe["%-recent_fvg_count"] = dataframe["fvg_direction"].abs().rolling(20, min_periods=1).sum().fillna(0) if "fvg_direction" in dataframe.columns else 0
+        dataframe["%-recent_bos_count"] = _col("bos").abs().rolling(20, min_periods=1).sum().fillna(0)
+        dataframe["%-recent_choch_count"] = _col("choch").abs().rolling(20, min_periods=1).sum().fillna(0)
+        dataframe["%-recent_fvg_count"] = _col("fvg_direction").abs().rolling(20, min_periods=1).sum().fillna(0)
 
         # 5. Price vs swing structure
-        swing_high = dataframe["swing_high"] if "swing_high" in dataframe.columns else close
-        swing_low = dataframe["swing_low"] if "swing_low" in dataframe.columns else close
+        swing_high = _col("swing_high", default=close)
+        swing_low = _col("swing_low", default=close)
         sh_safe = swing_high.replace(0, np.nan)
         sl_safe = swing_low.replace(0, np.nan)
         dataframe["%-price_vs_swing_high"] = ((close - sh_safe) / sh_safe).fillna(0)
         dataframe["%-price_vs_swing_low"] = ((close - sl_safe) / sl_safe).fillna(0)
 
         # 6. Normalized volatility
-        dataframe["%-atr_pct"] = (dataframe["atr_14"] / close).fillna(0) if "atr_14" in dataframe.columns else 0
+        dataframe["%-atr_pct"] = (_col("atr_14") / close).fillna(0)
 
         return dataframe
 
