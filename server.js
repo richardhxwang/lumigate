@@ -1777,8 +1777,8 @@ app.post("/lumitrade/frequi-token", async (req, res) => {
   }
 });
 
-// LumiTrade Dashboard — backtest vs live performance page
-app.get("/lumitrade/dashboard", (_req, res) => {
+// LumiTrade Analytics — backtest vs live performance page
+app.get("/lumitrade/analytics", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "lumitrade-dashboard.html"));
 });
 

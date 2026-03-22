@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LumiTrade - Project Status</title>
+  <title>LumiTrade - 项目进度</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,6 +17,7 @@
       --green: #10a37f; --red: #ef4444; --yellow: #f59e0b; --blue: #3b82f6;
     }
     html { scroll-behavior: smooth; }
+    [id] { scroll-margin-top: 80px; }
     body {
       background: var(--bg2); color: var(--t1);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -244,20 +245,20 @@
       <span class="last-updated">Updated: <span id="last-updated"></span></span>
     </div>
     <div class="header-right">
-      <a class="nav-tab active" href="/lumitrade/status">Project Status</a>
-      <a class="nav-tab" href="/lumitrade/dashboard">Trading Dashboard</a>
+      <a class="nav-tab active" href="/lumitrade/status">项目进度</a>
+      <a class="nav-tab" href="/lumitrade/analytics">交易仪表盘</a>
     </div>
   </div>
 </header>
 
 <nav class="nav-pills" style="max-width:1100px;margin:16px auto 0;padding:0 24px;display:flex;gap:6px;flex-wrap:wrap">
-  <a class="nav-pill" href="#overview">Overview</a>
-  <a class="nav-pill" href="#tasks">Tasks</a>
-  <a class="nav-pill" href="#architecture">Architecture</a>
-  <a class="nav-pill" href="#backtest">Backtest</a>
-  <a class="nav-pill" href="#issues">Issues</a>
-  <a class="nav-pill" href="#checklist">Go-Live</a>
-  <a class="nav-pill" href="#timeline">Timeline</a>
+  <a class="nav-pill" href="#overview">概览</a>
+  <a class="nav-pill" href="#tasks">任务</a>
+  <a class="nav-pill" href="#architecture">架构</a>
+  <a class="nav-pill" href="#backtest">回测</a>
+  <a class="nav-pill" href="#issues">问题</a>
+  <a class="nav-pill" href="#checklist">上线检查</a>
+  <a class="nav-pill" href="#timeline">时间线</a>
 </nav>
 
 <div class="container">
@@ -266,7 +267,7 @@
   <section class="section" id="overview">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/></svg>
-      System Overview
+      系统概览
     </h2>
     <div class="cards" id="overview-cards"></div>
   </section>
@@ -275,7 +276,7 @@
   <section class="section" id="tasks">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
-      Task Progress
+      任务进度
     </h2>
     <div class="panel" id="tasks-panel"></div>
   </section>
@@ -284,12 +285,12 @@
   <section class="section" id="architecture">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"/></svg>
-      Container Architecture
+      容器架构
     </h2>
     <div class="panel">
       <div class="table-wrap">
         <table id="arch-table">
-          <thead><tr><th>Container</th><th>Status</th><th>Port</th><th>Purpose</th></tr></thead>
+          <thead><tr><th>容器</th><th>状态</th><th>端口</th><th>用途</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -300,12 +301,12 @@
   <section class="section" id="backtest">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-      Backtest Results Comparison
+      回测结果对比
     </h2>
     <div class="panel">
       <div class="table-wrap">
         <table id="bt-table">
-          <thead><tr><th>Metric</th><th>No Leverage</th><th>3x Leverage</th></tr></thead>
+          <thead><tr><th>指标</th><th>无杠杆</th><th>3x 杠杆</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -317,7 +318,7 @@
   <section class="section" id="issues">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-      Known Issues
+      已知问题
     </h2>
     <div class="panel" id="issues-panel"></div>
   </section>
@@ -326,7 +327,7 @@
   <section class="section" id="checklist">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-      Go-Live Preparation Checklist
+      上线准备清单
     </h2>
     <div class="panel">
       <ul class="checklist" id="checklist-list"></ul>
@@ -337,7 +338,7 @@
   <section class="section" id="timeline">
     <h2 class="section-title">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
-      Recent Timeline
+      近期时间线
     </h2>
     <div class="panel">
       <div class="timeline" id="timeline-list"></div>
@@ -354,7 +355,7 @@
 // ========== DATA (update this section periodically) ==========
 
 const DATA = {
-  lastUpdated: "2026-03-23 00:15 HKT",
+  lastUpdated: "2026-03-23 03:30 HKT",
 
   overview: {
     systemStatus: "online",      // online | offline | degraded
@@ -459,16 +460,23 @@ const DATA = {
           "FreqAI correlated pair crash fix",
           "config-hyperopt.json created for independent Hyperopt runs"
         ]
+      },
+      {
+        title: "AI Benchmark & nginx",
+        count: "3/3",
+        items: [
+          "Opus 46-question benchmark complete — 4.59/5 overall, all 6 groups passed",
+          "GPT-5.4 46-question benchmark — 4.68/5 (answered), 三模型对比完成",
+          "nginx B-group bot rewrite fix — strip URI prefix for variable proxy_pass"
+        ]
       }
     ],
     inProgress: [
       { text: "Hyperopt 200 epochs (independent container, 36/200 done, best Sharpe 51.97)", pct: 18 },
       { text: "FreqAI 15-pair backtest re-run (old cache cleared, 18 new features)", pct: 5 },
-      { text: "Opus 46-question AI benchmark — Data Accuracy 4.63/5, SMC Concepts 5.00/5, remaining 4 groups in progress", pct: 40 },
       { text: "Live bot dry run — 6 bots online, accumulating data", pct: 10 }
     ],
     todo: [
-      "Opus test results analysis and improvement direction",
       "Apply Hyperopt parameters to backtest re-run",
       "30-day dry run data accumulation",
       "Go-live preparation ($500 initial capital)"
@@ -524,6 +532,8 @@ const DATA = {
   ],
 
   timeline: [
+    { date: "2026-03-23", text: "<strong>GPT-5.4 benchmark</strong> — 46 题测试 4.68/5 (answered)，风控满分 5.00，SMC 满分 5.00。三模型对比: GPT-4o 3.8 → Opus 4.59 → GPT-5.4 4.68。6 题因 503 错误失败 (基础设施问题，非模型质量)。" },
+    { date: "2026-03-23", text: "<strong>nginx B-group bot rewrite fix</strong> — 修复 B 组 bot 的 URI 前缀 rewrite，variable proxy_pass 需要手动 strip prefix。" },
     { date: "2026-03-23", text: "<strong>Bug fixes</strong> — chat.js proxyApiKey fix, FreqAI correlated pair crash fix, config-hyperopt.json created." },
     { date: "2026-03-23", text: "<strong>Opus benchmark partial results</strong> — Data Accuracy 4.63/5 (up from GPT-4o 4.0), SMC Concepts 5.00/5 (up from 3.5). Remaining 4 groups in progress." },
     { date: "2026-03-23", text: "<strong>Leverage mode clarification</strong> — unlimited stake_amount ignores leverage; fixed stake_amount=1250 yields +31%. Group B bots switched to fixed stake." },
@@ -555,29 +565,29 @@ function render() {
   // Overview cards
   const ov = DATA.overview;
   const statusBadge = ov.systemStatus === 'online'
-    ? '<span class="badge badge-green"><span class="badge-dot"></span>Online</span>'
+    ? '<span class="badge badge-green"><span class="badge-dot"></span>在线</span>'
     : ov.systemStatus === 'degraded'
-    ? '<span class="badge badge-yellow"><span class="badge-dot"></span>Degraded</span>'
-    : '<span class="badge badge-red"><span class="badge-dot"></span>Offline</span>';
+    ? '<span class="badge badge-yellow"><span class="badge-dot"></span>降级</span>'
+    : '<span class="badge badge-red"><span class="badge-dot"></span>离线</span>';
 
   document.getElementById('overview-cards').innerHTML = `
     <div class="card">
-      <div class="card-label">System Status</div>
+      <div class="card-label">系统状态</div>
       <div class="card-value">${statusBadge}</div>
-      <div class="card-sub">Gateway + Tunnel</div>
+      <div class="card-sub">网关 + 隧道</div>
     </div>
     <div class="card">
-      <div class="card-label">Bots</div>
+      <div class="card-label">机器人</div>
       <div class="card-value">${ov.botsOnline}<span style="font-size:16px;color:var(--t3)"> / ${ov.botCount}</span></div>
-      <div class="card-sub">${ov.botsOnline} running, ${ov.botCount - ov.botsOnline} stopped</div>
+      <div class="card-sub">${ov.botsOnline} 运行中, ${ov.botCount - ov.botsOnline} 已停止</div>
     </div>
     <div class="card">
-      <div class="card-label">Today's Trades</div>
+      <div class="card-label">今日交易</div>
       <div class="card-value">${ov.todayTrades}</div>
-      <div class="card-sub">Dry-run mode</div>
+      <div class="card-sub">模拟运行</div>
     </div>
     <div class="card">
-      <div class="card-label">Training / Backtest</div>
+      <div class="card-label">训练 / 回测</div>
       <div class="card-value" style="font-size:16px;line-height:1.4;margin-top:4px">${ov.backtestStatus}</div>
       <div class="card-sub">${ov.trainingStatus}</div>
     </div>
@@ -610,8 +620,8 @@ function render() {
   // In progress
   tasksHtml += `<div class="task-group">
     <div class="task-group-header">
-      <span class="task-group-title" style="color:var(--yellow)">In Progress</span>
-      <span class="task-group-count">${DATA.tasks.inProgress.length} items</span>
+      <span class="task-group-title" style="color:var(--yellow)">进行中</span>
+      <span class="task-group-count">${DATA.tasks.inProgress.length} 项</span>
     </div>
     <ul class="task-list">
       ${DATA.tasks.inProgress.map(t => `<li class="task-item">
@@ -628,8 +638,8 @@ function render() {
   // Todo
   tasksHtml += `<div class="task-group">
     <div class="task-group-header">
-      <span class="task-group-title" style="color:var(--t3)">To Do</span>
-      <span class="task-group-count">${DATA.tasks.todo.length} items</span>
+      <span class="task-group-title" style="color:var(--t3)">待做</span>
+      <span class="task-group-count">${DATA.tasks.todo.length} 项</span>
     </div>
     <ul class="task-list">
       ${DATA.tasks.todo.map(t => `<li class="task-item">
@@ -645,8 +655,8 @@ function render() {
   const tbody = document.querySelector('#arch-table tbody');
   tbody.innerHTML = DATA.containers.map(c => {
     const badge = c.status === 'running'
-      ? '<span class="badge badge-green"><span class="badge-dot"></span>Running</span>'
-      : '<span class="badge badge-red"><span class="badge-dot"></span>Stopped</span>';
+      ? '<span class="badge badge-green"><span class="badge-dot"></span>运行中</span>'
+      : '<span class="badge badge-red"><span class="badge-dot"></span>已停止</span>';
     return `<tr>
       <td class="mono">${c.name}</td>
       <td>${badge}</td>
@@ -671,7 +681,7 @@ function render() {
   ip.innerHTML = DATA.issues.map(i => `
     <div class="issue-item">
       <div class="issue-title">
-        <span class="badge badge-${i.severity}" style="margin-right:8px"><span class="badge-dot"></span>${i.severity === 'red' ? 'High' : i.severity === 'yellow' ? 'Medium' : 'Low'}</span>
+        <span class="badge badge-${i.severity}" style="margin-right:8px"><span class="badge-dot"></span>${i.severity === 'red' ? '高' : i.severity === 'yellow' ? '中' : '低'}</span>
         ${i.title}
       </div>
       <div class="issue-desc">${i.desc}</div>
@@ -685,7 +695,7 @@ function render() {
   cl.innerHTML = `
     <li style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:8px">
       <div style="flex:1">
-        <div style="font-size:13px;color:var(--t2);margin-bottom:6px">${doneCount} / ${totalCount} completed</div>
+        <div style="font-size:13px;color:var(--t2);margin-bottom:6px">${doneCount} / ${totalCount} 已完成</div>
         <div class="progress-bar"><div class="progress-fill progress-green" style="width:${(doneCount/totalCount)*100}%"></div></div>
       </div>
     </li>

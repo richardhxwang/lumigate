@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LumiTrade - Backtest vs Live Dashboard</title>
+  <title>LumiTrade - 交易仪表盘</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -194,9 +194,9 @@
         </a>
       </div>
       <div class="header-right">
-        <a class="nav-tab" href="/lumitrade/status">Project Status</a>
-        <a class="nav-tab active" href="/lumitrade/dashboard">Trading Dashboard</a>
-        <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+        <a class="nav-tab" href="/lumitrade/status">项目进度</a>
+        <a class="nav-tab active" href="/lumitrade/analytics">交易仪表盘</a>
+        <button class="refresh-btn" onclick="loadAll()">刷新</button>
       </div>
     </div>
   </header>
@@ -204,42 +204,42 @@
   <div class="container">
     <div class="status-bar">
       <span class="status-dot loading" id="status-dot"></span>
-      <span id="status-text">Loading data...</span>
+      <span id="status-text">加载中...</span>
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-tab="overview">Overview</button>
-      <button class="tab" data-tab="signal">Signal Quality</button>
-      <button class="tab" data-tab="ab">A/B Comparison</button>
-      <button class="tab" data-tab="overfit">Overfit Check</button>
+      <button class="tab active" data-tab="overview">概览</button>
+      <button class="tab" data-tab="signal">信号质量</button>
+      <button class="tab" data-tab="ab">A/B 对比</button>
+      <button class="tab" data-tab="overfit">过拟合检查</button>
     </div>
 
     <!-- ═══ OVERVIEW TAB ═══ -->
     <div class="tab-content active" id="tab-overview">
       <div class="metric-row" id="overview-metrics"></div>
       <div class="card">
-        <h2>Backtest vs Live Comparison by Bot</h2>
+        <h2>回测 vs 实盘 — 按机器人对比</h2>
         <table>
           <thead>
             <tr>
-              <th>Bot</th>
-              <th>Source</th>
-              <th>Trades</th>
-              <th>Win Rate</th>
-              <th>Profit</th>
+              <th>机器人</th>
+              <th>来源</th>
+              <th>交易数</th>
+              <th>胜率</th>
+              <th>盈亏</th>
               <th>Sharpe</th>
-              <th>Max DD</th>
-              <th>Profit Factor</th>
-              <th>Avg Duration</th>
+              <th>最大回撤</th>
+              <th>盈亏比</th>
+              <th>平均持仓</th>
             </tr>
           </thead>
           <tbody id="overview-table"></tbody>
         </table>
-        <div class="empty" id="overview-empty" style="display:none">No data available. Sync trades and run backtests first.</div>
+        <div class="empty" id="overview-empty" style="display:none">暂无数据。请先同步交易记录并运行回测。</div>
       </div>
 
       <div class="card">
-        <h2>Metric Comparison Bars</h2>
+        <h2>指标对比柱状图</h2>
         <div id="comparison-bars"></div>
       </div>
     </div>
@@ -247,30 +247,30 @@
     <!-- ═══ SIGNAL QUALITY TAB ═══ -->
     <div class="tab-content" id="tab-signal">
       <div class="card">
-        <h2>Signal Quality by Entry Tag</h2>
+        <h2>按入场信号分析质量</h2>
         <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
-          Grouped by entry signal type. Primary (BOS/CHoCH+OB+FVG) vs Fallback (BOS/CHoCH+FVG) vs Minimal (FVG+liq sweep).
+          按入场信号类型分组。主信号 (BOS/CHoCH+OB+FVG) vs 备选 (BOS/CHoCH+FVG) vs 最小 (FVG+流动性扫荡)。
         </p>
         <table>
           <thead>
             <tr>
-              <th>Entry Tag</th>
-              <th>Bot</th>
-              <th>Trades</th>
-              <th>Win Rate</th>
-              <th>Avg Profit %</th>
-              <th>Avg Duration</th>
-              <th>Best Trade</th>
-              <th>Worst Trade</th>
+              <th>入场标签</th>
+              <th>机器人</th>
+              <th>交易数</th>
+              <th>胜率</th>
+              <th>平均盈亏 %</th>
+              <th>平均持仓</th>
+              <th>最佳交易</th>
+              <th>最差交易</th>
             </tr>
           </thead>
           <tbody id="signal-table"></tbody>
         </table>
-        <div class="empty" id="signal-empty" style="display:none">No entry tag data available. Entry tags require freqtrade API access.</div>
+        <div class="empty" id="signal-empty" style="display:none">暂无入场标签数据。需要 freqtrade API 访问权限。</div>
       </div>
 
       <div class="card">
-        <h2>Signal Distribution</h2>
+        <h2>信号分布</h2>
         <div id="signal-dist"></div>
       </div>
     </div>
@@ -278,26 +278,26 @@
     <!-- ═══ A/B COMPARISON TAB ═══ -->
     <div class="tab-content" id="tab-ab">
       <div class="card">
-        <h2>Group A vs Group B</h2>
+        <h2>A 组 vs B 组</h2>
         <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
-          Group A = Non-leverage bots (PureSMC, LumiLearning, AI-Enhanced) |
-          Group B = Leverage bots (*-lev variants)
+          A 组 = 无杠杆 (PureSMC, LumiLearning, AI-Enhanced) |
+          B 组 = 杠杆 (*-lev 变体)
         </p>
       </div>
       <div class="ab-grid">
         <div class="card">
-          <h2>Group A: Standard (1x)</h2>
+          <h2>A 组: 标准 (1x)</h2>
           <div id="ab-a-metrics" class="metric-row"></div>
           <table>
-            <thead><tr><th>Bot</th><th>Trades</th><th>WR</th><th>PnL</th><th>DD</th></tr></thead>
+            <thead><tr><th>机器人</th><th>交易数</th><th>胜率</th><th>盈亏</th><th>回撤</th></tr></thead>
             <tbody id="ab-a-table"></tbody>
           </table>
         </div>
         <div class="card">
-          <h2>Group B: Leverage</h2>
+          <h2>B 组: 杠杆</h2>
           <div id="ab-b-metrics" class="metric-row"></div>
           <table>
-            <thead><tr><th>Bot</th><th>Trades</th><th>WR</th><th>PnL</th><th>DD</th></tr></thead>
+            <thead><tr><th>机器人</th><th>交易数</th><th>胜率</th><th>盈亏</th><th>回撤</th></tr></thead>
             <tbody id="ab-b-table"></tbody>
           </table>
         </div>
@@ -307,36 +307,34 @@
     <!-- ═══ OVERFIT CHECK TAB ═══ -->
     <div class="tab-content" id="tab-overfit">
       <div class="card">
-        <h2>Out-of-Sample Validation</h2>
+        <h2>样本外验证</h2>
         <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
-          Training set (2024-01 ~ 2025-06) vs Validation set (2025-06 ~ 2026-03).
-          Parameters were Hyperopt-optimized on the validation period. If training set performance
-          is much better than validation, the strategy is NOT overfit (it generalizes).
-          If validation is much worse, overfitting risk is high.
+          训练集 (2024-01 ~ 2025-06) vs 验证集 (2025-06 ~ 2026-03)。
+          参数在验证期用 Hyperopt 优化。如果训练集表现远好于验证集，说明策略没有过拟合（泛化能力好）。
+          如果验证集差很多，说明过拟合风险高。
         </p>
         <div id="overfit-status" style="margin-bottom:16px"></div>
         <table>
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Trades</th>
-              <th>Win Rate</th>
+              <th>时段</th>
+              <th>交易数</th>
+              <th>胜率</th>
               <th>Sharpe</th>
-              <th>Max DD</th>
-              <th>Profit Factor</th>
-              <th>Profit %</th>
+              <th>最大回撤</th>
+              <th>盈亏比</th>
+              <th>收益 %</th>
             </tr>
           </thead>
           <tbody id="overfit-table"></tbody>
         </table>
         <div class="empty" id="overfit-empty" style="display:none">
-          Run out-of-sample backtests to populate this section.
-          See the backtest commands in the source code comments.
+          请运行样本外回测来填充此部分。详见源码注释中的回测命令。
         </div>
       </div>
 
       <div class="card">
-        <h2>Overfit Risk Assessment</h2>
+        <h2>过拟合风险评估</h2>
         <div id="overfit-assessment"></div>
       </div>
     </div>
@@ -538,12 +536,12 @@
       // Top metrics
       if (allStats) {
         metricsEl.innerHTML = `
-          <div class="metric-box"><div class="label">Total Live Trades</div><div class="value">${allStats.total}</div></div>
-          <div class="metric-box"><div class="label">Live Win Rate</div><div class="value ${colorWR(allStats.winrate)}">${pct(allStats.winrate)}</div></div>
-          <div class="metric-box"><div class="label">Total PnL</div><div class="value ${colorPct(allStats.totalPnl)}">${num(allStats.totalPnl)} USDT</div></div>
-          <div class="metric-box"><div class="label">Sharpe (trade)</div><div class="value">${allStats.sharpe}</div></div>
-          <div class="metric-box"><div class="label">Max DD</div><div class="value neg">${pct(allStats.maxDD)}</div></div>
-          <div class="metric-box"><div class="label">Bots Active</div><div class="value">${Object.keys(botGroups).length}</div></div>
+          <div class="metric-box"><div class="label">实盘总交易</div><div class="value">${allStats.total}</div></div>
+          <div class="metric-box"><div class="label">实盘胜率</div><div class="value ${colorWR(allStats.winrate)}">${pct(allStats.winrate)}</div></div>
+          <div class="metric-box"><div class="label">总盈亏</div><div class="value ${colorPct(allStats.totalPnl)}">${num(allStats.totalPnl)} USDT</div></div>
+          <div class="metric-box"><div class="label">Sharpe (交易)</div><div class="value">${allStats.sharpe}</div></div>
+          <div class="metric-box"><div class="label">最大回撤</div><div class="value neg">${pct(allStats.maxDD)}</div></div>
+          <div class="metric-box"><div class="label">活跃机器人</div><div class="value">${Object.keys(botGroups).length}</div></div>
         `;
       }
 
@@ -564,7 +562,7 @@
         if (bt) {
           tbody.innerHTML += `<tr>
             <td><strong>${bot}</strong></td>
-            <td><span class="badge badge-primary">Backtest</span></td>
+            <td><span class="badge badge-primary">回测</span></td>
             <td>${bt.total_trades || '-'}</td>
             <td class="${colorWR(bt.winrate)}">${bt.winrate != null ? pct(bt.winrate) : '-'}</td>
             <td class="${colorPct(bt.profit_total_abs)}">${bt.profit_total_abs != null ? num(bt.profit_total_abs) + ' USDT' : '-'}</td>
@@ -579,7 +577,7 @@
         if (liveStats) {
           tbody.innerHTML += `<tr>
             <td><strong>${bot}</strong></td>
-            <td><span class="badge badge-fallback">Live</span></td>
+            <td><span class="badge badge-fallback">实盘</span></td>
             <td>${liveStats.total}</td>
             <td class="${colorWR(liveStats.winrate)}">${pct(liveStats.winrate)}</td>
             <td class="${colorPct(liveStats.totalPnl)}">${num(liveStats.totalPnl)} USDT</td>
@@ -595,10 +593,10 @@
       if (allStats && backtestResults.length) {
         const latestBt = backtestResults[backtestResults.length - 1];
         const metrics = [
-          { label: 'Win Rate', bt: latestBt.winrate, live: allStats.winrate, max: 1, fmt: pct },
+          { label: '胜率', bt: latestBt.winrate, live: allStats.winrate, max: 1, fmt: pct },
           { label: 'Sharpe', bt: latestBt.sharpe, live: allStats.sharpe, max: 3, fmt: v => num(v) },
-          { label: 'Max DD', bt: latestBt.max_drawdown_pct, live: allStats.maxDD, max: 0.5, fmt: pct },
-          { label: 'PF', bt: latestBt.profit_factor, live: allStats.profitFactor, max: 5, fmt: v => num(v) },
+          { label: '最大回撤', bt: latestBt.max_drawdown_pct, live: allStats.maxDD, max: 0.5, fmt: pct },
+          { label: '盈亏比', bt: latestBt.profit_factor, live: allStats.profitFactor, max: 5, fmt: v => num(v) },
         ];
         for (const m of metrics) {
           const btW = m.bt != null ? Math.min(Math.abs(m.bt) / m.max * 100, 100) : 0;
@@ -607,12 +605,12 @@
             <div style="margin-bottom:12px">
               <div style="font-size:12px;font-weight:600;margin-bottom:4px">${m.label}</div>
               <div class="cmp-bar">
-                <span class="bar-label">Backtest</span>
+                <span class="bar-label">回测</span>
                 <div class="bar-track"><div class="bar-fill" style="width:${btW}%;background:var(--accent)"></div></div>
                 <span class="bar-value">${m.fmt(m.bt)}</span>
               </div>
               <div class="cmp-bar">
-                <span class="bar-label">Live</span>
+                <span class="bar-label">实盘</span>
                 <div class="bar-track"><div class="bar-fill" style="width:${liveW}%;background:var(--blue)"></div></div>
                 <span class="bar-value">${m.fmt(m.live)}</span>
               </div>
@@ -736,15 +734,15 @@
 
         const stats = computeStats(trades);
         if (!stats) {
-          metricsEl.innerHTML = '<div class="empty">No trades</div>';
+          metricsEl.innerHTML = '<div class="empty">暂无交易</div>';
           return;
         }
 
         metricsEl.innerHTML = `
-          <div class="metric-box"><div class="label">Trades</div><div class="value">${stats.total}</div></div>
-          <div class="metric-box"><div class="label">Win Rate</div><div class="value ${colorWR(stats.winrate)}">${pct(stats.winrate)}</div></div>
-          <div class="metric-box"><div class="label">PnL</div><div class="value ${colorPct(stats.totalPnl)}">${num(stats.totalPnl)}</div></div>
-          <div class="metric-box"><div class="label">Max DD</div><div class="value neg">${pct(stats.maxDD)}</div></div>
+          <div class="metric-box"><div class="label">交易数</div><div class="value">${stats.total}</div></div>
+          <div class="metric-box"><div class="label">胜率</div><div class="value ${colorWR(stats.winrate)}">${pct(stats.winrate)}</div></div>
+          <div class="metric-box"><div class="label">盈亏</div><div class="value ${colorPct(stats.totalPnl)}">${num(stats.totalPnl)}</div></div>
+          <div class="metric-box"><div class="label">最大回撤</div><div class="value neg">${pct(stats.maxDD)}</div></div>
         `;
 
         // Per-bot breakdown
@@ -830,7 +828,7 @@
       emptyEl.style.display = 'none';
 
       function btRow(label, bt) {
-        if (!bt) return `<tr><td>${label}</td><td colspan="6" style="color:var(--t3)">Not available</td></tr>`;
+        if (!bt) return `<tr><td>${label}</td><td colspan="6" style="color:var(--t3)">暂无数据</td></tr>`;
         return `<tr>
           <td><strong>${label}</strong><br><span style="font-size:11px;color:var(--t3)">${bt.timerange || '-'}</span></td>
           <td>${bt.total_trades || '-'}</td>
@@ -854,7 +852,7 @@
         }
 
         function btRow(label, bt) {
-          if (!bt) return `<tr><td>${label}</td><td colspan="6" style="color:var(--t3)">Not available</td></tr>`;
+          if (!bt) return `<tr><td>${label}</td><td colspan="6" style="color:var(--t3)">暂无数据</td></tr>`;
           return `<tr>
             <td><strong>${label}</strong><br><span style="font-size:11px;color:var(--t3)">${bt.timerange || '-'}</span></td>
             <td>${bt.total_trades || '-'}</td>
@@ -866,7 +864,7 @@
           </tr>`;
         }
 
-        tbody.innerHTML += btRow('Training (OOS)', training) + btRow('Validation (IS)', validation);
+        tbody.innerHTML += btRow('训练集 (OOS)', training) + btRow('验证集 (IS)', validation);
 
         // Assessment per strategy
         if (training && validation && training.sharpe != null && validation.sharpe != null) {
@@ -882,13 +880,13 @@
 
           let verdict, cls;
           if (overfitRatio >= 0.5 && overfitRatio <= 2.0) {
-            verdict = 'LOW RISK - Strategy generalizes well. OOS performance is comparable to in-sample.';
+            verdict = '低风险 — 策略泛化良好，样本外表现与样本内相当。';
             cls = 'overfit-ok';
           } else if (overfitRatio >= 0.3) {
-            verdict = 'MODERATE RISK - Some degradation in OOS. Monitor live performance closely.';
+            verdict = '中等风险 — 样本外有一定衰减，需密切监控实盘表现。';
             cls = 'overfit-warn';
           } else {
-            verdict = 'HIGH RISK - Significant OOS degradation. Strategy may be overfit to the optimization period.';
+            verdict = '高风险 — 样本外大幅衰减，策略可能过拟合了优化期。';
             cls = 'overfit-bad';
           }
 
@@ -901,41 +899,41 @@
           assessEl.innerHTML += `
             <h3>${stratName}</h3>
             <table>
-              <tr><th>Metric</th><th>Training (OOS)</th><th>Validation (IS)</th><th>Delta</th><th>Interpretation</th></tr>
+              <tr><th>指标</th><th>训练集 (OOS)</th><th>验证集 (IS)</th><th>变化</th><th>解读</th></tr>
               <tr>
                 <td>Sharpe</td>
                 <td>${num(training.sharpe)}</td>
                 <td>${num(validation.sharpe)}</td>
                 <td class="${Math.abs(sharpeDelta) > 0.5 ? 'warn' : 'pos'}">${(sharpeDelta * 100).toFixed(1)}%</td>
-                <td style="color:var(--t2);font-size:12px">${overfitRatio > 1 ? 'OOS better than IS (strong generalization)' : overfitRatio > 0.5 ? 'Acceptable degradation' : 'Concerning drop'}</td>
+                <td style="color:var(--t2);font-size:12px">${overfitRatio > 1 ? 'OOS 优于 IS（泛化能力强）' : overfitRatio > 0.5 ? '衰减可接受' : '衰减显著'}</td>
               </tr>
               <tr>
-                <td>Win Rate</td>
+                <td>胜率</td>
                 <td>${pct(training.winrate)}</td>
                 <td>${pct(validation.winrate)}</td>
                 <td class="${Math.abs(wrDelta) > 0.1 ? 'warn' : 'pos'}">${(wrDelta * 100).toFixed(1)}%</td>
-                <td style="color:var(--t2);font-size:12px">${Math.abs(wrDelta) < 0.05 ? 'Stable' : Math.abs(wrDelta) < 0.15 ? 'Minor shift' : 'Notable change'}</td>
+                <td style="color:var(--t2);font-size:12px">${Math.abs(wrDelta) < 0.05 ? '稳定' : Math.abs(wrDelta) < 0.15 ? '轻微偏移' : '明显变化'}</td>
               </tr>
               <tr>
-                <td>Max DD</td>
+                <td>最大回撤</td>
                 <td class="neg">${pct(training.max_drawdown_pct)}</td>
                 <td class="neg">${pct(validation.max_drawdown_pct)}</td>
                 <td>-</td>
-                <td style="color:var(--t2);font-size:12px">${training.max_drawdown_pct < validation.max_drawdown_pct ? 'OOS has lower DD (good)' : 'IS has lower DD'}</td>
+                <td style="color:var(--t2);font-size:12px">${training.max_drawdown_pct < validation.max_drawdown_pct ? 'OOS 回撤更低（好）' : 'IS 回撤更低'}</td>
               </tr>
               <tr>
-                <td>Profit Factor</td>
+                <td>盈亏比</td>
                 <td>${num(training.profit_factor)}</td>
                 <td>${num(validation.profit_factor)}</td>
                 <td>-</td>
-                <td style="color:var(--t2);font-size:12px">${training.profit_factor > 1.5 ? 'Strong' : training.profit_factor > 1.0 ? 'Acceptable' : 'Weak'} in OOS</td>
+                <td style="color:var(--t2);font-size:12px">OOS ${training.profit_factor > 1.5 ? '表现强' : training.profit_factor > 1.0 ? '可接受' : '偏弱'}</td>
               </tr>
               <tr>
-                <td>Market Change</td>
+                <td>市场变动</td>
                 <td>${training.market_change != null ? pct(training.market_change) : '-'}</td>
                 <td>${validation.market_change != null ? pct(validation.market_change) : '-'}</td>
                 <td>-</td>
-                <td style="color:var(--t2);font-size:12px">Both periods were bear markets</td>
+                <td style="color:var(--t2);font-size:12px">两个时段均为熊市</td>
               </tr>
             </table>`;
         }
@@ -944,18 +942,18 @@
       if (useHardcoded) {
         assessEl.innerHTML += `
           <div style="margin-top:16px;padding:12px;background:var(--inp);border-radius:var(--r2);font-size:12px;color:var(--t2)">
-            Results from OOS validation run on 2026-03-22.
-            To re-run or update, execute in any freqtrade container:<br>
+            数据来源：2026-03-22 OOS 验证运行结果。
+            如需重新运行或更新，在任意 freqtrade 容器中执行：<br>
             <code>freqtrade backtesting --strategy SMCPureStrategy --timerange 20250101-20250601 --config /freqtrade/config.json</code><br>
             <code>freqtrade backtesting --strategy SMCPureStrategy --timerange 20250601-20260322 --config /freqtrade/config.json</code><br>
-            Then sync: <code>GET /v1/trade/sync/backtest</code>
+            然后同步：<code>GET /v1/trade/sync/backtest</code>
           </div>`;
       }
     }
 
     // ── Main load ──
     async function loadAll() {
-      setStatus(null, 'Loading data...');
+      setStatus(null, '加载中...');
       try {
         await Promise.all([
           loadTradeHistory(),
@@ -968,10 +966,10 @@
         renderOverfitCheck();
         const total = tradeHistory.length;
         const bots = Object.keys(aggregateByBot(tradeHistory)).length;
-        setStatus(true, `Loaded: ${total} trades from ${bots} bots, ${backtestResults.length} backtest results`);
+        setStatus(true, `已加载：${total} 笔交易，${bots} 个机器人，${backtestResults.length} 条回测结果`);
       } catch (e) {
         console.error(e);
-        setStatus(false, 'Error loading data: ' + e.message);
+        setStatus(false, '加载失败：' + e.message);
       }
     }
 
