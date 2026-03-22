@@ -106,6 +106,8 @@ TRADE_COLLECTIONS = [
             {"name": "final_sentiment", "type": "number"},
             {"name": "impact", "type": "text"},              # high / medium / low
             {"name": "processed", "type": "bool"},
+            {"name": "news_source", "type": "text"},   # pipeline origin: finnhub / searxng
+            {"name": "category", "type": "text"},       # article category tag
         ],
     },
     {

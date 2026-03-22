@@ -21,5 +21,8 @@ ib_insync
 python-telegram-bot
 apscheduler
 
+# News / RSS
+feedparser
+
 # Analytics
 quantstats

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
+    # LunarCrush (crypto social sentiment — Twitter/Reddit/Telegram)
+    # Free key: https://lunarcrush.com/developers/api
+    lunarcrush_api_key: str = ""
+
+    # SearXNG (supplementary news search — Chinese + social media)
+    searxng_url: str = "http://lumigate-searxng:8080"
+    searxng_interval_minutes: int = 15
+
     # LumiGate (for LLM deep sentiment analysis)
     lumigate_url: str = "http://lumigate:9471"
     lumigate_project_key: str = ""

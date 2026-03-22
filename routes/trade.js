@@ -931,6 +931,55 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
+  // POST /v1/trade/news/rss — manually trigger RSS feed collection
+  router.post("/news/rss", async (req, res) => {
+    try {
+      const resp = await engineFetch("/news/rss", { method: "POST" });
+      const data = await resp.json();
+      res.json({ ok: true, ...data });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "RSS fetch failed", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/news/rss/sources — list configured RSS sources
+  router.get("/news/rss/sources", async (req, res) => {
+    try {
+      const resp = await engineFetch("/news/rss/sources");
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "RSS sources list failed", detail: err.message });
+    }
+  });
+
+  // POST /v1/trade/news/lunarcrush — manually trigger LunarCrush social sentiment collection
+  router.post("/news/lunarcrush", async (req, res) => {
+    try {
+      const body = req.body?.coins ? JSON.stringify(req.body.coins) : null;
+      const resp = await engineFetch("/news/lunarcrush", {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body,
+      });
+      const data = await resp.json();
+      res.json({ ok: true, ...data });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "LunarCrush fetch failed", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/news/lunarcrush/status — check LunarCrush collector status
+  router.get("/news/lunarcrush/status", async (req, res) => {
+    try {
+      const resp = await engineFetch("/news/lunarcrush/status");
+      const data = await resp.json();
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "LunarCrush status check failed", detail: err.message });
+    }
+  });
+
   // ── WebSocket proxy ──────────────────────────────────────────────────────
   //
   // Express does not natively handle WebSocket upgrade events on sub-routes.

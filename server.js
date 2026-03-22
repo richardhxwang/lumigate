@@ -1918,6 +1918,7 @@ const _adminResult = require('./routes/admin')({
   markKeyCooling,
   // Provider helpers
   anthropicAuthHeaders,
+  patchAnthropicBodyForOAuth,
   extractTokens,
   recordUsage,
   calcCost,
@@ -2368,10 +2369,17 @@ function anthropicAuthHeaders(apiKey, existingBeta) {
 
 const CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude.";
 const CLAUDE4_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"];
+// Models that support adaptive thinking (4.6+) vs budget-based (4.0)
+const ADAPTIVE_THINKING_PREFIXES = ["claude-opus-4-6", "claude-opus-4.6", "claude-sonnet-4-6", "claude-sonnet-4.6"];
 
 function isClaudeV4Model(modelId) {
   const m = String(modelId || "").toLowerCase();
   return CLAUDE4_MODEL_PREFIXES.some(p => m.startsWith(p));
+}
+
+function supportsAdaptiveThinking(modelId) {
+  const m = String(modelId || "").toLowerCase();
+  return ADAPTIVE_THINKING_PREFIXES.some(p => m.startsWith(p));
 }
 
 /** Patch Anthropic request body for OAuth setup tokens: inject Claude Code system prompt and thinking */
@@ -2387,10 +2395,16 @@ function patchAnthropicBodyForOAuth(body, apiKey) {
   } else {
     patched.system = [codeBlock];
   }
-  // Claude 4 models require thinking to be enabled when using OAuth tokens
+  // Claude 4+ models require thinking when using OAuth tokens
   if (isClaudeV4Model(patched.model) && !patched.thinking) {
-    patched.thinking = { type: "enabled", budget_tokens: Math.max(1024, Math.floor((patched.max_tokens || 4096) * 0.8)) };
-    // Ensure max_tokens is large enough to accommodate thinking + response
+    if (supportsAdaptiveThinking(patched.model)) {
+      // 4.6 models: adaptive thinking (Claude decides when/how much to think)
+      patched.thinking = { type: "adaptive" };
+    } else {
+      // 4.0 models: budget-based thinking
+      patched.thinking = { type: "enabled", budget_tokens: Math.max(1024, Math.floor((patched.max_tokens || 4096) * 0.8)) };
+    }
+    // Ensure max_tokens is large enough
     if ((patched.max_tokens || 0) < 2048) patched.max_tokens = 16000;
   }
   // Temperature is incompatible with extended thinking
@@ -3872,6 +3886,7 @@ app.use("/v1/:provider", require('./routes/proxy')({
   settings,
   handleAnthropicCompat,
   anthropicAuthHeaders,
+  patchAnthropicBodyForOAuth,
   proxyMiddleware,
   log,
   getPbAdminToken,

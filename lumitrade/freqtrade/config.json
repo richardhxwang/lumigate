@@ -82,17 +82,17 @@
     }
   ],
   "telegram": {
-    "enabled": false,
-    "token": "",
-    "chat_id": "",
+    "enabled": true,
+    "token": "${FREQTRADE_TELEGRAM_TOKEN}",
+    "chat_id": "${FREQTRADE_TELEGRAM_CHAT_ID}",
     "notification_settings": {
-      "status": "on",
+      "status": "silent",
       "warning": "on",
       "startup": "on",
       "entry": "on",
       "exit": "on",
-      "entry_cancel": "on",
-      "exit_cancel": "on",
+      "entry_cancel": "silent",
+      "exit_cancel": "silent",
       "entry_fill": "on",
       "exit_fill": "on",
       "protection_trigger": "on",

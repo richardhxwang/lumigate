@@ -209,9 +209,29 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Qdrant RAG init error (non-fatal): %s", e)
 
+    # Start SearXNG periodic news fetcher (non-fatal if unavailable)
+    from news.sentiment import start_searxng_periodic_task, stop_searxng_periodic_task
+    searxng_task = start_searxng_periodic_task(http_client)
+
+    # Start Fear & Greed Index periodic fetcher (every 1h, free API)
+    from news.sentiment import start_fng_periodic_task, stop_fng_periodic_task
+    fng_task = start_fng_periodic_task(http_client)
+
+    # Start Chinese crypto media RSS collector (every 15 min)
+    from news.rss_collector import start_rss_periodic_task, stop_rss_periodic_task
+    rss_task = start_rss_periodic_task(http_client)
+
+    # Start LunarCrush periodic social sentiment collector (every 30 min, needs API key)
+    from news.lunarcrush import start_lunarcrush_periodic_task, stop_lunarcrush_periodic_task
+    lunarcrush_task = start_lunarcrush_periodic_task(http_client)
+
     yield
 
     # Shutdown
+    stop_lunarcrush_periodic_task()
+    stop_rss_periodic_task()
+    stop_fng_periodic_task()
+    stop_searxng_periodic_task()
     if ibkr_connector:
         await ibkr_connector.disconnect()
     await http_client.aclose()
@@ -234,6 +254,80 @@ async def health():
         "service": "trade-engine",
         "version": "0.1.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# --- SearXNG news (manual trigger) ---
+
+@app.post("/news/searxng")
+async def trigger_searxng_news(pairs: list[str] | None = None):
+    """
+    Manually trigger a SearXNG news fetch cycle.
+    Optionally pass a list of trading pairs to include in the search.
+    """
+    from news.sentiment import fetch_searxng_news
+    extra_pairs = pairs or settings.default_crypto_pairs
+    result = await fetch_searxng_news(http_client, extra_pairs=extra_pairs)
+    return result
+
+
+# --- RSS news (manual trigger) ---
+
+@app.post("/news/rss")
+async def trigger_rss_fetch():
+    """
+    Manually trigger an RSS feed collection cycle for all configured
+    Chinese crypto media sources.
+    """
+    from news.rss_collector import fetch_all_rss_feeds, RSS_FEEDS
+    results = await fetch_all_rss_feeds(http_client)
+    return {
+        "feeds": len(RSS_FEEDS),
+        "results": results,
+        "total_fetched": sum(r["fetched"] for r in results),
+        "total_saved": sum(r["saved"] for r in results),
+    }
+
+
+@app.get("/news/rss/sources")
+async def list_rss_sources():
+    """List all configured RSS feed sources."""
+    from news.rss_collector import RSS_FEEDS
+    return {
+        "sources": [
+            {"name": f["name"], "label": f["label"], "url": f["url"]}
+            for f in RSS_FEEDS
+        ]
+    }
+
+
+# --- LunarCrush social sentiment (manual trigger) ---
+
+@app.post("/news/lunarcrush")
+async def trigger_lunarcrush_fetch(coins: list[str] | None = None):
+    """
+    Manually trigger a LunarCrush social sentiment collection cycle.
+    Optionally pass a list of coin symbols (e.g. ["BTC", "ETH"]).
+    Defaults to BTC, ETH, SOL, BNB, XRP, ADA.
+    """
+    from news.lunarcrush import collect_lunarcrush_sentiment
+    result = await collect_lunarcrush_sentiment(http_client, coins)
+    return result
+
+
+@app.get("/news/lunarcrush/status")
+async def lunarcrush_status():
+    """Check LunarCrush collector status and config."""
+    from news.lunarcrush import (
+        _lunarcrush_task, DEFAULT_COINS, COLLECT_INTERVAL_MINUTES,
+    )
+    return {
+        "enabled": bool(settings.lunarcrush_api_key),
+        "task_running": _lunarcrush_task is not None and not _lunarcrush_task.done()
+        if _lunarcrush_task else False,
+        "interval_minutes": COLLECT_INTERVAL_MINUTES,
+        "tracked_coins": DEFAULT_COINS,
+        "api_key_set": bool(settings.lunarcrush_api_key),
     }
 
 

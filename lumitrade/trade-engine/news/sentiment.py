@@ -13,12 +13,12 @@ PocketBase integration:
   - update_news_pb_sentiments() — PATCH an existing record with finbert/llm/final fields
 """
 
+import asyncio
 import json
 import logging
 import os
 import time as _time
 from datetime import datetime, timedelta, timezone
-
 import httpx
 
 from config import settings
@@ -62,23 +62,26 @@ async def save_news_to_pb(
     symbol: str,
     articles: list[dict],
     http_client: httpx.AsyncClient,
+    *,
+    news_source: str = "finnhub",
 ) -> dict[str, str]:
     """
-    Persist Finnhub articles to the trade_news PocketBase collection.
+    Persist news articles to the trade_news PocketBase collection.
 
-    Deduplicates by URL — if a record with the same URL already exists it is
-    skipped (not overwritten).  Only the first 20 articles are written to
-    avoid flooding the collection.
+    Deduplicates by URL (for articles with URLs) or by headline (for articles
+    without URLs, e.g. SearXNG results).  Only the first 20 articles are
+    written to avoid flooding the collection.
 
     Args:
         symbol:      Ticker symbol (e.g. "AAPL", "BTC/USDT").
-        articles:    Raw article dicts from Finnhub (fields: headline, summary,
-                     source, url, datetime, sentiment).
+        articles:    Article dicts. Expected fields: headline, summary,
+                     source, url, datetime/published_at, sentiment.
         http_client: Shared httpx.AsyncClient.
+        news_source: Pipeline origin — "finnhub" or "searxng".
 
     Returns:
-        Mapping of {url: pb_record_id} for every article that was saved or
-        already existed.  Articles that failed to save are omitted.
+        Mapping of {url_or_headline: pb_record_id} for every article that was
+        saved or already existed.  Articles that failed to save are omitted.
     """
     if not articles:
         return {}
@@ -97,38 +100,53 @@ async def save_news_to_pb(
 
     for article in articles[:20]:
         url = article.get("url", "").strip()
-        if not url:
-            continue  # cannot deduplicate without a URL — skip
+        headline = article.get("headline", "").strip()
 
-        # --- deduplication: check if URL already exists ---
+        # Need at least a URL or headline for deduplication
+        if not url and not headline:
+            continue
+
+        # --- deduplication: check if URL or headline already exists ---
+        dedup_key = url or headline
         try:
+            if url:
+                filter_expr = f'url="{url}"'
+            else:
+                # Escape double quotes in headline for PB filter syntax
+                safe_headline = headline.replace('"', '\\"')
+                filter_expr = f'headline="{safe_headline}"'
+
             check_resp = await http_client.get(
                 base_url,
-                params={"filter": f'url="{url}"', "perPage": 1},
+                params={"filter": filter_expr, "perPage": 1},
                 headers={"Authorization": token},
                 timeout=8,
             )
             if check_resp.is_success:
                 existing = check_resp.json().get("items", [])
                 if existing:
-                    saved[url] = existing[0]["id"]
+                    saved[dedup_key] = existing[0]["id"]
                     continue  # already in PB
         except Exception as exc:
-            logger.debug("PB dedup check failed for %s: %s", url, exc)
+            logger.debug("PB dedup check failed for %s: %s", dedup_key[:80], exc)
             # fall through and attempt insert anyway
 
-        # --- map Finnhub fields to collection schema ---
-        headline = article.get("headline", "")
+        # --- map article fields to collection schema ---
         raw_summary = article.get("summary", "") or ""
         summary = raw_summary[:200]
         source = article.get("source", "")
-        finnhub_ts = article.get("datetime")  # unix seconds or None
+
+        # Resolve published_at — accept unix timestamp (Finnhub) or ISO string (SearXNG)
         published_at = ""
-        if finnhub_ts:
+        raw_ts = article.get("datetime") or article.get("published_at") or ""
+        if raw_ts:
             try:
-                published_at = datetime.fromtimestamp(
-                    int(finnhub_ts), tz=timezone.utc
-                ).strftime("%Y-%m-%d %H:%M:%S")
+                if isinstance(raw_ts, (int, float)):
+                    published_at = datetime.fromtimestamp(
+                        int(raw_ts), tz=timezone.utc
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                elif isinstance(raw_ts, str) and raw_ts.strip():
+                    published_at = raw_ts.strip()[:19]  # trim to "YYYY-MM-DD HH:MM:SS"
             except Exception:
                 published_at = ""
 
@@ -143,6 +161,7 @@ async def save_news_to_pb(
             "url": url,
             "published_at": published_at,
             "finnhub_sentiment": finnhub_sentiment,
+            "news_source": news_source,
             # finbert_sentiment / llm_sentiment / final_sentiment / impact /
             # category / processed are left at their PB defaults (0 / "" / false)
             # and updated later via update_news_pb_sentiments()
@@ -158,7 +177,7 @@ async def save_news_to_pb(
             if post_resp.is_success:
                 record_id = post_resp.json().get("id", "")
                 if record_id:
-                    saved[url] = record_id
+                    saved[dedup_key] = record_id
             else:
                 logger.debug(
                     "PB trade_news insert failed (%s): %s",
@@ -553,3 +572,347 @@ async def deep_analyze_with_llm(
             "source": "llm",
             "error": str(exc),
         }
+
+
+# ---------------------------------------------------------------------------
+# SearXNG news search (Chinese + social media supplement)
+# ---------------------------------------------------------------------------
+
+# Default broad queries — run every cycle regardless of open positions
+_SEARXNG_BASE_QUERIES = [
+    "Bitcoin crypto news",
+    "加密货币 新闻",
+]
+
+
+async def search_searxng(
+    query: str,
+    http_client: httpx.AsyncClient,
+    *,
+    categories: str = "news",
+    time_range: str = "day",
+    max_results: int = 20,
+) -> list[dict]:
+    """
+    Search SearXNG and return normalised article dicts compatible with
+    save_news_to_pb().
+
+    Args:
+        query:       Search query string.
+        http_client: Shared httpx.AsyncClient.
+        categories:  SearXNG categories (default "news").
+        time_range:  SearXNG time_range (default "day").
+        max_results: Max results to return.
+
+    Returns:
+        List of dicts with keys: headline, summary, source, url,
+        published_at.  Empty list on any failure.
+    """
+    searxng_url = settings.searxng_url
+    if not searxng_url:
+        return []
+
+    try:
+        resp = await http_client.get(
+            f"{searxng_url}/search",
+            params={
+                "q": query,
+                "format": "json",
+                "categories": categories,
+                "time_range": time_range,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("SearXNG search failed for '%s': %s", query, exc)
+        return []
+
+    results = data.get("results", [])
+    articles: list[dict] = []
+
+    for item in results[:max_results]:
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+
+        # SearXNG result fields vary by engine; normalise to our schema
+        content = (item.get("content") or "").strip()
+        url = (item.get("url") or "").strip()
+        engine = (item.get("engine") or "").strip()
+        # publishedDate may be ISO string or missing
+        published = (item.get("publishedDate") or "").strip()
+
+        articles.append({
+            "headline": title,
+            "summary": content[:200] if content else "",
+            "source": engine or "searxng",
+            "url": url,
+            "published_at": published,
+        })
+
+    return articles
+
+
+async def fetch_searxng_news(
+    http_client: httpx.AsyncClient,
+    extra_pairs: list[str] | None = None,
+) -> dict:
+    """
+    Run SearXNG searches for base crypto queries + per-pair queries.
+    Saves all results to PB trade_news with news_source="searxng".
+
+    Args:
+        http_client: Shared httpx.AsyncClient.
+        extra_pairs: Optional list of trading pairs (e.g. ["BTC/USDT", "ETH/USDT"])
+                     to search for pair-specific news.
+
+    Returns:
+        {"total_saved": int, "queries_run": int}
+    """
+    all_queries: list[tuple[str, str]] = []  # (query, symbol)
+
+    # Base queries — symbol is generic "CRYPTO"
+    for q in _SEARXNG_BASE_QUERIES:
+        all_queries.append((q, "CRYPTO"))
+
+    # Per-pair queries
+    if extra_pairs:
+        for pair in extra_pairs:
+            # "BTC/USDT" → search "BTC" and "BTC 加密 新闻"
+            base_symbol = pair.split("/")[0].upper()
+            all_queries.append((f"{base_symbol} crypto news", base_symbol))
+            all_queries.append((f"{base_symbol} 加密 新闻", base_symbol))
+
+    total_saved = 0
+    queries_run = 0
+
+    for query, symbol in all_queries:
+        articles = await search_searxng(query, http_client)
+        if articles:
+            saved = await save_news_to_pb(
+                symbol, articles, http_client, news_source="searxng"
+            )
+            total_saved += len(saved)
+        queries_run += 1
+
+        # Small delay between queries to be polite to SearXNG
+        await asyncio.sleep(1.0)
+
+    logger.info(
+        "SearXNG news fetch: %d queries, %d articles saved",
+        queries_run, total_saved,
+    )
+    return {"total_saved": total_saved, "queries_run": queries_run}
+
+
+# ---------------------------------------------------------------------------
+# Periodic background task — SearXNG news fetcher
+# ---------------------------------------------------------------------------
+
+_searxng_task: asyncio.Task | None = None
+
+
+async def _searxng_periodic_loop(http_client: httpx.AsyncClient):
+    """
+    Background loop: every N minutes, fetch SearXNG news for base queries
+    and for each currently open trading pair (from freqtrade).
+    """
+    interval = settings.searxng_interval_minutes * 60  # seconds
+
+    # Wait a bit on startup so other services can initialise
+    await asyncio.sleep(30)
+
+    while True:
+        try:
+            # Try to get open pairs from freqtrade
+            open_pairs: list[str] = []
+            try:
+                ft_resp = await http_client.get(
+                    f"{settings.freqtrade_url}/api/v1/status",
+                    auth=(settings.freqtrade_username, settings.freqtrade_password),
+                    timeout=10,
+                )
+                if ft_resp.is_success:
+                    trades = ft_resp.json()
+                    open_pairs = list({t.get("pair", "") for t in trades if t.get("pair")})
+            except Exception as exc:
+                logger.debug("SearXNG loop: could not fetch open pairs: %s", exc)
+
+            # Also include default crypto pairs from config
+            all_pairs = list(set(open_pairs + settings.default_crypto_pairs))
+
+            await fetch_searxng_news(http_client, extra_pairs=all_pairs)
+
+        except asyncio.CancelledError:
+            logger.info("SearXNG periodic loop cancelled")
+            return
+        except Exception as exc:
+            logger.warning("SearXNG periodic loop error: %s", exc)
+
+        await asyncio.sleep(interval)
+
+
+def start_searxng_periodic_task(http_client: httpx.AsyncClient) -> asyncio.Task | None:
+    """
+    Start the SearXNG periodic news fetch background task.
+    Safe to call multiple times — only one task will run.
+
+    Returns the asyncio.Task, or None if SearXNG URL is not configured.
+    """
+    global _searxng_task
+
+    if not settings.searxng_url:
+        logger.info("SearXNG URL not configured — periodic news fetch disabled")
+        return None
+
+    if _searxng_task and not _searxng_task.done():
+        return _searxng_task
+
+    _searxng_task = asyncio.create_task(
+        _searxng_periodic_loop(http_client),
+        name="searxng-news-fetch",
+    )
+    logger.info(
+        "SearXNG periodic news fetch started (every %d min)",
+        settings.searxng_interval_minutes,
+    )
+    return _searxng_task
+
+
+def stop_searxng_periodic_task():
+    """Cancel the SearXNG periodic task if running."""
+    global _searxng_task
+    if _searxng_task and not _searxng_task.done():
+        _searxng_task.cancel()
+        logger.info("SearXNG periodic task cancelled")
+    _searxng_task = None
+
+
+# ---------------------------------------------------------------------------
+# Fear & Greed Index (Alternative.me — free, no API key)
+# ---------------------------------------------------------------------------
+
+_FNG_API_URL = "https://api.alternative.me/fng/"
+
+_fng_task: asyncio.Task | None = None
+
+
+async def fetch_fear_greed(http_client: httpx.AsyncClient) -> dict | None:
+    """
+    Fetch the current Crypto Fear & Greed Index from Alternative.me
+    and persist it as a trade_news record (source="fear_greed", symbol="GENERAL").
+
+    Value range: 0 (Extreme Fear) → 100 (Extreme Greed).
+    Normalised to -1 … +1 for finnhub_sentiment / final_sentiment fields.
+
+    Returns the API data dict on success, None on failure.
+    """
+    try:
+        resp = await http_client.get(_FNG_API_URL, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Fear & Greed fetch failed: %s", exc)
+        return None
+
+    items = data.get("data")
+    if not items:
+        return None
+
+    entry = items[0]
+    value = int(entry.get("value", 50))
+    classification = entry.get("value_classification", "Neutral")
+    ts = entry.get("timestamp", "")
+
+    # Normalise 0-100 → -1 to +1  (0=Extreme Fear→-1, 50=Neutral→0, 100=Extreme Greed→+1)
+    normalised = round((value - 50) / 50, 4)
+
+    # Impact: high if extreme zones (<25 or >75), else medium
+    impact = "high" if value > 75 or value < 25 else "medium"
+
+    # Resolve timestamp
+    published_at = ""
+    if ts:
+        try:
+            published_at = datetime.fromtimestamp(
+                int(ts), tz=timezone.utc
+            ).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    headline = f"Fear & Greed Index: {value} ({classification})"
+
+    # Write to PB trade_news via save_news_to_pb (dedup by headline)
+    article = {
+        "headline": headline,
+        "summary": f"Crypto Fear & Greed Index is {value} — {classification}",
+        "source": "fear_greed",
+        "url": "",
+        "published_at": published_at,
+        "sentiment": normalised,
+    }
+    saved = await save_news_to_pb(
+        "GENERAL", [article], http_client, news_source="fear_greed"
+    )
+
+    # Also PATCH final_sentiment + impact on the saved record
+    for _key, record_id in saved.items():
+        await update_news_pb_sentiments(
+            record_id,
+            http_client,
+            final_sentiment=normalised,
+            impact=impact,
+            processed=True,
+        )
+
+    logger.info(
+        "Fear & Greed Index: %d (%s) → normalised %.4f, impact=%s",
+        value, classification, normalised, impact,
+    )
+    return {"value": value, "classification": classification, "normalised": normalised}
+
+
+async def _fng_periodic_loop(http_client: httpx.AsyncClient):
+    """Background loop: fetch Fear & Greed Index every hour."""
+    # Initial delay — let other services start first
+    await asyncio.sleep(15)
+
+    while True:
+        try:
+            await fetch_fear_greed(http_client)
+        except asyncio.CancelledError:
+            logger.info("Fear & Greed periodic loop cancelled")
+            return
+        except Exception as exc:
+            logger.warning("Fear & Greed periodic loop error: %s", exc)
+
+        await asyncio.sleep(3600)  # 1 hour
+
+
+def start_fng_periodic_task(http_client: httpx.AsyncClient) -> asyncio.Task:
+    """
+    Start the Fear & Greed Index periodic fetch background task.
+    Safe to call multiple times — only one task will run.
+    """
+    global _fng_task
+
+    if _fng_task and not _fng_task.done():
+        return _fng_task
+
+    _fng_task = asyncio.create_task(
+        _fng_periodic_loop(http_client),
+        name="fear-greed-fetch",
+    )
+    logger.info("Fear & Greed periodic fetch started (every 1h)")
+    return _fng_task
+
+
+def stop_fng_periodic_task():
+    """Cancel the Fear & Greed periodic task if running."""
+    global _fng_task
+    if _fng_task and not _fng_task.done():
+        _fng_task.cancel()
+        logger.info("Fear & Greed periodic task cancelled")
+    _fng_task = None
