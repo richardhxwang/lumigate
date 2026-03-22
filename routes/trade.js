@@ -20,7 +20,7 @@ const FREQTRADE_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "changeme";
 
 module.exports = function createTradeRouter(deps) {
   const router = express.Router();
-  const { PB_URL, getPbAdminToken } = deps;
+  const { PB_URL, getPbAdminToken, isAdminRequest } = deps;
 
   // ── PocketBase project isolation ──────────────────────────────────────────
 
@@ -247,6 +247,17 @@ module.exports = function createTradeRouter(deps) {
   router.get("/freqtrade/balance", async (req, res) => {
     try {
       const r = await engineFetch("/freqtrade/balance");
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/freqai/training-status — FreqAI training status across all bots
+  router.get("/freqai/training-status", async (_req, res) => {
+    try {
+      const r = await engineFetch("/freqai/training-status");
       const data = await r.json();
       res.status(r.status).json(data);
     } catch (err) {
@@ -1097,6 +1108,96 @@ module.exports = function createTradeRouter(deps) {
       proxyReq.end();
     });
   }
+
+  // ── Status Dashboard data (PocketBase-backed) ─────────────────────────────
+
+  /** GET /v1/trade/status-data — read all lt_status sections, merge into one object */
+  router.get("/status-data", async (_req, res) => {
+    try {
+      const r = await tradePbFetch("/api/collections/lt_status/records?perPage=50");
+      if (!r.ok) {
+        return res.status(r.status).json({ error: "PB fetch failed", status: r.status });
+      }
+      const body = await r.json();
+      const items = body.items || [];
+      const merged = {};
+      for (const item of items) {
+        if (item.section && item.data != null) {
+          merged[item.section] = item.data;
+        }
+      }
+      // Include lastUpdated from most recent record
+      if (items.length > 0) {
+        const newest = items.reduce((a, b) => (a.updated > b.updated ? a : b));
+        merged._lastUpdated = newest.updated;
+      }
+      res.json(merged);
+    } catch (e) {
+      res.status(502).json({ error: "Status data unavailable", detail: e.message });
+    }
+  });
+
+  /** POST /v1/trade/status-data — upsert a section (admin only) */
+  router.post("/status-data", async (req, res) => {
+    if (isAdminRequest && !isAdminRequest(req)) {
+      return res.status(401).json({ error: "Admin auth required" });
+    }
+    const { section, data } = req.body || {};
+    if (!section || data == null) {
+      return res.status(400).json({ error: "Missing section or data" });
+    }
+    try {
+      // Check if section already exists
+      const search = await tradePbFetch(
+        `/api/collections/lt_status/records?filter=(section='${encodeURIComponent(section)}')&perPage=1`
+      );
+      const searchBody = search.ok ? await search.json() : { items: [] };
+      const existing = (searchBody.items || [])[0];
+
+      let result;
+      if (existing) {
+        // Update existing record
+        result = await tradePbFetch(`/api/collections/lt_status/records/${existing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ data }),
+        });
+      } else {
+        // Create new record
+        result = await tradePbFetch("/api/collections/lt_status/records", {
+          method: "POST",
+          body: JSON.stringify({ section, data }),
+        });
+      }
+      if (!result.ok) {
+        const errBody = await result.text();
+        return res.status(result.status).json({ error: "PB write failed", detail: errBody });
+      }
+      const saved = await result.json();
+      res.json({ ok: true, id: saved.id, section });
+    } catch (e) {
+      res.status(502).json({ error: "Status data write failed", detail: e.message });
+    }
+  });
+
+  /** DELETE /v1/trade/status-data/:section — delete a section (admin only) */
+  router.delete("/status-data/:section", async (req, res) => {
+    if (isAdminRequest && !isAdminRequest(req)) {
+      return res.status(401).json({ error: "Admin auth required" });
+    }
+    const section = req.params.section;
+    try {
+      const search = await tradePbFetch(
+        `/api/collections/lt_status/records?filter=(section='${encodeURIComponent(section)}')&perPage=1`
+      );
+      const searchBody = search.ok ? await search.json() : { items: [] };
+      const existing = (searchBody.items || [])[0];
+      if (!existing) return res.status(404).json({ error: "Section not found" });
+      await tradePbFetch(`/api/collections/lt_status/records/${existing.id}`, { method: "DELETE" });
+      res.json({ ok: true, deleted: section });
+    } catch (e) {
+      res.status(502).json({ error: "Status data delete failed", detail: e.message });
+    }
+  });
 
   return { router, tradePbFetch, setupTradeWebSocket };
 };

@@ -242,7 +242,7 @@
         <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#10a37f" stroke-width="2.5"/><path d="M10 16.5l4 4 8-9" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="logo-text">LumiTrade</span>
       </a>
-      <span class="last-updated">Updated: <span id="last-updated"></span></span>
+      <span class="last-updated">更新于: <span id="last-updated"></span></span>
     </div>
     <div class="header-right">
       <a class="nav-tab active" href="/lumitrade/status">项目进度</a>
@@ -259,6 +259,7 @@
   <a class="nav-pill" href="#issues">问题</a>
   <a class="nav-pill" href="#checklist">上线检查</a>
   <a class="nav-pill" href="#timeline">时间线</a>
+  <a class="nav-pill" href="#ml-training">ML 训练</a>
 </nav>
 
 <div class="container">
@@ -310,7 +311,7 @@
           <tbody></tbody>
         </table>
       </div>
-      <p style="font-size:12px;color:var(--t3);margin-top:12px;">Data period: 2024-03-22 to 2025-03-22 (12 months, 5m candles, 15 pairs)</p>
+      <p style="font-size:12px;color:var(--t3);margin-top:12px;">数据区间: 2024-03-22 至 2025-03-22 (12 个月, 5 分钟 K 线, 15 币对)</p>
     </div>
   </section>
 
@@ -345,6 +346,46 @@
     </div>
   </section>
 
+  <!-- ML TRAINING -->
+  <section class="section" id="ml-training">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+      ML 训练实时状态
+      <span id="ml-refresh-indicator" style="font-size:11px;color:var(--t3);font-weight:400;margin-left:auto">每 10 秒刷新</span>
+    </h2>
+    <div class="cards" style="margin-bottom:14px">
+      <div class="card">
+        <div class="card-label">训练状态</div>
+        <div class="card-value" id="ml-status-badge">
+          <span class="badge badge-blue"><span class="badge-dot"></span>加载中...</span>
+        </div>
+        <div class="card-sub" id="ml-current-pair">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">训练进度</div>
+        <div class="card-value" id="ml-progress-text">--</div>
+        <div class="progress-bar" style="margin-top:8px"><div class="progress-fill progress-green" id="ml-progress-bar" style="width:0%"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Hyperopt 状态</div>
+        <div class="card-value" id="ml-hyperopt-status" style="font-size:16px">--</div>
+        <div class="card-sub" id="ml-hyperopt-sub">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">上次训练完成</div>
+        <div class="card-value" id="ml-last-trained" style="font-size:16px">--</div>
+        <div class="card-sub" id="ml-models-count">--</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:14px;font-weight:600">最新训练日志</span>
+        <span style="font-size:11px;color:var(--t3)" id="ml-log-time">--</span>
+      </div>
+      <pre id="ml-log-output" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.7;color:var(--t2);overflow-x:auto;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">数据加载中...</pre>
+    </div>
+  </section>
+
 </div>
 
 <footer class="footer">
@@ -352,9 +393,9 @@
 </footer>
 
 <script>
-// ========== DATA (update this section periodically) ==========
+// ========== DATA (fallback when API unavailable) ==========
 
-const DATA = {
+const FALLBACK_DATA = {
   lastUpdated: "2026-03-23 03:30 HKT",
 
   overview: {
@@ -362,197 +403,197 @@ const DATA = {
     botCount: 6,
     botsOnline: 6,               // currently running bots
     todayTrades: 0,              // dry-run, waiting for signals
-    backtestStatus: "Hyperopt 36/200 epochs (best Sharpe 51.97)",
-    trainingStatus: "FreqAI 15-pair backtest re-running (cache cleared, 18 new features)"
+    backtestStatus: "Hyperopt 36/200 轮 (最佳 Sharpe 51.97)",
+    trainingStatus: "FreqAI 15 币对回测重跑中 (已清缓存, 18 个新特征)"
   },
 
   containers: [
-    { name: "lumigate",                  status: "running",  port: "9471",  purpose: "AI Gateway + LumiTrader" },
-    { name: "lumigate-freqtrade",        status: "running",  port: "18790", purpose: "LumiLearning bot (dry-run, FreqAI)" },
-    { name: "lumigate-freqtrade-pure",   status: "running",  port: "18791", purpose: "Pure SMC bot (dry-run, no FreqAI)" },
-    { name: "lumigate-freqtrade-ai",     status: "running",  port: "18792", purpose: "AI-Enhanced bot (dry-run, FreqAI)" },
-    { name: "lumigate-freqtrade-bt",     status: "stopped",  port: "18795", purpose: "Backtest webserver instance" },
-    { name: "lumigate-freqtrade-lev",    status: "stopped",  port: "18797", purpose: "LumiLearning Leverage bot" },
-    { name: "lumigate-freqtrade-pure-lev", status: "stopped", port: "18798", purpose: "Pure SMC Leverage bot" },
-    { name: "lumigate-freqtrade-ai-lev", status: "stopped",  port: "18799", purpose: "AI-Enhanced Leverage bot" },
-    { name: "lumigate-finbert",          status: "stopped",  port: "18796", purpose: "FinBERT sentiment scoring" },
-    { name: "lumigate-trade-engine",     status: "stopped",  port: "18793", purpose: "FastAPI trade engine" },
-    { name: "lumigate-ibgateway",        status: "stopped",  port: "4002",  purpose: "IB Gateway (paper trading)" },
-    { name: "nginx",                     status: "running",  port: "9471",  purpose: "Reverse proxy + TLS" },
-    { name: "pocketbase",               status: "running",  port: "8090",  purpose: "Database (auth, sessions, collections)" },
-    { name: "cloudflare-tunnel",         status: "running",  port: "-",     purpose: "External access tunnel" }
+    { name: "lumigate",                  status: "running",  port: "9471",  purpose: "AI 网关 + LumiTrader" },
+    { name: "lumigate-freqtrade",        status: "running",  port: "18790", purpose: "LumiLearning 机器人 (模拟, FreqAI)" },
+    { name: "lumigate-freqtrade-pure",   status: "running",  port: "18791", purpose: "纯 SMC 机器人 (模拟, 无 FreqAI)" },
+    { name: "lumigate-freqtrade-ai",     status: "running",  port: "18792", purpose: "AI 增强机器人 (模拟, FreqAI)" },
+    { name: "lumigate-freqtrade-bt",     status: "stopped",  port: "18795", purpose: "回测 Web 服务器" },
+    { name: "lumigate-freqtrade-lev",    status: "stopped",  port: "18797", purpose: "LumiLearning 杠杆机器人" },
+    { name: "lumigate-freqtrade-pure-lev", status: "stopped", port: "18798", purpose: "纯 SMC 杠杆机器人" },
+    { name: "lumigate-freqtrade-ai-lev", status: "stopped",  port: "18799", purpose: "AI 增强杠杆机器人" },
+    { name: "lumigate-finbert",          status: "stopped",  port: "18796", purpose: "FinBERT 情绪分析" },
+    { name: "lumigate-trade-engine",     status: "stopped",  port: "18793", purpose: "FastAPI 交易引擎" },
+    { name: "lumigate-ibgateway",        status: "stopped",  port: "4002",  purpose: "IB Gateway (模拟交易)" },
+    { name: "nginx",                     status: "running",  port: "9471",  purpose: "反向代理 + TLS" },
+    { name: "pocketbase",               status: "running",  port: "8090",  purpose: "数据库 (认证, 会话, 集合)" },
+    { name: "cloudflare-tunnel",         status: "running",  port: "-",     purpose: "外部访问隧道" }
   ],
 
   tasks: {
     done: [
       {
-        title: "P0: Critical Strategy Fixes",
+        title: "P0: 关键策略修复",
         count: "3/3",
         items: [
-          "Strategy 3 bug fixes (feature engineering, signal logic, risk params)",
-          "Telegram .env symlink + integration (trade alerts, error notifications)",
-          "AI-Enhanced FreqAI bot setup with CatBoost + LightGBM"
+          "策略 3 项 bug 修复 (特征工程、信号逻辑、风控参数)",
+          "Telegram .env 软链接 + 集成 (交易提醒、错误通知)",
+          "AI 增强 FreqAI 机器人搭建 (CatBoost + LightGBM)"
         ]
       },
       {
-        title: "P1: Infrastructure & Security",
+        title: "P1: 基础设施与安全",
         count: "7/7",
         items: [
-          "Password externalization (all secrets via env vars)",
-          "user_data isolation per bot (no cross-contamination)",
-          "Risk circuit breaker (3% daily loss auto-stop)",
-          "PocketBase schema migration (fields key, not schema)",
-          "OKX rate limit handling (rateLimit 200ms + staggered starts)",
-          "502 gateway error fix (nginx/freqtrade proxy)",
-          "news_blackout risk parameter implementation"
+          "密码外部化 (所有密钥通过环境变量注入)",
+          "user_data 按机器人隔离 (无交叉污染)",
+          "风控熔断器 (日亏 3% 自动停止)",
+          "PocketBase schema 迁移 (fields 键, 非 schema)",
+          "OKX 频率限制处理 (rateLimit 200ms + 错峰启动)",
+          "502 网关错误修复 (nginx/freqtrade 代理)",
+          "news_blackout 风控参数实现"
         ]
       },
       {
-        title: "P2: Data & Multi-Bot",
+        title: "P2: 数据与多机器人",
         count: "5/5",
         items: [
-          "DataSieve integration (outlier removal + noise reduction)",
-          "CoinGecko + RSS news feed pipeline",
-          "PocketBase project isolation (lumitrade project)",
-          "Multi-bot connector architecture (6 bots: 3 strategies x 2 leverage)",
-          "FreqAI feature engineering (55 SMC features)"
+          "DataSieve 集成 (异常值剔除 + 噪声降低)",
+          "CoinGecko + RSS 新闻数据管道",
+          "PocketBase 项目隔离 (lumitrade 独立项目)",
+          "多机器人连接器架构 (6 台: 3 策略 x 2 杠杆模式)",
+          "FreqAI 特征工程 (55 个 SMC 特征)"
         ]
       },
       {
-        title: "P3: Automation & Quality",
+        title: "P3: 自动化与质量",
         count: "4/4",
         items: [
-          "Auto-auth cache for FreqUI (5min TTL tokens)",
-          "Trade auto-sync between freqtrade and PocketBase",
-          "Alert system (Telegram + error monitoring)",
-          "Feature validation and importance analysis"
+          "FreqUI 自动登录缓存 (5 分钟 TTL 令牌)",
+          "freqtrade 与 PocketBase 交易自动同步",
+          "告警系统 (Telegram + 错误监控)",
+          "特征验证与重要性分析"
         ]
       },
       {
-        title: "Leverage & Validation",
+        title: "杠杆与验证",
         count: "4/4",
         items: [
-          "Leverage system full implementation (1.5x verified, +33% returns)",
-          "Out-of-sample validation (low overfitting risk confirmed)",
-          "IBKR asyncio event loop fix",
-          "Leverage mode clarification: unlimited mode leverage ineffective; fixed stake_amount=1250 with leverage yields +31%. Group B switched to fixed stake."
+          "杠杆系统完整实现 (1.5x 已验证, 收益 +33%)",
+          "样本外验证 (确认过拟合风险低)",
+          "IBKR asyncio 事件循环修复",
+          "杠杆模式澄清: unlimited 模式杠杆无效; fixed stake_amount=1250 配合杠杆收益 +31%。B 组已切换为固定金额。"
         ]
       },
       {
-        title: "Infrastructure & Tooling",
+        title: "基础设施与工具",
         count: "8/8",
         items: [
-          "Qdrant healthcheck fix",
-          "WebSocket signal push (real-time trade signals)",
-          "Training Progress API endpoint",
-          "Self-hosted RSSHub instance",
-          "Hyperopt automation (weekly Sunday midnight cron)",
-          "Independent Hyperopt container (no conflict with live bots)",
-          "Project Status Dashboard (this page)",
-          "Backtest vs Actual Dashboard"
+          "Qdrant 健康检查修复",
+          "WebSocket 信号推送 (实时交易信号)",
+          "训练进度 API 端点",
+          "自建 RSSHub 实例",
+          "Hyperopt 自动化 (每周日凌晨定时任务)",
+          "独立 Hyperopt 容器 (不与实盘机器人冲突)",
+          "项目状态看板 (本页面)",
+          "回测 vs 实盘对比看板"
         ]
       },
       {
-        title: "Bug Fixes & Config",
+        title: "Bug 修复与配置",
         count: "3/3",
         items: [
-          "chat.js proxyApiKey fix",
-          "FreqAI correlated pair crash fix",
-          "config-hyperopt.json created for independent Hyperopt runs"
+          "chat.js proxyApiKey 修复",
+          "FreqAI 关联币对崩溃修复",
+          "config-hyperopt.json 创建 (独立 Hyperopt 运行)"
         ]
       },
       {
-        title: "AI Benchmark & nginx",
+        title: "AI 基准测试 & nginx",
         count: "3/3",
         items: [
-          "Opus 46-question benchmark complete — 4.59/5 overall, all 6 groups passed",
-          "GPT-5.4 46-question benchmark — 4.68/5 (answered), 三模型对比完成",
-          "nginx B-group bot rewrite fix — strip URI prefix for variable proxy_pass"
+          "Opus 46 题基准测试完成 — 总分 4.59/5, 全 6 组通过",
+          "GPT-5.4 46 题基准测试 — 4.68/5 (已回答), 三模型对比完成",
+          "nginx B 组机器人 rewrite 修复 — variable proxy_pass 需手动去前缀"
         ]
       }
     ],
     inProgress: [
-      { text: "Hyperopt 200 epochs (independent container, 36/200 done, best Sharpe 51.97)", pct: 18 },
-      { text: "FreqAI 15-pair backtest re-run (old cache cleared, 18 new features)", pct: 5 },
-      { text: "Live bot dry run — 6 bots online, accumulating data", pct: 10 }
+      { text: "Hyperopt 200 轮 (独立容器, 36/200 完成, 最佳 Sharpe 51.97)", pct: 18 },
+      { text: "FreqAI 15 币对回测重跑 (旧缓存已清, 18 个新特征)", pct: 5 },
+      { text: "机器人模拟运行 — 6 台在线, 数据积累中", pct: 10 }
     ],
     todo: [
-      "Apply Hyperopt parameters to backtest re-run",
-      "30-day dry run data accumulation",
-      "Go-live preparation ($500 initial capital)"
+      "将 Hyperopt 最优参数应用到回测重跑",
+      "30 天模拟运行数据积累",
+      "上线准备 ($500 初始资金)"
     ]
   },
 
   backtest: [
-    { metric: "Total Return",     noLev: "+18.3%",   lev: "+52.7%",   highlight: "green" },
-    { metric: "CAGR",             noLev: "18.3%",    lev: "52.7%",    highlight: "green" },
-    { metric: "Sharpe Ratio",     noLev: "1.42",     lev: "1.38",     highlight: "neutral" },
-    { metric: "Sortino Ratio",    noLev: "2.15",     lev: "2.01",     highlight: "neutral" },
-    { metric: "Max Drawdown",     noLev: "-8.7%",    lev: "-24.1%",   highlight: "warn" },
-    { metric: "Profit Factor",    noLev: "1.85",     lev: "1.82",     highlight: "neutral" },
-    { metric: "Win Rate",         noLev: "62.4%",    lev: "62.4%",    highlight: "green" },
-    { metric: "Total Trades",     noLev: "347",      lev: "347",      highlight: "" },
-    { metric: "Avg Trade Duration", noLev: "4.2h",   lev: "4.2h",    highlight: "" },
-    { metric: "Expectancy",       noLev: "0.53%",    lev: "1.58%",    highlight: "green" }
+    { metric: "总收益",           noLev: "+18.3%",   lev: "+52.7%",   highlight: "green" },
+    { metric: "年化收益率",       noLev: "18.3%",    lev: "52.7%",    highlight: "green" },
+    { metric: "夏普比率",         noLev: "1.42",     lev: "1.38",     highlight: "neutral" },
+    { metric: "索提诺比率",       noLev: "2.15",     lev: "2.01",     highlight: "neutral" },
+    { metric: "最大回撤",         noLev: "-8.7%",    lev: "-24.1%",   highlight: "warn" },
+    { metric: "盈利因子",         noLev: "1.85",     lev: "1.82",     highlight: "neutral" },
+    { metric: "胜率",             noLev: "62.4%",    lev: "62.4%",    highlight: "green" },
+    { metric: "总交易数",         noLev: "347",      lev: "347",      highlight: "" },
+    { metric: "平均持仓时长",     noLev: "4.2h",     lev: "4.2h",     highlight: "" },
+    { metric: "期望收益",         noLev: "0.53%",    lev: "1.58%",    highlight: "green" }
   ],
 
   issues: [
     {
-      title: "LumiGate occasional restarts",
+      title: "LumiGate 偶尔重启",
       severity: "yellow",
-      desc: "LumiGate (Node.js gateway) occasionally restarts under memory pressure. Improved with recent fixes but not fully resolved. Watchdog recovers within 10s."
+      desc: "LumiGate (Node.js 网关) 在内存压力下偶尔重启。近期修复已改善但未完全解决。Watchdog 10 秒内恢复。"
     },
     {
-      title: "Hyperopt + FreqAI backtest conflict",
+      title: "Hyperopt + FreqAI 回测冲突",
       severity: "blue",
-      desc: "Cannot run Hyperopt and FreqAI backtest simultaneously on same machine. Resolved by adding independent Hyperopt container."
+      desc: "无法在同一机器上同时运行 Hyperopt 和 FreqAI 回测。已通过添加独立 Hyperopt 容器解决。"
     },
     {
-      title: "15-pair whitelist was incorrectly reduced to 8",
+      title: "15 币对白名单被误缩减到 8 个",
       severity: "blue",
-      desc: "Whitelist was accidentally changed to 8 pairs during config edits. Restored to full 15 pairs."
+      desc: "配置编辑时白名单被意外改为 8 币对。已恢复为完整 15 币对。"
     },
     {
-      title: "OKX WebSocket blocked by GFW",
+      title: "OKX WebSocket 被 GFW 屏蔽",
       severity: "yellow",
-      desc: "Using REST polling (enable_ws: false) as workaround. Higher latency for market data but functional. No fix planned — OKX limitation in China region."
+      desc: "使用 REST 轮询 (enable_ws: false) 作为替代。行情数据延迟较高但可用。不计划修复 — OKX 在中国区的限制。"
     }
   ],
 
   goLiveChecklist: [
-    { text: "Strategy validation (backtest + out-of-sample)", done: true },
-    { text: "Leverage validation (fixed stake +31%, unlimited mode ineffective — Group B switched to fixed)", done: true },
-    { text: "Risk circuit breaker tested and confirmed", done: true },
-    { text: "Telegram alerts working (trade + error notifications)", done: true },
-    { text: "PocketBase trade sync verified (no missing trades)", done: true },
-    { text: "OKX API rate limits handled (staggered + 200ms)", done: true },
-    { text: "30-day dry-run with final parameters", done: false },
-    { text: "100+ trades in dry-run without errors", done: false },
-    { text: "Go-live with $500 initial capital", done: false }
+    { text: "策略验证 (回测 + 样本外验证)", done: true },
+    { text: "杠杆验证 (固定金额 +31%, unlimited 模式无效 — B 组已切换)", done: true },
+    { text: "风控熔断器测试确认", done: true },
+    { text: "Telegram 告警正常 (交易 + 错误通知)", done: true },
+    { text: "PocketBase 交易同步验证 (无遗漏)", done: true },
+    { text: "OKX API 频率限制处理 (错峰 + 200ms)", done: true },
+    { text: "30 天最终参数模拟运行", done: false },
+    { text: "模拟运行中完成 100+ 笔无错误交易", done: false },
+    { text: "上线实盘 ($500 初始资金)", done: false }
   ],
 
   timeline: [
-    { date: "2026-03-23", text: "<strong>GPT-5.4 benchmark</strong> — 46 题测试 4.68/5 (answered)，风控满分 5.00，SMC 满分 5.00。三模型对比: GPT-4o 3.8 → Opus 4.59 → GPT-5.4 4.68。6 题因 503 错误失败 (基础设施问题，非模型质量)。" },
-    { date: "2026-03-23", text: "<strong>nginx B-group bot rewrite fix</strong> — 修复 B 组 bot 的 URI 前缀 rewrite，variable proxy_pass 需要手动 strip prefix。" },
-    { date: "2026-03-23", text: "<strong>Bug fixes</strong> — chat.js proxyApiKey fix, FreqAI correlated pair crash fix, config-hyperopt.json created." },
-    { date: "2026-03-23", text: "<strong>Opus benchmark partial results</strong> — Data Accuracy 4.63/5 (up from GPT-4o 4.0), SMC Concepts 5.00/5 (up from 3.5). Remaining 4 groups in progress." },
-    { date: "2026-03-23", text: "<strong>Leverage mode clarification</strong> — unlimited stake_amount ignores leverage; fixed stake_amount=1250 yields +31%. Group B bots switched to fixed stake." },
-    { date: "2026-03-23", text: "<strong>Hyperopt running</strong> — independent container, 36/200 epochs, best Sharpe 51.97. FreqAI 15-pair backtest re-running with cleared cache and 18 new features." },
-    { date: "2026-03-22", text: "<strong>Project Status Dashboard</strong> — full data update reflecting all completed tasks, go-live checklist, and current status." },
-    { date: "2026-03-22", text: "<strong>Leverage system verified</strong> — 1.5x leverage confirmed +33% returns. Out-of-sample validation passed (low overfitting risk)." },
-    { date: "2026-03-22", text: "<strong>Independent Hyperopt container</strong> + weekly automation (Sunday midnight cron). No more conflicts with live bots." },
-    { date: "2026-03-22", text: "<strong>Self-hosted RSSHub</strong> + Backtest vs Actual Dashboard + Training Progress API + WebSocket signals." },
-    { date: "2026-03-22", text: "<strong>Auto-clear stale bot cache</strong> when bot count changes. Renamed LumiTrade bot to LumiLearning." },
-    { date: "2026-03-22", text: "<strong>Stagger bot throttle</strong> (5/15/25s) + rateLimit 200ms to avoid OKX rate limit errors." },
-    { date: "2026-03-22", text: "<strong>Registered AI-Enhanced bot</strong> in FreqUI + nginx route. All 3 strategies now have both normal and leverage variants." },
-    { date: "2026-03-22", text: "<strong>3 bots all futures + shorting</strong>, new AI-Enhanced bot launched." },
-    { date: "2026-03-21", text: "<strong>Multi-bot architecture</strong> — 6 bots total (3 strategies x 2 leverage modes). Docker compose profiles updated." },
-    { date: "2026-03-21", text: "<strong>Feature engineering overhaul</strong> — 55 SMC features for FreqAI including OBV, VWAP zones, session overlaps, multi-timeframe confluence." },
-    { date: "2026-03-20", text: "<strong>DataSieve integration</strong> — outlier removal and noise reduction in training pipeline." },
-    { date: "2026-03-20", text: "<strong>PocketBase project isolation</strong> — all trade collections moved to dedicated lumitrade project." },
-    { date: "2026-03-19", text: "<strong>Telegram integration</strong> — trade alerts and error notifications via Telegram bot." },
-    { date: "2026-03-19", text: "<strong>Risk circuit breaker</strong> — 3% daily loss auto-stop, max 2% per position, max 5 concurrent positions." },
-    { date: "2026-03-18", text: "<strong>Strategy bug fixes</strong> — corrected feature engineering, signal logic, and risk parameters across all 3 strategies." }
+    { date: "2026-03-23", text: "<strong>GPT-5.4 基准测试</strong> — 46 题测试 4.68/5 (已回答), 风控满分 5.00, SMC 满分 5.00。三模型对比: GPT-4o 3.8 → Opus 4.59 → GPT-5.4 4.68。6 题因 503 错误失败 (基础设施问题, 非模型质量)。" },
+    { date: "2026-03-23", text: "<strong>nginx B 组机器人 rewrite 修复</strong> — 修复 B 组机器人的 URI 前缀 rewrite, variable proxy_pass 需要手动去前缀。" },
+    { date: "2026-03-23", text: "<strong>Bug 修复</strong> — chat.js proxyApiKey 修复, FreqAI 关联币对崩溃修复, config-hyperopt.json 已创建。" },
+    { date: "2026-03-23", text: "<strong>Opus 基准部分结果</strong> — 数据准确性 4.63/5 (GPT-4o 为 4.0), SMC 概念 5.00/5 (原 3.5)。剩余 4 组进行中。" },
+    { date: "2026-03-23", text: "<strong>杠杆模式澄清</strong> — unlimited stake_amount 忽略杠杆; fixed stake_amount=1250 收益 +31%。B 组机器人已切换为固定金额。" },
+    { date: "2026-03-23", text: "<strong>Hyperopt 运行中</strong> — 独立容器, 36/200 轮, 最佳 Sharpe 51.97。FreqAI 15 币对回测重跑中 (已清缓存, 18 个新特征)。" },
+    { date: "2026-03-22", text: "<strong>项目状态看板</strong> — 完整数据更新, 反映所有已完成任务、上线清单和当前状态。" },
+    { date: "2026-03-22", text: "<strong>杠杆系统验证</strong> — 1.5x 杠杆确认收益 +33%。样本外验证通过 (过拟合风险低)。" },
+    { date: "2026-03-22", text: "<strong>独立 Hyperopt 容器</strong> + 每周自动化 (周日凌晨定时任务)。不再与实盘机器人冲突。" },
+    { date: "2026-03-22", text: "<strong>自建 RSSHub</strong> + 回测 vs 实盘对比看板 + 训练进度 API + WebSocket 信号。" },
+    { date: "2026-03-22", text: "<strong>自动清理过期机器人缓存</strong> 机器人数量变化时触发。LumiTrade 机器人更名为 LumiLearning。" },
+    { date: "2026-03-22", text: "<strong>错峰启动</strong> (5/15/25s) + rateLimit 200ms 避免 OKX 频率限制错误。" },
+    { date: "2026-03-22", text: "<strong>注册 AI 增强机器人</strong> 到 FreqUI + nginx 路由。3 个策略均有普通和杠杆两种模式。" },
+    { date: "2026-03-22", text: "<strong>3 台机器人全部期货 + 做空</strong>, 新 AI 增强机器人上线。" },
+    { date: "2026-03-21", text: "<strong>多机器人架构</strong> — 共 6 台 (3 策略 x 2 杠杆模式)。Docker compose profiles 已更新。" },
+    { date: "2026-03-21", text: "<strong>特征工程重构</strong> — 55 个 SMC 特征用于 FreqAI, 包括 OBV、VWAP 区域、交易时段重叠、多时间框架共振。" },
+    { date: "2026-03-20", text: "<strong>DataSieve 集成</strong> — 训练管道中的异常值剔除和噪声降低。" },
+    { date: "2026-03-20", text: "<strong>PocketBase 项目隔离</strong> — 所有交易集合移至专用 lumitrade 项目。" },
+    { date: "2026-03-19", text: "<strong>Telegram 集成</strong> — 通过 Telegram 机器人发送交易提醒和错误通知。" },
+    { date: "2026-03-19", text: "<strong>风控熔断器</strong> — 日亏 3% 自动停止, 单笔最大 2%, 最多 5 个同时持仓。" },
+    { date: "2026-03-18", text: "<strong>策略 bug 修复</strong> — 修正了 3 个策略的特征工程、信号逻辑和风控参数。" }
   ]
 };
 
@@ -719,7 +760,173 @@ function render() {
   `).join('');
 }
 
-render();
+// ========== LIVE DATA LOADING ==========
+
+let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
+
+async function loadStatusData() {
+  try {
+    const r = await fetch('/lumitrade/status-data');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const pb = await r.json();
+    // Merge PB sections into DATA, keeping fallback for missing sections
+    if (pb.overview) DATA.overview = pb.overview;
+    if (pb.containers) DATA.containers = pb.containers;
+    if (pb.tasks) DATA.tasks = pb.tasks;
+    if (pb.backtest) DATA.backtest = pb.backtest;
+    if (pb.issues) DATA.issues = pb.issues;
+    if (pb.goLiveChecklist) DATA.goLiveChecklist = pb.goLiveChecklist;
+    if (pb.timeline) DATA.timeline = pb.timeline;
+    if (pb.lastUpdated) DATA.lastUpdated = pb.lastUpdated;
+    else if (pb._lastUpdated) DATA.lastUpdated = new Date(pb._lastUpdated).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' }) + ' HKT';
+    render();
+  } catch (e) {
+    console.warn('Status API unavailable, using fallback data:', e.message);
+    render(); // render with fallback
+  }
+}
+
+loadStatusData();
+setInterval(loadStatusData, 60000); // refresh every minute
+
+// ========== ML TRAINING STATUS (live polling) ==========
+
+const ML_API = '/v1/trade/freqai/training-status';
+const ML_POLL_INTERVAL = 10000; // 10s
+
+async function fetchTrainingStatus() {
+  const indicator = document.getElementById('ml-refresh-indicator');
+  try {
+    indicator.textContent = '刷新中...';
+    const res = await fetch(ML_API, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderTrainingStatus(data);
+    indicator.textContent = '每 10 秒刷新';
+  } catch (e) {
+    renderTrainingFallback(e.message);
+    indicator.textContent = '连接失败, 10 秒后重试';
+  }
+}
+
+function renderTrainingStatus(data) {
+  // Status badge
+  const statusEl = document.getElementById('ml-status-badge');
+  if (data.training) {
+    statusEl.innerHTML = '<span class="badge badge-yellow"><span class="badge-dot"></span>训练中</span>';
+  } else {
+    statusEl.innerHTML = '<span class="badge badge-green"><span class="badge-dot"></span>空闲</span>';
+  }
+
+  // Current pair
+  const pairEl = document.getElementById('ml-current-pair');
+  pairEl.textContent = data.current_pair ? `当前: ${data.current_pair}` : '无活跃训练';
+
+  // Progress
+  const progressText = document.getElementById('ml-progress-text');
+  const progressBar = document.getElementById('ml-progress-bar');
+  if (data.progress) {
+    const [cur, total] = data.progress.split('/').map(Number);
+    const pct = total > 0 ? Math.round((cur / total) * 100) : 0;
+    progressText.textContent = `${data.progress} 币对`;
+    progressBar.style.width = pct + '%';
+  } else {
+    progressText.textContent = data.training ? '进行中...' : '--';
+    progressBar.style.width = data.training ? '10%' : '0%';
+  }
+
+  // Hyperopt status — check bots for hyperopt info
+  const hyperoptEl = document.getElementById('ml-hyperopt-status');
+  const hyperoptSub = document.getElementById('ml-hyperopt-sub');
+  if (data.hyperopt) {
+    if (data.hyperopt.running) {
+      hyperoptEl.innerHTML = '<span class="badge badge-yellow"><span class="badge-dot"></span>进行中</span>';
+      hyperoptSub.textContent = data.hyperopt.progress || '';
+    } else if (data.hyperopt.completed) {
+      hyperoptEl.innerHTML = '<span class="badge badge-green"><span class="badge-dot"></span>已完成</span>';
+      hyperoptSub.textContent = data.hyperopt.best_result || '';
+    } else {
+      hyperoptEl.innerHTML = '<span class="badge badge-blue"><span class="badge-dot"></span>未开始</span>';
+      hyperoptSub.textContent = '';
+    }
+  } else {
+    // Infer from static DATA
+    const ovStatus = DATA.overview.backtestStatus;
+    if (ovStatus.includes('Hyperopt')) {
+      hyperoptEl.innerHTML = '<span class="badge badge-yellow"><span class="badge-dot"></span>进行中</span>';
+      hyperoptSub.textContent = ovStatus;
+    } else {
+      hyperoptEl.innerHTML = '<span class="badge badge-blue"><span class="badge-dot"></span>未知</span>';
+      hyperoptSub.textContent = '端点未返回 Hyperopt 数据';
+    }
+  }
+
+  // Last trained
+  const lastEl = document.getElementById('ml-last-trained');
+  if (data.last_trained) {
+    const d = new Date(data.last_trained);
+    lastEl.textContent = isNaN(d.getTime()) ? data.last_trained : d.toLocaleString('zh-CN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  } else {
+    lastEl.textContent = '暂无记录';
+  }
+
+  // Models count
+  const modelsEl = document.getElementById('ml-models-count');
+  if (data.bots) {
+    const totalModels = Object.values(data.bots).reduce((s, b) => s + (b.models_count || 0), 0);
+    const botCount = Object.keys(data.bots).length;
+    modelsEl.textContent = `${botCount} 台机器人, 共 ${totalModels} 个模型`;
+  } else {
+    modelsEl.textContent = '';
+  }
+
+  // Log output
+  const logEl = document.getElementById('ml-log-output');
+  const logTimeEl = document.getElementById('ml-log-time');
+  if (data.recent_logs && data.recent_logs.length > 0) {
+    const lines = data.recent_logs.slice(-10);
+    logEl.textContent = lines.map(l => {
+      if (typeof l === 'string') return l;
+      if (Array.isArray(l)) return l.join(' | ');
+      if (l.message || l.msg) return `${l.timestamp || l.date || ''} ${l.message || l.msg}`;
+      return JSON.stringify(l);
+    }).join('\n');
+    logTimeEl.textContent = new Date().toLocaleTimeString('zh-CN');
+  } else if (data.bots) {
+    // Try to show bot-level info
+    const lines = Object.entries(data.bots).map(([name, info]) => {
+      const st = info.training ? '训练中' : '空闲';
+      const pair = info.current_pair ? ` (${info.current_pair})` : '';
+      const prog = info.progress ? ` ${info.progress}` : '';
+      return `[${name}] ${st}${pair}${prog} — ${info.models_count || 0} 模型`;
+    });
+    logEl.textContent = lines.join('\n') || '无日志数据';
+    logTimeEl.textContent = new Date().toLocaleTimeString('zh-CN');
+  } else {
+    logEl.textContent = '无日志数据';
+    logTimeEl.textContent = '--';
+  }
+}
+
+function renderTrainingFallback(errMsg) {
+  document.getElementById('ml-status-badge').innerHTML =
+    '<span class="badge badge-red"><span class="badge-dot"></span>不可用</span>';
+  document.getElementById('ml-current-pair').textContent = '数据不可用';
+  document.getElementById('ml-progress-text').textContent = '--';
+  document.getElementById('ml-progress-bar').style.width = '0%';
+  document.getElementById('ml-hyperopt-status').innerHTML =
+    '<span class="badge badge-red"><span class="badge-dot"></span>不可用</span>';
+  document.getElementById('ml-hyperopt-sub').textContent = '';
+  document.getElementById('ml-last-trained').textContent = '--';
+  document.getElementById('ml-models-count').textContent = '';
+  document.getElementById('ml-log-output').textContent =
+    `无法连接训练状态端点\n\n错误: ${errMsg}\n\n端点: ${ML_API}\n提示: 确保 trade-engine 容器已启动`;
+  document.getElementById('ml-log-time').textContent = new Date().toLocaleTimeString('zh-CN');
+}
+
+// Initial fetch + interval
+fetchTrainingStatus();
+setInterval(fetchTrainingStatus, ML_POLL_INTERVAL);
 </script>
 </body>
 </html>

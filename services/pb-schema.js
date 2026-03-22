@@ -643,6 +643,14 @@ const PB_COLLECTIONS = [
       { name: "action_taken", type: "text" },
     ],
   },
+  {
+    name: "lt_status",
+    type: "base",
+    schema: [
+      { name: "section", type: "text", required: true },
+      { name: "data", type: "json" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -692,6 +700,7 @@ const COLLECTION_PROJECT_MAP = {
   lt_messages: "lumitrade",
   lt_user_settings: "lumitrade",
   lt_notifications: "lumitrade",
+  lt_status: "lumitrade",
 };
 
 async function ensureCollections(pbUrl, adminToken, log) {

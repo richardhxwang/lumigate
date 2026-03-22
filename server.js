@@ -1786,6 +1786,59 @@ app.get("/lumitrade/analytics", (_req, res) => {
 app.get("/lumitrade/status", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "lumitrade-status.html"));
 });
+// Public read-only endpoint for status dashboard data (no auth — matches public HTML page)
+app.get("/lumitrade/status-data", async (_req, res) => {
+  try {
+    const adminToken = await getPbAdminToken();
+    const pbPath = `/api/p/lumitrade/collections/lt_status/records?perPage=50`;
+    const r = await fetch(`${PB_URL}${pbPath}`, {
+      headers: { "Content-Type": "application/json", ...(adminToken ? { Authorization: adminToken } : {}) },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: "PB fetch failed" });
+    const body = await r.json();
+    const items = body.items || [];
+    const merged = {};
+    for (const item of items) {
+      if (item.section && item.data != null) merged[item.section] = item.data;
+    }
+    if (items.length > 0) {
+      const newest = items.reduce((a, b) => (a.updated > b.updated ? a : b));
+      merged._lastUpdated = newest.updated;
+    }
+    res.json(merged);
+  } catch (e) {
+    res.status(502).json({ error: "Status data unavailable", detail: e.message });
+  }
+});
+// Admin write endpoint for status dashboard data (requires admin token)
+app.post("/lumitrade/status-data", async (req, res) => {
+  if (!isAdminRequest(req)) return res.status(401).json({ error: "Admin auth required" });
+  const { section, data } = req.body || {};
+  if (!section || data == null) return res.status(400).json({ error: "Missing section or data" });
+  try {
+    const adminToken = await getPbAdminToken();
+    const headers = { "Content-Type": "application/json", ...(adminToken ? { Authorization: adminToken } : {}) };
+    const base = `${PB_URL}/api/p/lumitrade/collections/lt_status/records`;
+    // Check if section exists
+    const search = await fetch(`${base}?filter=(section='${encodeURIComponent(section)}')&perPage=1`, { headers });
+    const searchBody = search.ok ? await search.json() : { items: [] };
+    const existing = (searchBody.items || [])[0];
+    let result;
+    if (existing) {
+      result = await fetch(`${base}/${existing.id}`, { method: "PATCH", headers, body: JSON.stringify({ data }) });
+    } else {
+      result = await fetch(base, { method: "POST", headers, body: JSON.stringify({ section, data }) });
+    }
+    if (!result.ok) {
+      const errBody = await result.text();
+      return res.status(result.status).json({ error: "PB write failed", detail: errBody });
+    }
+    const saved = await result.json();
+    res.json({ ok: true, id: saved.id, section });
+  } catch (e) {
+    res.status(502).json({ error: "Status data write failed", detail: e.message });
+  }
+});
 
 // Serve LumiTrade interface (nonce injected into HTML for CSP)
 // LumiTrade auto-auth — returns freqtrade credentials + server-side tokens for all 6 bots
@@ -3925,7 +3978,7 @@ app.use(apiLimiter, platformAuth, require("./routes/knowledge").createRouter({ m
 // ── LumiTrade API routes ──────────────────────────────────────────────────────
 let _tradeResult = null;
 try {
-  _tradeResult = require("./routes/trade")({ PB_URL, getPbAdminToken });
+  _tradeResult = require("./routes/trade")({ PB_URL, getPbAdminToken, isAdminRequest });
   app.use("/v1/trade", apiLimiter, platformAuth, _tradeResult.router);
   log("info", "LumiTrade routes mounted at /v1/trade/*");
 } catch (e) {
