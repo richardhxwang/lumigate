@@ -187,81 +187,75 @@ class SMCStrategy(IStrategy):
             freqai_ok = dataframe["&-target"] > 0.005
 
         # Primary: BOS/CHoCH + OB + FVG (strict SMC confluence)
-        dataframe.loc[
-            (
-                ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
-                & (dataframe["ob_direction"] == 1)
-                & (dataframe["fvg_direction"] == 1)
-                & (dataframe["close"] >= dataframe["ob_bottom"])
-                & (dataframe["close"] <= dataframe["ob_top"])
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_long",
-        ] = 1
+        primary_long = (
+            ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
+            & (dataframe["ob_direction"] == 1)
+            & (dataframe["fvg_direction"] == 1)
+            & (dataframe["close"] >= dataframe["ob_bottom"])
+            & (dataframe["close"] <= dataframe["ob_top"])
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[primary_long, "enter_long"] = 1
+        dataframe.loc[primary_long, "enter_tag"] = "smc_primary_long"
 
         # Fallback: BOS/CHoCH + FVG (no OB required — more signals)
-        dataframe.loc[
-            (
-                (dataframe["enter_long"] != 1)
-                & ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
-                & (dataframe["fvg_direction"] == 1)
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_long",
-        ] = 1
+        fallback_long = (
+            (dataframe["enter_long"] != 1)
+            & ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
+            & (dataframe["fvg_direction"] == 1)
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[fallback_long, "enter_long"] = 1
+        dataframe.loc[fallback_long, "enter_tag"] = "smc_fallback_long"
 
         # Minimal: FVG alone when liquidity was just swept (catch reversals)
-        dataframe.loc[
-            (
-                (dataframe["enter_long"] != 1)
-                & (dataframe["fvg_direction"] == 1)
-                & (dataframe["liq_swept"] == 1)
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_long",
-        ] = 1
+        minimal_long = (
+            (dataframe["enter_long"] != 1)
+            & (dataframe["fvg_direction"] == 1)
+            & (dataframe["liq_swept"] == 1)
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[minimal_long, "enter_long"] = 1
+        dataframe.loc[minimal_long, "enter_tag"] = "smc_minimal_long"
 
         # Short entries — mirror of long with bearish signals (-1)
         # Primary: bearish BOS/CHoCH + bearish OB + bearish FVG
-        dataframe.loc[
-            (
-                ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
-                & (dataframe["ob_direction"] == -1)
-                & (dataframe["fvg_direction"] == -1)
-                & (dataframe["close"] >= dataframe["ob_bottom"])
-                & (dataframe["close"] <= dataframe["ob_top"])
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_short",
-        ] = 1
+        primary_short = (
+            ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
+            & (dataframe["ob_direction"] == -1)
+            & (dataframe["fvg_direction"] == -1)
+            & (dataframe["close"] >= dataframe["ob_bottom"])
+            & (dataframe["close"] <= dataframe["ob_top"])
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[primary_short, "enter_short"] = 1
+        dataframe.loc[primary_short, "enter_tag"] = "smc_primary_short"
 
         # Fallback: bearish BOS/CHoCH + bearish FVG
-        dataframe.loc[
-            (
-                (dataframe["enter_short"] != 1)
-                & ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
-                & (dataframe["fvg_direction"] == -1)
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_short",
-        ] = 1
+        fallback_short = (
+            (dataframe["enter_short"] != 1)
+            & ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
+            & (dataframe["fvg_direction"] == -1)
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[fallback_short, "enter_short"] = 1
+        dataframe.loc[fallback_short, "enter_tag"] = "smc_fallback_short"
 
         # Minimal: bearish FVG + liquidity swept (BSL sweep → short)
-        dataframe.loc[
-            (
-                (dataframe["enter_short"] != 1)
-                & (dataframe["fvg_direction"] == -1)
-                & (dataframe["liq_swept"] == 1)
-                & (dataframe["volume"] > 0)
-                & freqai_ok
-            ),
-            "enter_short",
-        ] = 1
+        minimal_short = (
+            (dataframe["enter_short"] != 1)
+            & (dataframe["fvg_direction"] == -1)
+            & (dataframe["liq_swept"] == 1)
+            & (dataframe["volume"] > 0)
+            & freqai_ok
+        )
+        dataframe.loc[minimal_short, "enter_short"] = 1
+        dataframe.loc[minimal_short, "enter_tag"] = "smc_minimal_short"
 
         return dataframe
 
@@ -279,6 +273,42 @@ class SMCStrategy(IStrategy):
         ] = 1
 
         return dataframe
+
+    def leverage_callback(self, pair, current_time, current_rate,
+                          proposed_leverage, max_leverage, entry_tag, side, **kwargs):
+        """Dynamic leverage based on signal quality + FreqAI confidence."""
+        lev_config = self.config.get("leverage_config", {})
+        if not lev_config:
+            return 1.0  # no leverage config → 1x (backward compatible)
+
+        cap = min(lev_config.get("max_leverage", 1), max_leverage)
+
+        # Base leverage from entry_tag signal quality
+        tag = entry_tag or ""
+        if "primary" in tag:
+            base = lev_config.get("primary", 1.0)
+        elif "fallback" in tag:
+            base = lev_config.get("fallback", 1.0)
+        else:
+            base = lev_config.get("minimal", 1.0)
+
+        # FreqAI high-confidence boost
+        if lev_config.get("freqai_boost") and self.config.get("freqai", {}).get("enabled"):
+            try:
+                df, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+                if not df.empty and "&-target" in df.columns:
+                    pred = df.iloc[-1]["&-target"]
+                    threshold = lev_config.get("freqai_threshold", 0.01)
+                    if pred > threshold:
+                        base += lev_config.get("freqai_bonus", 0.5)
+            except Exception:
+                pass
+
+        # Liquidation safety: ensure liq distance > stoploss * 1.5
+        max_safe = 1.0 / (abs(self.stoploss) * 1.5)  # ≈ 8.66x
+        leverage = max(min(base, cap, max_safe), 1.0)
+
+        return leverage
 
     def custom_stoploss(
         self, pair, trade, current_time, current_rate, current_profit, **kwargs

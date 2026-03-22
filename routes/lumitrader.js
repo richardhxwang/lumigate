@@ -195,13 +195,13 @@ module.exports = function createLumiTraderRouter(deps) {
       timed("ft-bt/history", fetch("http://lumigate-freqtrade-bt:8080/api/v1/backtest/history", {
         headers: { Authorization: ftAuth },
       }).then(r => r.ok ? r.json() : null)),
-      timed("pb/backtest_results", tradePbFetch("/api/collections/trade_backtest_results/records?perPage=3&sort=-created").then(r => r.ok ? r.json() : null)),
+      timed("pb/backtest_results", tradePbFetch("/api/collections/trade_backtest_results/records?perPage=3").then(r => r.ok ? r.json() : null)),
       // NEW: freqtrade live status
       timed("engine/ft-status", engineFetch("/freqtrade/status").then(r => r.ok ? r.json() : null)),
       // NEW: freqtrade config (strategy params)
       timed("engine/ft-config", engineFetch("/freqtrade/config").then(r => r.ok ? r.json() : null)),
       // NEW: recent news from PB
-      timed("pb/trade_news", tradePbFetch("/api/collections/trade_news/records?perPage=10&sort=-created").then(r => r.ok ? r.json() : null)),
+      timed("pb/trade_news", tradePbFetch("/api/collections/trade_news/records?perPage=10").then(r => r.ok ? r.json() : null)),
     ];
 
     const [positions, pnl, signals, history, journal, mood, rag, backtestHistory, backtestResultsPB, ftStatus, ftConfig, news] = await Promise.all(tasks);
@@ -335,24 +335,7 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Recent News (${ctx.news.length})]\n${lines.join("\n")}`);
     }
 
-    // 5. Recent Signals — enriched
-    if (ctx.signals && Array.isArray(ctx.signals.items) && ctx.signals.items.length > 0) {
-      const sigLines = ctx.signals.items.slice(0, 5).map(s => _f([
-        `  ${s.symbol} ${s.direction || "?"}`,
-        `confidence:${s.confidence ?? "?"}`,
-        `entry:${s.entry_price ?? "?"}`,
-        s.stop_loss ? `SL:${s.stop_loss}` : null,
-        s.take_profit ? `TP:${s.take_profit}` : null,
-        s.risk_reward ? `R:R:${s.risk_reward}` : null,
-        s.timeframe ? `tf:${s.timeframe}` : null,
-        s.source ? `src:${s.source}` : null,
-        s.status ? `status:${s.status}` : null,
-        s.news_sentiment != null ? `news:${s.news_sentiment}` : null,
-      ]));
-      parts.push(`[Recent Signals]\n${sigLines.join("\n")}`);
-    }
-
-    // 6. Recent Trades (PB) — enriched
+    // 5. Recent Trades (PB)
     const histItems = ctx.history?.items;
     if (Array.isArray(histItems) && histItems.length > 0) {
       const lines = histItems.slice(0, 15).map(t => _f([
@@ -377,7 +360,7 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Recent Trades (last ${lines.length})]\n${lines.join("\n")}`);
     }
 
-    // 7. Recent Mood — enriched
+    // 6. Recent Mood
     const moodItems = ctx.mood?.items;
     if (Array.isArray(moodItems) && moodItems.length > 0) {
       const lines = moodItems.slice(0, 5).map(m => _f([
@@ -392,7 +375,7 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Recent Mood]\n${lines.join("\n")}`);
     }
 
-    // 8. Journal Entries — enriched
+    // 7. Journal Entries
     const journalItems = ctx.journal?.items;
     if (Array.isArray(journalItems) && journalItems.length > 0) {
       const lines = journalItems.slice(0, 8).map(j => _f([
@@ -407,7 +390,7 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Journal Entries]\n${lines.join("\n")}`);
     }
 
-    // 9. Strategy Config — NEW
+    // 8. Strategy Config
     if (ctx.ftConfig) {
       const c = ctx.ftConfig;
       const lines = [];
@@ -434,7 +417,24 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Strategy Config]\n${lines.join("\n")}`);
     }
 
-    // 10. Backtest Results (PB) — enriched
+    // 9. Recent Signals
+    if (ctx.signals && Array.isArray(ctx.signals.items) && ctx.signals.items.length > 0) {
+      const sigLines = ctx.signals.items.slice(0, 5).map(s => _f([
+        `  ${s.symbol} ${s.direction || "?"}`,
+        `confidence:${s.confidence ?? "?"}`,
+        `entry:${s.entry_price ?? "?"}`,
+        s.stop_loss ? `SL:${s.stop_loss}` : null,
+        s.take_profit ? `TP:${s.take_profit}` : null,
+        s.risk_reward ? `R:R:${s.risk_reward}` : null,
+        s.timeframe ? `tf:${s.timeframe}` : null,
+        s.source ? `src:${s.source}` : null,
+        s.status ? `status:${s.status}` : null,
+        s.news_sentiment != null ? `news:${s.news_sentiment}` : null,
+      ]));
+      parts.push(`[Recent Signals]\n${sigLines.join("\n")}`);
+    }
+
+    // 10. Backtest Results (PB)
     const btPB = ctx.backtestResultsPB;
     if (Array.isArray(btPB) && btPB.length > 0) {
       const lines = btPB.slice(0, 3).map(r => _f([
@@ -460,7 +460,7 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Backtest Results from PB]\n${lines.join("\n")}`);
     }
 
-    // 11. Backtest History (freqtrade files)
+    // 11. Backtest History (freqtrade file list)
     const btHistory = ctx.backtestHistory;
     if (Array.isArray(btHistory) && btHistory.length > 0) {
       const lines = btHistory.slice(0, 3).map(b =>

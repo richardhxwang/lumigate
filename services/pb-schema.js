@@ -561,6 +561,7 @@ const PB_COLLECTIONS = [
       { name: "sortino", type: "number" },
       { name: "calmar", type: "number" },
       { name: "profit_factor", type: "number" },
+      { name: "cagr", type: "number" },
       { name: "avg_duration", type: "text" },
       { name: "pairs_count", type: "number" },
       { name: "notes", type: "text" },

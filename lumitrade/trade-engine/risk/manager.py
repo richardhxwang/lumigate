@@ -20,6 +20,9 @@ class RiskSettings:
     min_risk_reward: float = 2.0           # minimum R:R ratio
     news_blackout_minutes: int = 30        # minutes around high-impact news
     auto_exec_max_pct: float = 1.0         # max position % for auto-execution
+    max_leverage: float = 5.0              # global leverage ceiling
+    max_notional_pct: float = 10.0         # max notional exposure % (position * leverage)
+    min_liquidation_distance: float = 0.12 # minimum distance to liquidation (12%)
 
 
 class RiskManager:
@@ -43,6 +46,7 @@ class RiskManager:
         take_profit: float,
         position_size_pct: float,
         portfolio_value: float,
+        leverage: float = 1.0,
     ) -> dict:
         """
         Run all risk checks against a proposed trade.
@@ -55,6 +59,7 @@ class RiskManager:
             take_profit: Take-profit price
             position_size_pct: Proposed position size as % of portfolio
             portfolio_value: Current total portfolio value in USD
+            leverage: Leverage multiplier (default 1.0 for spot)
 
         Returns:
             dict with passed (bool), checks list, and computed metrics.
@@ -153,6 +158,70 @@ class RiskManager:
             "passed": nb_ok,
             "detail": "No active news blackout (placeholder — Finnhub integration pending)",
         })
+
+        # --- 6. Leverage checks ---
+        if leverage > 1.0:
+            # Effective max leverage — lower for illiquid pairs
+            HIGH_LIQUIDITY_PAIRS = {"BTC/USDT", "ETH/USDT", "SOL/USDT"}
+            effective_max_lev = self.settings.max_leverage
+            if symbol not in HIGH_LIQUIDITY_PAIRS:
+                effective_max_lev = min(effective_max_lev, 3.0)
+
+            # 6a. Leverage ceiling
+            lev_ok = leverage <= effective_max_lev
+            checks.append({
+                "rule": "leverage_limit",
+                "passed": lev_ok,
+                "detail": (
+                    f"Leverage {leverage:.1f}x <= {effective_max_lev:.1f}x limit"
+                    if lev_ok
+                    else (
+                        f"Leverage {leverage:.1f}x exceeds {effective_max_lev:.1f}x limit"
+                        + (f" (low-liquidity cap for {symbol})" if effective_max_lev < self.settings.max_leverage else "")
+                    )
+                ),
+            })
+            if not lev_ok:
+                logger.warning(
+                    "REJECTED %s %s: leverage %.1fx > %.1fx limit",
+                    direction, symbol, leverage, effective_max_lev,
+                )
+
+            # 6b. Notional exposure
+            notional_pct = position_size_pct * leverage
+            notional_ok = notional_pct <= self.settings.max_notional_pct
+            checks.append({
+                "rule": "notional_exposure",
+                "passed": notional_ok,
+                "detail": (
+                    f"Notional {notional_pct:.2f}% <= {self.settings.max_notional_pct:.2f}% limit"
+                    if notional_ok
+                    else f"Notional {notional_pct:.2f}% (size {position_size_pct:.2f}% x {leverage:.1f}x) exceeds {self.settings.max_notional_pct:.2f}% limit"
+                ),
+            })
+            if not notional_ok:
+                logger.warning(
+                    "REJECTED %s %s: notional exposure %.2f%% > %.2f%% limit",
+                    direction, symbol, notional_pct, self.settings.max_notional_pct,
+                )
+
+            # 6c. Liquidation distance
+            liq_distance = 1.0 / leverage
+            liq_ok = liq_distance > self.settings.min_liquidation_distance
+            checks.append({
+                "rule": "liquidation_distance",
+                "passed": liq_ok,
+                "detail": (
+                    f"Liquidation distance {liq_distance:.2%} > {self.settings.min_liquidation_distance:.2%} minimum"
+                    if liq_ok
+                    else f"Liquidation distance {liq_distance:.2%} too close (minimum {self.settings.min_liquidation_distance:.2%} required at {leverage:.1f}x leverage)"
+                ),
+            })
+            if not liq_ok:
+                logger.warning(
+                    "REJECTED %s %s: liquidation distance %.2f%% < %.2f%% minimum at %.1fx leverage",
+                    direction, symbol, liq_distance * 100, self.settings.min_liquidation_distance * 100, leverage,
+                )
 
         # --- Compute USD metrics ---
         position_size_usd = portfolio_value * position_size_pct / 100.0
@@ -253,4 +322,7 @@ class RiskManager:
             "min_risk_reward": self.settings.min_risk_reward,
             "auto_exec_max_pct": self.settings.auto_exec_max_pct,
             "news_blackout_minutes": self.settings.news_blackout_minutes,
+            "max_leverage": self.settings.max_leverage,
+            "max_notional_pct": self.settings.max_notional_pct,
+            "min_liquidation_distance": self.settings.min_liquidation_distance,
         }

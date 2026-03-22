@@ -1418,8 +1418,8 @@ module.exports = function createAdminRouter(deps) {
     const safeKey = sanitizeEnvValue(apiKey);
     const safeUrl = baseUrl ? sanitizeEnvValue(baseUrl) : null;
 
-    if (!/^[a-zA-Z0-9_\-\.]+$/.test(safeKey)) {
-      return res.status(400).json({ success: false, error: "Invalid API key format — only alphanumeric, underscore, hyphen, and dot allowed" });
+    if (!/^[a-zA-Z0-9_\-\.+\/=:]+$/.test(safeKey)) {
+      return res.status(400).json({ success: false, error: "Invalid API key format — contains disallowed characters" });
     }
     if (safeUrl) {
       let parsed;
@@ -1553,7 +1553,7 @@ module.exports = function createAdminRouter(deps) {
     if (!apiKey || typeof apiKey !== "string") return res.status(400).json({ error: "apiKey required" });
     if (!label || typeof label !== "string") return res.status(400).json({ error: "label required" });
     const safeKey = sanitizeEnvValue(apiKey);
-    if (!/^[a-zA-Z0-9_\-\.]+$/.test(safeKey)) return res.status(400).json({ error: "Invalid API key format" });
+    if (!/^[a-zA-Z0-9_\-\.+\/=:]+$/.test(safeKey)) return res.status(400).json({ error: "Invalid API key format" });
     if (project && !projects.find(p => p.name === project)) return res.status(400).json({ error: "Project not found" });
     if (!providerKeys[name]) providerKeys[name] = [];
     if (providerKeys[name].length >= 100) return res.status(400).json({ error: "Maximum 100 keys per provider" });

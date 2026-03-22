@@ -467,6 +467,7 @@ module.exports = function createProxyRouter(deps) {
     }
     delete req.headers["host"];
     delete req.headers["x-project-key"];
+    req._proxyApiKey = proxyApiKey;
 
     proxyMiddleware(req, res, next);
   });

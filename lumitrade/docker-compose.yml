@@ -23,6 +23,9 @@ services:
       - TRADE_FREQTRADE_PASSWORD=123123@
       - TRADE_IBKR_HOST=lumigate-ibgateway
       - TRADE_IBKR_PORT=4002
+    networks:
+      - default
+      - lumigate
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:3200/health"]
       interval: 10s
@@ -58,6 +61,9 @@ services:
       --config /freqtrade/config.json
       --strategy SMCStrategy
       --freqaimodel LightGBMRegressor
+    networks:
+      - default
+      - lumigate
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
       interval: 10s
@@ -91,6 +97,9 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3-pure.sqlite
       --config /freqtrade/config.json
       --strategy SMCStrategy
+    networks:
+      - default
+      - lumigate
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
       interval: 10s
@@ -124,6 +133,120 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3-ai.sqlite
       --config /freqtrade/config.json
       --strategy SMCStrategy
+    networks:
+      - default
+      - lumigate
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # === B Group: Leveraged bots (dry_run with leverage) ===
+
+  # LumiLearning-Lev — FreqAI + leverage
+  freqtrade-lev:
+    build: ./freqtrade
+    container_name: lumigate-freqtrade-lev
+    restart: always
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config-lev.json:/freqtrade/config.json:ro
+      - ./frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
+    ports:
+      - "127.0.0.1:18800:8080"
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-lev.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3-lev.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+      --freqaimodel LightGBMRegressor
+    networks:
+      - default
+      - lumigate
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PureSMC-Lev — no FreqAI, leverage
+  freqtrade-pure-lev:
+    build: ./freqtrade
+    container_name: lumigate-freqtrade-pure-lev
+    restart: always
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config-pure-smc-lev.json:/freqtrade/config.json:ro
+      - ./frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
+    ports:
+      - "127.0.0.1:18801:8080"
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-pure-lev.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3-pure-lev.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+    networks:
+      - default
+      - lumigate
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # AI-Enhanced-Lev — FreqAI + news sentiment + leverage
+  freqtrade-ai-lev:
+    build: ./freqtrade
+    container_name: lumigate-freqtrade-ai-lev
+    restart: always
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config-ai-enhanced-lev.json:/freqtrade/config.json:ro
+      - ./frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
+    ports:
+      - "127.0.0.1:18802:8080"
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade-ai-lev.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3-ai-lev.sqlite
+      --config /freqtrade/config.json
+      --strategy SMCStrategy
+    networks:
+      - default
+      - lumigate
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
       interval: 10s
@@ -150,6 +273,9 @@ services:
     command: >
       webserver
       --config /freqtrade/config.json
+    networks:
+      - default
+      - lumigate
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/v1/ping"]
       interval: 10s
@@ -216,4 +342,7 @@ services:
 networks:
   default:
     name: ai-api-proxy_default
+    external: true
+  lumigate:
+    name: lumigate_default
     external: true

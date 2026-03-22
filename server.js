@@ -1777,17 +1777,51 @@ app.post("/lumitrade/frequi-token", async (req, res) => {
 });
 
 // Serve LumiTrade interface (nonce injected into HTML for CSP)
-// LumiTrade auto-auth — returns freqtrade credentials for auto-login
-app.get("/lumitrade/auto-auth", (req, res) => {
-  const ftUrl = process.env.TRADE_FREQTRADE_URL || "http://lumigate-freqtrade:8080";
+// LumiTrade auto-auth — returns freqtrade credentials + server-side tokens for all 6 bots
+app.get("/lumitrade/auto-auth", async (req, res) => {
   const ftUser = process.env.TRADE_FREQTRADE_USERNAME || "freqtrader";
   const ftPass = process.env.TRADE_FREQTRADE_PASSWORD || "";
   if (!ftPass) return res.status(503).json({ error: "Freqtrade credentials not configured" });
-  // apiUrl must be browser-accessible, not Docker internal
   const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host || "lumigate.autorums.com";
-  const browserUrl = `${proto}://${host}/lumitrade`;
-  res.json({ username: ftUser, password: ftPass, apiUrl: browserUrl, botName: "LumiLearning" });
+  const browserBase = `${proto}://${host}/lumitrade`;
+
+  // All 6 bots: 3 no-leverage + 3 leveraged
+  const botDefs = [
+    { id: "ftbot.0", botName: "PureSMC",          internalUrl: "http://lumigate-freqtrade-pure:8080",     browserPath: "/pure",     sortId: 0 },
+    { id: "ftbot.1", botName: "LumiLearning",      internalUrl: "http://lumigate-freqtrade:8080",          browserPath: "",          sortId: 1 },
+    { id: "ftbot.2", botName: "AI-Enhanced",        internalUrl: "http://lumigate-freqtrade-ai:8080",      browserPath: "/ai",       sortId: 2 },
+    { id: "ftbot.3", botName: "PureSMC-Lev",       internalUrl: "http://lumigate-freqtrade-pure-lev:8080", browserPath: "/pure-lev", sortId: 3 },
+    { id: "ftbot.4", botName: "LumiLearning-Lev",  internalUrl: "http://lumigate-freqtrade-lev:8080",     browserPath: "/lev",      sortId: 4 },
+    { id: "ftbot.5", botName: "AI-Enhanced-Lev",    internalUrl: "http://lumigate-freqtrade-ai-lev:8080",  browserPath: "/ai-lev",   sortId: 5 },
+  ];
+
+  // Login to each bot in parallel; failures don't block others (container may not be up)
+  const bots = await Promise.all(botDefs.map(async (def) => {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(`${def.internalUrl}/api/v1/token/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Basic " + Buffer.from(`${ftUser}:${ftPass}`).toString("base64") },
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!resp.ok) return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, error: `HTTP ${resp.status}` };
+      const tokenData = await resp.json();
+      return {
+        id: def.id, botName: def.botName, sortId: def.sortId,
+        apiUrl: browserBase + def.browserPath,
+        accessToken: tokenData.access_token || null,
+        refreshToken: tokenData.refresh_token || null,
+      };
+    } catch (e) {
+      return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, error: e.message || "login failed" };
+    }
+  }));
+
+  // Backward-compatible: username/password/apiUrl/botName at top level, plus bots array
+  res.json({ username: ftUser, password: ftPass, apiUrl: browserBase, botName: "LumiLearning", bots });
 });
 
 // --- Collector supported providers (shared with admin + proxy) ---
@@ -2252,6 +2286,7 @@ app.use("/v1/smart", apiLimiter, async (req, res, next) => {
   }
   delete req.headers["host"];
   delete req.headers["x-project-key"];
+  req._proxyApiKey = targetProvider.apiKey;
 
   proxyMiddleware(req, res, next);
 });
@@ -2312,20 +2347,55 @@ function openaiToAnthropicBody(body) {
   return out;
 }
 
+function isOAuthToken(apiKey) {
+  return apiKey?.startsWith("sk-ant-oat");
+}
+
 function anthropicAuthHeaders(apiKey, existingBeta) {
-  if (apiKey?.startsWith("sk-ant-oat")) {
-    const betas = ["claude-code-20250219", "oauth-2025-04-20"];
+  if (isOAuthToken(apiKey)) {
+    const betas = ["claude-code-20250219", "oauth-2025-04-20", "interleaved-thinking-2025-05-14"];
     if (existingBeta) betas.unshift(existingBeta);
     return {
       "authorization": `Bearer ${apiKey}`,
       "anthropic-version": "2023-06-01",
       "anthropic-beta": [...new Set(betas)].join(","),
-      "anthropic-product": "claude-code",
+      "user-agent": "claude-cli/2.1.75",
       "x-app": "cli",
-      "user-agent": "claude-code/2.1.49 (external, cli)",
     };
   }
   return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+}
+
+const CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude.";
+const CLAUDE4_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"];
+
+function isClaudeV4Model(modelId) {
+  const m = String(modelId || "").toLowerCase();
+  return CLAUDE4_MODEL_PREFIXES.some(p => m.startsWith(p));
+}
+
+/** Patch Anthropic request body for OAuth setup tokens: inject Claude Code system prompt and thinking */
+function patchAnthropicBodyForOAuth(body, apiKey) {
+  if (!isOAuthToken(apiKey)) return body;
+  const patched = { ...body };
+  // Inject Claude Code identity as system prompt prefix (always array format for OAuth)
+  const codeBlock = { type: "text", text: CLAUDE_CODE_SYSTEM_PREFIX };
+  if (typeof patched.system === "string" && patched.system.trim()) {
+    patched.system = [codeBlock, { type: "text", text: patched.system }];
+  } else if (Array.isArray(patched.system)) {
+    patched.system = [codeBlock, ...patched.system];
+  } else {
+    patched.system = [codeBlock];
+  }
+  // Claude 4 models require thinking to be enabled when using OAuth tokens
+  if (isClaudeV4Model(patched.model) && !patched.thinking) {
+    patched.thinking = { type: "enabled", budget_tokens: Math.max(1024, Math.floor((patched.max_tokens || 4096) * 0.8)) };
+    // Ensure max_tokens is large enough to accommodate thinking + response
+    if ((patched.max_tokens || 0) < 2048) patched.max_tokens = 16000;
+  }
+  // Temperature is incompatible with extended thinking
+  if (patched.thinking) delete patched.temperature;
+  return patched;
 }
 
 function anthropicToOpenaiResponse(data, model) {
@@ -2356,7 +2426,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
   let anthropicResp;
   try {
     anthropicResp = await fetch(`${PROVIDERS.anthropic.baseUrl}/v1/messages`, {
-      method: "POST", headers: fetchHeaders, body: JSON.stringify(anthropicBody),
+      method: "POST", headers: fetchHeaders, body: JSON.stringify(patchAnthropicBodyForOAuth(anthropicBody, apiKey)),
       signal: AbortSignal.timeout(120000),
     });
   } catch (e) {
@@ -2566,7 +2636,7 @@ async function handleAnthropicCompat(req, res, apiKey, projectName, excludeKeyId
       if (req.traceId) followupHeaders["x-request-id"] = req.traceId;
 
       const followupResp = await fetch(`${PROVIDERS.anthropic.baseUrl}/v1/messages`, {
-        method: "POST", headers: followupHeaders, body: JSON.stringify(followupBody),
+        method: "POST", headers: followupHeaders, body: JSON.stringify(patchAnthropicBodyForOAuth(followupBody, apiKey)),
       });
 
       if (followupResp.ok) {
@@ -2854,9 +2924,8 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
 
   const headers = { "Content-Type": "application/json" };
   if (providerName === "anthropic") {
-    headers["x-api-key"] = keyInfo.apiKey;
-    headers["anthropic-version"] = req.headers["anthropic-version"] || "2023-06-01";
-    delete headers["authorization"];
+    Object.assign(headers, anthropicAuthHeaders(keyInfo.apiKey, req.headers["anthropic-beta"]));
+    if (req.headers["anthropic-version"]) headers["anthropic-version"] = req.headers["anthropic-version"];
   } else {
     headers["authorization"] = `Bearer ${keyInfo.apiKey}`;
   }
@@ -2869,7 +2938,8 @@ async function retryWithFetch(req, res, providerName, keyInfo, excludeIds = new 
 
   let upstream;
   try {
-    upstream = await fetch(url, { method: req.method, headers, body: JSON.stringify(body) });
+    const finalBody = providerName === "anthropic" ? patchAnthropicBodyForOAuth(body, keyInfo.apiKey) : body;
+    upstream = await fetch(url, { method: req.method, headers, body: JSON.stringify(finalBody) });
   } catch (e) {
     if (!res.headersSent) res.status(502).json({ error: "Upstream connection error", message: e.message });
     return;
@@ -2987,6 +3057,10 @@ const proxyMiddleware = createProxyMiddleware({
         const provName = req.params?.provider?.toLowerCase();
         if (req.body.stream === true && provName !== "anthropic") {
           req.body.stream_options = { ...(req.body.stream_options || {}), include_usage: true };
+        }
+        // Patch body for Anthropic OAuth setup tokens (Claude Code identity + thinking)
+        if (provName === "anthropic" && req._proxyApiKey) {
+          req.body = patchAnthropicBodyForOAuth(req.body, req._proxyApiKey);
         }
         const bodyData = JSON.stringify(req.body);
         proxyReq.setHeader("Content-Type", "application/json");
@@ -3170,10 +3244,10 @@ const proxyMiddleware = createProxyMiddleware({
                 : { model: modelId, max_tokens: 1024, stream: true, messages: followUpMessages };
 
               const headers = providerName === "anthropic"
-                ? { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+                ? { "Content-Type": "application/json", ...anthropicAuthHeaders(apiKey) }
                 : { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` };
 
-              const followUpRes = await fetch(followUpUrl, { method: "POST", headers, body: JSON.stringify(followUpBody), signal: AbortSignal.timeout(60000) });
+              const followUpRes = await fetch(followUpUrl, { method: "POST", headers, body: JSON.stringify(providerName === "anthropic" ? patchAnthropicBodyForOAuth(followUpBody, apiKey) : followUpBody), signal: AbortSignal.timeout(60000) });
 
               if (followUpRes.ok && followUpRes.body) {
                 const reader = followUpRes.body.getReader();

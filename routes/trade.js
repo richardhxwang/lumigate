@@ -587,11 +587,15 @@ module.exports = function createTradeRouter(deps) {
 
         // Extract metrics — freqtrade nests: { backtest_result: { strategy: { SMCStrategy: {...} } } }
         const btResult = fullResult.backtest_result || fullResult;
-        const stratData = (btResult.strategy && btResult.strategy[strategyName]) || (fullResult.strategy && fullResult.strategy[strategyName]) || {};
-        const summary = stratData.results_per_pair
-          ? null  // multi-pair — use totals
-          : null;
-        void summary;  // not used, metrics come from totals below
+        // If strategyName is empty/missing, pick the first key from the strategy dict
+        let resolvedStrategy = strategyName;
+        if (!resolvedStrategy && btResult.strategy && typeof btResult.strategy === "object") {
+          resolvedStrategy = Object.keys(btResult.strategy)[0] || "";
+        }
+        if (!resolvedStrategy && fullResult.strategy && typeof fullResult.strategy === "object") {
+          resolvedStrategy = Object.keys(fullResult.strategy)[0] || "";
+        }
+        const stratData = (btResult.strategy && btResult.strategy[resolvedStrategy]) || (fullResult.strategy && fullResult.strategy[resolvedStrategy]) || {};
 
         const totalMetrics = stratData.total_trades != null ? stratData : {};
         const config = stratData; // strategy data contains timeframe, trading_mode, etc.
@@ -606,18 +610,24 @@ module.exports = function createTradeRouter(deps) {
         const version = `v${totalCount + 1}`;
 
         // Build PB record
+        // Field mapping: freqtrade uses winning_trades/losing_trades, not wins/losses
+        const totalTrades = stratData.total_trades || 0;
+        const wins = stratData.winning_trades ?? stratData.wins ?? 0;
+        const losses = stratData.losing_trades ?? stratData.losses ?? 0;
+        const winrate = totalTrades > 0 ? +(wins / totalTrades).toFixed(4) : 0;
+
         const record = {
           version,
-          description: `${strategyName} | ${stratData.trading_mode || "spot"} | ${stratData.backtest_start || "?"} to ${stratData.backtest_end || "?"} | ${stratData.total_trades || 0} trades`,
-          strategy_name: strategyName,
+          description: `${resolvedStrategy} | ${stratData.trading_mode || "spot"} | ${stratData.backtest_start || "?"} to ${stratData.backtest_end || "?"} | ${totalTrades} trades`,
+          strategy_name: resolvedStrategy,
           exchange: stratData.exchange || entry.exchange || "",
           trading_mode: stratData.trading_mode || "spot",
           timerange: `${stratData.backtest_start || ""} - ${stratData.backtest_end || ""}`,
           timeframe: stratData.timeframe || entry.timeframe || "",
-          total_trades: stratData.total_trades || 0,
-          wins: stratData.wins || 0,
-          losses: stratData.losses || 0,
-          winrate: stratData.winrate != null ? stratData.winrate : 0,
+          total_trades: totalTrades,
+          wins,
+          losses,
+          winrate,
           profit_total_abs: stratData.profit_total_abs || 0,
           profit_total_pct: stratData.profit_total || 0,
           max_drawdown_abs: stratData.max_drawdown_abs || 0,
@@ -626,6 +636,7 @@ module.exports = function createTradeRouter(deps) {
           profit_factor: stratData.profit_factor || 0,
           sortino: stratData.sortino || 0,
           calmar: stratData.calmar || 0,
+          cagr: stratData.cagr || 0,
           avg_duration: stratData.holding_avg || "",
           pairs_count: (stratData.pairlist || []).length || 0,
           tags: [
