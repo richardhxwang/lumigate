@@ -20,6 +20,7 @@ const { mcpClient } = require("./tools/mcp-client");
 const { registerAuditTools } = require("./tools/audit-tools");
 registerAuditTools();
 const { registerTemplateFiller } = require("./tools/template-filler");
+const codexOAuth = require("./services/openai-codex-oauth");
 registerTemplateFiller();
 const {
   LumigentRuntime,
@@ -1793,6 +1794,8 @@ const _ftTokenCache = new Map();
 const FT_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
 
 app.get("/lumitrade/auto-auth", async (req, res) => {
+  const cfEmail = req.headers['cf-access-authenticated-user-email'] || 'local';
+  log('info', 'lumitrade auto-auth', { user: cfEmail });
   const ftUser = process.env.TRADE_FREQTRADE_USERNAME || "freqtrader";
   const ftPass = process.env.TRADE_FREQTRADE_PASSWORD || "";
   if (!ftPass) return res.status(503).json({ error: "Freqtrade credentials not configured" });
@@ -1953,6 +1956,8 @@ const _adminResult = require('./routes/admin')({
   // Provider helpers
   anthropicAuthHeaders,
   patchAnthropicBodyForOAuth,
+  codexOAuth,
+  get getCodexAccessToken() { return getCodexAccessToken; },
   extractTokens,
   recordUsage,
   calcCost,
@@ -2004,7 +2009,6 @@ const _adminResult = require('./routes/admin')({
 app.use(_adminResult.router);
 
 // ── OpenAI Codex OAuth (ChatGPT subscription proxy) ──
-const codexOAuth = require("./services/openai-codex-oauth");
 let _codexTokens = null; // { access, refresh, expires, accountId }
 const CODEX_TOKENS_FILE = path.join(__dirname, "data", "codex-tokens.json");
 try { _codexTokens = JSON.parse(fs.readFileSync(CODEX_TOKENS_FILE, "utf8")); } catch {}
@@ -4103,6 +4107,8 @@ app.use("/v1/:provider", require('./routes/proxy')({
   anthropicAuthHeaders,
   patchAnthropicBodyForOAuth,
   proxyMiddleware,
+  codexOAuth,
+  get getCodexAccessToken() { return getCodexAccessToken; },
   log,
   getPbAdminToken,
   PB_URL,

@@ -59,6 +59,9 @@ module.exports = function createProxyRouter(deps) {
     handleAnthropicCompat,
     anthropicAuthHeaders,
     proxyMiddleware,
+    // Codex OAuth
+    codexOAuth,
+    getCodexAccessToken,
     // Usage
     log,
     // PB
@@ -454,6 +457,54 @@ module.exports = function createProxyRouter(deps) {
         if (!res.headersSent) res.status(502).json({ error: "Internal error" });
       });
       return;
+    }
+
+    // OpenAI Codex intercept: GPT-5.x models → chatgpt.com/backend-api via OAuth
+    if (providerName === "openai" && codexOAuth?.isCodexModel(req.body?.model)) {
+      const tokens = await getCodexAccessToken?.();
+      if (!tokens?.access) {
+        // No Codex OAuth — fall through to normal API key path (will fail if no key)
+        if (!proxyApiKey) return res.status(503).json({ error: "GPT-5.x models require ChatGPT OAuth login. Go to Dashboard → OpenAI → ChatGPT OAuth." });
+        // Has API key — try normal path (might work if user has API access)
+      } else {
+        // Route through Codex
+        try {
+          const codexBody = codexOAuth.chatToCodexBody(req.body);
+          const headers = codexOAuth.buildCodexHeaders(tokens.access, tokens.accountId);
+          const codexUrl = codexOAuth.resolveCodexUrl();
+          const upstream = await fetch(codexUrl, { method: "POST", headers, body: JSON.stringify(codexBody), signal: AbortSignal.timeout(300_000) });
+          if (!upstream.ok) {
+            const errText = await upstream.text().catch(() => "");
+            return res.status(upstream.status).json({ error: `Codex error: ${upstream.status}`, detail: errText.slice(0, 200) });
+          }
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("X-Accel-Buffering", "no");
+          const transformer = codexOAuth.createCodexToCompletionsTransformer(req.body.model);
+          const reader = upstream.body.getReader();
+          const dec = new TextDecoder();
+          let sseEventType = "", buf = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split("\n"); buf = lines.pop() || "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) { sseEventType = line.slice(7).trim(); continue; }
+              if (line.startsWith("data: ")) {
+                const evt = transformer.transformEvent(sseEventType, line.slice(6));
+                if (evt) res.write(evt);
+                sseEventType = "";
+              }
+            }
+          }
+          res.end();
+          return;
+        } catch (e) {
+          if (!res.headersSent) res.status(502).json({ error: e.message });
+          return;
+        }
+      }
     }
 
     // Inject auth — replace any client-sent auth

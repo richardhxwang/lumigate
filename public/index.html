@@ -2850,6 +2850,11 @@ async function load() {
 
     renderProvGrid();
     renderProvTabs();
+    // Update Codex OAuth button state
+    fetch(B + '/admin/codex/status').then(r=>r.json()).then(s=>{
+      const b=document.getElementById('codexLoginBtn');
+      if(b&&s.connected){b.textContent='\u2713 Connected';b.style.background='#0d9268';}
+    }).catch(()=>{});
     if (!activeProv || !p.find(x => x.name === activeProv)) {
       activeProv = (p.find(x => x.available) || p[0])?.name || '';
     }

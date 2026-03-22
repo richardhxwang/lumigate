@@ -1,5 +1,6 @@
 {
   "freqai": {
+    "enabled": false,
     "identifier": "smc_lgbm_hyper"
   }
 }

@@ -218,6 +218,12 @@ function chatToCodexBody(chatBody) {
   return body;
 }
 
+/** Check if a model ID requires Codex OAuth (GPT-5.x series) */
+function isCodexModel(modelId) {
+  const m = String(modelId || "").toLowerCase();
+  return m.startsWith("gpt-5") || m.includes("-codex");
+}
+
 function createCodexToCompletionsTransformer(model) {
   let responseId = "chatcmpl-codex-" + Date.now();
   return {
@@ -261,6 +267,7 @@ module.exports = {
   getAccountId,
   getTokenExpiry,
   decodeJwt,
+  isCodexModel,
   buildCodexHeaders,
   resolveCodexUrl,
   chatToCodexBody,

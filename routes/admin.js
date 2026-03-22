@@ -100,6 +100,8 @@ module.exports = function createAdminRouter(deps) {
     // Provider helpers
     anthropicAuthHeaders,
     patchAnthropicBodyForOAuth,
+    codexOAuth,
+    getCodexAccessToken,
     extractTokens,
     recordUsage,
     calcCost,
@@ -511,6 +513,36 @@ module.exports = function createAdminRouter(deps) {
       };
       const headers = { "Content-Type": "application/json" };
       let url;
+      // GPT-5.x → route through Codex OAuth if available
+      if (name === "openai" && codexOAuth?.isCodexModel(modelId)) {
+        const tokens = await getCodexAccessToken?.();
+        if (tokens?.access) {
+          const codexBody = codexOAuth.chatToCodexBody(testBody);
+          const codexHeaders = codexOAuth.buildCodexHeaders(tokens.access, tokens.accountId);
+          const codexUrl = codexOAuth.resolveCodexUrl();
+          const codexResp = await fetch(codexUrl, { method: "POST", headers: codexHeaders, body: JSON.stringify(codexBody), signal: AbortSignal.timeout(15000) });
+          if (codexResp.ok) {
+            // Collect streamed response text
+            let text = "";
+            const reader = codexResp.body.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              const lines = buf.split("\n"); buf = lines.pop() || "";
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                try { const d = JSON.parse(line.slice(6)); if (d.delta) text += d.delta; } catch {}
+              }
+            }
+            return res.json({ success: true, model: modelId, reply: text.trim() || "OK", latency: Date.now() - start, via: "codex-oauth" });
+          }
+          return res.json({ success: false, model: modelId, error: `Codex test failed: HTTP ${codexResp.status}`, latency: Date.now() - start });
+        }
+        // No Codex tokens — fall through to API key path
+      }
       if (name === "anthropic") {
         Object.assign(headers, anthropicAuthHeaders(testKey));
         url = `${provider.baseUrl}/v1/messages`;
