@@ -700,6 +700,7 @@ module.exports = function createLumiTraderRouter(deps) {
         model: model || "claude-sonnet-4-6",
         provider: provider || "anthropic",
         stream: true, // always stream internally
+        tools: false, // LumiTrader has its own RAG context — disable /v1/chat agent tools to avoid Anthropic 400 errors
       };
 
       const upstreamRes = await fetch(`${LUMIGATE_INTERNAL_URL}/v1/chat`, {

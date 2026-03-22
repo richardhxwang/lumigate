@@ -1396,7 +1396,7 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
 
     // ── API path: direct fetch to provider ──
     const finalBody = (providerName === "anthropic" && patchAnthropicBodyForOAuth)
-      ? patchAnthropicBodyForOAuth(body, proxyApiKey)
+      ? patchAnthropicBodyForOAuth(body, apiKey)
       : body;
     const upstreamRes = await fetch(chatUrl, {
       method: "POST", headers, body: JSON.stringify(finalBody),
@@ -1852,6 +1852,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
       return async function agentFetchAI(loopMessages) {
         const reqBody = buildChatBody(pnLower, modelId, loopMessages, "", true, includeTools ? nativeToolsParam : undefined);
         const streamRes = await fetch(chatUrl, { method: "POST", headers, body: JSON.stringify(reqBody), signal: AbortSignal.timeout(90000) });
+        if (!streamRes.ok) {
+          let errBody = ""; try { errBody = await streamRes.text(); } catch {}
+          log("warn", "Agent follow-up fetch failed", { provider: providerName, model: modelId, status: streamRes.status, errBody: errBody.slice(0, 500) });
+          return { text: "", finishReason: "error", nativeToolCalls: [] };
+        }
         return consumeFollowUpStream(streamRes);
       };
     }
