@@ -35,7 +35,21 @@ async function sendTelegram(text, options = {}) {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!data.ok) console.error("[lumitrader][telegram] send failed:", data.description);
+    if (!data.ok) {
+      // Telegram HTML parse error → retry as plain text
+      if (data.description?.includes("can't parse entities")) {
+        const plainBody = { chat_id: body.chat_id, text: text.replace(/<[^>]+>/g, "") };
+        const retry = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(plainBody),
+        });
+        const retryData = await retry.json();
+        if (!retryData.ok) console.error("[lumitrader][telegram] plain text retry failed:", retryData.description);
+        return retryData.ok;
+      }
+      console.error("[lumitrader][telegram] send failed:", data.description);
+    }
     return data.ok;
   } catch (err) {
     console.error("[lumitrader][telegram] error:", err.message);
@@ -849,6 +863,7 @@ module.exports = function createLumiTraderRouter(deps) {
         model: "claude-sonnet-4-6",  // Use Sonnet for cost efficiency on routine scans
         provider: "anthropic",
         stream: true,
+        tools: false, // Sentinel scan doesn't need agent tools
       };
 
       const upstreamRes = await fetch(`${LUMIGATE_INTERNAL_URL}/v1/chat`, {
@@ -1060,15 +1075,21 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── Telegram command handlers ─────────────────────────────────────────────
 
+  function escHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
   function mdToTelegram(text) {
+    // 1. Escape HTML entities first to prevent Telegram parse errors (e.g. "< -3%" → "&lt; -3%")
+    text = escHtml(text);
     // Tables → monospace pre blocks
     text = text.replace(/(\|[^\n]+\|\n\|[-| :]+\|\n(?:\|[^\n]+\|\n?)+)/g, (table) => {
       const rows = table.trim().split("\n").filter(r => !r.match(/^\|[-| :]+\|$/));
       const cells = rows.map(r => r.split("|").filter(c => c.trim()).map(c => c.trim()));
       if (cells.length === 0) return table;
       const colW = [];
-      for (const row of cells) row.forEach((c, i) => { colW[i] = Math.max(colW[i] || 0, c.replace(/<[^>]+>/g, "").length); });
-      return "<pre>" + cells.map(row => row.map((c, i) => c.replace(/<[^>]+>/g, "").padEnd(colW[i] || 0)).join("  ")).join("\n") + "</pre>";
+      for (const row of cells) row.forEach((c, i) => { colW[i] = Math.max(colW[i] || 0, c.length); });
+      return "<pre>" + cells.map(row => row.map((c, i) => c.padEnd(colW[i] || 0)).join("  ")).join("\n") + "</pre>";
     });
     // Bold
     text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
@@ -1104,8 +1125,9 @@ module.exports = function createLumiTraderRouter(deps) {
             { role: "user", content: userMessage },
           ],
           model: overrideModel || getTgModel(chatId),
-          provider: (overrideModel || getTgModel(chatId)).startsWith("gpt") ? "openai" : "anthropic",
+          provider: resolveProvider(overrideModel || getTgModel(chatId)),
           stream: true,
+          tools: false, // LumiTrader Telegram has its own RAG context — disable agent tools
         }),
       });
 
@@ -1312,10 +1334,26 @@ module.exports = function createLumiTraderRouter(deps) {
     "sonnet": "claude-sonnet-4-6",
     "haiku": "claude-haiku-4-5-20251001",
     "gpt4o": "gpt-4o",
+    "gpt5": "gpt-5",
+    "gpt-5": "gpt-5",
+    "gpt5.4": "gpt-5.4",
+    "gpt-5.4": "gpt-5.4",
+    "o4-mini": "o4-mini",
+    "o4mini": "o4-mini",
+    "deepseek": "deepseek-chat",
   };
 
   function getTgModel(chatId) {
     return _tgModelPref[chatId] || "claude-sonnet-4-6";
+  }
+
+  function resolveProvider(modelId) {
+    const m = (modelId || "").toLowerCase();
+    if (m.startsWith("gpt") || m.startsWith("o4") || m.startsWith("o3") || m.startsWith("o1")) return "openai";
+    if (m.startsWith("deepseek")) return "deepseek";
+    if (m.startsWith("gemini")) return "gemini";
+    if (m.startsWith("qwen")) return "qwen";
+    return "anthropic";
   }
 
   // ── Telegram webhook — handles slash commands and button callbacks ─────────
@@ -1332,10 +1370,26 @@ module.exports = function createLumiTraderRouter(deps) {
         const chatId = update.message.chat.id;
 
         if (text === "/ai" || text.startsWith("/ai ")) {
-          const query = text.slice(3).trim() || "快速分析当前市场状态，给出建议";
-          await handleAiCommand(chatId, query);
+          const query = text.slice(3).trim();
+          if (!query) {
+            await sendTelegram("<b>AI 智能分析</b>\n\n选择快捷问题，或直接发文字提问:", {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: "📊 市场分析", callback_data: "ai:现在市场怎么样" }, { text: "🎯 入场建议", callback_data: "ai:现在适合开仓吗" }],
+                [{ text: "⚠️ 风控检查", callback_data: "ai:我的风控状态如何" }, { text: "📰 新闻情绪", callback_data: "ai:最近新闻情绪如何" }],
+              ] },
+            });
+          } else {
+            await handleAiCommand(chatId, query);
+          }
         } else if (text === "/signals") {
-          await handleSignalsCommand(chatId);
+          await sendTelegram("<b>交易信号</b>\n\n选择要查看的交易对:", {
+            chatId,
+            replyMarkup: { inline_keyboard: [
+              [{ text: "BTC", callback_data: "signals:BTC" }, { text: "ETH", callback_data: "signals:ETH" }, { text: "SOL", callback_data: "signals:SOL" }],
+              [{ text: "全部信号", callback_data: "signals:all" }],
+            ] },
+          });
         } else if (text === "/risk") {
           await handleRiskCommand(chatId);
         } else if (text === "/news") {
@@ -1360,8 +1414,14 @@ module.exports = function createLumiTraderRouter(deps) {
           const arg = text.slice(6).trim().toLowerCase();
           if (!arg) {
             const current = getTgModel(chatId);
-            const modelList = Object.entries(TG_MODELS).map(([k, v]) => `  /${k === "gpt4o" ? "model gpt4o" : "model " + k} → ${v}${v === current ? " (当前)" : ""}`).join("\n");
-            await sendTelegram(`<b>当前模型:</b> ${current}\n\n<b>可选:</b>\n${modelList}\n\n用法: /model opus`, { chatId });
+            await sendTelegram(`<b>当前模型:</b> ${current}\n\n点击按钮切换模型:`, {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: `Claude Opus${current === "claude-opus-4-6" ? " ✓" : ""}`, callback_data: "model:claude-opus-4-6" }, { text: `Claude Sonnet${current === "claude-sonnet-4-6" ? " ✓" : ""}`, callback_data: "model:claude-sonnet-4-6" }],
+                [{ text: `GPT-5.4${current === "gpt-5.4" ? " ✓" : ""}`, callback_data: "model:gpt-5.4" }, { text: `GPT-4o${current === "gpt-4o" ? " ✓" : ""}`, callback_data: "model:gpt-4o" }],
+                [{ text: `DeepSeek${current === "deepseek-chat" ? " ✓" : ""}`, callback_data: "model:deepseek-chat" }, { text: `Haiku${current === "claude-haiku-4-5-20251001" ? " ✓" : ""}`, callback_data: "model:claude-haiku-4-5-20251001" }],
+              ] },
+            });
           } else if (TG_MODELS[arg]) {
             _tgModelPref[chatId] = TG_MODELS[arg];
             await sendTelegram(`已切换模型: <b>${TG_MODELS[arg]}</b>`, { chatId });
@@ -1388,7 +1448,14 @@ module.exports = function createLumiTraderRouter(deps) {
             "/stop — 停止交易\n" +
             "/help — 显示此帮助\n\n" +
             "<i>直接发文字 = 和 AI 对话（不需要加 /ai）</i>",
-            { chatId }
+            {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: "🤖 AI 分析", callback_data: "cmd:/ai" }, { text: "📊 信号", callback_data: "cmd:/signals" }],
+                [{ text: "⚠️ 风控", callback_data: "cmd:/risk" }, { text: "📰 新闻", callback_data: "cmd:/news" }],
+                [{ text: "🔧 切换模型", callback_data: "cmd:/model" }, { text: "📈 状态", callback_data: "cmd:/status" }],
+              ] },
+            }
           );
         } else if (!text.startsWith("/")) {
           // Non-slash text → treat as AI chat
@@ -1409,7 +1476,58 @@ module.exports = function createLumiTraderRouter(deps) {
           });
         } catch {}
 
-        if (data.startsWith("execute:")) {
+        if (data.startsWith("model:")) {
+          const modelId = data.slice(6);
+          _tgModelPref[chatId] = modelId;
+          await sendTelegram(`已切换模型: <b>${modelId}</b>`, { chatId });
+        } else if (data.startsWith("ai:")) {
+          const query = data.slice(3);
+          await sendTelegram(`正在分析: <i>${query}</i>`, { chatId });
+          await handleAiCommand(chatId, query);
+        } else if (data.startsWith("signals:")) {
+          const pair = data.slice(8);
+          if (pair === "all") {
+            await handleSignalsCommand(chatId);
+          } else {
+            await sendTyping(chatId);
+            await callAiForTelegram(chatId, `列出 ${pair} 的当前 SMC 交易信号，包括方向、入场价、止损、止盈、R:R、置信度。用表格格式。`);
+          }
+        } else if (data.startsWith("cmd:")) {
+          const cmd = data.slice(4);
+          if (cmd === "/ai") {
+            await sendTelegram("<b>AI 智能分析</b>\n\n选择快捷问题，或直接发文字提问:", {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: "📊 市场分析", callback_data: "ai:现在市场怎么样" }, { text: "🎯 入场建议", callback_data: "ai:现在适合开仓吗" }],
+                [{ text: "⚠️ 风控检查", callback_data: "ai:我的风控状态如何" }, { text: "📰 新闻情绪", callback_data: "ai:最近新闻情绪如何" }],
+              ] },
+            });
+          } else if (cmd === "/signals") {
+            await sendTelegram("<b>交易信号</b>\n\n选择要查看的交易对:", {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: "BTC", callback_data: "signals:BTC" }, { text: "ETH", callback_data: "signals:ETH" }, { text: "SOL", callback_data: "signals:SOL" }],
+                [{ text: "全部信号", callback_data: "signals:all" }],
+              ] },
+            });
+          } else if (cmd === "/model") {
+            const current = getTgModel(chatId);
+            await sendTelegram(`<b>当前模型:</b> ${current}\n\n点击按钮切换模型:`, {
+              chatId,
+              replyMarkup: { inline_keyboard: [
+                [{ text: `Claude Opus${current === "claude-opus-4-6" ? " ✓" : ""}`, callback_data: "model:claude-opus-4-6" }, { text: `Claude Sonnet${current === "claude-sonnet-4-6" ? " ✓" : ""}`, callback_data: "model:claude-sonnet-4-6" }],
+                [{ text: `GPT-5.4${current === "gpt-5.4" ? " ✓" : ""}`, callback_data: "model:gpt-5.4" }, { text: `GPT-4o${current === "gpt-4o" ? " ✓" : ""}`, callback_data: "model:gpt-4o" }],
+                [{ text: `DeepSeek${current === "deepseek-chat" ? " ✓" : ""}`, callback_data: "model:deepseek-chat" }, { text: `Haiku${current === "claude-haiku-4-5-20251001" ? " ✓" : ""}`, callback_data: "model:claude-haiku-4-5-20251001" }],
+              ] },
+            });
+          } else if (cmd === "/risk") {
+            await handleRiskCommand(chatId);
+          } else if (cmd === "/news") {
+            await handleNewsCommand(chatId);
+          } else if (cmd === "/status") {
+            await handleFreqtradeStatus(chatId);
+          }
+        } else if (data.startsWith("execute:")) {
           await sendTelegram("Executing...", { chatId });
           // TODO: parse trade plan from data and execute via trade-engine
         } else if (data.startsWith("reject:")) {
