@@ -3,7 +3,7 @@
   "margin_mode": "isolated",
   "max_open_trades": 8,
   "stake_currency": "USDT",
-  "stake_amount": "unlimited",
+  "stake_amount": 1250,
   "tradable_balance_ratio": 1.0,
   "fiat_display_currency": "USD",
   "dry_run": true,
