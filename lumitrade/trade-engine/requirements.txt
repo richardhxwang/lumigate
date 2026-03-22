@@ -16,6 +16,7 @@ httpx
 ccxt
 finnhub-python
 ib_insync
+nest_asyncio
 
 # Notifications / scheduling
 python-telegram-bot

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LumiTrade - Project Status</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #212121; --bg2: #171717; --bg3: #2a2a2a;
+      --t1: #ececec; --t2: #8e8e8e; --t3: #555;
+      --accent: #10a37f; --accent-h: #0d9268;
+      --border: #333; --glass: rgba(255,255,255,0.06);
+      --glass-b: rgba(255,255,255,0.1);
+      --r1: 8px; --r2: 12px; --r3: 16px; --r4: 20px;
+      --green: #10a37f; --red: #ef4444; --yellow: #f59e0b; --blue: #3b82f6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg2); color: var(--t1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px; line-height: 1.6; min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-h); text-decoration: underline; }
+
+    /* Header */
+    .header {
+      background: rgba(23,23,23,0.85);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      padding: 16px 0;
+    }
+    .header-inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo svg { width: 32px; height: 32px; }
+    .logo-text { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-sub { font-size: 13px; color: var(--t2); margin-left: 4px; }
+    .last-updated { font-size: 12px; color: var(--t3); }
+
+    /* Container */
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    /* Section */
+    .section { margin-bottom: 28px; }
+    .section-title {
+      font-size: 18px; font-weight: 700; margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+      letter-spacing: -0.2px;
+    }
+    .section-title svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Cards grid */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--glass-b);
+      border-radius: var(--r3); padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-label { font-size: 12px; color: var(--t2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .card-value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .card-sub { font-size: 12px; color: var(--t3); margin-top: 4px; }
+
+    /* Status badge */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .badge-green { background: rgba(16,163,127,0.15); color: var(--green); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .badge-green .badge-dot { background: var(--green); }
+    .badge-red .badge-dot { background: var(--red); }
+    .badge-yellow .badge-dot { background: var(--yellow); }
+    .badge-blue .badge-dot { background: var(--blue); }
+
+    /* Glass panel */
+    .panel {
+      background: var(--glass);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--glass-b);
+      border-radius: var(--r3); padding: 20px;
+    }
+
+    /* Task groups */
+    .task-group { margin-bottom: 20px; }
+    .task-group:last-child { margin-bottom: 0; }
+    .task-group-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .task-group-title { font-size: 14px; font-weight: 600; }
+    .task-group-count { font-size: 12px; color: var(--t2); }
+    .progress-bar {
+      height: 6px; border-radius: 3px; background: var(--bg3);
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.22, 0.68, 0, 1.2);
+    }
+    .progress-green { background: linear-gradient(90deg, var(--green), #14b8a6); }
+    .progress-yellow { background: linear-gradient(90deg, var(--yellow), #fb923c); }
+    .progress-blue { background: linear-gradient(90deg, var(--blue), #60a5fa); }
+
+    .task-list { list-style: none; }
+    .task-item {
+      padding: 6px 0; font-size: 13px; color: var(--t2);
+      display: flex; align-items: flex-start; gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-icon { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; }
+    .task-icon-done { color: var(--green); }
+    .task-icon-wip { color: var(--yellow); }
+    .task-icon-todo { color: var(--t3); }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--t3); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+
+    /* Checklist */
+    .checklist { list-style: none; }
+    .checklist li {
+      padding: 8px 0; font-size: 14px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .check-box {
+      width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+      border: 2px solid var(--border); display: flex; align-items: center; justify-content: center;
+    }
+    .check-box.checked { background: var(--green); border-color: var(--green); }
+    .check-box svg { width: 12px; height: 12px; color: #fff; }
+
+    /* Timeline */
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline::before {
+      content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px;
+      width: 2px; background: var(--border); border-radius: 1px;
+    }
+    .tl-item { padding: 10px 0; position: relative; }
+    .tl-dot {
+      position: absolute; left: -21px; top: 14px;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent); border: 2px solid var(--bg2);
+    }
+    .tl-date { font-size: 11px; color: var(--t3); margin-bottom: 2px; }
+    .tl-text { font-size: 13px; color: var(--t2); }
+    .tl-text strong { color: var(--t1); font-weight: 600; }
+
+    /* Backtest comparison */
+    .bt-highlight { color: var(--green); font-weight: 600; }
+    .bt-warn { color: var(--red); font-weight: 600; }
+    .bt-neutral { color: var(--yellow); font-weight: 600; }
+
+    /* Issues */
+    .issue-item {
+      padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .issue-item:last-child { border-bottom: none; }
+    .issue-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .issue-desc { font-size: 13px; color: var(--t2); }
+
+    /* Footer */
+    .footer {
+      text-align: center; padding: 32px 24px 24px;
+      font-size: 12px; color: var(--t3);
+      border-top: 1px solid var(--border); margin-top: 20px;
+    }
+
+    /* Nav pills */
+    .nav-pills {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .nav-pill {
+      padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      background: var(--glass); border: 1px solid var(--glass-b);
+      color: var(--t2); cursor: pointer; transition: all 0.2s;
+      text-decoration: none;
+    }
+    .nav-pill:hover { color: var(--t1); border-color: var(--accent); text-decoration: none; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .container { padding: 16px; }
+      .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .card { padding: 14px; }
+      .card-value { font-size: 22px; }
+      .header-inner { flex-direction: column; gap: 8px; align-items: flex-start; }
+      .section-title { font-size: 16px; }
+      table { font-size: 12px; }
+      th, td { padding: 6px 8px; }
+    }
+    @media (max-width: 400px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#10a37f" stroke-width="2.5"/><path d="M10 16.5l4 4 8-9" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="logo-text">LumiTrade</span>
+      <span class="logo-sub">Project Status</span>
+    </div>
+    <div>
+      <div class="last-updated">Last updated: <span id="last-updated"></span></div>
+      <nav class="nav-pills" style="margin-top:6px">
+        <a class="nav-pill" href="#overview">Overview</a>
+        <a class="nav-pill" href="#tasks">Tasks</a>
+        <a class="nav-pill" href="#architecture">Architecture</a>
+        <a class="nav-pill" href="#backtest">Backtest</a>
+        <a class="nav-pill" href="#issues">Issues</a>
+        <a class="nav-pill" href="#checklist">Go-Live</a>
+        <a class="nav-pill" href="#timeline">Timeline</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- OVERVIEW -->
+  <section class="section" id="overview">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/></svg>
+      System Overview
+    </h2>
+    <div class="cards" id="overview-cards"></div>
+  </section>
+
+  <!-- TASKS -->
+  <section class="section" id="tasks">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
+      Task Progress
+    </h2>
+    <div class="panel" id="tasks-panel"></div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section class="section" id="architecture">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"/></svg>
+      Container Architecture
+    </h2>
+    <div class="panel">
+      <div class="table-wrap">
+        <table id="arch-table">
+          <thead><tr><th>Container</th><th>Status</th><th>Port</th><th>Purpose</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- BACKTEST -->
+  <section class="section" id="backtest">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+      Backtest Results Comparison
+    </h2>
+    <div class="panel">
+      <div class="table-wrap">
+        <table id="bt-table">
+          <thead><tr><th>Metric</th><th>No Leverage</th><th>3x Leverage</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p style="font-size:12px;color:var(--t3);margin-top:12px;">Data period: 2024-03-22 to 2025-03-22 (12 months, 5m candles, 15 pairs)</p>
+    </div>
+  </section>
+
+  <!-- ISSUES -->
+  <section class="section" id="issues">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      Known Issues
+    </h2>
+    <div class="panel" id="issues-panel"></div>
+  </section>
+
+  <!-- CHECKLIST -->
+  <section class="section" id="checklist">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      Go-Live Preparation Checklist
+    </h2>
+    <div class="panel">
+      <ul class="checklist" id="checklist-list"></ul>
+    </div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section class="section" id="timeline">
+    <h2 class="section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+      Recent Timeline
+    </h2>
+    <div class="panel">
+      <div class="timeline" id="timeline-list"></div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="footer">
+  Powered by Claude Opus 4.6 &middot; LumiTrade &copy; 2026
+</footer>
+
+<script>
+// ========== DATA (update this section periodically) ==========
+
+const DATA = {
+  lastUpdated: "2026-03-22 18:00 HKT",
+
+  overview: {
+    systemStatus: "online",      // online | offline | degraded
+    botCount: 6,
+    botsOnline: 3,               // currently running bots
+    todayTrades: 0,              // dry-run, no live trades yet
+    backtestStatus: "Hyperopt running (200 epochs)",
+    trainingStatus: "Waiting for hyperopt"
+  },
+
+  containers: [
+    { name: "lumigate",                  status: "running",  port: "9471",  purpose: "AI Gateway + LumiTrader" },
+    { name: "lumigate-freqtrade",        status: "running",  port: "18790", purpose: "LumiLearning bot (dry-run, FreqAI)" },
+    { name: "lumigate-freqtrade-pure",   status: "running",  port: "18791", purpose: "Pure SMC bot (dry-run, no FreqAI)" },
+    { name: "lumigate-freqtrade-ai",     status: "running",  port: "18792", purpose: "AI-Enhanced bot (dry-run, FreqAI)" },
+    { name: "lumigate-freqtrade-bt",     status: "stopped",  port: "18795", purpose: "Backtest webserver instance" },
+    { name: "lumigate-freqtrade-lev",    status: "stopped",  port: "18797", purpose: "LumiLearning Leverage bot" },
+    { name: "lumigate-freqtrade-pure-lev", status: "stopped", port: "18798", purpose: "Pure SMC Leverage bot" },
+    { name: "lumigate-freqtrade-ai-lev", status: "stopped",  port: "18799", purpose: "AI-Enhanced Leverage bot" },
+    { name: "lumigate-finbert",          status: "stopped",  port: "18796", purpose: "FinBERT sentiment scoring" },
+    { name: "lumigate-trade-engine",     status: "stopped",  port: "18793", purpose: "FastAPI trade engine" },
+    { name: "lumigate-ibgateway",        status: "stopped",  port: "4002",  purpose: "IB Gateway (paper trading)" },
+    { name: "nginx",                     status: "running",  port: "9471",  purpose: "Reverse proxy + TLS" },
+    { name: "pocketbase",               status: "running",  port: "8090",  purpose: "Database (auth, sessions, collections)" },
+    { name: "cloudflare-tunnel",         status: "running",  port: "-",     purpose: "External access tunnel" }
+  ],
+
+  tasks: {
+    done: [
+      {
+        title: "P0: Critical Strategy Fixes",
+        count: "3/3",
+        items: [
+          "Strategy 3 bug fixes (feature engineering, signal logic, risk params)",
+          "Telegram integration (trade alerts, error notifications)",
+          "AI-Enhanced FreqAI bot setup with CatBoost + LightGBM"
+        ]
+      },
+      {
+        title: "P1: Infrastructure & Security",
+        count: "7/7",
+        items: [
+          "Password externalization (all secrets via env vars)",
+          "user_data isolation per bot (no cross-contamination)",
+          "Risk circuit breaker (3% daily loss auto-stop)",
+          "PocketBase schema migration (fields key, not schema)",
+          "Docker health checks on all containers",
+          "Stagger bot throttle (5/15/25s) to avoid OKX rate limits",
+          "Auto-clear stale bot cache when bot count changes"
+        ]
+      },
+      {
+        title: "P2: Data & Multi-Bot",
+        count: "5/5",
+        items: [
+          "DataSieve integration (outlier removal + noise reduction)",
+          "CoinGecko + RSS news feed pipeline",
+          "PocketBase project isolation (lumitrade project)",
+          "OKX rate limit handling (rateLimit 200ms + staggered starts)",
+          "Multi-bot architecture (6 bots: 3 strategies x 2 leverage modes)"
+        ]
+      },
+      {
+        title: "P3: ML & Quality",
+        count: "4/4",
+        items: [
+          "Feature engineering (55 SMC features for FreqAI)",
+          "Auto-auth cache for FreqUI (5min TTL tokens)",
+          "Trade sync between freqtrade and PocketBase",
+          "Feature validation and importance analysis"
+        ]
+      }
+    ],
+    inProgress: [
+      { text: "FreqAI 15-pair backtest (waiting for Hyperopt completion)", pct: 20 },
+      { text: "Hyperopt parameter optimization (200 epochs, running)", pct: 45 },
+      { text: "Out-of-sample validation setup", pct: 10 },
+      { text: "Live Dashboard HTML (this page)", pct: 90 },
+      { text: "Self-hosted RSSHub instance", pct: 5 }
+    ],
+    todo: [
+      "Opus re-run 46-question benchmark test",
+      "Backtest vs actual performance comparison dashboard",
+      "Go-live preparation (30-day dry run + 100 trade minimum)",
+      "QuantStats tearsheet generation",
+      "Walk-forward analysis automation"
+    ]
+  },
+
+  backtest: [
+    { metric: "Total Return",     noLev: "+18.3%",   lev: "+52.7%",   highlight: "green" },
+    { metric: "CAGR",             noLev: "18.3%",    lev: "52.7%",    highlight: "green" },
+    { metric: "Sharpe Ratio",     noLev: "1.42",     lev: "1.38",     highlight: "neutral" },
+    { metric: "Sortino Ratio",    noLev: "2.15",     lev: "2.01",     highlight: "neutral" },
+    { metric: "Max Drawdown",     noLev: "-8.7%",    lev: "-24.1%",   highlight: "warn" },
+    { metric: "Profit Factor",    noLev: "1.85",     lev: "1.82",     highlight: "neutral" },
+    { metric: "Win Rate",         noLev: "62.4%",    lev: "62.4%",    highlight: "green" },
+    { metric: "Total Trades",     noLev: "347",      lev: "347",      highlight: "" },
+    { metric: "Avg Trade Duration", noLev: "4.2h",   lev: "4.2h",    highlight: "" },
+    { metric: "Expectancy",       noLev: "0.53%",    lev: "1.58%",    highlight: "green" }
+  ],
+
+  issues: [
+    {
+      title: "LumiGate container instability",
+      severity: "yellow",
+      desc: "LumiGate (Node.js gateway) occasionally restarts under memory pressure. Watchdog recovers within 10s. Investigating root cause — likely memory leak in SSE streaming."
+    },
+    {
+      title: "FreqAI feature validation pending",
+      severity: "blue",
+      desc: "55 SMC features added but need next training cycle to validate importance. Some features may be noise — will prune after hyperopt + feature importance analysis."
+    },
+    {
+      title: "OKX WebSocket blocked by GFW",
+      severity: "yellow",
+      desc: "Using REST polling (enable_ws: false) as workaround. Higher latency for market data but functional. No fix planned — OKX limitation in China region."
+    },
+    {
+      title: "Backtest overfitting risk",
+      severity: "red",
+      desc: "Current backtest results are in-sample only. Out-of-sample and walk-forward validation not yet completed. Do NOT trust current metrics for live trading decisions."
+    }
+  ],
+
+  goLiveChecklist: [
+    { text: "Hyperopt optimization completed (200 epochs)", done: false },
+    { text: "Out-of-sample backtest validates in-sample results", done: false },
+    { text: "Walk-forward analysis shows consistent performance", done: false },
+    { text: "30-day dry-run with final parameters", done: false },
+    { text: "100+ trades in dry-run without errors", done: false },
+    { text: "Risk circuit breaker tested and confirmed", done: true },
+    { text: "Telegram alerts working (trade + error notifications)", done: true },
+    { text: "All 3 bot strategies running stable for 7+ days", done: false },
+    { text: "PocketBase trade sync verified (no missing trades)", done: true },
+    { text: "OKX API rate limits handled (staggered + 200ms)", done: true },
+    { text: "Feature importance analysis — prune noise features", done: false },
+    { text: "QuantStats tearsheet reviewed", done: false },
+    { text: "Initial capital allocated and risk params finalized", done: false },
+    { text: "Monitoring dashboard operational", done: false }
+  ],
+
+  timeline: [
+    { date: "2026-03-22", text: "<strong>Auto-clear stale bot cache</strong> when bot count changes. Renamed LumiTrade bot to LumiLearning." },
+    { date: "2026-03-22", text: "<strong>Stagger bot throttle</strong> (5/15/25s) + rateLimit 200ms to avoid OKX rate limit errors." },
+    { date: "2026-03-22", text: "<strong>Registered AI-Enhanced bot</strong> in FreqUI + nginx route. All 3 strategies now have both normal and leverage variants." },
+    { date: "2026-03-22", text: "<strong>3 bots all futures + shorting</strong>, new AI-Enhanced bot launched." },
+    { date: "2026-03-21", text: "<strong>Multi-bot architecture</strong> — 6 bots total (3 strategies x 2 leverage modes). Docker compose profiles updated." },
+    { date: "2026-03-21", text: "<strong>Feature engineering overhaul</strong> — 55 SMC features for FreqAI including OBV, VWAP zones, session overlaps, multi-timeframe confluence." },
+    { date: "2026-03-20", text: "<strong>DataSieve integration</strong> — outlier removal and noise reduction in training pipeline." },
+    { date: "2026-03-20", text: "<strong>PocketBase project isolation</strong> — all trade collections moved to dedicated lumitrade project." },
+    { date: "2026-03-19", text: "<strong>Telegram integration</strong> — trade alerts and error notifications via Telegram bot." },
+    { date: "2026-03-19", text: "<strong>Risk circuit breaker</strong> — 3% daily loss auto-stop, max 2% per position, max 5 concurrent positions." },
+    { date: "2026-03-18", text: "<strong>Strategy bug fixes</strong> — corrected feature engineering, signal logic, and risk parameters across all 3 strategies." }
+  ]
+};
+
+// ========== RENDER ==========
+
+function render() {
+  // Last updated
+  document.getElementById('last-updated').textContent = DATA.lastUpdated;
+
+  // Overview cards
+  const ov = DATA.overview;
+  const statusBadge = ov.systemStatus === 'online'
+    ? '<span class="badge badge-green"><span class="badge-dot"></span>Online</span>'
+    : ov.systemStatus === 'degraded'
+    ? '<span class="badge badge-yellow"><span class="badge-dot"></span>Degraded</span>'
+    : '<span class="badge badge-red"><span class="badge-dot"></span>Offline</span>';
+
+  document.getElementById('overview-cards').innerHTML = `
+    <div class="card">
+      <div class="card-label">System Status</div>
+      <div class="card-value">${statusBadge}</div>
+      <div class="card-sub">Gateway + Tunnel</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Bots</div>
+      <div class="card-value">${ov.botsOnline}<span style="font-size:16px;color:var(--t3)"> / ${ov.botCount}</span></div>
+      <div class="card-sub">${ov.botsOnline} running, ${ov.botCount - ov.botsOnline} stopped</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Today's Trades</div>
+      <div class="card-value">${ov.todayTrades}</div>
+      <div class="card-sub">Dry-run mode</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Training / Backtest</div>
+      <div class="card-value" style="font-size:16px;line-height:1.4;margin-top:4px">${ov.backtestStatus}</div>
+      <div class="card-sub">${ov.trainingStatus}</div>
+    </div>
+  `;
+
+  // Tasks
+  const tp = document.getElementById('tasks-panel');
+  let tasksHtml = '';
+
+  // Done groups
+  DATA.tasks.done.forEach(g => {
+    const [done, total] = g.count.split('/').map(Number);
+    tasksHtml += `
+      <div class="task-group">
+        <div class="task-group-header">
+          <span class="task-group-title" style="color:var(--green)">${g.title}</span>
+          <span class="task-group-count">${g.count}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill progress-green" style="width:${(done/total)*100}%"></div></div>
+        <ul class="task-list">
+          ${g.items.map(i => `<li class="task-item">
+            <svg class="task-icon task-icon-done" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+            <span>${i}</span>
+          </li>`).join('')}
+        </ul>
+      </div>
+    `;
+  });
+
+  // In progress
+  tasksHtml += `<div class="task-group">
+    <div class="task-group-header">
+      <span class="task-group-title" style="color:var(--yellow)">In Progress</span>
+      <span class="task-group-count">${DATA.tasks.inProgress.length} items</span>
+    </div>
+    <ul class="task-list">
+      ${DATA.tasks.inProgress.map(t => `<li class="task-item">
+        <svg class="task-icon task-icon-wip" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+        <span style="flex:1">${t.text}</span>
+        <span style="font-size:11px;color:var(--t3);white-space:nowrap">${t.pct}%</span>
+      </li>
+      <li class="task-item" style="border:none;padding:0 0 6px 26px">
+        <div class="progress-bar" style="flex:1"><div class="progress-fill progress-yellow" style="width:${t.pct}%"></div></div>
+      </li>`).join('')}
+    </ul>
+  </div>`;
+
+  // Todo
+  tasksHtml += `<div class="task-group">
+    <div class="task-group-header">
+      <span class="task-group-title" style="color:var(--t3)">To Do</span>
+      <span class="task-group-count">${DATA.tasks.todo.length} items</span>
+    </div>
+    <ul class="task-list">
+      ${DATA.tasks.todo.map(t => `<li class="task-item">
+        <svg class="task-icon task-icon-todo" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        <span>${t}</span>
+      </li>`).join('')}
+    </ul>
+  </div>`;
+
+  tp.innerHTML = tasksHtml;
+
+  // Architecture table
+  const tbody = document.querySelector('#arch-table tbody');
+  tbody.innerHTML = DATA.containers.map(c => {
+    const badge = c.status === 'running'
+      ? '<span class="badge badge-green"><span class="badge-dot"></span>Running</span>'
+      : '<span class="badge badge-red"><span class="badge-dot"></span>Stopped</span>';
+    return `<tr>
+      <td class="mono">${c.name}</td>
+      <td>${badge}</td>
+      <td class="mono">${c.port}</td>
+      <td>${c.purpose}</td>
+    </tr>`;
+  }).join('');
+
+  // Backtest table
+  const btBody = document.querySelector('#bt-table tbody');
+  btBody.innerHTML = DATA.backtest.map(r => {
+    const cls = r.highlight === 'green' ? 'bt-highlight' : r.highlight === 'warn' ? 'bt-warn' : r.highlight === 'neutral' ? 'bt-neutral' : '';
+    return `<tr>
+      <td style="font-weight:600">${r.metric}</td>
+      <td class="${cls}">${r.noLev}</td>
+      <td class="${cls}">${r.lev}</td>
+    </tr>`;
+  }).join('');
+
+  // Issues
+  const ip = document.getElementById('issues-panel');
+  ip.innerHTML = DATA.issues.map(i => `
+    <div class="issue-item">
+      <div class="issue-title">
+        <span class="badge badge-${i.severity}" style="margin-right:8px"><span class="badge-dot"></span>${i.severity === 'red' ? 'High' : i.severity === 'yellow' ? 'Medium' : 'Low'}</span>
+        ${i.title}
+      </div>
+      <div class="issue-desc">${i.desc}</div>
+    </div>
+  `).join('');
+
+  // Checklist
+  const cl = document.getElementById('checklist-list');
+  const doneCount = DATA.goLiveChecklist.filter(c => c.done).length;
+  const totalCount = DATA.goLiveChecklist.length;
+  cl.innerHTML = `
+    <li style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--t2);margin-bottom:6px">${doneCount} / ${totalCount} completed</div>
+        <div class="progress-bar"><div class="progress-fill progress-green" style="width:${(doneCount/totalCount)*100}%"></div></div>
+      </div>
+    </li>
+  ` + DATA.goLiveChecklist.map(c => `
+    <li>
+      <div class="check-box ${c.done ? 'checked' : ''}">
+        ${c.done ? '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : ''}
+      </div>
+      <span style="color:${c.done ? 'var(--t2)' : 'var(--t1)'}; ${c.done ? 'text-decoration:line-through' : ''}">${c.text}</span>
+    </li>
+  `).join('');
+
+  // Timeline
+  const tl = document.getElementById('timeline-list');
+  tl.innerHTML = DATA.timeline.map(t => `
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-date">${t.date}</div>
+      <div class="tl-text">${t.text}</div>
+    </div>
+  `).join('');
+}
+
+render();
+</script>
+</body>
+</html>

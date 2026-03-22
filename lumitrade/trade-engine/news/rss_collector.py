@@ -52,15 +52,14 @@ RSS_FEEDS: list[dict] = [
     {
         "name": "rss_chaincatcher",
         "label": "ChainCatcher",
-        # ChainCatcher has no native RSS — use public RSSHub instance.
-        # Self-host RSSHub if rate-limited: https://docs.rsshub.app/
-        "url": "https://rsshub.app/chaincatcher/news",
+        # ChainCatcher has no native RSS — use self-hosted RSSHub instance.
+        "url": "http://lumigate-rsshub:1200/chaincatcher/news",
     },
     {
         "name": "rss_foresightnews",
         "label": "Foresight News",
-        # Foresight News has no native RSS — use public RSSHub instance.
-        "url": "https://rsshub.app/foresightnews/news",
+        # Foresight News has no native RSS — use self-hosted RSSHub instance.
+        "url": "http://lumigate-rsshub:1200/foresightnews/news",
     },
     {
         "name": "rss_wublockchain",

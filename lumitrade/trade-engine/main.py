@@ -79,9 +79,15 @@ alert_manager = AlertManager()
 _risk_monitor_task: asyncio.Task | None = None
 # Background task handle for trade sync (freqtrade → PB)
 _trade_sync_task: asyncio.Task | None = None
+# Background task handle for weekly hyperopt
+_hyperopt_task: asyncio.Task | None = None
 
 BOT_POLL_INTERVAL = 30  # seconds
 TRADE_SYNC_INTERVAL = 5 * 60  # 5 minutes
+
+# Previous open trades snapshot for detecting new opens/closes
+# Key: "{bot_label}_{trade_id}", Value: trade dict
+_prev_open_trades: dict[str, dict] = {}
 
 
 async def _bot_risk_monitor_loop():
@@ -103,6 +109,8 @@ async def _bot_risk_monitor_loop():
 
 async def _poll_bots_and_check_risk():
     """Single poll cycle: fetch all bot data, sync risk state, run alerts, act if needed."""
+    global _prev_open_trades
+
     # Skip if circuit breaker already tripped today
     if risk_manager._circuit_breaker_tripped:
         return
@@ -114,6 +122,76 @@ async def _poll_bots_and_check_risk():
         multi_bot.get_all_balance(),
         multi_bot.ping_all(),
     )
+
+    # --- Detect new opens / closes by comparing with previous snapshot ---
+    current_open: dict[str, dict] = {}
+    for t in open_trades:
+        bot_label = t.get("_bot", "unknown")
+        trade_id = str(t.get("trade_id", t.get("id", "")))
+        if trade_id:
+            key = f"{bot_label}_{trade_id}"
+            current_open[key] = t
+
+    # New trades: in current but not in previous
+    new_keys = set(current_open.keys()) - set(_prev_open_trades.keys())
+    for key in new_keys:
+        trade = current_open[key]
+        pair = trade.get("pair", "")
+        bot_label = trade.get("_bot", "")
+        direction = "short" if trade.get("is_short") else "long"
+        enter_tag = trade.get("enter_tag", "")
+
+        logger.info("Trade opened: %s %s %s on %s", direction, pair, enter_tag, bot_label)
+
+        # Broadcast signal_detected (entry signal fired)
+        await notify_clients("signal_detected", {
+            "pair": pair,
+            "direction": direction,
+            "enter_tag": enter_tag,
+            "bot": bot_label,
+            "open_rate": trade.get("open_rate", 0),
+            "stake_amount": trade.get("stake_amount", 0),
+            "trade_id": trade.get("trade_id"),
+        })
+
+        # Broadcast trade_opened
+        await notify_clients("trade_opened", {
+            "pair": pair,
+            "direction": direction,
+            "enter_tag": enter_tag,
+            "bot": bot_label,
+            "open_rate": trade.get("open_rate", 0),
+            "stake_amount": trade.get("stake_amount", 0),
+            "amount": trade.get("amount", 0),
+            "trade_id": trade.get("trade_id"),
+            "is_short": trade.get("is_short", False),
+            "open_date": trade.get("open_date", ""),
+        })
+
+    # Closed trades: in previous but not in current
+    closed_keys = set(_prev_open_trades.keys()) - set(current_open.keys())
+    for key in closed_keys:
+        trade = _prev_open_trades[key]
+        pair = trade.get("pair", "")
+        bot_label = trade.get("_bot", "")
+        direction = "short" if trade.get("is_short") else "long"
+
+        logger.info("Trade closed: %s %s on %s", direction, pair, bot_label)
+
+        await notify_clients("trade_closed", {
+            "pair": pair,
+            "direction": direction,
+            "bot": bot_label,
+            "trade_id": trade.get("trade_id"),
+            "open_rate": trade.get("open_rate", 0),
+            "current_rate": trade.get("current_rate", 0),
+            "profit_abs": trade.get("profit_abs", 0),
+            "profit_pct": trade.get("profit_pct", 0),
+            "open_date": trade.get("open_date", ""),
+        })
+
+    # Update snapshot for next cycle
+    _prev_open_trades = current_open
 
     # Sum total balance across all bots
     total_balance = 0.0
@@ -612,9 +690,260 @@ async def notify_clients(event_type: str, data: dict):
         "data": data,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    if event_type in ("signal_new", "signal"):
+    if event_type in ("signal_new", "signal", "signal_detected", "trade_opened", "trade_closed"):
         await ws_manager.broadcast_signals(message)
     await ws_manager.broadcast_market(message)
+
+
+# ---------------------------------------------------------------------------
+# Weekly Hyperopt: Sunday 02:00 UTC — run hyperopt on BT container,
+# compare Sharpe improvement, notify via Telegram if worth updating.
+# Does NOT auto-update parameters (requires human confirmation).
+# ---------------------------------------------------------------------------
+
+HYPEROPT_CONTAINER = "lumigate-freqtrade-bt"
+HYPEROPT_EPOCHS = 200
+HYPEROPT_SHARPE_THRESHOLD = 0.3  # minimum Sharpe improvement to recommend
+
+
+async def _hyperopt_weekly_loop():
+    """
+    Wait until next Sunday 02:00 UTC, run hyperopt, compare results,
+    send Telegram recommendation if Sharpe improved enough.
+    """
+    logger.info("Hyperopt weekly scheduler started (Sunday 02:00 UTC)")
+    while True:
+        try:
+            # Sleep until next Sunday 02:00 UTC
+            now = datetime.now(timezone.utc)
+            days_until_sunday = (6 - now.weekday()) % 7
+            if days_until_sunday == 0 and now.hour >= 2:
+                days_until_sunday = 7  # already past Sunday 02:00, wait next week
+            next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            next_run = next_run + __import__("datetime").timedelta(days=days_until_sunday)
+            wait_seconds = (next_run - now).total_seconds()
+            logger.info(
+                "Hyperopt next run: %s (in %.1f hours)",
+                next_run.isoformat(), wait_seconds / 3600,
+            )
+            await asyncio.sleep(wait_seconds)
+
+            # Run hyperopt
+            await _run_hyperopt_cycle()
+
+        except asyncio.CancelledError:
+            logger.info("Hyperopt weekly loop cancelled")
+            return
+        except Exception as e:
+            logger.warning("Hyperopt weekly loop error (will retry next week): %s", e)
+            # Sleep 1h to avoid tight retry loops on persistent errors
+            await asyncio.sleep(3600)
+
+
+async def _run_hyperopt_cycle():
+    """
+    Execute one hyperopt cycle:
+    1. Run baseline backtest with current params
+    2. Run hyperopt to find new params
+    3. Run backtest with new params
+    4. Compare Sharpe / max drawdown
+    5. Send Telegram if improvement is significant
+    """
+    logger.info("Hyperopt cycle starting...")
+
+    # Step 1: Baseline backtest (current params)
+    baseline = await _run_docker_backtest()
+    if baseline is None:
+        logger.warning("Hyperopt: baseline backtest failed, aborting cycle")
+        return
+
+    logger.info(
+        "Hyperopt baseline: Sharpe=%.4f, MaxDD=%.2f%%, TotalProfit=%.2f%%",
+        baseline.get("sharpe", 0), baseline.get("max_drawdown", 0),
+        baseline.get("total_profit", 0),
+    )
+
+    # Step 2: Run hyperopt via docker exec
+    hyperopt_result = await _run_docker_hyperopt()
+    if hyperopt_result is None:
+        logger.warning("Hyperopt: optimization failed, aborting cycle")
+        return
+
+    # Step 3: Backtest with new params (hyperopt writes to hyperopt_results/)
+    new_backtest = await _run_docker_backtest(use_hyperopt_params=True)
+    if new_backtest is None:
+        logger.warning("Hyperopt: new-params backtest failed, aborting cycle")
+        return
+
+    logger.info(
+        "Hyperopt new params: Sharpe=%.4f, MaxDD=%.2f%%, TotalProfit=%.2f%%",
+        new_backtest.get("sharpe", 0), new_backtest.get("max_drawdown", 0),
+        new_backtest.get("total_profit", 0),
+    )
+
+    # Step 4: Compare
+    old_sharpe = baseline.get("sharpe", 0)
+    new_sharpe = new_backtest.get("sharpe", 0)
+    old_dd = baseline.get("max_drawdown", 0)
+    new_dd = new_backtest.get("max_drawdown", 0)
+    sharpe_delta = new_sharpe - old_sharpe
+
+    improved = sharpe_delta >= HYPEROPT_SHARPE_THRESHOLD and new_dd <= old_dd * 1.05
+
+    # Step 5: Send Telegram notification
+    status = "RECOMMENDED" if improved else "NOT RECOMMENDED"
+    msg = (
+        f"<b>Weekly Hyperopt Report</b>\n\n"
+        f"<b>Baseline:</b>\n"
+        f"  Sharpe: {old_sharpe:.4f}\n"
+        f"  Max DD: {old_dd:.2f}%\n"
+        f"  Profit: {baseline.get('total_profit', 0):.2f}%\n\n"
+        f"<b>New Params:</b>\n"
+        f"  Sharpe: {new_sharpe:.4f}\n"
+        f"  Max DD: {new_dd:.2f}%\n"
+        f"  Profit: {new_backtest.get('total_profit', 0):.2f}%\n\n"
+        f"<b>Delta Sharpe: {sharpe_delta:+.4f}</b>\n"
+        f"<b>Update: {status}</b>\n\n"
+    )
+    if improved:
+        msg += (
+            "Hyperopt found better parameters. Review and apply manually:\n"
+            f"<code>docker exec {HYPEROPT_CONTAINER} "
+            "freqtrade hyperopt-show --best</code>"
+        )
+    else:
+        reason = []
+        if sharpe_delta < HYPEROPT_SHARPE_THRESHOLD:
+            reason.append(f"Sharpe improvement {sharpe_delta:+.4f} < {HYPEROPT_SHARPE_THRESHOLD}")
+        if new_dd > old_dd * 1.05:
+            reason.append(f"Max DD worsened: {old_dd:.2f}% -> {new_dd:.2f}%")
+        msg += "Reason: " + "; ".join(reason)
+
+    await telegram.send(msg)
+    logger.info("Hyperopt cycle complete: %s (Sharpe delta=%+.4f)", status, sharpe_delta)
+
+
+async def _run_docker_backtest(use_hyperopt_params: bool = False) -> dict | None:
+    """
+    Run backtest via docker exec on the BT container.
+    Returns {"sharpe": float, "max_drawdown": float, "total_profit": float} or None.
+    """
+    cmd = [
+        "docker", "exec", HYPEROPT_CONTAINER,
+        "freqtrade", "backtesting",
+        "--config", "/freqtrade/config.json",
+        "--strategy", "SMCStrategy",
+        "--timerange", _get_backtest_timerange(),
+    ]
+    if use_hyperopt_params:
+        cmd.extend(["--hyperopt-filename", "last"])
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+        output = stdout.decode("utf-8", errors="replace")
+
+        if proc.returncode != 0:
+            logger.warning("Backtest failed (rc=%d): %s", proc.returncode, stderr.decode()[:500])
+            return None
+
+        return _parse_backtest_output(output)
+    except asyncio.TimeoutError:
+        logger.warning("Backtest timed out (600s)")
+        return None
+    except Exception as e:
+        logger.warning("Backtest exec error: %s", e)
+        return None
+
+
+async def _run_docker_hyperopt() -> dict | None:
+    """Run hyperopt via docker exec. Returns raw output dict or None."""
+    cmd = [
+        "docker", "exec", HYPEROPT_CONTAINER,
+        "freqtrade", "hyperopt",
+        "--config", "/freqtrade/config.json",
+        "--strategy", "SMCStrategy",
+        "--hyperopt-loss", "SharpeHyperOptLoss",
+        "--epochs", str(HYPEROPT_EPOCHS),
+        "--timerange", _get_backtest_timerange(),
+        "--spaces", "roi", "stoploss", "trailing", "buy",
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1800)  # 30 min max
+
+        if proc.returncode != 0:
+            logger.warning("Hyperopt failed (rc=%d): %s", proc.returncode, stderr.decode()[:500])
+            return None
+
+        output = stdout.decode("utf-8", errors="replace")
+        logger.info("Hyperopt completed (%d epochs)", HYPEROPT_EPOCHS)
+        return {"output": output}
+    except asyncio.TimeoutError:
+        logger.warning("Hyperopt timed out (1800s)")
+        return None
+    except Exception as e:
+        logger.warning("Hyperopt exec error: %s", e)
+        return None
+
+
+def _get_backtest_timerange() -> str:
+    """Generate timerange for last ~6 months of data."""
+    from datetime import timedelta
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=180)
+    return f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}"
+
+
+def _parse_backtest_output(output: str) -> dict | None:
+    """
+    Parse freqtrade backtest text output to extract key metrics.
+    Looks for lines like:
+      | Sharpe           |   1.234 |
+      | Max Drawdown ... |  12.34% |
+      | Total profit     |  45.67% |
+    """
+    import re
+    result = {"sharpe": 0.0, "max_drawdown": 0.0, "total_profit": 0.0}
+
+    # Sharpe ratio
+    m = re.search(r"Sharpe\s*\|\s*([-\d.]+)", output)
+    if m:
+        try:
+            result["sharpe"] = float(m.group(1))
+        except ValueError:
+            pass
+
+    # Max drawdown (percentage)
+    m = re.search(r"Max [Dd]rawdown.*?\|\s*([-\d.]+)%?", output)
+    if m:
+        try:
+            result["max_drawdown"] = abs(float(m.group(1)))
+        except ValueError:
+            pass
+
+    # Total profit percentage
+    m = re.search(r"Total profit\s*\|\s*([-\d.]+)%?", output)
+    if m:
+        try:
+            result["total_profit"] = float(m.group(1))
+        except ValueError:
+            pass
+
+    # If we got nothing useful, return None
+    if result["sharpe"] == 0 and result["max_drawdown"] == 0 and result["total_profit"] == 0:
+        logger.debug("Could not parse backtest output (first 500 chars): %s", output[:500])
+        return None
+
+    return result
 
 
 @asynccontextmanager
@@ -681,9 +1010,20 @@ async def lifespan(app: FastAPI):
     _trade_sync_task = asyncio.create_task(_trade_sync_loop())
     logger.info("Trade sync task created (interval=%ds)", TRADE_SYNC_INTERVAL)
 
+    # Start weekly hyperopt scheduler (Sunday 02:00 UTC)
+    global _hyperopt_task
+    _hyperopt_task = asyncio.create_task(_hyperopt_weekly_loop())
+    logger.info("Hyperopt weekly scheduler task created")
+
     yield
 
     # Shutdown
+    if _hyperopt_task and not _hyperopt_task.done():
+        _hyperopt_task.cancel()
+        try:
+            await _hyperopt_task
+        except asyncio.CancelledError:
+            pass
     if _trade_sync_task and not _trade_sync_task.done():
         _trade_sync_task.cancel()
         try:
@@ -1279,6 +1619,131 @@ async def ft_config():
         return await ft_connector.get_config()
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# --- FreqAI Training Status ---
+
+import re as _re
+
+def _parse_training_from_logs(log_entries: list) -> dict:
+    """
+    Parse FreqAI training progress from freqtrade log entries.
+    Looks for patterns like:
+      "Training 3/12 pairs" or "Training BTC/USDT 5m"
+      "Training of model ... complete"
+    Returns {training: bool, current_pair: str|None, progress: str|None, last_trained: str|None}
+    """
+    result = {"training": False, "current_pair": None, "progress": None, "last_trained": None}
+
+    # Log entries are [timestamp, level, message] or similar structures
+    for entry in reversed(log_entries):
+        # Normalize: entry may be a list [ts, level, msg] or a dict
+        if isinstance(entry, (list, tuple)) and len(entry) >= 3:
+            ts_str = str(entry[0])
+            msg = str(entry[2])
+        elif isinstance(entry, dict):
+            ts_str = str(entry.get("timestamp", entry.get("date", "")))
+            msg = str(entry.get("message", entry.get("msg", "")))
+        elif isinstance(entry, str):
+            ts_str = ""
+            msg = entry
+        else:
+            continue
+
+        # Detect active training: "Training <pair> - <n>/<total> models"
+        m = _re.search(r"[Tt]raining\s+(\S+/\S+)\s.*?(\d+)\s*/\s*(\d+)", msg)
+        if m and not result["training"]:
+            result["training"] = True
+            result["current_pair"] = m.group(1)
+            result["progress"] = f"{m.group(2)}/{m.group(3)}"
+            continue
+
+        # Detect training start: "Training models for ..." or "start training"
+        if not result["training"] and _re.search(r"[Ss]tart.*[Tt]rain|[Tt]raining models? for", msg):
+            result["training"] = True
+            # Try to extract pair
+            pm = _re.search(r"for\s+(\S+/\S+)", msg)
+            if pm:
+                result["current_pair"] = pm.group(1)
+            continue
+
+        # Detect training complete: "Training of ... complete" or "done training"
+        if _re.search(r"[Tt]raining.*complete|done\s+[Tt]rain|[Ff]inished\s+[Tt]rain", msg):
+            if not result["training"]:
+                # Most recent event is completion => not currently training
+                result["last_trained"] = ts_str or None
+                break
+            continue
+
+    return result
+
+
+@app.get("/freqai/training-status")
+async def freqai_training_status():
+    """
+    Return FreqAI training status across all bots.
+    Queries each bot's /api/v1/freqaimodels for model info and
+    parses recent logs to detect active training progress.
+
+    Returns:
+        {
+            training: bool,          # any bot currently training?
+            current_pair: str|null,   # pair being trained right now
+            progress: str|null,       # e.g. "3/12"
+            last_trained: str|null,   # ISO timestamp of last completed training
+            bots: {bot_name: {training, models_count, current_pair, progress, last_trained}}
+        }
+    """
+    # Fetch models and logs from all bots in parallel
+    all_models, all_logs = await asyncio.gather(
+        multi_bot.get_all_freqai_models(),
+        multi_bot.get_all_logs(limit=80),
+    )
+
+    bots_status = {}
+    any_training = False
+    global_pair = None
+    global_progress = None
+    global_last_trained = None
+
+    for bot_name in multi_bot.bot_labels:
+        models_data = all_models.get(bot_name)
+        log_entries = all_logs.get(bot_name, [])
+
+        # Parse training progress from logs
+        train_info = _parse_training_from_logs(log_entries)
+
+        models_count = 0
+        if models_data and isinstance(models_data.get("freqaimodels"), list):
+            models_count = len(models_data["freqaimodels"])
+
+        bot_entry = {
+            "training": train_info["training"],
+            "models_count": models_count,
+            "current_pair": train_info["current_pair"],
+            "progress": train_info["progress"],
+            "last_trained": train_info["last_trained"],
+        }
+        bots_status[bot_name] = bot_entry
+
+        if train_info["training"]:
+            any_training = True
+            if global_pair is None:
+                global_pair = train_info["current_pair"]
+                global_progress = train_info["progress"]
+
+        if train_info["last_trained"] and (
+            global_last_trained is None or train_info["last_trained"] > global_last_trained
+        ):
+            global_last_trained = train_info["last_trained"]
+
+    return {
+        "training": any_training,
+        "current_pair": global_pair,
+        "progress": global_progress,
+        "last_trained": global_last_trained,
+        "bots": bots_status,
+    }
 
 
 class FreqtradeBacktestRequest(BaseModel):

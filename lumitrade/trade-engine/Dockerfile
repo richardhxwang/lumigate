@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ curl && \
     rm -rf /var/lib/apt/lists/*
 
+# Install Docker CLI only (for hyperopt docker exec into freqtrade-bt container)
+RUN curl -fsSL https://download.docker.com/linux/static/stable/$(uname -m)/docker-27.5.1.tgz \
+    | tar xz --strip-components=1 -C /usr/local/bin docker/docker
+
 RUN pip install --no-cache-dir setuptools wheel
 
 # Step 1: Install smartmoneyconcepts FIRST — it pins numpy==1.24.3, numba==0.58.1,

@@ -80,6 +80,10 @@ class FreqtradeConnector:
     async def get_logs(self, limit=50) -> dict:
         return await self._get(f"/api/v1/logs?limit={limit}")
 
+    async def get_freqai_models(self) -> dict:
+        """Get FreqAI model list (includes training status info)."""
+        return await self._get("/api/v1/freqaimodels")
+
     async def forceexit(self, trade_id: int | str) -> dict:
         """Force-exit a specific trade by ID."""
         return await self._post("/api/v1/forceexit", {"tradeid": str(trade_id)})
@@ -296,3 +300,13 @@ class MultiBotConnector:
             else:
                 results[label] = {"ok": False, "error": "call failed"}
         return results
+
+    async def get_all_freqai_models(self) -> dict[str, dict | None]:
+        """Fetch FreqAI model list from all bots. Returns {bot_name: data_or_None}."""
+        results = await asyncio.gather(
+            *[self._safe_call(i, "get_freqai_models") for i in range(len(self.bots))]
+        )
+        out = {}
+        for label, _group, data in results:
+            out[label] = data if isinstance(data, dict) else None
+        return out

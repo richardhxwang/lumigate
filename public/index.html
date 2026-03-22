@@ -3705,35 +3705,34 @@ async function codexOAuthLogin() {
   try {
     const d = await fetch(`${B}/admin/codex/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
     if (!d.success || !d.authUrl) { showT(d.error || 'Failed to start OAuth', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
-    showT('Opening OpenAI login...', 'success');
-    // Try popup first, fallback to new tab, fallback to same-window redirect
-    const popup = window.open(d.authUrl, 'codex_oauth', 'width=520,height=700,left=100,top=100');
-    if (!popup || popup.closed) {
-      // Popup blocked — open in new tab instead
-      const tab = window.open(d.authUrl, '_blank');
-      if (!tab) {
-        // All blocked — copy URL to clipboard and show it
-        navigator.clipboard?.writeText(d.authUrl).catch(()=>{});
-        showT('Popup blocked! Open this URL manually: ' + d.authUrl.substring(0, 60) + '...', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; }
-        return;
-      }
+
+    // Open login page
+    window.open(d.authUrl, '_blank');
+
+    // Show paste fallback immediately — works for both local and remote
+    const callbackUrl = prompt(
+      'After logging in to OpenAI, the browser will redirect to localhost:1455/auth/callback?...\n\n' +
+      'The page may show "connection refused" — that\'s OK!\n\n' +
+      'Copy the FULL URL from the address bar and paste it here:'
+    );
+
+    if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; }
+    if (!callbackUrl || !callbackUrl.includes('code=')) { showT('Cancelled or invalid URL', 'error'); return; }
+
+    // Send the callback URL to server for token exchange
+    showT('Exchanging token...', 'success');
+    const params = new URL(callbackUrl).searchParams;
+    const result = await fetch(`${B}/admin/codex/callback?code=${encodeURIComponent(params.get('code'))}&state=${encodeURIComponent(params.get('state'))}`).then(r => r.text());
+
+    // Check status
+    const s = await fetch(`${B}/admin/codex/status`).then(r => r.json());
+    if (s.connected) {
+      showT(`ChatGPT connected! Account: ${s.accountId}`, 'success');
+      if (btn) { btn.textContent = '✓ Connected'; btn.style.background = '#0d9268'; }
+      load();
+    } else {
+      showT('Token exchange failed: ' + result, 'error');
     }
-    // Poll for completion
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 90) { clearInterval(poll); showT('OAuth timeout — try again', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
-      try {
-        const s = await fetch(`${B}/admin/codex/status`).then(r => r.json());
-        if (s.connected) {
-          clearInterval(poll);
-          showT(`ChatGPT connected! Account: ${s.accountId}`, 'success');
-          if (btn) { btn.disabled = false; btn.textContent = '✓ Connected'; btn.style.background = '#0d9268'; }
-          load();
-        }
-      } catch {}
-    }, 2000);
   } catch (e) { showT(e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } }
 }
 

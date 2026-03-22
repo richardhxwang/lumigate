@@ -7,6 +7,8 @@ services:
     restart: always
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # for hyperopt docker exec
     expose:
       - "3200"
     ports:
@@ -280,6 +282,39 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Hyperopt — one-shot parameter optimization (manual start, no auto-restart)
+  freqtrade-hyperopt:
+    build: ./freqtrade
+    container_name: lumigate-freqtrade-hyperopt
+    restart: "no"
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/config.json:/freqtrade/config.json:ro
+      - ./freqtrade/config-hyperopt.json:/freqtrade/config-hyperopt.json:ro
+      - ./frequi-custom/installed:/freqtrade/freqtrade/rpc/api_server/ui/installed:ro
+    environment:
+      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+    command: >
+      hyperopt
+      --config /freqtrade/config.json
+      --config /freqtrade/config-hyperopt.json
+      --strategy SMCStrategy
+      --hyperopt-loss SharpeHyperOptLoss
+      --timerange 20240401-20250401
+      --epochs 200
+      --spaces buy roi stoploss trailing
+      --logfile /freqtrade/user_data/logs/hyperopt.log
+    networks:
+      - default
+      - lumigate
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Freqtrade webserver mode — for backtesting UI (separate from trade instance)
   freqtrade-backtest:
     build: ./freqtrade
@@ -307,6 +342,28 @@ services:
       timeout: 3s
       retries: 3
       start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: lumigate-rsshub
+    restart: always
+    expose:
+      - "1200"
+    environment:
+      - NODE_ENV=production
+      - CACHE_TYPE=memory
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:1200/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     logging:
       driver: "json-file"
       options:

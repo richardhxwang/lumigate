@@ -1776,6 +1776,16 @@ app.post("/lumitrade/frequi-token", async (req, res) => {
   }
 });
 
+// LumiTrade Dashboard — backtest vs live performance page
+app.get("/lumitrade/dashboard", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "lumitrade-dashboard.html"));
+});
+
+// LumiTrade Status — public project progress page (no auth required)
+app.get("/lumitrade/status", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "lumitrade-status.html"));
+});
+
 // Serve LumiTrade interface (nonce injected into HTML for CSP)
 // LumiTrade auto-auth — returns freqtrade credentials + server-side tokens for all 6 bots
 // Token cache: { botName -> { accessToken, refreshToken, expiresAt } }
@@ -2047,6 +2057,22 @@ app.get("/auth/callback", async (req, res) => {
   } catch (e) {
     log("error", "Codex OAuth callback failed", { error: e.message });
     res.status(500).send("OAuth callback failed: " + e.message);
+  }
+});
+
+// Admin: manual callback (for remote access — user pastes the redirect URL)
+app.get("/admin/codex/callback", adminAuth, async (req, res) => {
+  try {
+    const result = await codexOAuth.handleCallback(req.query);
+    if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+    if (result.tokens) {
+      _codexTokens = result.tokens;
+      saveCodexTokens();
+      log("info", "Codex OAuth login success (manual)", { accountId: result.tokens.accountId });
+    }
+    res.json({ success: true, accountId: result.tokens?.accountId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

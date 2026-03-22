@@ -8,6 +8,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+# ib_insync manages its own event loop which conflicts with uvicorn's asyncio loop.
+# nest_asyncio allows nested event loops, resolving the conflict.
+import nest_asyncio
+nest_asyncio.apply()
+
 from ib_insync import IB, Contract, Stock, Forex, MarketOrder, LimitOrder, StopOrder
 
 logger = logging.getLogger("lumitrade.ibkr")

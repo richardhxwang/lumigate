@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LumiTrade - Backtest vs Live Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2310a37f'/%3E%3Cpolyline points='6 22 12 14 18 18 26 10' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpolyline points='21 10 26 10 26 15' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --sb: #171717; --bg: #212121; --inp: #2f2f2f;
+      --t1: #ececec; --t2: #8e8e8e; --t3: #505050;
+      --accent: #10a37f; --accent-h: #0d9268;
+      --border: #2a2a2a;
+      --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+      --r1: 8px; --r2: 12px; --r3: 16px; --r4: 20px;
+      --card-bg: rgba(255,255,255,0.04);
+      --card-border: rgba(255,255,255,0.08);
+    }
+    :root.light {
+      --sb: #f7f7f8; --bg: #ffffff; --inp: #f4f4f5;
+      --t1: #0d0d0d; --t2: #555; --t3: #999;
+      --border: #e5e5e5;
+      --card-bg: rgba(0,0,0,0.02);
+      --card-border: rgba(0,0,0,0.08);
+    }
+    html, body {
+      min-height: 100vh; background: var(--bg); color: var(--t1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(16px) saturate(160%);
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .header .accent { color: var(--accent); }
+    .header .sub { color: var(--t2); font-size: 13px; margin-left: auto; }
+    .theme-btn {
+      background: none; border: 1px solid var(--border); border-radius: var(--r1);
+      color: var(--t2); padding: 4px 10px; cursor: pointer; font-size: 13px;
+    }
+    .theme-btn:hover { color: var(--t1); border-color: var(--t1); }
+    .refresh-btn {
+      background: var(--accent); border: none; border-radius: var(--r1);
+      color: #fff; padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 500;
+    }
+    .refresh-btn:hover { background: var(--accent-h); }
+
+    /* ── Layout ── */
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
+
+    /* ── Status ── */
+    .status-bar {
+      display: flex; gap: 8px; align-items: center; margin-bottom: 20px;
+      font-size: 13px; color: var(--t2);
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status-dot.ok { background: var(--green); }
+    .status-dot.err { background: var(--red); }
+    .status-dot.loading { background: var(--yellow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 24px;
+      border-bottom: 1px solid var(--border); padding-bottom: 0;
+    }
+    .tab {
+      padding: 8px 16px; cursor: pointer; font-size: 14px; font-weight: 500;
+      color: var(--t2); border: none; background: none;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+    }
+    .tab:hover { color: var(--t1); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: var(--r3); padding: 20px; margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 14px; letter-spacing: -0.2px; }
+    .card h3 { font-size: 14px; font-weight: 600; margin: 16px 0 10px; color: var(--t2); }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; color: var(--t2); font-weight: 500;
+         border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    :root.light tr:hover td { background: rgba(0,0,0,0.02); }
+
+    /* ── Metric highlights ── */
+    .metric-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .metric-box {
+      flex: 1; min-width: 140px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: var(--r2); padding: 14px 16px; text-align: center;
+    }
+    .metric-box .label { font-size: 11px; color: var(--t2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-box .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .warn { color: var(--yellow); }
+    .neutral { color: var(--t2); }
+
+    /* ── Comparison bars ── */
+    .cmp-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .cmp-bar .bar-label { width: 70px; font-size: 12px; color: var(--t2); text-align: right; }
+    .cmp-bar .bar-track { flex: 1; height: 8px; background: var(--inp); border-radius: 4px; overflow: hidden; }
+    .cmp-bar .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .cmp-bar .bar-value { width: 60px; font-size: 12px; font-weight: 500; }
+
+    /* ── Signal quality badges ── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: var(--r1);
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+    }
+    .badge-primary { background: rgba(16,163,127,0.15); color: var(--accent); }
+    .badge-fallback { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .badge-minimal { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-short { background: rgba(239,68,68,0.15); color: var(--red); }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 40px; color: var(--t3); font-size: 14px; }
+
+    /* ── Overfit indicator ── */
+    .overfit-indicator {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: var(--r1); font-size: 12px; font-weight: 600;
+    }
+    .overfit-ok { background: rgba(34,197,94,0.12); color: var(--green); }
+    .overfit-warn { background: rgba(234,179,8,0.12); color: var(--yellow); }
+    .overfit-bad { background: rgba(239,68,68,0.12); color: var(--red); }
+
+    /* ── Grid for A/B ── */
+    .ab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .ab-grid { grid-template-columns: 1fr; } }
+
+    /* ── Loading ── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Lumi<span class="accent">Trade</span> Dashboard</h1>
+    <span class="sub">Backtest vs Live Performance</span>
+    <button class="theme-btn" onclick="toggleTheme()">Theme</button>
+    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+  </div>
+
+  <div class="container">
+    <div class="status-bar">
+      <span class="status-dot loading" id="status-dot"></span>
+      <span id="status-text">Loading data...</span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="signal">Signal Quality</button>
+      <button class="tab" data-tab="ab">A/B Comparison</button>
+      <button class="tab" data-tab="overfit">Overfit Check</button>
+    </div>
+
+    <!-- ═══ OVERVIEW TAB ═══ -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="metric-row" id="overview-metrics"></div>
+      <div class="card">
+        <h2>Backtest vs Live Comparison by Bot</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Bot</th>
+              <th>Source</th>
+              <th>Trades</th>
+              <th>Win Rate</th>
+              <th>Profit</th>
+              <th>Sharpe</th>
+              <th>Max DD</th>
+              <th>Profit Factor</th>
+              <th>Avg Duration</th>
+            </tr>
+          </thead>
+          <tbody id="overview-table"></tbody>
+        </table>
+        <div class="empty" id="overview-empty" style="display:none">No data available. Sync trades and run backtests first.</div>
+      </div>
+
+      <div class="card">
+        <h2>Metric Comparison Bars</h2>
+        <div id="comparison-bars"></div>
+      </div>
+    </div>
+
+    <!-- ═══ SIGNAL QUALITY TAB ═══ -->
+    <div class="tab-content" id="tab-signal">
+      <div class="card">
+        <h2>Signal Quality by Entry Tag</h2>
+        <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
+          Grouped by entry signal type. Primary (BOS/CHoCH+OB+FVG) vs Fallback (BOS/CHoCH+FVG) vs Minimal (FVG+liq sweep).
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Entry Tag</th>
+              <th>Bot</th>
+              <th>Trades</th>
+              <th>Win Rate</th>
+              <th>Avg Profit %</th>
+              <th>Avg Duration</th>
+              <th>Best Trade</th>
+              <th>Worst Trade</th>
+            </tr>
+          </thead>
+          <tbody id="signal-table"></tbody>
+        </table>
+        <div class="empty" id="signal-empty" style="display:none">No entry tag data available. Entry tags require freqtrade API access.</div>
+      </div>
+
+      <div class="card">
+        <h2>Signal Distribution</h2>
+        <div id="signal-dist"></div>
+      </div>
+    </div>
+
+    <!-- ═══ A/B COMPARISON TAB ═══ -->
+    <div class="tab-content" id="tab-ab">
+      <div class="card">
+        <h2>Group A vs Group B</h2>
+        <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
+          Group A = Non-leverage bots (PureSMC, LumiLearning, AI-Enhanced) |
+          Group B = Leverage bots (*-lev variants)
+        </p>
+      </div>
+      <div class="ab-grid">
+        <div class="card">
+          <h2>Group A: Standard (1x)</h2>
+          <div id="ab-a-metrics" class="metric-row"></div>
+          <table>
+            <thead><tr><th>Bot</th><th>Trades</th><th>WR</th><th>PnL</th><th>DD</th></tr></thead>
+            <tbody id="ab-a-table"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Group B: Leverage</h2>
+          <div id="ab-b-metrics" class="metric-row"></div>
+          <table>
+            <thead><tr><th>Bot</th><th>Trades</th><th>WR</th><th>PnL</th><th>DD</th></tr></thead>
+            <tbody id="ab-b-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ OVERFIT CHECK TAB ═══ -->
+    <div class="tab-content" id="tab-overfit">
+      <div class="card">
+        <h2>Out-of-Sample Validation</h2>
+        <p style="color:var(--t2);font-size:13px;margin-bottom:14px">
+          Training set (2024-01 ~ 2025-06) vs Validation set (2025-06 ~ 2026-03).
+          Parameters were Hyperopt-optimized on the validation period. If training set performance
+          is much better than validation, the strategy is NOT overfit (it generalizes).
+          If validation is much worse, overfitting risk is high.
+        </p>
+        <div id="overfit-status" style="margin-bottom:16px"></div>
+        <table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Trades</th>
+              <th>Win Rate</th>
+              <th>Sharpe</th>
+              <th>Max DD</th>
+              <th>Profit Factor</th>
+              <th>Profit %</th>
+            </tr>
+          </thead>
+          <tbody id="overfit-table"></tbody>
+        </table>
+        <div class="empty" id="overfit-empty" style="display:none">
+          Run out-of-sample backtests to populate this section.
+          See the backtest commands in the source code comments.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Overfit Risk Assessment</h2>
+        <div id="overfit-assessment"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Theme ──
+    (function() {
+      try { if (localStorage.getItem('lt_theme') === 'light') document.documentElement.classList.add('light'); } catch(e) {}
+    })();
+    function toggleTheme() {
+      const isLight = document.documentElement.classList.toggle('light');
+      try { localStorage.setItem('lt_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+    }
+
+    // ── Tabs ──
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+      });
+    });
+
+    // ── State ──
+    let tradeHistory = [];
+    let backtestResults = [];
+    let freqtradeTradesRaw = {}; // botName -> trades[]
+
+    // ── Helpers ──
+    const pct = (v, d=1) => v != null ? (v * 100).toFixed(d) + '%' : '-';
+    const pctRaw = (v, d=1) => v != null ? v.toFixed(d) + '%' : '-';
+    const num = (v, d=2) => v != null ? (+v).toFixed(d) : '-';
+    const colorPct = (v) => {
+      if (v == null) return 'neutral';
+      return v >= 0 ? 'pos' : 'neg';
+    };
+    const colorWR = (v) => {
+      if (v == null) return 'neutral';
+      if (v >= 0.5) return 'pos';
+      if (v >= 0.4) return 'warn';
+      return 'neg';
+    };
+
+    function setStatus(ok, text) {
+      const dot = document.getElementById('status-dot');
+      const txt = document.getElementById('status-text');
+      dot.className = 'status-dot ' + (ok === true ? 'ok' : ok === false ? 'err' : 'loading');
+      txt.textContent = text;
+    }
+
+    // ── Fetch helpers ──
+    async function fetchJSON(url) {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    }
+
+    // Bot name classification
+    const LEV_BOTS = new Set(); // populated dynamically
+    function isLevBot(name) {
+      return /lev/i.test(name) || LEV_BOTS.has(name);
+    }
+
+    // ── Data Loading ──
+    async function loadTradeHistory() {
+      try {
+        const data = await fetchJSON('/v1/trade/history?perPage=500');
+        tradeHistory = data.items || [];
+      } catch (e) {
+        console.warn('Failed to load trade history:', e);
+        tradeHistory = [];
+      }
+    }
+
+    async function loadBacktestResults() {
+      try {
+        const data = await fetchJSON('/v1/trade/backtest/pb-results');
+        backtestResults = data.items || [];
+      } catch (e) {
+        console.warn('Failed to load backtest results:', e);
+        backtestResults = [];
+      }
+    }
+
+    // Fetch trades directly from each bot's freqtrade API (for entry_tag data)
+    const BOT_ENDPOINTS = [
+      { name: 'LumiLearning',   prefix: '/lumitrade/' },
+      { name: 'PureSMC',        prefix: '/lumitrade/pure/' },
+      { name: 'AI-Enhanced',    prefix: '/lumitrade/ai/' },
+      { name: 'PureSMC-Lev',    prefix: '/lumitrade/pure-lev/' },
+      { name: 'LumiLearning-Lev', prefix: '/lumitrade/lev/' },
+      { name: 'AI-Enhanced-Lev',  prefix: '/lumitrade/ai-lev/' },
+    ];
+
+    async function loginFreqtrade(prefix) {
+      // freqtrade uses HTTP basic auth for the REST API
+      const res = await fetch(prefix + 'api/v1/ping', {
+        credentials: 'include',
+        headers: { 'Authorization': 'Basic ' + btoa('lumitrade:changeme') }
+      });
+      return res.ok;
+    }
+
+    async function loadFreqtradeTrades() {
+      freqtradeTradesRaw = {};
+      for (const bot of BOT_ENDPOINTS) {
+        try {
+          const res = await fetch(bot.prefix + 'api/v1/trades?limit=500', {
+            credentials: 'include',
+            headers: { 'Authorization': 'Basic ' + btoa('lumitrade:changeme') }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            freqtradeTradesRaw[bot.name] = data.trades || [];
+          }
+        } catch (e) {
+          console.warn(`Failed to load trades for ${bot.name}:`, e);
+        }
+      }
+    }
+
+    // ── Aggregation helpers ──
+    function aggregateByBot(trades) {
+      const groups = {};
+      for (const t of trades) {
+        const bot = t.bot_name || 'unknown';
+        if (!groups[bot]) groups[bot] = [];
+        groups[bot].push(t);
+      }
+      return groups;
+    }
+
+    function computeStats(trades) {
+      if (!trades.length) return null;
+      const wins = trades.filter(t => (t.pnl || t.profit_abs || 0) > 0).length;
+      const losses = trades.length - wins;
+      const totalPnl = trades.reduce((s, t) => s + (t.pnl || t.profit_abs || 0), 0);
+      const totalPnlPct = trades.reduce((s, t) => s + (t.pnl_pct || t.profit_ratio || 0), 0);
+      const avgPnlPct = totalPnlPct / trades.length;
+      const durations = trades.map(t => t.duration_minutes || t.trade_duration || 0).filter(d => d > 0);
+      const avgDuration = durations.length ? durations.reduce((s,d) => s+d, 0) / durations.length : 0;
+      const pnls = trades.map(t => t.pnl_pct || t.profit_ratio || 0);
+
+      // Simplified Sharpe (daily returns not available, use trade-level)
+      const mean = pnls.reduce((s,v) => s+v, 0) / pnls.length;
+      const variance = pnls.reduce((s,v) => s + (v - mean) ** 2, 0) / pnls.length;
+      const std = Math.sqrt(variance);
+      const sharpe = std > 0 ? mean / std : 0;
+
+      // Max drawdown (sequential PnL)
+      let peak = 0, maxDD = 0, cumPnl = 0;
+      for (const p of pnls) {
+        cumPnl += p;
+        if (cumPnl > peak) peak = cumPnl;
+        const dd = peak - cumPnl;
+        if (dd > maxDD) maxDD = dd;
+      }
+
+      // Profit factor
+      const grossProfit = pnls.filter(p => p > 0).reduce((s,v) => s+v, 0);
+      const grossLoss = Math.abs(pnls.filter(p => p < 0).reduce((s,v) => s+v, 0));
+      const pf = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+
+      // Best/worst
+      const best = Math.max(...pnls);
+      const worst = Math.min(...pnls);
+
+      return {
+        total: trades.length, wins, losses,
+        winrate: trades.length > 0 ? wins / trades.length : 0,
+        totalPnl, totalPnlPct, avgPnlPct,
+        sharpe: +sharpe.toFixed(3),
+        maxDD: +maxDD.toFixed(4),
+        profitFactor: pf === Infinity ? 99.9 : +pf.toFixed(2),
+        avgDuration: Math.round(avgDuration),
+        best, worst,
+      };
+    }
+
+    function formatDuration(minutes) {
+      if (!minutes) return '-';
+      if (minutes < 60) return Math.round(minutes) + 'm';
+      if (minutes < 1440) return (minutes / 60).toFixed(1) + 'h';
+      return (minutes / 1440).toFixed(1) + 'd';
+    }
+
+    // ── Rendering ──
+    function renderOverview() {
+      const botGroups = aggregateByBot(tradeHistory);
+      const tbody = document.getElementById('overview-table');
+      const metricsEl = document.getElementById('overview-metrics');
+      const emptyEl = document.getElementById('overview-empty');
+      const barsEl = document.getElementById('comparison-bars');
+      tbody.innerHTML = '';
+      metricsEl.innerHTML = '';
+      barsEl.innerHTML = '';
+
+      // Overall live stats
+      const allStats = computeStats(tradeHistory);
+      if (!allStats && !backtestResults.length) {
+        emptyEl.style.display = '';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      // Top metrics
+      if (allStats) {
+        metricsEl.innerHTML = `
+          <div class="metric-box"><div class="label">Total Live Trades</div><div class="value">${allStats.total}</div></div>
+          <div class="metric-box"><div class="label">Live Win Rate</div><div class="value ${colorWR(allStats.winrate)}">${pct(allStats.winrate)}</div></div>
+          <div class="metric-box"><div class="label">Total PnL</div><div class="value ${colorPct(allStats.totalPnl)}">${num(allStats.totalPnl)} USDT</div></div>
+          <div class="metric-box"><div class="label">Sharpe (trade)</div><div class="value">${allStats.sharpe}</div></div>
+          <div class="metric-box"><div class="label">Max DD</div><div class="value neg">${pct(allStats.maxDD)}</div></div>
+          <div class="metric-box"><div class="label">Bots Active</div><div class="value">${Object.keys(botGroups).length}</div></div>
+        `;
+      }
+
+      // Build backtest lookup by strategy_name
+      const btByStrategy = {};
+      for (const bt of backtestResults) {
+        const key = bt.strategy_name || bt.bot_name || '';
+        if (!btByStrategy[key]) btByStrategy[key] = bt;
+      }
+
+      // Bot rows: backtest + live for each
+      const allBots = new Set([...Object.keys(botGroups), ...Object.keys(btByStrategy)]);
+      for (const bot of allBots) {
+        const liveStats = botGroups[bot] ? computeStats(botGroups[bot]) : null;
+        const bt = btByStrategy[bot] || btByStrategy['SMCStrategy'] || btByStrategy['SMCPureStrategy'] || null;
+
+        // Backtest row
+        if (bt) {
+          tbody.innerHTML += `<tr>
+            <td><strong>${bot}</strong></td>
+            <td><span class="badge badge-primary">Backtest</span></td>
+            <td>${bt.total_trades || '-'}</td>
+            <td class="${colorWR(bt.winrate)}">${bt.winrate != null ? pct(bt.winrate) : '-'}</td>
+            <td class="${colorPct(bt.profit_total_abs)}">${bt.profit_total_abs != null ? num(bt.profit_total_abs) + ' USDT' : '-'}</td>
+            <td>${bt.sharpe != null ? num(bt.sharpe) : '-'}</td>
+            <td class="neg">${bt.max_drawdown_pct != null ? pct(bt.max_drawdown_pct) : '-'}</td>
+            <td>${bt.profit_factor != null ? num(bt.profit_factor) : '-'}</td>
+            <td>${bt.avg_duration || '-'}</td>
+          </tr>`;
+        }
+
+        // Live row
+        if (liveStats) {
+          tbody.innerHTML += `<tr>
+            <td><strong>${bot}</strong></td>
+            <td><span class="badge badge-fallback">Live</span></td>
+            <td>${liveStats.total}</td>
+            <td class="${colorWR(liveStats.winrate)}">${pct(liveStats.winrate)}</td>
+            <td class="${colorPct(liveStats.totalPnl)}">${num(liveStats.totalPnl)} USDT</td>
+            <td>${liveStats.sharpe}</td>
+            <td class="neg">${pct(liveStats.maxDD)}</td>
+            <td>${num(liveStats.profitFactor)}</td>
+            <td>${formatDuration(liveStats.avgDuration)}</td>
+          </tr>`;
+        }
+      }
+
+      // Comparison bars (backtest vs live for each metric)
+      if (allStats && backtestResults.length) {
+        const latestBt = backtestResults[backtestResults.length - 1];
+        const metrics = [
+          { label: 'Win Rate', bt: latestBt.winrate, live: allStats.winrate, max: 1, fmt: pct },
+          { label: 'Sharpe', bt: latestBt.sharpe, live: allStats.sharpe, max: 3, fmt: v => num(v) },
+          { label: 'Max DD', bt: latestBt.max_drawdown_pct, live: allStats.maxDD, max: 0.5, fmt: pct },
+          { label: 'PF', bt: latestBt.profit_factor, live: allStats.profitFactor, max: 5, fmt: v => num(v) },
+        ];
+        for (const m of metrics) {
+          const btW = m.bt != null ? Math.min(Math.abs(m.bt) / m.max * 100, 100) : 0;
+          const liveW = m.live != null ? Math.min(Math.abs(m.live) / m.max * 100, 100) : 0;
+          barsEl.innerHTML += `
+            <div style="margin-bottom:12px">
+              <div style="font-size:12px;font-weight:600;margin-bottom:4px">${m.label}</div>
+              <div class="cmp-bar">
+                <span class="bar-label">Backtest</span>
+                <div class="bar-track"><div class="bar-fill" style="width:${btW}%;background:var(--accent)"></div></div>
+                <span class="bar-value">${m.fmt(m.bt)}</span>
+              </div>
+              <div class="cmp-bar">
+                <span class="bar-label">Live</span>
+                <div class="bar-track"><div class="bar-fill" style="width:${liveW}%;background:var(--blue)"></div></div>
+                <span class="bar-value">${m.fmt(m.live)}</span>
+              </div>
+            </div>`;
+        }
+      }
+    }
+
+    function renderSignalQuality() {
+      const tbody = document.getElementById('signal-table');
+      const emptyEl = document.getElementById('signal-empty');
+      const distEl = document.getElementById('signal-dist');
+      tbody.innerHTML = '';
+      distEl.innerHTML = '';
+
+      // Combine all freqtrade trades with entry_tag
+      let allTagged = [];
+      for (const [botName, trades] of Object.entries(freqtradeTradesRaw)) {
+        for (const t of trades) {
+          if (t.enter_tag || t.buy_tag) {
+            allTagged.push({ ...t, _bot: botName });
+          }
+        }
+      }
+
+      // Also check PB trade_history for setup_type
+      for (const t of tradeHistory) {
+        if (t.setup_type) {
+          allTagged.push({
+            enter_tag: t.setup_type,
+            profit_ratio: t.pnl_pct || 0,
+            profit_abs: t.pnl || 0,
+            trade_duration: t.duration_minutes || 0,
+            _bot: t.bot_name || 'unknown',
+          });
+        }
+      }
+
+      if (!allTagged.length) {
+        emptyEl.style.display = '';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      // Group by tag + bot
+      const groups = {};
+      for (const t of allTagged) {
+        const tag = t.enter_tag || t.buy_tag || t.setup_type || 'unknown';
+        const bot = t._bot || 'unknown';
+        const key = tag + '|' + bot;
+        if (!groups[key]) groups[key] = { tag, bot, trades: [] };
+        groups[key].trades.push(t);
+      }
+
+      // Sort by tag then bot
+      const sorted = Object.values(groups).sort((a, b) => a.tag.localeCompare(b.tag) || a.bot.localeCompare(b.bot));
+      for (const g of sorted) {
+        const stats = computeStats(g.trades.map(t => ({
+          pnl: t.profit_abs || 0,
+          pnl_pct: t.profit_ratio || 0,
+          duration_minutes: t.trade_duration || 0,
+        })));
+        if (!stats) continue;
+
+        const badgeClass = g.tag.includes('primary') ? 'badge-primary' :
+                           g.tag.includes('fallback') ? 'badge-fallback' :
+                           g.tag.includes('minimal') ? 'badge-minimal' :
+                           g.tag.includes('short') ? 'badge-short' : 'badge-fallback';
+
+        tbody.innerHTML += `<tr>
+          <td><span class="badge ${badgeClass}">${g.tag}</span></td>
+          <td>${g.bot}</td>
+          <td>${stats.total}</td>
+          <td class="${colorWR(stats.winrate)}">${pct(stats.winrate)}</td>
+          <td class="${colorPct(stats.avgPnlPct)}">${pct(stats.avgPnlPct)}</td>
+          <td>${formatDuration(stats.avgDuration)}</td>
+          <td class="pos">${pct(stats.best)}</td>
+          <td class="neg">${pct(stats.worst)}</td>
+        </tr>`;
+      }
+
+      // Distribution summary
+      const tagTotals = {};
+      for (const t of allTagged) {
+        const tag = t.enter_tag || t.buy_tag || 'unknown';
+        tagTotals[tag] = (tagTotals[tag] || 0) + 1;
+      }
+      const total = allTagged.length;
+      for (const [tag, count] of Object.entries(tagTotals).sort((a,b) => b[1] - a[1])) {
+        const pctVal = (count / total * 100).toFixed(1);
+        const badgeClass = tag.includes('primary') ? 'badge-primary' :
+                           tag.includes('fallback') ? 'badge-fallback' :
+                           tag.includes('minimal') ? 'badge-minimal' :
+                           tag.includes('short') ? 'badge-short' : 'badge-fallback';
+        distEl.innerHTML += `
+          <div class="cmp-bar">
+            <span class="bar-label"><span class="badge ${badgeClass}">${tag}</span></span>
+            <div class="bar-track"><div class="bar-fill" style="width:${pctVal}%;background:var(--accent)"></div></div>
+            <span class="bar-value">${count} (${pctVal}%)</span>
+          </div>`;
+      }
+    }
+
+    function renderABComparison() {
+      const botGroups = aggregateByBot(tradeHistory);
+
+      const groupA = [], groupB = [];
+      for (const [bot, trades] of Object.entries(botGroups)) {
+        if (isLevBot(bot)) {
+          groupB.push(...trades);
+        } else {
+          groupA.push(...trades);
+        }
+      }
+
+      function renderGroup(trades, metricsId, tableId, botGroups) {
+        const metricsEl = document.getElementById(metricsId);
+        const tbody = document.getElementById(tableId);
+        metricsEl.innerHTML = '';
+        tbody.innerHTML = '';
+
+        const stats = computeStats(trades);
+        if (!stats) {
+          metricsEl.innerHTML = '<div class="empty">No trades</div>';
+          return;
+        }
+
+        metricsEl.innerHTML = `
+          <div class="metric-box"><div class="label">Trades</div><div class="value">${stats.total}</div></div>
+          <div class="metric-box"><div class="label">Win Rate</div><div class="value ${colorWR(stats.winrate)}">${pct(stats.winrate)}</div></div>
+          <div class="metric-box"><div class="label">PnL</div><div class="value ${colorPct(stats.totalPnl)}">${num(stats.totalPnl)}</div></div>
+          <div class="metric-box"><div class="label">Max DD</div><div class="value neg">${pct(stats.maxDD)}</div></div>
+        `;
+
+        // Per-bot breakdown
+        const groups = {};
+        for (const t of trades) {
+          const bot = t.bot_name || 'unknown';
+          if (!groups[bot]) groups[bot] = [];
+          groups[bot].push(t);
+        }
+        for (const [bot, botTrades] of Object.entries(groups)) {
+          const s = computeStats(botTrades);
+          if (!s) continue;
+          tbody.innerHTML += `<tr>
+            <td>${bot}</td>
+            <td>${s.total}</td>
+            <td class="${colorWR(s.winrate)}">${pct(s.winrate)}</td>
+            <td class="${colorPct(s.totalPnl)}">${num(s.totalPnl)}</td>
+            <td class="neg">${pct(s.maxDD)}</td>
+          </tr>`;
+        }
+      }
+
+      renderGroup(groupA, 'ab-a-metrics', 'ab-a-table', botGroups);
+      renderGroup(groupB, 'ab-b-metrics', 'ab-b-table', botGroups);
+    }
+
+    function renderOverfitCheck() {
+      const tbody = document.getElementById('overfit-table');
+      const emptyEl = document.getElementById('overfit-empty');
+      const statusEl = document.getElementById('overfit-status');
+      const assessEl = document.getElementById('overfit-assessment');
+      tbody.innerHTML = '';
+      statusEl.innerHTML = '';
+      assessEl.innerHTML = '';
+
+      // Look for backtest results with specific timeranges
+      const trainingBt = backtestResults.find(bt =>
+        bt.timerange && (bt.timerange.includes('20240101') || bt.timerange.includes('2024')) &&
+        (bt.timerange.includes('20250601') || bt.timerange.includes('202506'))
+      );
+      const validationBt = backtestResults.find(bt =>
+        bt.timerange && (bt.timerange.includes('20250601') || bt.timerange.includes('202506')) &&
+        (bt.timerange.includes('20260322') || bt.timerange.includes('202603'))
+      );
+
+      // Also check tags for overfit labels
+      const trainingBtAlt = backtestResults.find(bt =>
+        bt.tags && (JSON.stringify(bt.tags)).includes('training')
+      );
+      const validationBtAlt = backtestResults.find(bt =>
+        bt.tags && (JSON.stringify(bt.tags)).includes('validation')
+      );
+
+      const training = trainingBt || trainingBtAlt;
+      const validation = validationBt || validationBtAlt;
+
+      if (!training && !validation) {
+        emptyEl.style.display = '';
+        assessEl.innerHTML = `
+          <div style="color:var(--t2);font-size:13px">
+            <p>To run the out-of-sample validation, execute these commands in the freqtrade-bt container:</p>
+            <pre style="background:var(--inp);padding:12px;border-radius:var(--r2);margin:10px 0;overflow-x:auto;font-size:12px">
+# Training set (out-of-sample: params were NOT optimized on this)
+freqtrade backtesting \\
+  --strategy SMCPureStrategy \\
+  --timerange 20250101-20250601 \\
+  --config /freqtrade/config.json \\
+  --userdir /freqtrade/user_data
+
+# Validation set (in-sample: params WERE optimized on this)
+freqtrade backtesting \\
+  --strategy SMCPureStrategy \\
+  --timerange 20250601-20260322 \\
+  --config /freqtrade/config.json \\
+  --userdir /freqtrade/user_data</pre>
+            <p>After running, sync results: <code>GET /v1/trade/sync/backtest</code></p>
+          </div>`;
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      function btRow(label, bt) {
+        if (!bt) return `<tr><td>${label}</td><td colspan="6" style="color:var(--t3)">Not available</td></tr>`;
+        return `<tr>
+          <td><strong>${label}</strong><br><span style="font-size:11px;color:var(--t3)">${bt.timerange || '-'}</span></td>
+          <td>${bt.total_trades || '-'}</td>
+          <td class="${colorWR(bt.winrate)}">${bt.winrate != null ? pct(bt.winrate) : '-'}</td>
+          <td>${bt.sharpe != null ? num(bt.sharpe) : '-'}</td>
+          <td class="neg">${bt.max_drawdown_pct != null ? pct(bt.max_drawdown_pct) : '-'}</td>
+          <td>${bt.profit_factor != null ? num(bt.profit_factor) : '-'}</td>
+          <td class="${colorPct(bt.profit_total_pct)}">${bt.profit_total_pct != null ? pct(bt.profit_total_pct) : '-'}</td>
+        </tr>`;
+      }
+
+      tbody.innerHTML = btRow('Training (OOS)', training) + btRow('Validation (IS)', validation);
+
+      // Assessment
+      if (training && validation && training.sharpe != null && validation.sharpe != null) {
+        const sharpeDelta = validation.sharpe > 0
+          ? ((training.sharpe - validation.sharpe) / validation.sharpe)
+          : 0;
+        const wrDelta = validation.winrate > 0
+          ? ((training.winrate - validation.winrate) / validation.winrate)
+          : 0;
+
+        // If validation (in-sample) sharpe is MUCH better than training (OOS), that's overfit
+        const overfitRatio = validation.sharpe > 0 ? training.sharpe / validation.sharpe : 1;
+
+        let verdict, cls;
+        if (overfitRatio >= 0.5 && overfitRatio <= 1.5) {
+          verdict = 'LOW RISK - Strategy generalizes well. OOS performance is similar to in-sample.';
+          cls = 'overfit-ok';
+        } else if (overfitRatio >= 0.3) {
+          verdict = 'MODERATE RISK - Some degradation in OOS. Monitor live performance closely.';
+          cls = 'overfit-warn';
+        } else {
+          verdict = 'HIGH RISK - Significant OOS degradation. Strategy may be overfit to the optimization period.';
+          cls = 'overfit-bad';
+        }
+
+        statusEl.innerHTML = `<span class="overfit-indicator ${cls}">${verdict}</span>`;
+        assessEl.innerHTML = `
+          <table>
+            <tr><th>Metric</th><th>Training (OOS)</th><th>Validation (IS)</th><th>Delta</th></tr>
+            <tr>
+              <td>Sharpe</td>
+              <td>${num(training.sharpe)}</td>
+              <td>${num(validation.sharpe)}</td>
+              <td class="${sharpeDelta > 0.5 ? 'neg' : sharpeDelta > 0.2 ? 'warn' : 'pos'}">${(sharpeDelta * 100).toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td>Win Rate</td>
+              <td>${pct(training.winrate)}</td>
+              <td>${pct(validation.winrate)}</td>
+              <td class="${wrDelta > 0.2 ? 'neg' : wrDelta > 0.1 ? 'warn' : 'pos'}">${(wrDelta * 100).toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td>Max DD</td>
+              <td class="neg">${pct(training.max_drawdown_pct)}</td>
+              <td class="neg">${pct(validation.max_drawdown_pct)}</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>Profit Factor</td>
+              <td>${num(training.profit_factor)}</td>
+              <td>${num(validation.profit_factor)}</td>
+              <td>-</td>
+            </tr>
+          </table>
+        `;
+      }
+    }
+
+    // ── Main load ──
+    async function loadAll() {
+      setStatus(null, 'Loading data...');
+      try {
+        await Promise.all([
+          loadTradeHistory(),
+          loadBacktestResults(),
+          loadFreqtradeTrades(),
+        ]);
+        renderOverview();
+        renderSignalQuality();
+        renderABComparison();
+        renderOverfitCheck();
+        const total = tradeHistory.length;
+        const bots = Object.keys(aggregateByBot(tradeHistory)).length;
+        setStatus(true, `Loaded: ${total} trades from ${bots} bots, ${backtestResults.length} backtest results`);
+      } catch (e) {
+        console.error(e);
+        setStatus(false, 'Error loading data: ' + e.message);
+      }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>
