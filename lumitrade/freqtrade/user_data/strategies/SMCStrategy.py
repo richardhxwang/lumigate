@@ -64,6 +64,11 @@ class SMCStrategy(IStrategy):
         pairs = self.dp.current_whitelist()
         return [(pair, "1h") for pair in pairs] + [(pair, "4h") for pair in pairs]
 
+    # Lookback window: BOS/CHoCH/OB/FVG signals are valid for N candles after firing.
+    # SMC signals fire on different candles and almost never co-occur, so we propagate
+    # each signal forward to create a "context window" where confluence can be detected.
+    signal_lookback = IntParameter(3, 20, default=8, space="buy", optimize=True)
+
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         try:
             from smartmoneyconcepts import smc
@@ -124,12 +129,64 @@ class SMCStrategy(IStrategy):
             liq = smc.liquidity(ohlc, swing_hl, range_percent=0.01)
             dataframe["liquidity"] = liq["Liquidity"]
             dataframe["liq_level"] = liq["Level"]
-            dataframe["liq_swept"] = liq["Swept"]
+            # liq["Swept"] stores the candle INDEX where liquidity gets swept,
+            # placed at the candle where liquidity was *detected*.
+            # We need a flag at the *sweep* candle, not the detection candle.
+            swept_indices = liq["Swept"].dropna().astype(int).values
+            liq_swept = np.zeros(len(dataframe), dtype=int)
+            for si in swept_indices:
+                if 0 <= si < len(dataframe):
+                    liq_swept[si] = 1
+            dataframe["liq_swept"] = liq_swept
         except Exception as e:
             logger.debug(f"liquidity failed: {e}")
             dataframe["liquidity"] = 0
             dataframe["liq_level"] = 0.0
             dataframe["liq_swept"] = 0
+
+        # --- Fill NaN with 0 for all SMC signal columns ---
+        # The SMC library returns NaN for non-signal candles, but entry logic
+        # compares with == 1 / == -1 which fails on NaN.
+        for col in ["bos", "choch", "ob_direction", "fvg_direction",
+                     "liq_swept", "liquidity"]:
+            dataframe[col] = dataframe[col].fillna(0)
+
+        # --- Propagate signals forward using lookback window ---
+        # BOS/CHoCH/OB/FVG fire on different candles and almost never co-occur.
+        # Create "recent_*" columns: 1/-1 if signal fired within last N candles.
+        lb = self.signal_lookback.value
+        for col, out in [
+            ("bos", "recent_bos"),
+            ("choch", "recent_choch"),
+            ("ob_direction", "recent_ob"),
+            ("fvg_direction", "recent_fvg"),
+        ]:
+            # For each direction (+1, -1), propagate forward using rolling max/min
+            bull = (dataframe[col] == 1).astype(int)
+            bear = (dataframe[col] == -1).astype(int)
+            # If any bullish signal in last lb candles → 1; bearish → -1
+            recent_bull = bull.rolling(lb, min_periods=1).max()
+            recent_bear = bear.rolling(lb, min_periods=1).max()
+            dataframe[out] = recent_bull - recent_bear  # 1, -1, or 0
+
+        # Propagate OB zone (top/bottom) forward: carry last known OB zone
+        dataframe["active_ob_top"] = dataframe["ob_top"].replace(0, np.nan).ffill().fillna(0)
+        dataframe["active_ob_bottom"] = dataframe["ob_bottom"].replace(0, np.nan).ffill().fillna(0)
+        # Invalidate if OB is too old: count candles since last OB signal
+        has_ob = (dataframe["ob_direction"] != 0).astype(int)
+        # Create groups: new group starts at each OB signal
+        ob_group = has_ob.cumsum()
+        # Count candles within each group (resets at each OB signal)
+        ob_age = ob_group.groupby(ob_group).cumcount()
+        # Invalidate if OB is too old (beyond 2x lookback)
+        stale_ob = ob_age > (lb * 2)
+        dataframe.loc[stale_ob, "active_ob_top"] = 0.0
+        dataframe.loc[stale_ob, "active_ob_bottom"] = 0.0
+
+        # Propagate liq_swept forward
+        dataframe["recent_liq_swept"] = (
+            dataframe["liq_swept"].rolling(lb, min_periods=1).max()
+        )
 
         # FreqAI / LumiLearning — only run if enabled in config
         if self.freqai and hasattr(self, 'freqai') and self.config.get('freqai', {}).get('enabled', False):
@@ -168,6 +225,11 @@ class SMCStrategy(IStrategy):
             ("swing_hl", "%-swing_hl"),
             ("liquidity", "%-liquidity"),
             ("liq_swept", "%-liq_swept"),
+            ("recent_bos", "%-recent_bos"),
+            ("recent_choch", "%-recent_choch"),
+            ("recent_ob", "%-recent_ob"),
+            ("recent_fvg", "%-recent_fvg"),
+            ("recent_liq_swept", "%-recent_liq_swept"),
         ]:
             base = dataframe[src].fillna(0) if src in dataframe.columns else 0
             dataframe[dst] = base + rng.normal(0, 0.001, len(dataframe))
@@ -181,28 +243,35 @@ class SMCStrategy(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # FreqAI prediction filter: require ML model predicts >= 0.5% upside
+        # FreqAI prediction filter: require ML model predicts >= 0.3% upside
+        # (lowered from 0.5% — previous threshold was too strict)
         freqai_ok = True  # default: pass through if FreqAI column missing
         if "&-target" in dataframe.columns:
-            freqai_ok = dataframe["&-target"] > 0.005
+            freqai_ok = dataframe["&-target"] > 0.003
 
-        # Primary: BOS/CHoCH + OB + FVG (strict SMC confluence)
+        # Use propagated "recent_*" signals — these carry forward for signal_lookback
+        # candles, solving the fundamental issue that BOS/CHoCH/OB/FVG never fire on
+        # the same candle in the SMC library.
+
+        # Primary: recent BOS/CHoCH + recent OB + FVG (strict SMC confluence)
+        # Uses active OB zone (forward-filled) for price-in-OB check
         primary_long = (
-            ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
-            & (dataframe["ob_direction"] == 1)
+            (dataframe["recent_bos"] + dataframe["recent_choch"] > 0)  # any bullish structure
+            & (dataframe["recent_ob"] == 1)
             & (dataframe["fvg_direction"] == 1)
-            & (dataframe["close"] >= dataframe["ob_bottom"])
-            & (dataframe["close"] <= dataframe["ob_top"])
+            & (dataframe["close"] >= dataframe["active_ob_bottom"])
+            & (dataframe["close"] <= dataframe["active_ob_top"])
+            & (dataframe["active_ob_top"] > 0)
             & (dataframe["volume"] > 0)
             & freqai_ok
         )
         dataframe.loc[primary_long, "enter_long"] = 1
         dataframe.loc[primary_long, "enter_tag"] = "smc_primary_long"
 
-        # Fallback: BOS/CHoCH + FVG (no OB required — more signals)
+        # Fallback: recent BOS/CHoCH + FVG (no OB required — more signals)
         fallback_long = (
             (dataframe["enter_long"] != 1)
-            & ((dataframe["bos"] == 1) | (dataframe["choch"] == 1))
+            & (dataframe["recent_bos"] + dataframe["recent_choch"] > 0)
             & (dataframe["fvg_direction"] == 1)
             & (dataframe["volume"] > 0)
             & freqai_ok
@@ -210,35 +279,36 @@ class SMCStrategy(IStrategy):
         dataframe.loc[fallback_long, "enter_long"] = 1
         dataframe.loc[fallback_long, "enter_tag"] = "smc_fallback_long"
 
-        # Minimal: FVG alone when liquidity was just swept (catch reversals)
+        # Minimal: FVG alone when liquidity was recently swept (catch reversals)
         minimal_long = (
             (dataframe["enter_long"] != 1)
             & (dataframe["fvg_direction"] == 1)
-            & (dataframe["liq_swept"] == 1)
+            & (dataframe["recent_liq_swept"] > 0)
             & (dataframe["volume"] > 0)
             & freqai_ok
         )
         dataframe.loc[minimal_long, "enter_long"] = 1
         dataframe.loc[minimal_long, "enter_tag"] = "smc_minimal_long"
 
-        # Short entries — mirror of long with bearish signals (-1)
-        # Primary: bearish BOS/CHoCH + bearish OB + bearish FVG
+        # Short entries — mirror of long with bearish signals
+        # Primary: bearish structure + bearish OB + bearish FVG
         primary_short = (
-            ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
-            & (dataframe["ob_direction"] == -1)
+            (dataframe["recent_bos"] + dataframe["recent_choch"] < 0)  # any bearish structure
+            & (dataframe["recent_ob"] == -1)
             & (dataframe["fvg_direction"] == -1)
-            & (dataframe["close"] >= dataframe["ob_bottom"])
-            & (dataframe["close"] <= dataframe["ob_top"])
+            & (dataframe["close"] >= dataframe["active_ob_bottom"])
+            & (dataframe["close"] <= dataframe["active_ob_top"])
+            & (dataframe["active_ob_top"] > 0)
             & (dataframe["volume"] > 0)
             & freqai_ok
         )
         dataframe.loc[primary_short, "enter_short"] = 1
         dataframe.loc[primary_short, "enter_tag"] = "smc_primary_short"
 
-        # Fallback: bearish BOS/CHoCH + bearish FVG
+        # Fallback: bearish structure + bearish FVG
         fallback_short = (
             (dataframe["enter_short"] != 1)
-            & ((dataframe["bos"] == -1) | (dataframe["choch"] == -1))
+            & (dataframe["recent_bos"] + dataframe["recent_choch"] < 0)
             & (dataframe["fvg_direction"] == -1)
             & (dataframe["volume"] > 0)
             & freqai_ok
@@ -246,11 +316,11 @@ class SMCStrategy(IStrategy):
         dataframe.loc[fallback_short, "enter_short"] = 1
         dataframe.loc[fallback_short, "enter_tag"] = "smc_fallback_short"
 
-        # Minimal: bearish FVG + liquidity swept (BSL sweep → short)
+        # Minimal: bearish FVG + recent liquidity sweep
         minimal_short = (
             (dataframe["enter_short"] != 1)
             & (dataframe["fvg_direction"] == -1)
-            & (dataframe["liq_swept"] == 1)
+            & (dataframe["recent_liq_swept"] > 0)
             & (dataframe["volume"] > 0)
             & freqai_ok
         )
