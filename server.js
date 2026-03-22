@@ -1787,7 +1787,7 @@ app.get("/lumitrade/auto-auth", (req, res) => {
   const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host || "lumigate.autorums.com";
   const browserUrl = `${proto}://${host}/lumitrade`;
-  res.json({ username: ftUser, password: ftPass, apiUrl: browserUrl, botName: "LumiTrade" });
+  res.json({ username: ftUser, password: ftPass, apiUrl: browserUrl, botName: "LumiLearning" });
 });
 
 // --- Collector supported providers (shared with admin + proxy) ---
