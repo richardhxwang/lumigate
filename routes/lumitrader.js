@@ -709,15 +709,36 @@ module.exports = function createLumiTraderRouter(deps) {
       // Always use streaming internally — /v1/chat non-streaming mode
       // truncates responses when tools are invoked. Streaming collects
       // the full AI response including post-tool-execution text.
-      const upstreamBody = {
-        messages: outMessages,
-        model: model || "claude-sonnet-4-6",
-        provider: provider || "anthropic",
-        stream: true, // always stream internally
-        tools: false, // LumiTrader has its own RAG context — disable /v1/chat agent tools to avoid Anthropic 400 errors
-      };
+      const selectedModel = model || "claude-sonnet-4-6";
+      const selectedProvider = provider || "anthropic";
 
-      const upstreamRes = await fetch(`${LUMIGATE_INTERNAL_URL}/v1/chat`, {
+      // Build provider-specific body
+      let upstreamUrl, upstreamBody, upstreamHeaders;
+      if (selectedProvider === "anthropic" || selectedModel.startsWith("claude")) {
+        // Call Anthropic directly — avoids /v1/chat body transformation issues with Setup Tokens
+        upstreamUrl = `${LUMIGATE_INTERNAL_URL}/v1/anthropic/v1/messages`;
+        const sysMessages = outMessages.filter(m => m.role === "system");
+        const nonSysMessages = outMessages.filter(m => m.role !== "system");
+        upstreamBody = {
+          model: selectedModel,
+          max_tokens: 4096,
+          stream: true,
+          system: sysMessages.map(m => m.content).join("\n\n") || undefined,
+          messages: nonSysMessages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
+        };
+      } else {
+        // Non-Anthropic: use /v1/chat (OpenAI-compatible)
+        upstreamUrl = `${LUMIGATE_INTERNAL_URL}/v1/chat`;
+        upstreamBody = {
+          messages: outMessages,
+          model: selectedModel,
+          provider: selectedProvider,
+          stream: true,
+          tools: false,
+        };
+      }
+
+      const upstreamRes = await fetch(upstreamUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
