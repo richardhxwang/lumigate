@@ -1,0 +1,17 @@
+# FreqAI models (large binary files)
+freqtrade/user_data/models/
+# Backtest predictions cache
+freqtrade/user_data/backtest_results/
+freqtrade/user_data/hyperopt_results/
+# OHLCV data
+freqtrade/user_data/data/
+# Logs
+freqtrade/user_data/logs/
+# SQLite
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+# FreqUI node_modules
+frequi-src/node_modules/
+# Built assets (rebuild from source)
+frequi-custom/installed/assets/
