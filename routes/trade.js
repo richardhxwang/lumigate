@@ -610,11 +610,13 @@ module.exports = function createTradeRouter(deps) {
         const version = `v${totalCount + 1}`;
 
         // Build PB record
-        // Field mapping: freqtrade uses winning_trades/losing_trades, not wins/losses
+        // Field mapping: freqtrade may use winning_trades/losing_trades or wins/losses
         const totalTrades = stratData.total_trades || 0;
         const wins = stratData.winning_trades ?? stratData.wins ?? 0;
         const losses = stratData.losing_trades ?? stratData.losses ?? 0;
-        const winrate = totalTrades > 0 ? +(wins / totalTrades).toFixed(4) : 0;
+        const draws = stratData.draws ?? 0;
+        // Prefer freqtrade's own winrate (full precision); fall back to calculated
+        const winrate = stratData.winrate ?? (totalTrades > 0 ? +(wins / totalTrades).toFixed(6) : 0);
 
         const record = {
           version,
@@ -642,7 +644,7 @@ module.exports = function createTradeRouter(deps) {
           tags: [
             stratData.freqaimodel ? "lumilearning" : "pure-smc",
             stratData.trading_mode || "spot",
-            stratData.can_short ? "long+short" : "long-only",
+            (stratData.can_short || stratData.trading_mode === "futures") ? "long+short" : "long-only",
           ].filter(Boolean),
           result_json: fullResult,
           filename,
