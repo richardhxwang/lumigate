@@ -11,7 +11,10 @@ from typing import Any
 # ib_insync manages its own event loop which conflicts with uvicorn's asyncio loop.
 # nest_asyncio allows nested event loops, resolving the conflict.
 import nest_asyncio
-nest_asyncio.apply()
+try:
+    nest_asyncio.apply()
+except ValueError:
+    pass  # uvloop doesn't support nest_asyncio; ib_insync uses sync wrappers instead
 
 from ib_insync import IB, Contract, Stock, Forex, MarketOrder, LimitOrder, StopOrder
 
