@@ -4,54 +4,62 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LumiTrade - Backtest vs Live Dashboard</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2310a37f'/%3E%3Cpolyline points='6 22 12 14 18 18 26 10' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpolyline points='21 10 26 10 26 15' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --sb: #171717; --bg: #212121; --inp: #2f2f2f;
-      --t1: #ececec; --t2: #8e8e8e; --t3: #505050;
+      --bg: #212121; --bg2: #171717; --bg3: #2a2a2a; --inp: #2f2f2f;
+      --t1: #ececec; --t2: #8e8e8e; --t3: #555;
       --accent: #10a37f; --accent-h: #0d9268;
-      --border: #2a2a2a;
+      --border: #333;
+      --glass: rgba(255,255,255,0.06); --glass-b: rgba(255,255,255,0.1);
       --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
       --r1: 8px; --r2: 12px; --r3: 16px; --r4: 20px;
       --card-bg: rgba(255,255,255,0.04);
       --card-border: rgba(255,255,255,0.08);
     }
-    :root.light {
-      --sb: #f7f7f8; --bg: #ffffff; --inp: #f4f4f5;
-      --t1: #0d0d0d; --t2: #555; --t3: #999;
-      --border: #e5e5e5;
-      --card-bg: rgba(0,0,0,0.02);
-      --card-border: rgba(0,0,0,0.08);
-    }
     html, body {
-      min-height: 100vh; background: var(--bg); color: var(--t1);
+      min-height: 100vh; background: var(--bg2); color: var(--t1);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       line-height: 1.5;
     }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-h); }
 
     /* ── Header ── */
     .header {
-      position: sticky; top: 0; z-index: 10;
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 24px;
-      background: var(--bg);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(23,23,23,0.85);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
       border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(16px) saturate(160%);
+      padding: 12px 0;
     }
-    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
-    .header .accent { color: var(--accent); }
-    .header .sub { color: var(--t2); font-size: 13px; margin-left: auto; }
-    .theme-btn {
-      background: none; border: 1px solid var(--border); border-radius: var(--r1);
-      color: var(--t2); padding: 4px 10px; cursor: pointer; font-size: 13px;
+    .header-inner {
+      max-width: 1400px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    .theme-btn:hover { color: var(--t1); border-color: var(--t1); }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo svg { width: 28px; height: 28px; }
+    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--t1); }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .nav-tab {
+      display: inline-flex; align-items: center; padding: 6px 14px;
+      border-radius: 20px; font-size: 13px; font-weight: 500;
+      color: var(--t2); text-decoration: none; transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .nav-tab:hover { color: var(--t1); background: rgba(255,255,255,0.06); text-decoration: none; }
+    .nav-tab.active {
+      color: #fff; background: var(--accent); border-color: var(--accent);
+    }
     .refresh-btn {
-      background: var(--accent); border: none; border-radius: var(--r1);
-      color: #fff; padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 500;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px; color: var(--t2); padding: 6px 14px;
+      cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s;
     }
-    .refresh-btn:hover { background: var(--accent-h); }
+    .refresh-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
     /* ── Layout ── */
     .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
@@ -84,19 +92,24 @@
 
     /* ── Cards ── */
     .card {
-      background: var(--card-bg); border: 1px solid var(--card-border);
+      background: var(--glass);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--glass-b);
       border-radius: var(--r3); padding: 20px; margin-bottom: 20px;
+      transition: border-color 0.2s;
     }
+    .card:hover { border-color: rgba(255,255,255,0.15); }
     .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 14px; letter-spacing: -0.2px; }
     .card h3 { font-size: 14px; font-weight: 600; margin: 16px 0 10px; color: var(--t2); }
 
     /* ── Tables ── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 8px 12px; color: var(--t2); font-weight: 500;
-         border-bottom: 1px solid var(--border); white-space: nowrap; }
-    td { padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
+    th { text-align: left; padding: 8px 12px; color: var(--t3); font-weight: 500;
+         border-bottom: 1px solid var(--border); white-space: nowrap;
+         font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
     tr:hover td { background: rgba(255,255,255,0.02); }
-    :root.light tr:hover td { background: rgba(0,0,0,0.02); }
 
     /* ── Metric highlights ── */
     .metric-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -145,6 +158,22 @@
     /* ── Grid for A/B ── */
     .ab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 900px) { .ab-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) {
+      .header-inner { flex-direction: column; gap: 10px; align-items: flex-start; }
+      .header-left { width: 100%; }
+      .header-right { width: 100%; flex-wrap: wrap; }
+      .container { padding: 16px; }
+    }
+    @media (max-width: 640px) {
+      .nav-tab { font-size: 12px; padding: 5px 10px; }
+      .tabs { overflow-x: auto; flex-wrap: nowrap; }
+      .tab { white-space: nowrap; font-size: 13px; padding: 6px 12px; }
+      table { font-size: 12px; }
+      th, td { padding: 6px 8px; }
+      .metric-box .value { font-size: 18px; }
+      .metric-row { gap: 8px; }
+      .metric-box { min-width: 100px; padding: 10px 12px; }
+    }
 
     /* ── Loading ── */
     .spinner {
@@ -156,12 +185,21 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Lumi<span class="accent">Trade</span> Dashboard</h1>
-    <span class="sub">Backtest vs Live Performance</span>
-    <button class="theme-btn" onclick="toggleTheme()">Theme</button>
-    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
-  </div>
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-left">
+        <a class="logo" href="/lumitrade/status">
+          <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#10a37f" stroke-width="2.5"/><path d="M10 16.5l4 4 8-9" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="logo-text">LumiTrade</span>
+        </a>
+      </div>
+      <div class="header-right">
+        <a class="nav-tab" href="/lumitrade/status">Project Status</a>
+        <a class="nav-tab active" href="/lumitrade/dashboard">Trading Dashboard</a>
+        <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+      </div>
+    </div>
+  </header>
 
   <div class="container">
     <div class="status-bar">
@@ -305,15 +343,6 @@
   </div>
 
   <script>
-    // ── Theme ──
-    (function() {
-      try { if (localStorage.getItem('lt_theme') === 'light') document.documentElement.classList.add('light'); } catch(e) {}
-    })();
-    function toggleTheme() {
-      const isLight = document.documentElement.classList.toggle('light');
-      try { localStorage.setItem('lt_theme', isLight ? 'light' : 'dark'); } catch(e) {}
-    }
-
     // ── Tabs ──
     document.querySelectorAll('.tab').forEach(t => {
       t.addEventListener('click', () => {
