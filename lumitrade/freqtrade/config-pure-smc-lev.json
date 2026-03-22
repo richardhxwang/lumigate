@@ -57,14 +57,7 @@
             "XRP/USDT:USDT",
             "ADA/USDT:USDT",
             "DOGE/USDT:USDT",
-            "AVAX/USDT:USDT",
-            "DOT/USDT:USDT",
-            "LINK/USDT:USDT",
-            "UNI/USDT:USDT",
-            "ATOM/USDT:USDT",
-            "LTC/USDT:USDT",
-            "FIL/USDT:USDT",
-            "APT/USDT:USDT"
+            "AVAX/USDT:USDT"
         ],
         "pair_blacklist": [
             ".*DOWN/USDT:USDT",
@@ -115,7 +108,7 @@
     "initial_state": "running",
     "force_entry_enable": true,
     "internals": {
-        "process_throttle_secs": 15
+        "process_throttle_secs": 20
     },
     "freqai": {
         "enabled": false,

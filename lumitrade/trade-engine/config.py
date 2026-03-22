@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     min_risk_reward: float = 2.0
     news_blackout_minutes: int = 30
     auto_exec_max_pct: float = 1.0
+    max_leverage: float = 5.0
+    max_notional_pct: float = 10.0         # max notional exposure % (position * leverage)
+    min_liquidation_distance: float = 0.12 # minimum distance to liquidation (12%)
+    daily_loss_warn_pct: float = 2.0       # warn before circuit breaker
+    losing_streak_threshold: int = 3       # alert after N consecutive losses
 
     # Analysis
     default_timeframes: list[str] = ["15m", "1h", "4h"]

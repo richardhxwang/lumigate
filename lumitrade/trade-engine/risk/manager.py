@@ -28,6 +28,9 @@ class RiskSettings:
     max_leverage: float = 5.0              # global leverage ceiling
     max_notional_pct: float = 10.0         # max notional exposure % (position * leverage)
     min_liquidation_distance: float = 0.12 # minimum distance to liquidation (12%)
+    # Alert thresholds
+    daily_loss_warn_pct: float = 2.0       # warn when daily loss >= this % (before 3% breaker)
+    losing_streak_threshold: int = 3       # alert after N consecutive losses
 
 
 class RiskManager:

@@ -537,9 +537,15 @@ module.exports = function createTradeRouter(deps) {
 
   // ── Backtest results sync ────────────────────────────────────────────────
 
-  // POST /v1/trade/backtest/sync — sync all backtest results from freqtrade-bt into PB
-  router.post("/backtest/sync", async (_req, res) => {
+  /**
+   * Core backtest sync logic: fetch all backtest results from freqtrade-bt
+   * and upsert them into PocketBase trade_backtest_results collection.
+   * Deduplication key: filename.
+   * @returns {{ synced: object[], skipped: string[], errors: object[] }}
+   */
+  async function syncBacktestResults() {
     const btAuth = "Basic " + Buffer.from(`${FREQTRADE_USERNAME}:${FREQTRADE_PASSWORD}`).toString("base64");
+    const results = { synced: [], skipped: [], errors: [] };
 
     // 1. Fetch list of all backtest result files from freqtrade-bt webserver
     let historyList;
@@ -549,19 +555,19 @@ module.exports = function createTradeRouter(deps) {
       });
       if (!r.ok) {
         const err = await r.text().catch(() => "");
-        return res.status(502).json({ ok: false, error: "Failed to list backtest history", detail: err.slice(0, 300) });
+        results.errors.push({ filename: "(list)", error: `Failed to list backtest history: ${r.status} ${err.slice(0, 300)}` });
+        return results;
       }
       historyList = await r.json();
     } catch (err) {
-      return res.status(502).json({ ok: false, error: "freqtrade-bt unreachable", detail: err.message });
+      results.errors.push({ filename: "(list)", error: `freqtrade-bt unreachable: ${err.message}` });
+      return results;
     }
 
     // freqtrade returns an array of { filename, strategy, ... }
     if (!Array.isArray(historyList)) {
       historyList = historyList.data || [];
     }
-
-    const results = { synced: [], skipped: [], errors: [] };
 
     // 2. For each entry, check if already in PB (by filename), then load + save
     for (const entry of historyList) {
@@ -609,9 +615,6 @@ module.exports = function createTradeRouter(deps) {
         }
         const stratData = (btResult.strategy && btResult.strategy[resolvedStrategy]) || (fullResult.strategy && fullResult.strategy[resolvedStrategy]) || {};
 
-        const totalMetrics = stratData.total_trades != null ? stratData : {};
-        const config = stratData; // strategy data contains timeframe, trading_mode, etc.
-
         // Determine next version number (count existing + 1)
         const countRes = await tradePbFetch(`/api/collections/trade_backtest_results/records?perPage=1`);
         let totalCount = 0;
@@ -626,7 +629,6 @@ module.exports = function createTradeRouter(deps) {
         const totalTrades = stratData.total_trades || 0;
         const wins = stratData.winning_trades ?? stratData.wins ?? 0;
         const losses = stratData.losing_trades ?? stratData.losses ?? 0;
-        const draws = stratData.draws ?? 0;
         // Prefer freqtrade's own winrate (full precision); fall back to calculated
         const winrate = stratData.winrate ?? (totalTrades > 0 ? +(wins / totalTrades).toFixed(6) : 0);
 
@@ -714,13 +716,23 @@ module.exports = function createTradeRouter(deps) {
       }
     }
 
-    res.json({
-      ok: true,
-      synced: results.synced.length,
-      skipped: results.skipped.length,
-      errors: results.errors.length,
-      detail: results,
-    });
+    return results;
+  }
+
+  // POST /v1/trade/backtest/sync — manually trigger backtest results sync
+  router.post("/backtest/sync", async (_req, res) => {
+    try {
+      const results = await syncBacktestResults();
+      res.json({
+        ok: true,
+        synced: results.synced.length,
+        skipped: results.skipped.length,
+        errors: results.errors.length,
+        detail: results,
+      });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Backtest sync failed", detail: err.message });
+    }
   });
 
   // ── Freqtrade → PocketBase trade history sync ────────────────────────────
@@ -870,20 +882,29 @@ module.exports = function createTradeRouter(deps) {
     }
   });
 
-  // Auto-sync every 5 minutes — only runs when the module is loaded (server start)
-  // Delay first run by 30s to let freqtrade container finish starting up
-  const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+  // NOTE: Trade history auto-sync is now handled by trade-engine (Python) which
+  // syncs ALL bots every 5 min via MultiBotConnector. The Node.js syncFreqtradeTrades()
+  // only queries a single bot and is kept as a manual fallback endpoint.
+
+  // Auto-sync backtest results every 10 minutes
+  // Delay first run by 60s to let freqtrade-bt container finish starting up
+  const BT_SYNC_INTERVAL_MS = 10 * 60 * 1000;
   setTimeout(() => {
-    // Run once immediately after the initial delay, then on interval
-    syncFreqtradeTrades().catch((err) =>
-      console.error("[trade-sync] auto-sync error:", err.message)
+    syncBacktestResults().then((r) => {
+      if (r.synced.length > 0 || r.errors.length > 0)
+        console.log(`[bt-sync] auto: synced=${r.synced.length} skipped=${r.skipped.length} errors=${r.errors.length}`);
+    }).catch((err) =>
+      console.error("[bt-sync] auto-sync error:", err.message)
     );
     setInterval(() => {
-      syncFreqtradeTrades().catch((err) =>
-        console.error("[trade-sync] auto-sync error:", err.message)
+      syncBacktestResults().then((r) => {
+        if (r.synced.length > 0 || r.errors.length > 0)
+          console.log(`[bt-sync] auto: synced=${r.synced.length} skipped=${r.skipped.length} errors=${r.errors.length}`);
+      }).catch((err) =>
+        console.error("[bt-sync] auto-sync error:", err.message)
       );
-    }, SYNC_INTERVAL_MS);
-  }, 30_000);
+    }, BT_SYNC_INTERVAL_MS);
+  }, 60_000);
 
   // ── Periodic news fetch + FinBERT auto-scoring ────────────────────────────
   //

@@ -102,15 +102,18 @@ async def _bot_risk_monitor_loop():
 
 
 async def _poll_bots_and_check_risk():
-    """Single poll cycle: fetch all bot data, sync risk state, act if needed."""
+    """Single poll cycle: fetch all bot data, sync risk state, run alerts, act if needed."""
     # Skip if circuit breaker already tripped today
     if risk_manager._circuit_breaker_tripped:
         return
 
     # Gather data from all bots in parallel
-    open_trades = await multi_bot.get_all_open_trades()
-    profit_summaries = await multi_bot.get_all_profit()
-    balances = await multi_bot.get_all_balance()
+    open_trades, profit_summaries, balances, bot_pings = await asyncio.gather(
+        multi_bot.get_all_open_trades(),
+        multi_bot.get_all_profit(),
+        multi_bot.get_all_balance(),
+        multi_bot.ping_all(),
+    )
 
     # Sum total balance across all bots
     total_balance = 0.0
@@ -133,9 +136,108 @@ async def _poll_bots_and_check_risk():
     # Broadcast risk update to WebSocket clients
     await notify_clients("risk_update", sync_result)
 
+    # --- Proactive Alerts ---
+    await _run_alert_checks(sync_result, bot_pings)
+
     # --- Circuit Breaker ---
     if sync_result["circuit_breaker_should_trip"]:
         await _execute_circuit_breaker(sync_result)
+
+
+async def _run_alert_checks(sync_result: dict, bot_pings: dict[str, bool]):
+    """Run all proactive alert checks and send Telegram for any that fire."""
+    alerts_to_send: list[str] = []
+
+    # 1. Daily loss warning (>= 2%, before 3% circuit breaker)
+    loss_pct = sync_result.get("loss_pct", 0.0)
+    daily_pnl = sync_result.get("daily_pnl", 0.0)
+    total_balance = sync_result.get("total_balance", 0.0)
+    msg = alert_manager.check_daily_loss(loss_pct, daily_pnl, total_balance)
+    if msg:
+        alerts_to_send.append(msg)
+
+    # 2. Bot offline alerts
+    for bot_name, is_online in bot_pings.items():
+        msg = alert_manager.check_bot_offline(bot_name, is_online)
+        if msg:
+            alerts_to_send.append(msg)
+
+    # 3. Losing streak (fetch recent closed trades)
+    try:
+        recent_trades = await multi_bot.get_all_trades(limit=20)
+        closed = [t for t in recent_trades if t.get("close_date")]
+        msg = alert_manager.check_losing_streak(closed)
+        if msg:
+            alerts_to_send.append(msg)
+    except Exception as e:
+        logger.debug("Failed to check losing streak: %s", e)
+
+    # 4. Drawdown vs backtest max drawdown
+    try:
+        await _check_drawdown_alert(alerts_to_send, total_balance)
+    except Exception as e:
+        logger.debug("Failed to check drawdown alert: %s", e)
+
+    # 5. FreqAI training failure (scan logs)
+    try:
+        all_logs = await multi_bot.get_all_logs(limit=30)
+        for bot_name, log_entries in all_logs.items():
+            msg = alert_manager.check_freqai_failure(bot_name, log_entries)
+            if msg:
+                alerts_to_send.append(msg)
+    except Exception as e:
+        logger.debug("Failed to check FreqAI logs: %s", e)
+
+    # Send all fired alerts via Telegram
+    for alert_msg in alerts_to_send:
+        await telegram.send(alert_msg)
+
+
+async def _check_drawdown_alert(alerts_to_send: list[str], total_balance: float):
+    """
+    Check if current drawdown exceeds backtest max drawdown.
+    Reads backtest_max_drawdown_pct from PB lt_backtest_results collection.
+    Falls back to profit API drawdown fields.
+    """
+    if total_balance <= 0:
+        return
+
+    # Get current drawdown from profit summaries
+    profit_summaries = await multi_bot.get_all_profit()
+    max_live_dd = 0.0
+    for ps in profit_summaries:
+        # freqtrade profit endpoint includes max_drawdown / max_drawdown_account
+        dd = ps.get("max_drawdown", 0.0) or 0.0
+        if dd > 0:
+            max_live_dd = max(max_live_dd, dd * 100)  # ratio -> %
+        dd_acct = ps.get("max_drawdown_account", 0.0) or 0.0
+        if dd_acct > 0:
+            max_live_dd = max(max_live_dd, dd_acct * 100)
+
+    if max_live_dd <= 0:
+        return
+
+    # Try to read backtest baseline from PocketBase
+    backtest_max_dd = 0.0
+    try:
+        resp = await pb_get(
+            "/api/collections/lt_backtest_results/records",
+            params={"perPage": 1, "fields": "max_drawdown_pct"},
+        )
+        if resp.is_success:
+            items = resp.json().get("items", [])
+            if items:
+                backtest_max_dd = items[0].get("max_drawdown_pct", 0.0) or 0.0
+    except Exception:
+        pass
+
+    # Fallback: conservative 5% default if no backtest data
+    if backtest_max_dd <= 0:
+        backtest_max_dd = 5.0
+
+    msg = alert_manager.check_drawdown(max_live_dd, backtest_max_dd)
+    if msg:
+        alerts_to_send.append(msg)
 
 
 async def _execute_circuit_breaker(sync_result: dict):
@@ -187,6 +289,214 @@ async def _execute_circuit_breaker(sync_result: dict):
         "exit_results": exit_results,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
+
+
+# ---------------------------------------------------------------------------
+# Trade sync: freqtrade closed trades → PocketBase (every 5 min)
+# ---------------------------------------------------------------------------
+
+async def _trade_sync_loop():
+    """
+    Periodic task: every 5 minutes, fetch closed trades from ALL bots,
+    deduplicate against PB trade_history, and write new records.
+    Also updates trade_pnl with daily/cumulative P&L.
+    """
+    logger.info("Trade sync started (interval=%ds)", TRADE_SYNC_INTERVAL)
+    # Wait 60s on startup to let freqtrade containers fully boot
+    await asyncio.sleep(60)
+    while True:
+        try:
+            result = await _sync_all_bot_trades()
+            if result["synced"] > 0 or result["errors"]:
+                logger.info(
+                    "Trade sync: synced=%d, skipped=%d, errors=%d",
+                    result["synced"], result["skipped"], len(result["errors"]),
+                )
+                if result["errors"]:
+                    for err in result["errors"][:5]:
+                        logger.warning("Trade sync error: %s", err)
+            # Update daily P&L summary
+            await _update_trade_pnl()
+        except asyncio.CancelledError:
+            logger.info("Trade sync stopped")
+            break
+        except Exception as e:
+            logger.warning("Trade sync error (will retry): %s", e)
+        await asyncio.sleep(TRADE_SYNC_INTERVAL)
+
+
+async def _sync_all_bot_trades() -> dict:
+    """
+    Fetch closed trades from all bots via MultiBotConnector,
+    deduplicate against PB trade_history (by signal_id = ft_{bot}_{trade_id}),
+    and insert new records.
+    """
+    results = {"synced": 0, "skipped": 0, "errors": []}
+
+    # Fetch trades from all bots in parallel
+    all_bot_trades = await asyncio.gather(
+        *[multi_bot._safe_call(i, "get_trades", 200) for i in range(len(multi_bot.bots))]
+    )
+
+    for label, _group, data in all_bot_trades:
+        if data is None:
+            continue
+        trades = data.get("trades", []) if isinstance(data, dict) else []
+
+        # Only closed trades
+        closed = [t for t in trades if t.get("is_open") is False]
+
+        for trade in closed:
+            trade_id = str(trade.get("trade_id", trade.get("id", "")))
+            if not trade_id:
+                results["errors"].append(f"{label}: trade missing trade_id")
+                continue
+
+            # Dedup key: ft_{bot_name}_{trade_id}
+            signal_id = f"ft_{label}_{trade_id}"
+
+            try:
+                # Check if already in PB
+                check_resp = await pb_get(
+                    "/api/collections/trade_history/records",
+                    params={"filter": f'signal_id="{signal_id}"', "perPage": "1"},
+                )
+                if check_resp.is_success:
+                    items = check_resp.json().get("items", [])
+                    if len(items) > 0:
+                        results["skipped"] += 1
+                        continue
+
+                # Compute duration
+                duration_minutes = None
+                if trade.get("open_date") and trade.get("close_date"):
+                    try:
+                        open_dt = datetime.fromisoformat(trade["open_date"].replace("Z", "+00:00"))
+                        close_dt = datetime.fromisoformat(trade["close_date"].replace("Z", "+00:00"))
+                        duration_minutes = int((close_dt - open_dt).total_seconds() / 60)
+                    except Exception:
+                        pass
+
+                # Parse entry hour/day for timing context
+                hour_utc = None
+                day_of_week = None
+                if trade.get("open_date"):
+                    try:
+                        d = datetime.fromisoformat(trade["open_date"].replace("Z", "+00:00"))
+                        hour_utc = d.hour
+                        day_of_week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d.weekday()]
+                    except Exception:
+                        pass
+
+                fees = (trade.get("fee_open_cost") or 0) + (trade.get("fee_close_cost") or 0)
+
+                record = {
+                    "symbol":           trade.get("pair", ""),
+                    "broker":           "freqtrade",
+                    "exchange":         trade.get("exchange", ""),
+                    "direction":        "short" if trade.get("is_short") else "long",
+                    "entry_price":      trade.get("open_rate", 0),
+                    "exit_price":       trade.get("close_rate", 0),
+                    "quantity":         trade.get("amount", 0),
+                    "pnl":              trade.get("close_profit_abs"),
+                    "pnl_pct":          trade.get("close_profit"),
+                    "duration_minutes": duration_minutes,
+                    "entry_time":       trade.get("open_date", ""),
+                    "exit_time":        trade.get("close_date", ""),
+                    "strategy":         trade.get("strategy", ""),
+                    "signal_id":        signal_id,
+                    "risk_amount":      trade.get("stake_amount", 0),
+                    "fees":             fees,
+                    "exit_reason":      trade.get("exit_reason") or trade.get("sell_reason", ""),
+                    "bot_name":         label,
+                    "trading_mode":     "live",
+                    "hour_utc":         hour_utc,
+                    "day_of_week":      day_of_week,
+                    "minutes_in_trade": duration_minutes,
+                    "user_id":          "freqtrade_bot",
+                    "notes":            f"exit: {trade.get('exit_reason', '')}" if trade.get("exit_reason") else "",
+                }
+
+                save_resp = await pb_post("/api/collections/trade_history/records", record)
+                if save_resp.is_success:
+                    results["synced"] += 1
+                else:
+                    err_text = ""
+                    try:
+                        err_text = save_resp.text[:200]
+                    except Exception:
+                        err_text = str(save_resp.status_code)
+                    results["errors"].append(f"{label} trade_id={trade_id}: PB {save_resp.status_code} {err_text}")
+            except Exception as e:
+                results["errors"].append(f"{label} trade_id={trade_id}: {e}")
+
+    return results
+
+
+async def _update_trade_pnl():
+    """
+    Recalculate today's P&L from trade_history and upsert into trade_pnl.
+    Also computes cumulative P&L across all dates.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        # Fetch all trades closed today
+        resp = await pb_get(
+            "/api/collections/trade_history/records",
+            params={
+                "filter": f'exit_time>="{today}T00:00:00" && exit_time<="{today}T23:59:59"',
+                "perPage": 500,
+            },
+        )
+        if not resp.is_success:
+            logger.debug("trade_pnl: failed to fetch today's trades")
+            return
+
+        trades = resp.json().get("items", [])
+        daily_pnl = sum(t.get("pnl", 0) or 0 for t in trades)
+        wins = sum(1 for t in trades if (t.get("pnl", 0) or 0) > 0)
+        losses = sum(1 for t in trades if (t.get("pnl", 0) or 0) < 0)
+        total = wins + losses
+        win_rate = round(wins / total, 4) if total > 0 else 0
+
+        # Get total balance from bots for portfolio_value
+        balances = await multi_bot.get_all_balance()
+        portfolio_value = sum(b.get("total", 0.0) for b in balances)
+
+        # Compute cumulative P&L from existing trade_pnl records
+        pnl_resp = await pb_get(
+            "/api/collections/trade_pnl/records",
+            params={"perPage": 500},
+        )
+        cumulative = 0.0
+        existing_today_id = None
+        if pnl_resp.is_success:
+            for rec in pnl_resp.json().get("items", []):
+                if rec.get("date") == today:
+                    existing_today_id = rec.get("id")
+                else:
+                    cumulative += rec.get("daily_pnl", 0) or 0
+        cumulative += daily_pnl
+
+        pnl_record = {
+            "date": today,
+            "daily_pnl": round(daily_pnl, 4),
+            "cumulative_pnl": round(cumulative, 4),
+            "win_count": wins,
+            "loss_count": losses,
+            "win_rate": win_rate,
+            "portfolio_value": round(portfolio_value, 2),
+            "user_id": "freqtrade_bot",
+        }
+
+        if existing_today_id:
+            await pb_patch(f"/api/collections/trade_pnl/records/{existing_today_id}", pnl_record)
+        else:
+            await pb_post("/api/collections/trade_pnl/records", pnl_record)
+
+    except Exception as e:
+        logger.debug("trade_pnl update error: %s", e)
 
 
 # --- WebSocket Connection Manager ---
@@ -366,9 +676,20 @@ async def lifespan(app: FastAPI):
     _risk_monitor_task = asyncio.create_task(_bot_risk_monitor_loop())
     logger.info("Bot risk monitor task created")
 
+    # Start trade sync (all bots → PB every 5 min)
+    global _trade_sync_task
+    _trade_sync_task = asyncio.create_task(_trade_sync_loop())
+    logger.info("Trade sync task created (interval=%ds)", TRADE_SYNC_INTERVAL)
+
     yield
 
     # Shutdown
+    if _trade_sync_task and not _trade_sync_task.done():
+        _trade_sync_task.cancel()
+        try:
+            await _trade_sync_task
+        except asyncio.CancelledError:
+            pass
     if _risk_monitor_task and not _risk_monitor_task.done():
         _risk_monitor_task.cancel()
         try:
@@ -586,6 +907,14 @@ async def risk_force_sync():
     return risk_manager.get_status()
 
 
+@app.post("/trade-sync")
+async def trade_sync_manual():
+    """Manually trigger freqtrade → PB trade history sync for all bots."""
+    result = await _sync_all_bot_trades()
+    await _update_trade_pnl()
+    return {"ok": True, **result}
+
+
 @app.get("/economic-calendar")
 async def economic_calendar(minutes_ahead: int = 60):
     """
@@ -615,8 +944,9 @@ async def economic_calendar(minutes_ahead: int = 60):
 
 @app.get("/signals")
 async def list_signals(symbol: str | None = None, limit: int = 50):
-    """List recent signals from PocketBase."""
+    """List recent signals. Tries PocketBase first, falls back to freqtrade live trades."""
     filter_q = f"symbol='{symbol}'" if symbol else ""
+    # Try PocketBase
     try:
         resp = await pb_get(
             "/api/collections/trade_signals/records",
@@ -625,14 +955,37 @@ async def list_signals(symbol: str | None = None, limit: int = 50):
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PocketBase error: {e}")
+        logger.warning("PB signals unavailable: %s — falling back to freqtrade", e)
+
+    # Fallback: derive signals from freqtrade open trades (enter_tag as signal)
+    try:
+        open_trades = await multi_bot.get_all_open_trades()
+        signals = []
+        for t in open_trades:
+            pair = t.get("pair", "")
+            if symbol and symbol.upper() not in pair.upper():
+                continue
+            signals.append({
+                "pair": pair,
+                "direction": "short" if t.get("is_short", False) else "long",
+                "tag": t.get("enter_tag", ""),
+                "confidence": None,
+                "source": "freqtrade_live",
+                "_bot": t.get("_bot", ""),
+            })
+        return {"items": signals, "source": "freqtrade_live"}
+    except Exception as e2:
+        logger.warning("Freqtrade signals fallback also failed: %s", e2)
+
+    return {"items": [], "source": "none"}
 
 
 # --- Positions ---
 
 @app.get("/positions")
 async def list_positions(status: str = "open"):
-    """List positions from PocketBase."""
+    """List positions. Tries PocketBase first, falls back to freqtrade open trades."""
+    # Try PocketBase
     try:
         resp = await pb_get(
             "/api/collections/trade_positions/records",
@@ -641,7 +994,34 @@ async def list_positions(status: str = "open"):
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PocketBase error: {e}")
+        logger.warning("PB positions unavailable: %s — falling back to freqtrade", e)
+
+    # Fallback: get live positions from freqtrade bots
+    try:
+        open_trades = await multi_bot.get_all_open_trades()
+        positions = []
+        for t in open_trades:
+            positions.append({
+                "pair": t.get("pair", ""),
+                "direction": "short" if t.get("is_short", False) else "long",
+                "amount": t.get("amount", 0),
+                "stake_amount": t.get("stake_amount", 0),
+                "open_rate": t.get("open_rate", 0),
+                "current_rate": t.get("current_rate", 0),
+                "profit_pct": t.get("profit_pct", 0),
+                "profit_abs": t.get("profit_abs", 0),
+                "open_date": t.get("open_date", ""),
+                "enter_tag": t.get("enter_tag", ""),
+                "trade_id": t.get("trade_id"),
+                "status": "open",
+                "source": "freqtrade_live",
+                "_bot": t.get("_bot", ""),
+            })
+        return {"items": positions, "source": "freqtrade_live"}
+    except Exception as e2:
+        logger.warning("Freqtrade positions fallback also failed: %s", e2)
+
+    return {"items": [], "source": "none"}
 
 
 # --- Journal Analytics ---
