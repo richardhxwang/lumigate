@@ -13,6 +13,8 @@ const TRADE_ENGINE_URL_DEFAULT = "http://localhost:3200";
 const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() || "lumitrade";
 const LUMIGATE_INTERNAL_URL = process.env.LUMIGATE_INTERNAL_URL || "http://localhost:9471";
 const LUMITRADE_PROJECT_KEY = process.env.LUMITRADE_PROJECT_KEY || "";
+const FT_USERNAME = process.env.TRADE_FREQTRADE_USERNAME || "lumitrade";
+const FT_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "changeme";
 const TG_BOT_TOKEN = process.env.LUMITRADER_TELEGRAM_TOKEN || process.env.TRADE_TELEGRAM_BOT_TOKEN || "";
 const TG_CHAT_ID = process.env.LUMITRADER_TELEGRAM_CHAT_ID || process.env.TRADE_TELEGRAM_CHAT_ID || "";
 
@@ -50,7 +52,7 @@ const TRADING_SYSTEM_PROMPT = `你是 LumiTrader，一个专业的 SMC/ICT 交�
 
 | 数据块 | 标签 | 内容 |
 |--------|------|------|
-| Bot 实时状态 | [Live Bot Status] | freqtrade bot 当前状态、当日盈亏、所有 open trades |
+| 全部 Bot 状态 | [All Bots Status] | 6个 freqtrade bot 的在线状态、各自盈亏、open trades（Group A=标准, Group B=杠杆） |
 | 持仓 | [Open Positions] | PB 记录的持仓（symbol/方向/入场价/SL/TP/uPnL/R值/SMC评分/结构/HTF bias） |
 | 盈亏 | [P&L] | 当日/累计 PnL、胜率、连胜/连亏、最大回撤、平均R、最佳setup、各session PnL |
 | 新闻 | [Recent News] | 最近10条新闻（含 finnhub/finbert/final 情绪评分、影响级别、分类） |
@@ -234,7 +236,8 @@ module.exports = function createLumiTraderRouter(deps) {
     const ctx = {
       positions: null, pnl: null, signals: null, history: null, journal: null,
       mood: null, rag: null, backtestHistory: null, backtestResultsPB: null,
-      ftStatus: null, ftConfig: null, news: null,
+      ftStatus: null, ftConfig: null, news: null, econCalendar: null,
+      allBotsStatus: null,
     };
     const timings = {};
     // User filter only for multi-user collections (lt_sessions, lt_user_settings).
@@ -249,7 +252,7 @@ module.exports = function createLumiTraderRouter(deps) {
         .catch(e => { timings[label] = { ms: Date.now() - start, ok: false, err: e.message }; return null; });
     };
 
-    const ftAuth = "Basic " + Buffer.from("lumitrade:123123@").toString("base64");
+    const ftAuth = "Basic " + Buffer.from(`${FT_USERNAME}:${FT_PASSWORD}`).toString("base64");
 
     const tasks = [
       timed("engine/positions", engineFetch("/positions").then(r => r.ok ? r.json() : null)),
@@ -274,9 +277,13 @@ module.exports = function createLumiTraderRouter(deps) {
       timed("pb/trade_news", tradePbFetch("/api/collections/trade_news/records?perPage=10").then(r => r.ok ? r.json() : null)),
       // Fear & Greed Index (latest record with source="fear_greed")
       timed("pb/fear_greed", tradePbFetch(`/api/collections/trade_news/records?perPage=1&filter=${encodeURIComponent('news_source="fear_greed"')}`).then(r => r.ok ? r.json() : null)),
+      // Economic calendar — upcoming high-impact events (news blackout data)
+      timed("engine/econ-calendar", engineFetch("/economic-calendar?minutes_ahead=120").then(r => r.ok ? r.json() : null)),
+      // All bots status (6 bots: 3 standard + 3 leveraged)
+      timed("engine/all-bots", engineFetch("/freqtrade/all-bots-status").then(r => r.ok ? r.json() : null)),
     ];
 
-    const [positions, pnl, signals, history, journal, mood, rag, backtestHistory, backtestResultsPB, ftStatus, ftConfig, news, fearGreed] = await Promise.all(tasks);
+    const [positions, pnl, signals, history, journal, mood, rag, backtestHistory, backtestResultsPB, ftStatus, ftConfig, news, fearGreed, econCalendar, allBotsStatus] = await Promise.all(tasks);
     ctx.positions = positions;
     ctx.pnl = pnl?.items?.[0] || null;
     ctx.signals = signals;
@@ -290,6 +297,8 @@ module.exports = function createLumiTraderRouter(deps) {
     ctx.ftConfig = ftConfig;
     ctx.news = news?.items || null;
     ctx.fearGreed = fearGreed?.items?.[0] || null;
+    ctx.econCalendar = econCalendar;
+    ctx.allBotsStatus = allBotsStatus;
 
     // Chain logging
     const chainLog = {
@@ -308,6 +317,9 @@ module.exports = function createLumiTraderRouter(deps) {
         ftStatus: ctx.ftStatus ? "yes" : null,
         ftConfig: ctx.ftConfig ? "yes" : null,
         news: Array.isArray(ctx.news) ? ctx.news.length : null,
+        econCalendar: ctx.econCalendar?.total ?? null,
+        allBotsOnline: ctx.allBotsStatus?.online_count ?? null,
+        allBotsTotalTrades: ctx.allBotsStatus?.total_open_trades ?? null,
       },
     };
     console.log("[lumitrader][chain] fetchTradingContext:", JSON.stringify(chainLog));
@@ -322,8 +334,30 @@ module.exports = function createLumiTraderRouter(deps) {
   function formatTradingContext(ctx) {
     const parts = [];
 
-    // 1. Live Bot Status (freqtrade)
-    if (ctx.ftStatus) {
+    // 1. All Bots Status (6 bots: Group A standard + Group B leveraged)
+    if (ctx.allBotsStatus && Array.isArray(ctx.allBotsStatus.bots)) {
+      const botLines = [];
+      botLines.push(`  ${ctx.allBotsStatus.online_count}/${ctx.allBotsStatus.bots.length} bots online, ${ctx.allBotsStatus.total_open_trades} total open trades`);
+      for (const bot of ctx.allBotsStatus.bots) {
+        if (!bot.online) {
+          botLines.push(`  [${bot.group}] ${bot.name}: OFFLINE`);
+          continue;
+        }
+        const profitStr = bot.profit
+          ? `profit:${bot.profit.profit_all_coin ?? "?"}USDT (${bot.profit.profit_all_percent ?? "?"}%) closed:${bot.profit.trade_count ?? "?"}`
+          : "profit:N/A";
+        botLines.push(`  [${bot.group}] ${bot.name}: ${profitStr} open:${bot.trade_count}`);
+        // Show up to 4 open trades per bot
+        if (Array.isArray(bot.open_trades) && bot.open_trades.length > 0) {
+          bot.open_trades.slice(0, 4).forEach(t => {
+            botLines.push(`    ${t.pair} ${t.is_short ? "short" : "long"} profit:${t.profit_abs?.toFixed(2) ?? "?"}USDT (${((t.profit_ratio || 0) * 100).toFixed(1)}%) dur:${t.trade_duration || "?"}`);
+          });
+          if (bot.open_trades.length > 4) botLines.push(`    ... +${bot.open_trades.length - 4} more trades`);
+        }
+      }
+      parts.push(`[All Bots Status]\n${botLines.join("\n")}`);
+    } else if (ctx.ftStatus) {
+      // Fallback: old single-bot status (if all-bots endpoint unavailable)
       const st = ctx.ftStatus;
       const lines = [];
       if (st.connected === false) {
@@ -338,7 +372,6 @@ module.exports = function createLumiTraderRouter(deps) {
           lines.push("  No open trades on bot");
         }
       } else if (Array.isArray(st)) {
-        // freqtrade /status returns array of open trades directly
         if (st.length > 0) {
           st.slice(0, 8).forEach(t => {
             lines.push(`  ${t.pair} ${t.is_short ? "short" : "long"} profit:${t.profit_abs?.toFixed(2) ?? "?"}USDT (${((t.profit_ratio || 0) * 100).toFixed(1)}%) dur:${t.trade_duration || "?"}`);
@@ -411,7 +444,23 @@ module.exports = function createLumiTraderRouter(deps) {
       }
     }
 
-    // 4b. Recent News
+    // 4b. Economic Calendar — upcoming high-impact events
+    if (ctx.econCalendar && Array.isArray(ctx.econCalendar.events) && ctx.econCalendar.events.length > 0) {
+      const lines = ctx.econCalendar.events.slice(0, 8).map(ev => _f([
+        `  ${ev.event}`,
+        ev.country ? `(${ev.country})` : null,
+        ev.minutes_until != null ? `in ${Math.round(ev.minutes_until)}min` : null,
+        ev.estimate ? `est:${ev.estimate}` : null,
+        ev.prev ? `prev:${ev.prev}` : null,
+        ev.actual ? `actual:${ev.actual}` : null,
+      ]));
+      const blackoutNote = ctx.econCalendar.blackout_active
+        ? ` — NEWS BLACKOUT ACTIVE (no new positions within ${ctx.econCalendar.blackout_minutes}min of event)`
+        : "";
+      parts.push(`[Upcoming Economic Events (${ctx.econCalendar.total})${blackoutNote}]\n${lines.join("\n")}`);
+    }
+
+    // 4c. Recent News
     if (Array.isArray(ctx.news) && ctx.news.length > 0) {
       const lines = ctx.news.slice(0, 10).map(n => _f([
         `  [${(n.published_at || n.created || "?").slice(0, 16)}]`,
@@ -645,7 +694,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": INTERNAL_CHAT_KEY || LUMITRADE_PROJECT_KEY || "",
         },
         body: JSON.stringify(upstreamBody),
       });
@@ -793,7 +842,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": INTERNAL_CHAT_KEY || LUMITRADE_PROJECT_KEY || "",
         },
         body: JSON.stringify(upstreamBody),
       });
@@ -1033,7 +1082,7 @@ module.exports = function createLumiTraderRouter(deps) {
         headers: {
           "Content-Type": "application/json",
           "X-App-Source": "lumitrade",
-          "X-Project-Key": LUMITRADE_PROJECT_KEY || INTERNAL_CHAT_KEY || "",
+          "X-Project-Key": INTERNAL_CHAT_KEY || LUMITRADE_PROJECT_KEY || "",
         },
         body: JSON.stringify({
           messages: [
@@ -1158,7 +1207,7 @@ module.exports = function createLumiTraderRouter(deps) {
 
   // ── Freqtrade Telegram proxy — call freqtrade REST API, format in Chinese ──
 
-  const FT_AUTH = "Basic " + Buffer.from("lumitrade:123123@").toString("base64");
+  const FT_AUTH = "Basic " + Buffer.from(`${FT_USERNAME}:${FT_PASSWORD}`).toString("base64");
   const FT_URL = TRADE_ENGINE_URL || "http://localhost:3200";
 
   async function ftApiCall(path) {

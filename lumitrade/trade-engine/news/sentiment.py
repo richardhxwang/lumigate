@@ -916,3 +916,205 @@ def stop_fng_periodic_task():
         _fng_task.cancel()
         logger.info("Fear & Greed periodic task cancelled")
     _fng_task = None
+
+
+# ---------------------------------------------------------------------------
+# Economic Calendar (Finnhub) — news blackout risk rule
+# ---------------------------------------------------------------------------
+
+# In-memory cache: list of high-impact events with their scheduled times
+_econ_calendar_cache: list[dict] = []
+_econ_calendar_updated: float = 0.0  # last fetch timestamp
+_ECON_CACHE_TTL = 3600  # refresh every hour
+
+_econ_task: asyncio.Task | None = None
+
+
+async def fetch_economic_calendar(
+    http_client: httpx.AsyncClient,
+    *,
+    force: bool = False,
+) -> list[dict]:
+    """
+    Fetch high-impact economic events from Finnhub economic calendar.
+
+    Caches results in memory for 1 hour. Returns a list of dicts:
+        {
+            "event": str,       # e.g. "FOMC Meeting", "CPI", "Non-Farm Payrolls"
+            "country": str,     # e.g. "US"
+            "time": str,        # ISO datetime or "TBD"
+            "impact": str,      # "high"
+            "actual": str,
+            "estimate": str,
+            "prev": str,
+        }
+    """
+    global _econ_calendar_cache, _econ_calendar_updated
+
+    now = _time.time()
+    if not force and _econ_calendar_cache and (now - _econ_calendar_updated) < _ECON_CACHE_TTL:
+        return _econ_calendar_cache
+
+    api_key = settings.finnhub_api_key
+    if not api_key:
+        logger.debug("Finnhub API key not configured — economic calendar unavailable")
+        return []
+
+    today = datetime.now(timezone.utc)
+    # Fetch today + tomorrow to cover overnight events
+    date_from = today.strftime("%Y-%m-%d")
+    date_to = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    try:
+        resp = await http_client.get(
+            "https://finnhub.io/api/v1/calendar/economic",
+            params={
+                "from": date_from,
+                "to": date_to,
+                "token": api_key,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("Finnhub economic calendar fetch failed: %s", exc)
+        return _econ_calendar_cache  # return stale cache on failure
+
+    raw_events = data.get("economicCalendar", [])
+    if not raw_events:
+        # Finnhub may nest under different keys
+        raw_events = data.get("result", [])
+
+    high_impact: list[dict] = []
+    for ev in raw_events:
+        impact = (ev.get("impact") or "").lower()
+        if impact != "high":
+            continue
+
+        event_name = ev.get("event", "Unknown Event")
+        country = ev.get("country", "")
+        event_time = ev.get("time", "TBD")  # "HH:MM:SS" or empty
+        event_date = ev.get("date", date_from)  # "YYYY-MM-DD"
+
+        # Build full ISO datetime if time is available
+        if event_time and event_time != "TBD" and ":" in event_time:
+            full_time = f"{event_date}T{event_time}+00:00"
+        else:
+            full_time = f"{event_date}T00:00:00+00:00"
+
+        high_impact.append({
+            "event": event_name,
+            "country": country,
+            "time": full_time,
+            "impact": "high",
+            "actual": str(ev.get("actual", "")),
+            "estimate": str(ev.get("estimate", "")),
+            "prev": str(ev.get("prev", "")),
+        })
+
+    _econ_calendar_cache = high_impact
+    _econ_calendar_updated = now
+    logger.info(
+        "Economic calendar updated: %d high-impact events for %s to %s",
+        len(high_impact), date_from, date_to,
+    )
+    return high_impact
+
+
+def get_upcoming_events(minutes_ahead: int = 30) -> list[dict]:
+    """
+    Return high-impact events within the next *minutes_ahead* minutes.
+
+    Each returned dict has an extra "minutes_until" field.
+    Uses the in-memory cache — does not make API calls.
+    """
+    if not _econ_calendar_cache:
+        return []
+
+    now = datetime.now(timezone.utc)
+    window = timedelta(minutes=minutes_ahead)
+    upcoming: list[dict] = []
+
+    for ev in _econ_calendar_cache:
+        try:
+            ev_time = datetime.fromisoformat(ev["time"])
+            delta = ev_time - now
+            # Event is in the future and within the blackout window
+            if timedelta(0) <= delta <= window:
+                upcoming.append({
+                    **ev,
+                    "minutes_until": round(delta.total_seconds() / 60, 1),
+                })
+        except (ValueError, KeyError):
+            continue
+
+    # Sort by soonest first
+    upcoming.sort(key=lambda e: e["minutes_until"])
+    return upcoming
+
+
+def check_news_blackout(blackout_minutes: int = 30) -> tuple[bool, str]:
+    """
+    Check if a news blackout is active (high-impact event within blackout window).
+
+    Returns:
+        (ok, detail) — ok=True means no blackout (safe to trade),
+                        ok=False means blackout active.
+    """
+    upcoming = get_upcoming_events(blackout_minutes)
+    if not upcoming:
+        return True, f"No high-impact events in next {blackout_minutes} minutes"
+
+    # Blackout active — build descriptive message
+    event_strs = []
+    for ev in upcoming[:3]:
+        event_strs.append(
+            f"{ev['event']} ({ev.get('country', '?')}) in {ev['minutes_until']:.0f}min"
+        )
+    detail = f"NEWS BLACKOUT: {', '.join(event_strs)} — trading paused"
+    return False, detail
+
+
+async def _econ_calendar_periodic_loop(http_client: httpx.AsyncClient):
+    """Background loop: refresh economic calendar every hour."""
+    # Initial fetch after short delay
+    await asyncio.sleep(5)
+
+    while True:
+        try:
+            await fetch_economic_calendar(http_client, force=True)
+        except asyncio.CancelledError:
+            logger.info("Economic calendar periodic loop cancelled")
+            return
+        except Exception as exc:
+            logger.warning("Economic calendar periodic loop error: %s", exc)
+
+        await asyncio.sleep(_ECON_CACHE_TTL)
+
+
+def start_econ_calendar_task(http_client: httpx.AsyncClient) -> asyncio.Task:
+    """
+    Start the economic calendar periodic fetch background task.
+    Safe to call multiple times — only one task will run.
+    """
+    global _econ_task
+
+    if _econ_task and not _econ_task.done():
+        return _econ_task
+
+    _econ_task = asyncio.create_task(
+        _econ_calendar_periodic_loop(http_client),
+        name="econ-calendar-fetch",
+    )
+    logger.info("Economic calendar periodic fetch started (every %ds)", _ECON_CACHE_TTL)
+    return _econ_task
+
+
+def stop_econ_calendar_task():
+    """Cancel the economic calendar periodic task if running."""
+    global _econ_task
+    if _econ_task and not _econ_task.done():
+        _econ_task.cancel()
+        logger.info("Economic calendar periodic task cancelled")
+    _econ_task = None

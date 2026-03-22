@@ -76,6 +76,7 @@ module.exports = function createChatRouter(deps) {
     getPbAdminToken,
     PB_URL,
     userMemory, // optional: UserMemory instance for long-term memory
+    patchAnthropicBodyForOAuth,
   } = deps;
 
   const router = express.Router();
@@ -1394,8 +1395,11 @@ router.post("/", apiLimiter, express.json({ limit: process.env.LC_CHAT_BODY_LIMI
     }
 
     // ── API path: direct fetch to provider ──
+    const finalBody = (providerName === "anthropic" && patchAnthropicBodyForOAuth)
+      ? patchAnthropicBodyForOAuth(body, proxyApiKey)
+      : body;
     const upstreamRes = await fetch(chatUrl, {
-      method: "POST", headers, body: JSON.stringify(body),
+      method: "POST", headers, body: JSON.stringify(finalBody),
       signal: AbortSignal.timeout(120000),
     });
 

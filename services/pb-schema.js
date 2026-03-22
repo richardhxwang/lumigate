@@ -708,15 +708,17 @@ async function ensureCollections(pbUrl, adminToken, log) {
     return { created, skipped, errors };
   }
 
-  // Fetch existing collection names
-  let existingNames = new Set();
+  // Fetch existing collections (name → fields[])
+  const existingCollections = new Map(); // name → { id, fields: [{name,type,...}] }
   try {
     const res = await fetch(`${pbUrl}/api/collections?perPage=500`, {
       headers: { Authorization: adminToken },
     });
     if (res.ok) {
       const data = await res.json();
-      existingNames = new Set((data.items || []).map((c) => c.name));
+      for (const c of data.items || []) {
+        existingCollections.set(c.name, { id: c.id, fields: c.fields || [] });
+      }
     }
   } catch (err) {
     _log("error", "pb_schema_fetch_failed", {
@@ -726,36 +728,96 @@ async function ensureCollections(pbUrl, adminToken, log) {
     return { created, skipped, errors: ["Failed to fetch existing collections: " + err.message] };
   }
 
+  // Helper: build a PB-compatible field object from our schema definition
+  function buildField(field) {
+    const f = { name: field.name, type: field.type, required: field.required || false };
+    if (field.type === "autodate") {
+      f.onCreate = field.onCreate !== false;
+      f.onUpdate = !!field.onUpdate;
+      delete f.required;
+    }
+    return f;
+  }
+
+  const updated = [];
+
   for (const collection of PB_COLLECTIONS) {
-    if (existingNames.has(collection.name)) {
-      skipped.push(collection.name);
+    // Every collection MUST be mapped to a project — fail loudly if missing
+    const project = COLLECTION_PROJECT_MAP[collection.name];
+    if (!project) {
+      const errMsg = `Collection "${collection.name}" has no project mapping in COLLECTION_PROJECT_MAP. Add it before deploying.`;
+      errors.push(errMsg);
+      _log("error", "pb_collection_no_project", { component: "pb-schema", collection: collection.name, error: errMsg });
       continue;
     }
 
+    const existing = existingCollections.get(collection.name);
+
+    if (existing) {
+      // --- Schema migration: add missing fields (never remove or change type) ---
+      try {
+        const existingFieldNames = new Set(existing.fields.map((f) => f.name));
+        const missingFields = collection.schema.filter((f) => !existingFieldNames.has(f.name));
+
+        if (missingFields.length === 0) {
+          skipped.push(collection.name);
+          continue;
+        }
+
+        // Merge: keep all existing fields + append new ones
+        const mergedFields = [
+          ...existing.fields,
+          ...missingFields.map(buildField),
+        ];
+
+        const patchRes = await fetch(`${pbUrl}/api/p/${project}/collections/${existing.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: adminToken,
+          },
+          body: JSON.stringify({ fields: mergedFields }),
+        });
+
+        if (patchRes.ok) {
+          updated.push(collection.name);
+          const addedNames = missingFields.map((f) => f.name).join(", ");
+          console.log(`[PB Schema] Added ${missingFields.length} new field(s) to ${collection.name}: ${addedNames}`);
+          _log("info", "pb_collection_fields_added", {
+            component: "pb-schema",
+            collection: collection.name,
+            addedFields: missingFields.map((f) => f.name),
+            count: missingFields.length,
+          });
+        } else {
+          const errText = await patchRes.text().catch(() => "");
+          errors.push(`${collection.name} (migrate): ${patchRes.status} ${errText.slice(0, 200)}`);
+          _log("warn", "pb_collection_migrate_failed", {
+            component: "pb-schema",
+            collection: collection.name,
+            status: patchRes.status,
+            error: errText.slice(0, 200),
+          });
+        }
+      } catch (err) {
+        errors.push(`${collection.name} (migrate): ${err.message}`);
+        _log("error", "pb_collection_migrate_error", {
+          component: "pb-schema",
+          collection: collection.name,
+          error: err.message,
+        });
+      }
+      continue;
+    }
+
+    // --- Collection does not exist: create it ---
     try {
       const body = {
         name: collection.name,
         type: collection.type || "base",
-        fields: collection.schema.map((field) => {
-          const f = { name: field.name, type: field.type, required: field.required || false };
-          // autodate fields need onCreate/onUpdate
-          if (field.type === "autodate") {
-            f.onCreate = field.onCreate !== false;
-            f.onUpdate = !!field.onUpdate;
-            delete f.required;
-          }
-          return f;
-        }),
+        fields: collection.schema.map(buildField),
       };
 
-      // Every collection MUST be mapped to a project — fail loudly if missing
-      const project = COLLECTION_PROJECT_MAP[collection.name];
-      if (!project) {
-        const errMsg = `Collection "${collection.name}" has no project mapping in COLLECTION_PROJECT_MAP. Add it before deploying.`;
-        errors.push(errMsg);
-        _log("error", "pb_collection_no_project", { component: "pb-schema", collection: collection.name, error: errMsg });
-        continue;
-      }
       const apiPath = `${pbUrl}/api/p/${project}/collections`;
 
       const res = await fetch(apiPath, {
@@ -801,11 +863,12 @@ async function ensureCollections(pbUrl, adminToken, log) {
   _log("info", "pb_schema_provisioned", {
     component: "pb-schema",
     created: created.length,
+    updated: updated.length,
     skipped: skipped.length,
     errors: errors.length,
   });
 
-  return { created, skipped, errors };
+  return { created, updated, skipped, errors };
 }
 
 module.exports = { PB_COLLECTIONS, ensureCollections };

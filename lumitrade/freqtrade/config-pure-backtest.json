@@ -106,11 +106,11 @@
     "listen_port": 8080,
     "verbosity": "error",
     "enable_openapi": true,
-    "jwt_secret_key": "HGt4qDlTr_aTt2ELLahW-PVtsNFQIsIZBQU9Qaa87v0",
+    "jwt_secret_key": "changeme-generate-a-random-key",
     "CORS_origins": [],
     "username": "lumitrade",
-    "password": "123123@",
-    "ws_token": "_-3o4WOb4T0u9gJI0LjDXTXrUpAIfp8qbpe73s0LKuU"
+    "password": "changeme",
+    "ws_token": "changeme-generate-a-random-token"
   },
   "bot_name": "LumiLearning",
   "freqaimodel": "LightGBMRegressor",

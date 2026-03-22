@@ -2,7 +2,8 @@
 pb_collections.py — PocketBase collection definitions for LumiTrade.
 
 Mirrors the schema format used by services/pb-schema.js in LumiGate.
-Each collection is a dict with name, type, schema (list of field dicts).
+Each collection is a dict with name, type, fields (list of field dicts).
+PB 0.23+ requires "fields" key (not "schema") in collection API payloads.
 """
 
 import httpx
@@ -18,7 +19,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_signals",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "symbol", "type": "text", "required": True},
             {"name": "direction", "type": "text"},          # long / short
             {"name": "entry_price", "type": "number"},
@@ -38,7 +39,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_positions",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "symbol", "type": "text", "required": True},
             {"name": "broker", "type": "text"},
             {"name": "direction", "type": "text"},
@@ -58,7 +59,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_history",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "symbol", "type": "text"},
             {"name": "broker", "type": "text"},
             {"name": "direction", "type": "text"},
@@ -78,7 +79,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_pnl",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "date", "type": "text", "required": True},
             {"name": "daily_pnl", "type": "number"},
             {"name": "cumulative_pnl", "type": "number"},
@@ -93,7 +94,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_news",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "symbol", "type": "text"},
             {"name": "headline", "type": "text"},
             {"name": "summary", "type": "text"},
@@ -113,7 +114,7 @@ TRADE_COLLECTIONS = [
     {
         "name": "trade_strategies",
         "type": "base",
-        "schema": [
+        "fields": [
             {"name": "name", "type": "text", "required": True},
             {"name": "description", "type": "text"},
             {"name": "config", "type": "json"},
@@ -186,13 +187,13 @@ async def ensure_trade_collections(pb_url: str, admin_token: str) -> dict:
             body = {
                 "name": name,
                 "type": collection.get("type", "base"),
-                "schema": [
+                "fields": [
                     {
                         "name": field["name"],
                         "type": field["type"],
                         "required": field.get("required", False),
                     }
-                    for field in collection["schema"]
+                    for field in collection["fields"]
                 ],
             }
 

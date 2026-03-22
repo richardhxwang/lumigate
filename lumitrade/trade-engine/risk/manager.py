@@ -3,11 +3,16 @@ LumiTrade Risk Management Engine
 
 Enforces non-negotiable trading rules before any order is placed.
 All checks must pass for a trade to be approved.
+
+Circuit breaker: When daily loss >= 3%, force-exits all bot positions
+and pauses new entries across all freqtrade bots.
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from dataclasses import dataclass, field
+
+from news.sentiment import check_news_blackout, get_upcoming_events
 
 logger = logging.getLogger("lumitrade.risk")
 
@@ -151,13 +156,17 @@ class RiskManager:
                 direction, symbol, open_count, self.settings.max_open_positions,
             )
 
-        # --- 5. News blackout (placeholder) ---
-        nb_ok = True  # TODO: integrate Finnhub economic calendar
+        # --- 5. News blackout (Finnhub economic calendar) ---
+        nb_ok, nb_detail = check_news_blackout(self.settings.news_blackout_minutes)
         checks.append({
             "rule": "news_blackout",
             "passed": nb_ok,
-            "detail": "No active news blackout (placeholder — Finnhub integration pending)",
+            "detail": nb_detail,
         })
+        if not nb_ok:
+            logger.warning(
+                "REJECTED %s %s: %s", direction, symbol, nb_detail,
+            )
 
         # --- 6. Leverage checks ---
         if leverage > 1.0:
@@ -325,4 +334,79 @@ class RiskManager:
             "max_leverage": self.settings.max_leverage,
             "max_notional_pct": self.settings.max_notional_pct,
             "min_liquidation_distance": self.settings.min_liquidation_distance,
+            "circuit_breaker_tripped": self._circuit_breaker_tripped,
+            "last_bot_sync": self._last_bot_sync.isoformat() if self._last_bot_sync else None,
         }
+
+    # ------------------------------------------------------------------
+    # Bot sync state
+    # ------------------------------------------------------------------
+
+    _circuit_breaker_tripped: bool = False
+    _last_bot_sync: datetime | None = None
+    _portfolio_value_cache: float = 0.0  # latest total balance across bots
+
+    def sync_from_bots(
+        self,
+        open_trades: list[dict],
+        profit_summaries: list[dict],
+        total_balance: float,
+    ) -> dict:
+        """
+        Update internal state from multi-bot polling data.
+
+        Args:
+            open_trades: combined open trades from all bots (with _bot label)
+            profit_summaries: profit dicts from all bots
+            total_balance: sum of all bot balances (USDT)
+
+        Returns:
+            dict with sync results and whether circuit breaker should fire
+        """
+        # Update open positions set
+        self._open_positions = {
+            t.get("pair", "unknown") for t in open_trades if t.get("pair")
+        }
+
+        # Compute aggregate daily realized PnL from all bots
+        today = str(date.today())
+        daily_profit = 0.0
+        for ps in profit_summaries:
+            # freqtrade /api/v1/profit returns profit_closed_coin (realized)
+            # and profit_all_coin (realized + unrealized)
+            daily_profit += ps.get("profit_closed_coin", 0.0)
+
+        # Also add unrealized PnL from open trades
+        unrealized = sum(t.get("profit_abs", 0.0) for t in open_trades)
+        total_pnl = daily_profit + unrealized
+
+        self._daily_pnl[today] = total_pnl
+        self._portfolio_value_cache = total_balance
+        self._last_bot_sync = datetime.now(timezone.utc)
+
+        # Check circuit breaker
+        should_trip = False
+        loss_pct = 0.0
+        if total_balance > 0 and total_pnl < 0:
+            loss_pct = abs(total_pnl) / total_balance * 100
+            if loss_pct >= self.settings.max_daily_loss_pct:
+                should_trip = True
+
+        return {
+            "open_positions": len(self._open_positions),
+            "daily_pnl": round(total_pnl, 2),
+            "unrealized_pnl": round(unrealized, 2),
+            "total_balance": round(total_balance, 2),
+            "loss_pct": round(loss_pct, 4),
+            "circuit_breaker_should_trip": should_trip,
+        }
+
+    def mark_circuit_breaker_tripped(self) -> None:
+        """Mark that circuit breaker has been executed for today."""
+        self._circuit_breaker_tripped = True
+        logger.critical("Circuit breaker TRIPPED — all bots will be stopped")
+
+    def reset_circuit_breaker(self) -> None:
+        """Reset circuit breaker state (e.g. at daily reset)."""
+        self._circuit_breaker_tripped = False
+        logger.info("Circuit breaker state reset")

@@ -9,10 +9,10 @@
     "dry_run": true,
     "dry_run_wallet": 10000,
     "leverage_config": {
-        "primary": 1.5,
-        "fallback": 1.0,
+        "primary": 2.0,
+        "fallback": 1.5,
         "minimal": 1.0,
-        "max_leverage": 2
+        "max_leverage": 3
     },
     "cancel_open_orders_on_exit": false,
     "unfilledtimeout": {

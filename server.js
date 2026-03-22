@@ -1969,6 +1969,169 @@ const _adminResult = require('./routes/admin')({
 });
 app.use(_adminResult.router);
 
+// ── OpenAI Codex OAuth (ChatGPT subscription proxy) ──
+const codexOAuth = require("./services/openai-codex-oauth");
+let _codexTokens = null; // { access, refresh, expires, accountId }
+const CODEX_TOKENS_FILE = path.join(__dirname, "data", "codex-tokens.json");
+try { _codexTokens = JSON.parse(fs.readFileSync(CODEX_TOKENS_FILE, "utf8")); } catch {}
+
+function saveCodexTokens() {
+  if (!_codexTokens) return;
+  const tmp = CODEX_TOKENS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(_codexTokens, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, CODEX_TOKENS_FILE);
+}
+
+async function getCodexAccessToken() {
+  if (!_codexTokens?.access) return null;
+  // Auto-refresh if expiring within 5 minutes
+  if (_codexTokens.expires && Date.now() > _codexTokens.expires - 300_000) {
+    try {
+      const refreshed = await codexOAuth.refreshAccessToken(_codexTokens.refresh);
+      if (refreshed) {
+        _codexTokens = { ..._codexTokens, ...refreshed };
+        saveCodexTokens();
+        log("info", "Codex OAuth token refreshed", { accountId: _codexTokens.accountId });
+      }
+    } catch (e) { log("warn", "Codex OAuth refresh failed", { error: e.message }); }
+  }
+  return _codexTokens;
+}
+
+// Admin: start OAuth login
+app.post("/admin/codex/login", adminAuth, async (req, res) => {
+  try {
+    const { authUrl } = await codexOAuth.startLogin();
+    res.json({ success: true, authUrl });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// OAuth callback — receives redirect from OpenAI after user login
+// OpenAI redirects to http://localhost:1455/auth/callback
+// nginx on port 1455 proxies to lumigate:9471/auth/callback
+app.get("/auth/callback", async (req, res) => {
+  try {
+    const result = await codexOAuth.handleCallback(req.query);
+    if (!result.ok) return res.status(result.status || 400).send(result.error);
+    if (result.tokens) {
+      _codexTokens = result.tokens;
+      saveCodexTokens();
+      log("info", "Codex OAuth login success", { accountId: result.tokens.accountId });
+    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(result.html);
+  } catch (e) {
+    log("error", "Codex OAuth callback failed", { error: e.message });
+    res.status(500).send("OAuth callback failed: " + e.message);
+  }
+});
+
+// Admin: check status
+app.get("/admin/codex/status", adminAuth, async (req, res) => {
+  if (!_codexTokens?.access) return res.json({ connected: false });
+  const accountId = _codexTokens.accountId;
+  const expired = _codexTokens.expires && Date.now() > _codexTokens.expires;
+  res.json({ connected: true, accountId, expired, expiresAt: _codexTokens.expires });
+});
+
+// Admin: disconnect
+app.delete("/admin/codex/logout", adminAuth, (req, res) => {
+  _codexTokens = null;
+  try { fs.unlinkSync(CODEX_TOKENS_FILE); } catch {}
+  res.json({ success: true });
+});
+
+// Proxy: /v1/openai-codex/* → chatgpt.com/backend-api
+app.use("/v1/openai-codex", async (req, res, next) => {
+  const tokens = await getCodexAccessToken();
+  if (!tokens?.access) return res.status(503).json({ error: "OpenAI Codex not connected. Login via Dashboard." });
+  try {
+    const chatBody = req.body;
+    const codexBody = codexOAuth.chatToCodexBody(chatBody);
+    const headers = codexOAuth.buildCodexHeaders(tokens.access, tokens.accountId);
+    const codexUrl = codexOAuth.resolveCodexUrl();
+
+    const upstream = await fetch(codexUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(codexBody),
+      signal: AbortSignal.timeout(300_000),
+    });
+
+    if (!upstream.ok) {
+      const errText = await upstream.text().catch(() => "");
+      // Auto-refresh on 401
+      if (upstream.status === 401 && _codexTokens?.refresh) {
+        const refreshed = await codexOAuth.refreshAccessToken(_codexTokens.refresh);
+        if (refreshed) {
+          _codexTokens = { ..._codexTokens, ...refreshed };
+          saveCodexTokens();
+          // Retry once
+          const retryHeaders = codexOAuth.buildCodexHeaders(_codexTokens.access, _codexTokens.accountId);
+          const retry = await fetch(codexUrl, { method: "POST", headers: retryHeaders, body: JSON.stringify(codexBody), signal: AbortSignal.timeout(300_000) });
+          if (retry.ok && retry.body) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.setHeader("X-Accel-Buffering", "no");
+            const transformer = codexOAuth.createCodexToCompletionsTransformer(chatBody.model);
+            const reader = retry.body.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, { stream: true });
+                const lines = buf.split("\n"); buf = lines.pop() || "";
+                for (const line of lines) {
+                  if (line.startsWith("event: ")) continue;
+                  if (line.startsWith("data: ")) {
+                    const evt = transformer.transformEvent("", line.slice(6));
+                    if (evt) res.write(evt);
+                  }
+                }
+              }
+            } catch {}
+            res.end();
+            return;
+          }
+        }
+      }
+      return res.status(upstream.status).json({ error: `Codex API error: ${upstream.status}`, detail: errText.slice(0, 200) });
+    }
+
+    // Stream SSE: convert Responses API → Chat Completions format
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("X-Accel-Buffering", "no");
+    const transformer = codexOAuth.createCodexToCompletionsTransformer(chatBody.model);
+    const reader = upstream.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop() || "";
+        for (const line of lines) {
+          let eventType = "";
+          if (line.startsWith("event: ")) { eventType = line.slice(7).trim(); continue; }
+          if (line.startsWith("data: ")) {
+            const evt = transformer.transformEvent(eventType, line.slice(6));
+            if (evt) res.write(evt);
+          }
+        }
+      }
+    } catch (e) {
+      if (!res.headersSent) res.status(502).json({ error: e.message });
+    }
+    res.end();
+  } catch (e) {
+    if (!res.headersSent) res.status(502).json({ error: e.message });
+  }
+});
+
 // Late-binding container for lumichat.js exports (populated after mount below)
 let _lcExports = {};
 
@@ -3646,6 +3809,7 @@ const _lcResult = require('./routes/lumichat')({
   AUTO_CONTINUE_MAX_PASSES,
   _collector: () => { try { return require("./collector"); } catch { return null; } },
   userMemory,
+  patchAnthropicBodyForOAuth,
 });
 app.use(_lcResult.router);
 _lcExports = _lcResult; // populate late-binding container for admin routes

@@ -274,8 +274,8 @@ class SMCStrategy(IStrategy):
 
         return dataframe
 
-    def leverage_callback(self, pair, current_time, current_rate,
-                          proposed_leverage, max_leverage, entry_tag, side, **kwargs):
+    def leverage(self, pair, current_time, current_rate,
+                 proposed_leverage, max_leverage, entry_tag, side, **kwargs):
         """Dynamic leverage based on signal quality + FreqAI confidence."""
         lev_config = self.config.get("leverage_config", {})
         if not lev_config:

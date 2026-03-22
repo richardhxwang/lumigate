@@ -51,8 +51,9 @@ class SafeJSONResponse(JSONResponse):
 
 from config import settings
 from connectors.ibkr import IBKRConnector
-from connectors.freqtrade import FreqtradeConnector
+from connectors.freqtrade import FreqtradeConnector, MultiBotConnector
 from risk.manager import RiskManager
+from notifications.telegram import TelegramNotifier
 from analytics.sessions import SessionAnalyzer
 from analytics.reports import generate_performance_report, generate_html_report
 from analytics.mood_correlator import MoodCorrelator
@@ -69,6 +70,118 @@ trading_rag = TradingRAG()
 http_client: httpx.AsyncClient | None = None
 ibkr_connector: IBKRConnector | None = None
 ft_connector = FreqtradeConnector()
+multi_bot = MultiBotConnector()
+telegram = TelegramNotifier()
+
+# Background task handle for bot risk monitor
+_risk_monitor_task: asyncio.Task | None = None
+
+BOT_POLL_INTERVAL = 30  # seconds
+
+
+async def _bot_risk_monitor_loop():
+    """
+    Periodic task: poll all freqtrade bots every 30s,
+    sync state into RiskManager, and trigger circuit breaker if needed.
+    """
+    logger.info("Bot risk monitor started (interval=%ds)", BOT_POLL_INTERVAL)
+    while True:
+        try:
+            await asyncio.sleep(BOT_POLL_INTERVAL)
+            await _poll_bots_and_check_risk()
+        except asyncio.CancelledError:
+            logger.info("Bot risk monitor stopped")
+            break
+        except Exception as e:
+            logger.warning("Bot risk monitor error (will retry): %s", e)
+
+
+async def _poll_bots_and_check_risk():
+    """Single poll cycle: fetch all bot data, sync risk state, act if needed."""
+    # Skip if circuit breaker already tripped today
+    if risk_manager._circuit_breaker_tripped:
+        return
+
+    # Gather data from all bots in parallel
+    open_trades = await multi_bot.get_all_open_trades()
+    profit_summaries = await multi_bot.get_all_profit()
+    balances = await multi_bot.get_all_balance()
+
+    # Sum total balance across all bots
+    total_balance = 0.0
+    for b in balances:
+        # freqtrade /api/v1/balance returns "total" (float) for total value
+        total_balance += b.get("total", 0.0)
+
+    # Sync into RiskManager
+    sync_result = risk_manager.sync_from_bots(open_trades, profit_summaries, total_balance)
+
+    logger.info(
+        "Bot sync: %d positions, daily PnL=$%.2f (%.2f%% of $%.2f), breaker=%s",
+        sync_result["open_positions"],
+        sync_result["daily_pnl"],
+        sync_result["loss_pct"],
+        sync_result["total_balance"],
+        sync_result["circuit_breaker_should_trip"],
+    )
+
+    # Broadcast risk update to WebSocket clients
+    await notify_clients("risk_update", sync_result)
+
+    # --- Circuit Breaker ---
+    if sync_result["circuit_breaker_should_trip"]:
+        await _execute_circuit_breaker(sync_result)
+
+
+async def _execute_circuit_breaker(sync_result: dict):
+    """
+    Circuit breaker execution:
+    1. Stop all bots from opening new trades
+    2. Force-exit all open positions
+    3. Send Telegram notification
+    4. Broadcast to WebSocket clients
+    """
+    risk_manager.mark_circuit_breaker_tripped()
+    loss_pct = sync_result["loss_pct"]
+    daily_pnl = sync_result["daily_pnl"]
+    total_balance = sync_result["total_balance"]
+
+    logger.critical(
+        "CIRCUIT BREAKER EXECUTING: daily loss %.2f%% (PnL=$%.2f, balance=$%.2f)",
+        loss_pct, daily_pnl, total_balance,
+    )
+
+    # Step 1: Pause new entries on all bots
+    stop_results = await multi_bot.stop_buy_all_bots()
+    logger.info("Stop-buy results: %s", stop_results)
+
+    # Step 2: Force-exit all open positions
+    exit_results = await multi_bot.forceexit_all_bots()
+    logger.info("Force-exit results: %s", exit_results)
+
+    # Step 3: Telegram notification
+    msg = (
+        "<b>CIRCUIT BREAKER TRIGGERED</b>\n\n"
+        f"Daily loss: <b>{loss_pct:.2f}%</b> (limit: {risk_manager.settings.max_daily_loss_pct}%)\n"
+        f"Daily PnL: <b>${daily_pnl:.2f}</b>\n"
+        f"Total balance: ${total_balance:.2f}\n\n"
+        "<b>Actions taken:</b>\n"
+        "- All bots paused (no new entries)\n"
+        "- All open positions force-exited\n\n"
+        "Manual review required before resuming trading."
+    )
+    await telegram.send(msg)
+
+    # Step 4: Broadcast to UI
+    await notify_clients("circuit_breaker", {
+        "triggered": True,
+        "loss_pct": loss_pct,
+        "daily_pnl": daily_pnl,
+        "total_balance": total_balance,
+        "stop_results": stop_results,
+        "exit_results": exit_results,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 # --- WebSocket Connection Manager ---
@@ -225,9 +338,25 @@ async def lifespan(app: FastAPI):
     from news.lunarcrush import start_lunarcrush_periodic_task, stop_lunarcrush_periodic_task
     lunarcrush_task = start_lunarcrush_periodic_task(http_client)
 
+    # Start economic calendar fetcher (every 1h, Finnhub — powers news_blackout risk rule)
+    from news.sentiment import start_econ_calendar_task, stop_econ_calendar_task
+    econ_task = start_econ_calendar_task(http_client)
+
+    # Start bot risk monitor (polls all freqtrade bots every 30s for circuit breaker)
+    global _risk_monitor_task
+    _risk_monitor_task = asyncio.create_task(_bot_risk_monitor_loop())
+    logger.info("Bot risk monitor task created")
+
     yield
 
     # Shutdown
+    if _risk_monitor_task and not _risk_monitor_task.done():
+        _risk_monitor_task.cancel()
+        try:
+            await _risk_monitor_task
+        except asyncio.CancelledError:
+            pass
+    stop_econ_calendar_task()
     stop_lunarcrush_periodic_task()
     stop_rss_periodic_task()
     stop_fng_periodic_task()
@@ -415,6 +544,52 @@ async def risk_check(req: RiskCheckRequest):
         portfolio_value=req.portfolio_value,
     )
     return result
+
+
+@app.get("/risk-status")
+async def risk_status():
+    """Return current risk management state including bot sync info."""
+    return risk_manager.get_status()
+
+
+@app.post("/risk-reset-breaker")
+async def risk_reset_breaker():
+    """Manually reset the circuit breaker after review. Use with caution."""
+    risk_manager.reset_circuit_breaker()
+    risk_manager.reset_daily()
+    return {"ok": True, "message": "Circuit breaker and daily PnL reset"}
+
+
+@app.post("/risk-force-sync")
+async def risk_force_sync():
+    """Manually trigger an immediate bot risk sync cycle."""
+    await _poll_bots_and_check_risk()
+    return risk_manager.get_status()
+
+
+@app.get("/economic-calendar")
+async def economic_calendar(minutes_ahead: int = 60):
+    """
+    Return upcoming high-impact economic events from Finnhub.
+
+    Query params:
+        minutes_ahead: Look-ahead window in minutes (default 60).
+                       Use 0 to return all cached events for today/tomorrow.
+    """
+    from news.sentiment import get_upcoming_events as _get_upcoming, _econ_calendar_cache
+
+    if minutes_ahead <= 0:
+        return {"events": _econ_calendar_cache, "total": len(_econ_calendar_cache)}
+
+    upcoming = _get_upcoming(minutes_ahead)
+    return {
+        "events": upcoming,
+        "total": len(upcoming),
+        "blackout_active": any(
+            e["minutes_until"] <= settings.news_blackout_minutes for e in upcoming
+        ) if upcoming else False,
+        "blackout_minutes": settings.news_blackout_minutes,
+    }
 
 
 # --- Signals ---
@@ -655,6 +830,20 @@ async def ft_status():
         return {"connected": True, "open_trades": status, "count": count, "profit": profit}
     except Exception as e:
         return {"connected": False, "error": str(e)}
+
+
+@app.get("/freqtrade/all-bots-status")
+async def ft_all_bots_status():
+    """Return status of ALL bot instances (online/offline, open trades, profit).
+    Used by LumiTrader AI context to see every bot at once."""
+    try:
+        bots = await multi_bot.get_all_bots_status()
+        online_count = sum(1 for b in bots if b["online"])
+        total_trades = sum(b["trade_count"] for b in bots)
+        return {"bots": bots, "online_count": online_count, "total_open_trades": total_trades}
+    except Exception as e:
+        logger.error("all-bots-status failed: %s", e)
+        return {"bots": [], "online_count": 0, "total_open_trades": 0, "error": str(e)}
 
 
 @app.get("/freqtrade/trades")

@@ -16,7 +16,7 @@ const PB_TRADE_PROJECT = (process.env.PB_TRADE_PROJECT || "lumitrade").trim() ||
 const FREQTRADE_URL = process.env.TRADE_FREQTRADE_URL || "http://lumigate-freqtrade:8080";
 const FREQTRADE_BT_URL = process.env.TRADE_FREQTRADE_BT_URL || "http://lumigate-freqtrade-bt:8080";
 const FREQTRADE_USERNAME = process.env.TRADE_FREQTRADE_USERNAME || "lumitrade";
-const FREQTRADE_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "123123@";
+const FREQTRADE_PASSWORD = process.env.TRADE_FREQTRADE_PASSWORD || "changeme";
 
 module.exports = function createTradeRouter(deps) {
   const router = express.Router();
@@ -94,6 +94,18 @@ module.exports = function createTradeRouter(deps) {
   router.post("/risk-check", async (req, res) => {
     try {
       const r = await engineFetch("/risk-check", { method: "POST", body: JSON.stringify(req.body) });
+      const data = await r.json();
+      res.status(r.status).json(data);
+    } catch (err) {
+      res.status(502).json({ ok: false, error: "Trade engine unreachable", detail: err.message });
+    }
+  });
+
+  // GET /v1/trade/economic-calendar — upcoming high-impact economic events
+  router.get("/economic-calendar", async (req, res) => {
+    try {
+      const qs = req.query.minutes_ahead ? `?minutes_ahead=${req.query.minutes_ahead}` : "";
+      const r = await engineFetch(`/economic-calendar${qs}`);
       const data = await r.json();
       res.status(r.status).json(data);
     } catch (err) {
