@@ -3629,6 +3629,7 @@ const _lcResult = require('./routes/lumichat')({
   _getGlobalRegCount: () => _globalRegCount,
   _setGlobalRegCount: (v) => { _globalRegCount = v; },
   // Passed through to chat router
+  checkProjectRateLimit,
   INTERNAL_CHAT_KEY,
   getSessionRole,
   parseCookies,

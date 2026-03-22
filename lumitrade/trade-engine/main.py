@@ -221,7 +221,7 @@ async def lifespan(app: FastAPI):
     from news.rss_collector import start_rss_periodic_task, stop_rss_periodic_task
     rss_task = start_rss_periodic_task(http_client)
 
-    # Start LunarCrush periodic social sentiment collector (every 30 min, needs API key)
+    # Start social sentiment collector (every 30 min, LunarCrush or CoinGecko fallback)
     from news.lunarcrush import start_lunarcrush_periodic_task, stop_lunarcrush_periodic_task
     lunarcrush_task = start_lunarcrush_periodic_task(http_client)
 
@@ -306,7 +306,8 @@ async def list_rss_sources():
 @app.post("/news/lunarcrush")
 async def trigger_lunarcrush_fetch(coins: list[str] | None = None):
     """
-    Manually trigger a LunarCrush social sentiment collection cycle.
+    Manually trigger a social sentiment collection cycle.
+    Uses LunarCrush if paid subscription active, otherwise CoinGecko + Fear & Greed.
     Optionally pass a list of coin symbols (e.g. ["BTC", "ETH"]).
     Defaults to BTC, ETH, SOL, BNB, XRP, ADA.
     """
@@ -317,17 +318,20 @@ async def trigger_lunarcrush_fetch(coins: list[str] | None = None):
 
 @app.get("/news/lunarcrush/status")
 async def lunarcrush_status():
-    """Check LunarCrush collector status and config."""
+    """Check sentiment collector status and config."""
     from news.lunarcrush import (
         _lunarcrush_task, DEFAULT_COINS, COLLECT_INTERVAL_MINUTES,
+        get_active_source,
     )
     return {
-        "enabled": bool(settings.lunarcrush_api_key),
+        "enabled": True,  # always enabled — CoinGecko fallback needs no key
+        "active_source": get_active_source(),
         "task_running": _lunarcrush_task is not None and not _lunarcrush_task.done()
         if _lunarcrush_task else False,
         "interval_minutes": COLLECT_INTERVAL_MINUTES,
         "tracked_coins": DEFAULT_COINS,
-        "api_key_set": bool(settings.lunarcrush_api_key),
+        "lunarcrush_api_key_set": bool(settings.lunarcrush_api_key),
+        "fallback": "coingecko + fear_greed_index (free, no key needed)",
     }
 
 

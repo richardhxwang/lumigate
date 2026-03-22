@@ -75,6 +75,7 @@ module.exports = function createLumiChatRouter(deps) {
     _getGlobalRegCount,
     _setGlobalRegCount,
     // Passed through to chat router
+    checkProjectRateLimit,
     INTERNAL_CHAT_KEY,
     getSessionRole,
     parseCookies,
@@ -5266,6 +5267,7 @@ router.use("/v1/chat", require("./chat")({
   ephemeralTokens,
   verifyHmacSignature,
   selectApiKey,
+  checkProjectRateLimit,
   checkBudgetReset,
   PROVIDERS,
   COLLECTOR_SUPPORTED,

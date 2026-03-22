@@ -332,6 +332,9 @@ const PB_COLLECTIONS = [
     schema: [
       { name: "symbol", type: "text" },
       { name: "broker", type: "text" },
+      { name: "exchange", type: "text" },
+      { name: "bot_name", type: "text" },
+      { name: "trading_mode", type: "text" },
       { name: "direction", type: "text" },
       { name: "entry_price", type: "number" },
       { name: "exit_price", type: "number" },

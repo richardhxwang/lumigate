@@ -99,6 +99,7 @@ module.exports = function createAdminRouter(deps) {
     markKeyCooling,
     // Provider helpers
     anthropicAuthHeaders,
+    patchAnthropicBodyForOAuth,
     extractTokens,
     recordUsage,
     calcCost,
@@ -520,7 +521,8 @@ module.exports = function createAdminRouter(deps) {
         headers["Authorization"] = `Bearer ${testKey}`;
         url = `${provider.baseUrl}/v1/chat/completions`;
       }
-      const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(testBody) });
+      const finalTestBody = name === "anthropic" ? patchAnthropicBodyForOAuth(testBody, testKey) : testBody;
+      const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(finalTestBody) });
       const data = await resp.json();
       const latency = Date.now() - start;
       if (resp.ok) {
@@ -1497,10 +1499,11 @@ module.exports = function createAdminRouter(deps) {
           headers["Authorization"] = `Bearer ${safeKey}`;
           url = `${PROVIDERS[name].baseUrl}/v1/chat/completions`;
         }
-        const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(testBody), signal: AbortSignal.timeout(10000) });
+        const finalTestBody = name === "anthropic" ? patchAnthropicBodyForOAuth(testBody, safeKey) : testBody;
+        const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(finalTestBody), signal: AbortSignal.timeout(15000) });
         const data = await resp.json();
         if (resp.ok) {
-          const reply = name === "anthropic" ? (data.content?.[0]?.text || "OK") : (data.choices?.[0]?.message?.content || "OK");
+          const reply = name === "anthropic" ? ((data.content || []).filter(c => c.type === "text").map(c => c.text).join("") || "OK") : (data.choices?.[0]?.message?.content || "OK");
           return res.json({ success: true, message: `${name} key updated`, test: { passed: true, model: cheapest.id, reply: reply.trim() } });
         } else {
           return res.json({ success: true, message: `${name} key updated`, test: { passed: false, model: cheapest.id, error: data.error?.message || "API returned error" } });
@@ -1582,10 +1585,11 @@ module.exports = function createAdminRouter(deps) {
         if (name === "anthropic") { Object.assign(headers, anthropicAuthHeaders(safeKey)); url = `${PROVIDERS[name].baseUrl}/v1/messages`; }
         else if (name === "gemini") { headers["Authorization"] = `Bearer ${safeKey}`; url = `${PROVIDERS[name].baseUrl}/v1beta/openai/chat/completions`; }
         else { headers["Authorization"] = `Bearer ${safeKey}`; url = `${PROVIDERS[name].baseUrl}/v1/chat/completions`; }
-        const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(testBody), signal: AbortSignal.timeout(10000) });
+        const finalTestBody = name === "anthropic" ? patchAnthropicBodyForOAuth(testBody, safeKey) : testBody;
+        const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(finalTestBody), signal: AbortSignal.timeout(15000) });
         const data = await resp.json();
         if (resp.ok) {
-          const reply = name === "anthropic" ? (data.content?.[0]?.text || "OK") : (data.choices?.[0]?.message?.content || "OK");
+          const reply = name === "anthropic" ? ((data.content || []).filter(c => c.type === "text").map(c => c.text).join("") || "OK") : (data.choices?.[0]?.message?.content || "OK");
           test = { passed: true, model: cheapest.id, reply: reply.trim() };
         } else {
           test = { passed: false, model: cheapest.id, error: data.error?.message || "API error" };

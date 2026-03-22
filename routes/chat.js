@@ -24,6 +24,7 @@ module.exports = function createChatRouter(deps) {
     verifyHmacSignature,
     selectApiKey,
     checkBudgetReset,
+    checkProjectRateLimit,
     PROVIDERS,
     COLLECTOR_SUPPORTED,
     getProviderAccessMode,
