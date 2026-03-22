@@ -295,6 +295,15 @@ class SMCStrategy(IStrategy):
         # 6. Normalized volatility
         dataframe["%-atr_pct"] = (_col("atr_14") / close).fillna(0)
 
+        # Add tiny noise to continuous features to survive VarianceThreshold
+        # (same technique as sparse SMC features above)
+        for col in ["%-ob_distance", "%-ob_width", "%-fvg_distance", "%-fvg_width",
+                     "%-liq_distance", "%-recent_bos_count", "%-recent_choch_count",
+                     "%-recent_fvg_count", "%-price_vs_swing_high", "%-price_vs_swing_low",
+                     "%-atr_pct"]:
+            if col in dataframe.columns:
+                dataframe[col] = dataframe[col] + rng.normal(0, 0.001, len(dataframe))
+
         return dataframe
 
     def set_freqai_targets(self, dataframe, metadata, **kwargs):
