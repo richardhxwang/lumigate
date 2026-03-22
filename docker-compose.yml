@@ -38,6 +38,7 @@ services:
     restart: unless-stopped
     ports:
       - "${GATEWAY_PORT:-9471}:80"
+      - "1455:1455"  # OpenAI Codex OAuth callback (needs both IPv4+IPv6 for browser)
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./data:/app/data:ro
@@ -99,7 +100,7 @@ services:
       - TRADE_ENGINE_URL=http://lumigate-trade-engine:3200
       - TRADE_FREQTRADE_URL=http://lumigate-freqtrade:8080
       - TRADE_FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-lumitrade}
-      - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD:-123123@}
+      - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - LUMITRADER_TELEGRAM_TOKEN=${LUMITRADER_TELEGRAM_TOKEN:-}
       - LUMITRADER_TELEGRAM_CHAT_ID=${LUMITRADER_TELEGRAM_CHAT_ID:-}
       - LUMITRADE_PROJECT_KEY=${LUMITRADE_PROJECT_KEY:-}

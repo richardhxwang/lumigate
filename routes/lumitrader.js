@@ -268,7 +268,7 @@ module.exports = function createLumiTraderRouter(deps) {
       timed("ft-bt/history", fetch("http://lumigate-freqtrade-bt:8080/api/v1/backtest/history", {
         headers: { Authorization: ftAuth },
       }).then(r => r.ok ? r.json() : null)),
-      timed("pb/backtest_results", tradePbFetch("/api/collections/trade_backtest_results/records?perPage=3").then(r => r.ok ? r.json() : null)),
+      timed("pb/backtest_results", tradePbFetch("/api/collections/trade_backtest_results/records?perPage=10").then(r => r.ok ? r.json() : null)),
       // NEW: freqtrade live status
       timed("engine/ft-status", engineFetch("/freqtrade/status").then(r => r.ok ? r.json() : null)),
       // NEW: freqtrade config (strategy params)
@@ -554,6 +554,8 @@ module.exports = function createLumiTraderRouter(deps) {
           lines.push(`  ~${approxFeatures} features, train:${fa.train_period_days || '?'}d, predict:${fa.feature_parameters?.label_period_candles || '?'} candles forward`);
         }
       }
+      // Entry signal grading (3-tier SMC entry system)
+      lines.push(`  entry_signals: Primary (BOS/CHoCH+OB+FVG), Fallback (BOS/CHoCH+FVG), Minimal (FVG+liq_swept)`);
       parts.push(`[Strategy Config]\n${lines.join("\n")}`);
     }
 
@@ -574,10 +576,18 @@ module.exports = function createLumiTraderRouter(deps) {
       parts.push(`[Recent Signals]\n${sigLines.join("\n")}`);
     }
 
-    // 10. Backtest Results (PB)
+    // 10. Backtest Results (PB) — cross-strategy comparison (up to 10 results)
     const btPB = ctx.backtestResultsPB;
     if (Array.isArray(btPB) && btPB.length > 0) {
-      const lines = btPB.slice(0, 3).map(r => _f([
+      // Group by strategy for cross-bot comparison
+      const byStrategy = {};
+      for (const r of btPB) {
+        const name = r.strategy_name || "Unknown";
+        if (!byStrategy[name]) byStrategy[name] = [];
+        byStrategy[name].push(r);
+      }
+      const strategyNames = Object.keys(byStrategy);
+      const lines = btPB.slice(0, 10).map(r => _f([
         `  ${r.version || "?"}`,
         `| ${r.strategy_name || "?"}`,
         `| trades:${r.total_trades ?? "?"}`,
@@ -597,7 +607,10 @@ module.exports = function createLumiTraderRouter(deps) {
         r.trading_mode ? `mode:${r.trading_mode}` : null,
         `tags:${JSON.stringify(r.tags || [])}`,
       ]));
-      parts.push(`[Backtest Results from PB]\n${lines.join("\n")}`);
+      const header = strategyNames.length > 1
+        ? `[Backtest Results — ${strategyNames.length} strategies: ${strategyNames.join(", ")}]`
+        : `[Backtest Results from PB]`;
+      parts.push(`${header}\n${lines.join("\n")}`);
     }
 
     // 11. Backtest History (freqtrade file list)

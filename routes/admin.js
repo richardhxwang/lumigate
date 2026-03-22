@@ -2031,5 +2031,5 @@ module.exports = function createAdminRouter(deps) {
     }
   });
 
-  return { router, saveCollectorCookies };
+  return { router, saveCollectorCookies, adminAuth };
 };

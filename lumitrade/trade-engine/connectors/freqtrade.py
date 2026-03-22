@@ -229,6 +229,46 @@ class MultiBotConnector:
             *[_fetch_one(i) for i in range(len(self.bots))]
         ))
 
+    # ── Data for alerts ──
+
+    async def get_all_trades(self, limit: int = 20) -> list[dict]:
+        """Fetch recent closed trades from all bots. Returns list with _bot label."""
+        results = await asyncio.gather(
+            *[self._safe_call(i, "get_trades", limit=limit) for i in range(len(self.bots))]
+        )
+        all_trades = []
+        for label, _group, data in results:
+            if isinstance(data, dict):
+                trades = data.get("trades", [])
+            elif isinstance(data, list):
+                trades = data
+            else:
+                continue
+            for t in trades:
+                t["_bot"] = label
+            all_trades.extend(trades)
+        return all_trades
+
+    async def get_all_logs(self, limit: int = 50) -> dict[str, list]:
+        """Fetch recent logs from all bots. Returns {bot_name: [log_entries]}."""
+        results = await asyncio.gather(
+            *[self._safe_call(i, "get_logs", limit=limit) for i in range(len(self.bots))]
+        )
+        out = {}
+        for label, _group, data in results:
+            if isinstance(data, dict):
+                out[label] = data.get("logs", [])
+            else:
+                out[label] = []
+        return out
+
+    async def ping_all(self) -> dict[str, bool]:
+        """Ping all bots, return {bot_name: is_online}."""
+        results = await asyncio.gather(
+            *[self._safe_call(i, "ping") for i in range(len(self.bots))]
+        )
+        return {label: (result is True) for label, _group, result in results}
+
     # ── Bulk actions ──
 
     async def forceexit_all_bots(self) -> dict:

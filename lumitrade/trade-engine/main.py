@@ -54,6 +54,7 @@ from connectors.ibkr import IBKRConnector
 from connectors.freqtrade import FreqtradeConnector, MultiBotConnector
 from risk.manager import RiskManager
 from notifications.telegram import TelegramNotifier
+from notifications.alerts import AlertManager
 from analytics.sessions import SessionAnalyzer
 from analytics.reports import generate_performance_report, generate_html_report
 from analytics.mood_correlator import MoodCorrelator
@@ -72,11 +73,15 @@ ibkr_connector: IBKRConnector | None = None
 ft_connector = FreqtradeConnector()
 multi_bot = MultiBotConnector()
 telegram = TelegramNotifier()
+alert_manager = AlertManager()
 
 # Background task handle for bot risk monitor
 _risk_monitor_task: asyncio.Task | None = None
+# Background task handle for trade sync (freqtrade → PB)
+_trade_sync_task: asyncio.Task | None = None
 
 BOT_POLL_INTERVAL = 30  # seconds
+TRADE_SYNC_INTERVAL = 5 * 60  # 5 minutes
 
 
 async def _bot_risk_monitor_loop():
@@ -274,6 +279,20 @@ async def pb_get(path: str, params: dict = None) -> httpx.Response:
     token = await get_pb_token()
     headers = {"Authorization": token} if token else {}
     return await http_client.get(f"{settings.pb_url}{path}", params=params, headers=headers)
+
+
+async def pb_post(path: str, data: dict) -> httpx.Response:
+    """POST JSON to PocketBase with admin auth."""
+    token = await get_pb_token()
+    headers = {"Authorization": token, "Content-Type": "application/json"} if token else {"Content-Type": "application/json"}
+    return await http_client.post(f"{settings.pb_url}{path}", json=data, headers=headers)
+
+
+async def pb_patch(path: str, data: dict) -> httpx.Response:
+    """PATCH JSON to PocketBase with admin auth."""
+    token = await get_pb_token()
+    headers = {"Authorization": token, "Content-Type": "application/json"} if token else {"Content-Type": "application/json"}
+    return await http_client.patch(f"{settings.pb_url}{path}", json=data, headers=headers)
 
 
 async def notify_clients(event_type: str, data: dict):

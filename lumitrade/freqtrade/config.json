@@ -51,14 +51,7 @@
       "XRP/USDT:USDT",
       "ADA/USDT:USDT",
       "DOGE/USDT:USDT",
-      "AVAX/USDT:USDT",
-      "DOT/USDT:USDT",
-      "LINK/USDT:USDT",
-      "UNI/USDT:USDT",
-      "ATOM/USDT:USDT",
-      "LTC/USDT:USDT",
-      "FIL/USDT:USDT",
-      "APT/USDT:USDT"
+      "AVAX/USDT:USDT"
     ],
     "pair_blacklist": [
       ".*DOWN/USDT:USDT",
@@ -83,8 +76,8 @@
   ],
   "telegram": {
     "enabled": true,
-    "token": "${FREQTRADE_TELEGRAM_TOKEN}",
-    "chat_id": "${FREQTRADE_TELEGRAM_CHAT_ID}",
+    "token": "placeholder",
+    "chat_id": "placeholder",
     "notification_settings": {
       "status": "silent",
       "warning": "on",
@@ -117,7 +110,7 @@
   "initial_state": "running",
   "force_entry_enable": true,
   "internals": {
-    "process_throttle_secs": 5
+    "process_throttle_secs": 10
   },
   "freqai": {
     "enabled": true,

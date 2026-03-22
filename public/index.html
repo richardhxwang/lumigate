@@ -2969,6 +2969,7 @@ async function switchProv(name) {
           <span style="font-size:11px;color:rgba(0,0,0,0.3)">${ec}/${kc} active</span>
           <span style="flex:1"></span>
           <button class="btn sm" data-action="openAddKey" data-name="${esc(name)}" data-stop-propagation="1">+ Add</button>
+          ${name === 'openai' ? '<button class="btn sm" style="background:#10a37f;color:#fff" onclick="event.stopPropagation();codexOAuthLogin()" id="codexLoginBtn">ChatGPT OAuth</button>' : ''}
         </div>
         <div id="keysPanel" class="keys-float-panel">
           <div id="keysList"></div>
@@ -3697,6 +3698,33 @@ function openAddKey(provider) {
 }
 
 function closeAddKey() { document.getElementById('addKeyOverlay').classList.remove('show'); }
+
+async function codexOAuthLogin() {
+  const btn = document.getElementById('codexLoginBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+  try {
+    const d = await fetch(`${B}/admin/codex/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
+    if (!d.success || !d.authUrl) { showT(d.error || 'Failed to start OAuth', 'error'); return; }
+    showT('Opening OpenAI login... Complete sign-in in the browser window.', 'success');
+    window.open(d.authUrl, '_blank', 'width=500,height=700');
+    // Poll for completion
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      if (attempts > 60) { clearInterval(poll); showT('OAuth timeout — try again', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
+      try {
+        const s = await fetch(`${B}/admin/codex/status`).then(r => r.json());
+        if (s.connected) {
+          clearInterval(poll);
+          showT(`ChatGPT connected! Account: ${s.accountId}`, 'success');
+          if (btn) { btn.disabled = false; btn.textContent = 'Connected'; btn.style.background = '#0d9268'; }
+          load();
+        }
+      } catch {}
+    }, 2000);
+  } catch (e) { showT(e.message, 'error'); }
+  finally { if (btn && btn.disabled) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } }
+}
 
 async function saveNewKey() {
   const label = document.getElementById('addKeyLabel').value.trim();

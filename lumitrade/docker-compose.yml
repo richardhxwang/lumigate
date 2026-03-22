@@ -143,6 +143,7 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3-ai.sqlite
       --config /freqtrade/config.json
       --strategy SMCStrategy
+      --freqaimodel LightGBMRegressor
     networks:
       - default
       - lumigate
@@ -263,6 +264,7 @@ services:
       --db-url sqlite:////freqtrade/user_data/tradesv3-ai-lev.sqlite
       --config /freqtrade/config.json
       --strategy SMCStrategy
+      --freqaimodel LightGBMRegressor
     networks:
       - default
       - lumigate
