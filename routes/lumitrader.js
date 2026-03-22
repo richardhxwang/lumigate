@@ -934,12 +934,16 @@ module.exports = function createLumiTraderRouter(deps) {
           } catch {}
 
           // Format Telegram message
-          const severityIcon = { critical: "🔴", warning: "⚠️", info: "ℹ️" }[alert.severity] || "📊";
-          let tgMsg = `${severityIcon} <b>${alert.title}</b>\n\n${alert.message}`;
+          const severityIcon = { critical: "\ud83d\udd34", warning: "\u26a0\ufe0f", info: "\u2139\ufe0f" }[alert.severity] || "\ud83d\udcca";
+          let tgMsg = `${severityIcon} <b>${escHtml(alert.title)}</b>\n\n${escHtml(alert.message)}`;
 
           if (alert.trade_plan) {
             const tp = alert.trade_plan;
-            tgMsg += `\n\n📈 Trade Plan:\n${tp.symbol} ${tp.direction?.toUpperCase()}\nEntry: ${tp.entry}  SL: ${tp.sl}  TP: ${tp.tp}\nRisk: ${tp.risk_pct}%`;
+            const dir = (tp.direction || "").toLowerCase() === "long" ? "\u2b06\ufe0f\u505a\u591a" : "\u2b07\ufe0f\u505a\u7a7a";
+            tgMsg += `\n\n\ud83c\udfaf <b>\u4ea4\u6613\u8ba1\u5212</b>\n`;
+            tgMsg += `<b>${tp.symbol}</b> ${dir}\n`;
+            tgMsg += `\u5165\u573a: ${tp.entry} | \u6b62\u635f: ${tp.sl} | \u6b62\u76c8: ${tp.tp}\n`;
+            tgMsg += `\u4ed3\u4f4d: ${tp.risk_pct}%`;
           }
 
           // Always send to Telegram
@@ -1082,25 +1086,41 @@ module.exports = function createLumiTraderRouter(deps) {
   function mdToTelegram(text) {
     // 1. Escape HTML entities first to prevent Telegram parse errors (e.g. "< -3%" → "&lt; -3%")
     text = escHtml(text);
-    // Tables → monospace pre blocks
+    // Tables → emoji + bold label format (Telegram pre blocks are too narrow for tables)
     text = text.replace(/(\|[^\n]+\|\n\|[-| :]+\|\n(?:\|[^\n]+\|\n?)+)/g, (table) => {
       const rows = table.trim().split("\n").filter(r => !r.match(/^\|[-| :]+\|$/));
       const cells = rows.map(r => r.split("|").filter(c => c.trim()).map(c => c.trim()));
       if (cells.length === 0) return table;
-      const colW = [];
-      for (const row of cells) row.forEach((c, i) => { colW[i] = Math.max(colW[i] || 0, c.length); });
-      return "<pre>" + cells.map(row => row.map((c, i) => c.padEnd(colW[i] || 0)).join("  ")).join("\n") + "</pre>";
+      const headers = cells[0];
+      const dataRows = cells.slice(1);
+      if (dataRows.length === 0) return table;
+      // Format each data row as "header: value" pairs
+      return dataRows.map(row => {
+        return row.map((c, i) => {
+          const label = headers[i] || "";
+          return label ? `<b>${label}:</b> ${c}` : c;
+        }).filter(Boolean).join("  |  ");
+      }).join("\n");
     });
     // Bold
     text = text.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
     // Italic
     text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
-    // Code blocks
-    text = text.replace(/```[\s\S]*?```/g, (m) => "<pre>" + m.slice(3, -3).trim() + "</pre>");
+    // Code blocks → keep short code blocks, but not for data display
+    text = text.replace(/```[\s\S]*?```/g, (m) => {
+      const inner = m.slice(3, -3).replace(/^\w+\n/, "").trim();
+      // If it looks like data (has colons/pipes), format as plain text
+      if (inner.includes("|") || (inner.split("\n").length > 2 && inner.includes(":"))) {
+        return inner;
+      }
+      return "<pre>" + inner + "</pre>";
+    });
     // Inline code
     text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
     // Headers → bold
     text = text.replace(/^#{1,3}\s+(.+)$/gm, "<b>$1</b>");
+    // Bullet points: - or * at line start → bullet
+    text = text.replace(/^[\s]*[-*]\s+/gm, "  \u2022 ");
     return text;
   }
 
@@ -1186,10 +1206,10 @@ module.exports = function createLumiTraderRouter(deps) {
         }
       }
       if (fullText.length === 0) {
-        await sendTelegram("(No response)", { chatId });
+        await sendTelegram("(\u65e0\u54cd\u5e94)", { chatId });
       }
     } catch (err) {
-      await sendTelegram(`Error: ${err.message}`, { chatId });
+      await sendTelegram(`\u274c \u9519\u8bef: ${err.message}`, { chatId });
     } finally {
       clearInterval(typingTimer);
     }
@@ -1211,34 +1231,73 @@ module.exports = function createLumiTraderRouter(deps) {
     await callAiForTelegram(chatId, query);
   }
 
+  // Telegram format instruction appended to all AI prompts for clean output
+  const TG_FORMAT_HINT = `
+
+格式要求（你的回复将显示在 Telegram，不支持 markdown 表格）：
+- 不要用 markdown 表格（| 分隔符），Telegram 无法正确显示
+- 用 emoji + 粗体标签 + 换行来组织信息，例如：
+  **BTC/USDT**
+  方向: 做多 | 入场: 67,000
+  止损: 65,500 | 止盈: 70,000
+- 所有标签用中文（方向、入场价、止损、止盈、盈亏、余额、胜率 等）
+- 关键数字用粗体
+- 用 emoji 分隔不同区块（📊📡⚠️📰💰🎯📈📉✅❌🟢🔴）
+- 简洁直接，不要长段落`;
+
   async function handleSignalsCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "列出当前所有活跃的 SMC 交易信号，包括方向、入场价、止损、止盈、R:R、置信度。用表格格式。");
+    await callAiForTelegram(chatId, `列出当前所有活跃的 SMC 交易信号。对每个信号列出：交易对、方向（做多/做空）、信号类型、时间、信号强度/Tier。如果没有活跃信号就说"无活跃信号"。${TG_FORMAT_HINT}`);
   }
 
   async function handleRiskCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "报告当前的风控状态：日亏损%、持仓数、最大回撤、连胜/连亏、情绪评分。有没有接近熔断线？");
+    await callAiForTelegram(chatId, `报告当前风控状态，用以下格式逐项列出（每项用 🟢 正常 或 🔴 警告）：
+- 日亏损: X% / 3% 上限
+- 持仓数: X/5
+- 杠杆使用情况
+- 新闻黑窗期: 有/无
+- 熔断状态: 已触发/未触发
+- 情绪评分: X/10
+- 连胜/连亏: X${TG_FORMAT_HINT}`);
   }
 
   async function handleNewsCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "总结最近的市场新闻和情绪。有没有 high impact 的新闻需要注意？对当前持仓有什么影响？");
+    await callAiForTelegram(chatId, `总结最近的市场新闻和情绪。格式：
+1. 先给出整体情绪判断（偏多/偏空/中性 + 分数）
+2. 列出每条重要新闻，格式：📈/📉 + 标题 + 情绪分数 + 影响级别
+3. 如果有 Fear & Greed 数据，单独列出
+4. 说明对当前持仓的影响${TG_FORMAT_HINT}`);
   }
 
   async function handleJournalCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "生成今天的交易日志总结：交易次数、胜负、P&L、最佳/最差交易、情绪变化、经验教训。");
+    await callAiForTelegram(chatId, `生成今天的交易日志总结：
+- 交易次数、胜负
+- 盈亏金额和百分比
+- 最佳/最差交易
+- 情绪变化趋势
+- 关键经验教训${TG_FORMAT_HINT}`);
   }
 
   async function handleOptimizeCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "分析我的策略和回测结果，给出 3 个具体的优化建议，按优先级排序。包括参数调整、风控改进、pair 选择。");
+    await callAiForTelegram(chatId, `分析我的策略和回测结果，给出 3 个具体的优化建议，按优先级排序。包括参数调整、风控改进、交易对选择。每个建议用编号 + emoji 标记。${TG_FORMAT_HINT}`);
   }
 
   async function handleAnalysisCommand(chatId) {
     await sendTyping(chatId);
-    await callAiForTelegram(chatId, "综合所有可用数据（SMC 结构、新闻情绪、当前持仓、回测表现、时段、风控状态、bot 状态），分析当前是否有交易机会。对每个有机会的 pair 给出完整交易计划（方向、入场、SL、TP、R:R、仓位%、置信度、Tier 等级）。如果当前没有好的机会就直接说没有，不要勉强。先说结论。");
+    await callAiForTelegram(chatId, `综合所有可用数据（SMC 结构、新闻情绪、当前持仓、回测表现、时段、风控状态、bot 状态），分析当前是否有交易机会。
+
+如果有机会，对每个 pair 用以下格式：
+🎯 **BTC/USDT**
+  方向: 做多
+  入场: 67,000 | 止损: 65,500 | 止盈: 70,000
+  R:R: 3.3 | 仓位: 1.5% | 置信度: 高
+  Tier: 1 (BOS+OB+FVG)
+
+如果没有好机会就直说，不要勉强。先说结论。${TG_FORMAT_HINT}`);
   }
 
   // ── Freqtrade Telegram proxy — call freqtrade REST API, format in Chinese ──
@@ -1254,26 +1313,60 @@ module.exports = function createLumiTraderRouter(deps) {
   }
 
   async function handleFreqtradeStatus(chatId) {
+    // Try all-bots endpoint first
+    const allBots = await ftApiCall("/freqtrade/all-bots-status");
+    if (allBots && Array.isArray(allBots.bots)) {
+      let msg = "\ud83d\udcca <b>Bot \u72b6\u6001</b>\n";
+      for (const bot of allBots.bots) {
+        const icon = bot.online ? "\ud83d\udfe2" : "\ud83d\udd34";
+        const mode = bot.dry_run !== false ? "Dry Run" : "Live";
+        msg += `\n${icon} <b>${bot.name}</b> | ${mode}\n`;
+        if (!bot.online) { msg += "  \u79bb\u7ebf\n"; continue; }
+        const tradeCount = bot.trade_count ?? 0;
+        const maxTrades = bot.max_open_trades ?? "?";
+        msg += `  \u6301\u4ed3: ${tradeCount}/${maxTrades}\n`;
+        if (bot.profit) {
+          const totalPnl = Number(bot.profit.profit_all_coin ?? 0);
+          const sign = totalPnl >= 0 ? "+" : "";
+          msg += `  \u603b\u76c8\u4e8f: ${sign}${totalPnl.toFixed(2)} USDT\n`;
+        }
+        // Show open trades
+        if (Array.isArray(bot.open_trades) && bot.open_trades.length > 0) {
+          msg += "\n";
+          for (const t of bot.open_trades.slice(0, 4)) {
+            const dir = t.is_short ? "\u2b07\ufe0f\u7a7a" : "\u2b06\ufe0f\u591a";
+            const pnl = t.profit_abs != null ? (t.profit_abs >= 0 ? "+" : "") + Number(t.profit_abs).toFixed(2) : "?";
+            const pct = t.profit_ratio != null ? (t.profit_ratio * 100).toFixed(1) + "%" : "";
+            msg += `  <b>${t.pair}</b> ${dir}\n`;
+            msg += `    \u76c8\u4e8f: ${pnl} USDT (${pct})\n`;
+            msg += `    \u5165\u573a: ${t.open_rate || "?"} | \u65f6\u957f: ${t.trade_duration || "?"}\n`;
+          }
+          if (bot.open_trades.length > 4) msg += `  ... +${bot.open_trades.length - 4} \u7b14\n`;
+        }
+      }
+      await sendTelegram(msg, { chatId });
+      return;
+    }
+
+    // Fallback: single bot status
     const data = await ftApiCall("/freqtrade/status");
     if (!data || (Array.isArray(data) && data.length === 0)) {
-      await sendTelegram("当前没有开仓交易", { chatId });
+      await sendTelegram("\ud83d\udcca <b>Bot \u72b6\u6001</b>\n\n\u5f53\u524d\u6ca1\u6709\u5f00\u4ed3\u4ea4\u6613", { chatId });
       return;
     }
     const trades = Array.isArray(data) ? data : (data.open_trades || []);
     if (trades.length === 0) {
-      await sendTelegram("当前没有开仓交易", { chatId });
+      await sendTelegram("\ud83d\udcca <b>Bot \u72b6\u6001</b>\n\n\u5f53\u524d\u6ca1\u6709\u5f00\u4ed3\u4ea4\u6613", { chatId });
       return;
     }
-    let msg = `<b>当前持仓 (${trades.length})</b>\n\n`;
+    let msg = `\ud83d\udcca <b>\u5f53\u524d\u6301\u4ed3 (${trades.length})</b>\n`;
     for (const t of trades.slice(0, 10)) {
-      const dir = t.is_short ? "空" : "多";
+      const dir = t.is_short ? "\u2b07\ufe0f\u7a7a" : "\u2b06\ufe0f\u591a";
       const pnl = t.profit_abs != null ? (t.profit_abs >= 0 ? "+" : "") + Number(t.profit_abs).toFixed(2) : "?";
-      const pct = t.profit_ratio != null ? (t.profit_ratio * 100).toFixed(1) + "%" : "?";
-      const dur = t.trade_duration || "?";
-      msg += `<b>${t.pair}</b> ${dir}\n`;
-      msg += `  盈亏: ${pnl} USDT (${pct})\n`;
-      msg += `  持仓时间: ${dur}\n`;
-      msg += `  入场价: ${t.open_rate || "?"}\n\n`;
+      const pct = t.profit_ratio != null ? (t.profit_ratio * 100).toFixed(1) + "%" : "";
+      msg += `\n<b>${t.pair}</b> ${dir}\n`;
+      msg += `  \u76c8\u4e8f: ${pnl} USDT (${pct})\n`;
+      msg += `  \u5165\u573a\u4ef7: ${t.open_rate || "?"} | \u65f6\u957f: ${t.trade_duration || "?"}\n`;
     }
     await sendTelegram(msg, { chatId });
   }
@@ -1281,38 +1374,79 @@ module.exports = function createLumiTraderRouter(deps) {
   async function handleFreqtradeProfit(chatId) {
     const data = await ftApiCall("/freqtrade/performance");
     const balance = await ftApiCall("/freqtrade/balance");
-    let msg = "<b>盈亏统计</b>\n\n";
-    if (balance) {
-      msg += `总资产: ${Number(balance.total || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${balance.currency || "USDT"}\n`;
-      msg += `可用: ${Number(balance.free || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${balance.currency || "USDT"}\n\n`;
-    }
-    if (Array.isArray(data) && data.length > 0) {
-      msg += "<b>交易对表现:</b>\n";
-      for (const p of data.slice(0, 10)) {
-        const pnl = Number(p.profit_abs || 0);
-        const sign = pnl >= 0 ? "+" : "";
-        msg += `  ${p.pair}: ${sign}${pnl.toFixed(2)} USDT (${p.count || 0} 笔)\n`;
+    const pnlRecord = await tradePbFetch("/api/collections/trade_pnl/records?perPage=1").then(r => r.ok ? r.json() : null).catch(() => null);
+    const pnl = pnlRecord?.items?.[0] || null;
+
+    let msg = "\ud83d\udcb0 <b>\u76c8\u4e8f\u7edf\u8ba1</b>\n\n";
+
+    // P&L summary from PB
+    if (pnl) {
+      const daily = Number(pnl.daily_pnl ?? 0);
+      const dailySign = daily >= 0 ? "+" : "";
+      const cumul = Number(pnl.cumulative_pnl ?? 0);
+      const cumulSign = cumul >= 0 ? "+" : "";
+      msg += `\u4eca\u65e5: ${dailySign}$${daily.toFixed(2)}\n`;
+      msg += `\u7d2f\u8ba1: ${cumulSign}$${cumul.toFixed(2)}\n`;
+      if (pnl.win_rate != null) msg += `\u80dc\u7387: ${pnl.win_rate}%`;
+      if (pnl.win_count != null && pnl.loss_count != null) msg += ` (${pnl.win_count}\u80dc ${pnl.loss_count}\u8d1f)`;
+      msg += "\n";
+      if (pnl.streak != null) {
+        const s = Number(pnl.streak);
+        msg += `\u8fde\u7eed: ${s > 0 ? "\u2705\u8fde\u80dc" + s : s < 0 ? "\u274c\u8fde\u4e8f" + Math.abs(s) : "\u65e0"}\n`;
       }
+      if (pnl.max_drawdown != null) msg += `\u6700\u5927\u56de\u64a4: ${pnl.max_drawdown}%\n`;
     } else {
-      msg += "暂无交易记录";
+      msg += "\u4eca\u65e5: $0 (0%)\n\u7d2f\u8ba1: $0 (0%)\n\u80dc\u7387: -- (\u65e0\u4ea4\u6613)\n";
     }
+
+    // Balance info
+    if (balance) {
+      const cur = balance.currency || "USDT";
+      msg += `\n\ud83c\udfe6 <b>\u8d26\u6237</b>\n`;
+      msg += `\u603b\u8d44\u4ea7: ${Number(balance.total || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${cur}\n`;
+      msg += `\u53ef\u7528: ${Number(balance.free || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${cur}\n`;
+    }
+
+    // Per-pair performance
+    if (Array.isArray(data) && data.length > 0) {
+      msg += `\n\ud83d\udcc8 <b>\u4ea4\u6613\u5bf9\u8868\u73b0</b>\n`;
+      for (const p of data.slice(0, 10)) {
+        const pnlVal = Number(p.profit_abs || 0);
+        const icon = pnlVal >= 0 ? "\ud83d\udfe2" : "\ud83d\udd34";
+        const sign = pnlVal >= 0 ? "+" : "";
+        msg += `${icon} ${p.pair}: ${sign}${pnlVal.toFixed(2)} USDT (${p.count || 0}\u7b14)\n`;
+      }
+    }
+
     await sendTelegram(msg, { chatId });
   }
 
   async function handleFreqtradeBalance(chatId) {
     const data = await ftApiCall("/freqtrade/balance");
     if (!data) {
-      await sendTelegram("无法获取余额信息", { chatId });
+      await sendTelegram("\ud83c\udfe6 <b>\u8d26\u6237\u4f59\u989d</b>\n\n\u26a0\ufe0f \u65e0\u6cd5\u83b7\u53d6\u4f59\u989d\u4fe1\u606f", { chatId });
       return;
     }
-    let msg = "<b>账户余额</b>\n\n";
-    msg += `总资产: ${Number(data.total || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
-    msg += `可用余额: ${Number(data.free || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
-    msg += `已用: ${Number(data.used || 0).toLocaleString("en-US", {maximumFractionDigits: 2})} ${data.currency || "USDT"}\n`;
+    const cur = data.currency || "USDT";
+    const total = Number(data.total || 0);
+    const free = Number(data.free || 0);
+    const used = Number(data.used || 0);
+    const usedPct = total > 0 ? ((used / total) * 100).toFixed(1) : "0";
+
+    let msg = `\ud83c\udfe6 <b>\u8d26\u6237\u4f59\u989d</b>\n\n`;
+    msg += `\u603b\u8d44\u4ea7: <b>${total.toLocaleString("en-US", {maximumFractionDigits: 2})} ${cur}</b>\n`;
+    msg += `\u53ef\u7528: ${free.toLocaleString("en-US", {maximumFractionDigits: 2})} ${cur}\n`;
+    msg += `\u5df2\u7528: ${used.toLocaleString("en-US", {maximumFractionDigits: 2})} ${cur} (${usedPct}%)\n`;
+
     if (data.currencies) {
-      msg += "\n<b>币种明细:</b>\n";
-      for (const c of data.currencies.filter(x => x.balance > 0).slice(0, 10)) {
-        msg += `  ${c.currency}: ${Number(c.balance).toFixed(4)} (${Number(c.est_stake || 0).toFixed(2)} USDT)\n`;
+      const nonZero = data.currencies.filter(x => x.balance > 0);
+      if (nonZero.length > 0) {
+        msg += `\n\ud83d\udcb1 <b>\u5e01\u79cd\u660e\u7ec6</b>\n`;
+        for (const c of nonZero.slice(0, 10)) {
+          const bal = Number(c.balance);
+          const est = Number(c.est_stake || 0);
+          msg += `  ${c.currency}: ${bal.toFixed(4)} (\u2248 ${est.toFixed(2)} ${cur})\n`;
+        }
       }
     }
     await sendTelegram(msg, { chatId });
@@ -1321,9 +1455,9 @@ module.exports = function createLumiTraderRouter(deps) {
   async function handleFreqtradeCommand(chatId, action, successMsg) {
     try {
       const r = await engineFetch(`/freqtrade/${action}`, { method: "POST" });
-      await sendTelegram(r.ok ? successMsg : `操作失败: ${action}`, { chatId });
+      await sendTelegram(r.ok ? `\u2705 ${successMsg}` : `\u274c \u64cd\u4f5c\u5931\u8d25: ${action}`, { chatId });
     } catch (err) {
-      await sendTelegram(`操作失败: ${err.message}`, { chatId });
+      await sendTelegram(`\u274c \u64cd\u4f5c\u5931\u8d25: ${err.message}`, { chatId });
     }
   }
 
@@ -1372,22 +1506,22 @@ module.exports = function createLumiTraderRouter(deps) {
         if (text === "/ai" || text.startsWith("/ai ")) {
           const query = text.slice(3).trim();
           if (!query) {
-            await sendTelegram("<b>AI 智能分析</b>\n\n选择快捷问题，或直接发文字提问:", {
+            await sendTelegram("\ud83e\udde0 <b>AI \u667a\u80fd\u5206\u6790</b>\n\n\u9009\u62e9\u5feb\u6377\u95ee\u9898\uff0c\u6216\u76f4\u63a5\u53d1\u6587\u5b57\u63d0\u95ee:", {
               chatId,
               replyMarkup: { inline_keyboard: [
-                [{ text: "📊 市场分析", callback_data: "ai:现在市场怎么样" }, { text: "🎯 入场建议", callback_data: "ai:现在适合开仓吗" }],
-                [{ text: "⚠️ 风控检查", callback_data: "ai:我的风控状态如何" }, { text: "📰 新闻情绪", callback_data: "ai:最近新闻情绪如何" }],
+                [{ text: "\ud83d\udcca \u5e02\u573a\u5206\u6790", callback_data: "ai:\u73b0\u5728\u5e02\u573a\u600e\u4e48\u6837" }, { text: "\ud83c\udfaf \u5165\u573a\u5efa\u8bae", callback_data: "ai:\u73b0\u5728\u9002\u5408\u5f00\u4ed3\u5417" }],
+                [{ text: "\u26a0\ufe0f \u98ce\u63a7\u68c0\u67e5", callback_data: "ai:\u6211\u7684\u98ce\u63a7\u72b6\u6001\u5982\u4f55" }, { text: "\ud83d\udcf0 \u65b0\u95fb\u60c5\u7eea", callback_data: "ai:\u6700\u8fd1\u65b0\u95fb\u60c5\u7eea\u5982\u4f55" }],
               ] },
             });
           } else {
             await handleAiCommand(chatId, query);
           }
         } else if (text === "/signals") {
-          await sendTelegram("<b>交易信号</b>\n\n选择要查看的交易对:", {
+          await sendTelegram("\ud83d\udce1 <b>\u4ea4\u6613\u4fe1\u53f7</b>\n\n\u9009\u62e9\u8981\u67e5\u770b\u7684\u4ea4\u6613\u5bf9:", {
             chatId,
             replyMarkup: { inline_keyboard: [
               [{ text: "BTC", callback_data: "signals:BTC" }, { text: "ETH", callback_data: "signals:ETH" }, { text: "SOL", callback_data: "signals:SOL" }],
-              [{ text: "全部信号", callback_data: "signals:all" }],
+              [{ text: "\u5168\u90e8\u4fe1\u53f7", callback_data: "signals:all" }],
             ] },
           });
         } else if (text === "/risk") {
@@ -1414,7 +1548,7 @@ module.exports = function createLumiTraderRouter(deps) {
           const arg = text.slice(6).trim().toLowerCase();
           if (!arg) {
             const current = getTgModel(chatId);
-            await sendTelegram(`<b>当前模型:</b> ${current}\n\n点击按钮切换模型:`, {
+            await sendTelegram(`\ud83e\udd16 <b>\u5f53\u524d\u6a21\u578b:</b> ${current}\n\n\u70b9\u51fb\u6309\u94ae\u5207\u6362:`, {
               chatId,
               replyMarkup: { inline_keyboard: [
                 [{ text: `Claude Opus${current === "claude-opus-4-6" ? " ✓" : ""}`, callback_data: "model:claude-opus-4-6" }, { text: `Claude Sonnet${current === "claude-sonnet-4-6" ? " ✓" : ""}`, callback_data: "model:claude-sonnet-4-6" }],
@@ -1424,30 +1558,30 @@ module.exports = function createLumiTraderRouter(deps) {
             });
           } else if (TG_MODELS[arg]) {
             _tgModelPref[chatId] = TG_MODELS[arg];
-            await sendTelegram(`已切换模型: <b>${TG_MODELS[arg]}</b>`, { chatId });
+            await sendTelegram(`\u2705 \u5df2\u5207\u6362\u6a21\u578b: <b>${TG_MODELS[arg]}</b>`, { chatId });
           } else {
-            await sendTelegram(`未知模型: ${arg}\n可选: ${Object.keys(TG_MODELS).join(", ")}`, { chatId });
+            await sendTelegram(`\u274c \u672a\u77e5\u6a21\u578b: ${escHtml(arg)}\n\u53ef\u9009: ${Object.keys(TG_MODELS).join(", ")}`, { chatId });
           }
         } else if (text === "/help") {
           await sendTelegram(
-            "<b>LumiTrader 指令</b>\n\n" +
-            "<b>AI 分析:</b>\n" +
-            "/ai [问题] — AI 智能分析\n" +
-            "/signals — 当前交易信号\n" +
-            "/risk — 风控状态检查\n" +
-            "/news — 最新新闻情绪\n" +
-            "/journal — 今日交易总结\n" +
-            "/optimize — 策略优化建议\n" +
-            "/analysis — 扫描当前交易机会\n" +
-            "/model [名称] — 切换 AI 模型\n\n" +
-            "<b>交易控制:</b>\n" +
-            "/status — 当前持仓状态\n" +
-            "/profit — 盈亏统计\n" +
-            "/balance — 账户余额\n" +
-            "/start — 启动交易\n" +
-            "/stop — 停止交易\n" +
-            "/help — 显示此帮助\n\n" +
-            "<i>直接发文字 = 和 AI 对话（不需要加 /ai）</i>",
+            "\ud83e\udd16 <b>LumiTrader \u6307\u4ee4</b>\n\n" +
+            "\ud83e\udde0 <b>AI \u5206\u6790</b>\n" +
+            "/ai [\u95ee\u9898] \u2014 AI \u667a\u80fd\u5206\u6790\n" +
+            "/signals \u2014 \u5f53\u524d\u4ea4\u6613\u4fe1\u53f7\n" +
+            "/risk \u2014 \u98ce\u63a7\u72b6\u6001\u68c0\u67e5\n" +
+            "/news \u2014 \u6700\u65b0\u65b0\u95fb\u60c5\u7eea\n" +
+            "/journal \u2014 \u4eca\u65e5\u4ea4\u6613\u603b\u7ed3\n" +
+            "/optimize \u2014 \u7b56\u7565\u4f18\u5316\u5efa\u8bae\n" +
+            "/analysis \u2014 \u626b\u63cf\u5f53\u524d\u4ea4\u6613\u673a\u4f1a\n" +
+            "/model [\u540d\u79f0] \u2014 \u5207\u6362 AI \u6a21\u578b\n\n" +
+            "\ud83d\udcca <b>\u4ea4\u6613\u63a7\u5236</b>\n" +
+            "/status \u2014 Bot \u72b6\u6001 + \u6301\u4ed3\n" +
+            "/profit \u2014 \u76c8\u4e8f\u7edf\u8ba1\n" +
+            "/balance \u2014 \u8d26\u6237\u4f59\u989d\n" +
+            "/start \u2014 \u542f\u52a8\u4ea4\u6613\n" +
+            "/stop \u2014 \u505c\u6b62\u4ea4\u6613\n" +
+            "/help \u2014 \u663e\u793a\u6b64\u5e2e\u52a9\n\n" +
+            "\ud83d\udcac <i>\u76f4\u63a5\u53d1\u6587\u5b57 = \u548c AI \u5bf9\u8bdd\uff08\u4e0d\u9700\u8981\u52a0 /ai\uff09</i>",
             {
               chatId,
               replyMarkup: { inline_keyboard: [
@@ -1479,10 +1613,10 @@ module.exports = function createLumiTraderRouter(deps) {
         if (data.startsWith("model:")) {
           const modelId = data.slice(6);
           _tgModelPref[chatId] = modelId;
-          await sendTelegram(`已切换模型: <b>${modelId}</b>`, { chatId });
+          await sendTelegram(`\u2705 \u5df2\u5207\u6362\u6a21\u578b: <b>${modelId}</b>`, { chatId });
         } else if (data.startsWith("ai:")) {
           const query = data.slice(3);
-          await sendTelegram(`正在分析: <i>${query}</i>`, { chatId });
+          await sendTelegram(`\ud83e\udde0 \u6b63\u5728\u5206\u6790: <i>${escHtml(query)}</i>`, { chatId });
           await handleAiCommand(chatId, query);
         } else if (data.startsWith("signals:")) {
           const pair = data.slice(8);
@@ -1495,24 +1629,24 @@ module.exports = function createLumiTraderRouter(deps) {
         } else if (data.startsWith("cmd:")) {
           const cmd = data.slice(4);
           if (cmd === "/ai") {
-            await sendTelegram("<b>AI 智能分析</b>\n\n选择快捷问题，或直接发文字提问:", {
+            await sendTelegram("\ud83e\udde0 <b>AI \u667a\u80fd\u5206\u6790</b>\n\n\u9009\u62e9\u5feb\u6377\u95ee\u9898\uff0c\u6216\u76f4\u63a5\u53d1\u6587\u5b57\u63d0\u95ee:", {
               chatId,
               replyMarkup: { inline_keyboard: [
-                [{ text: "📊 市场分析", callback_data: "ai:现在市场怎么样" }, { text: "🎯 入场建议", callback_data: "ai:现在适合开仓吗" }],
-                [{ text: "⚠️ 风控检查", callback_data: "ai:我的风控状态如何" }, { text: "📰 新闻情绪", callback_data: "ai:最近新闻情绪如何" }],
+                [{ text: "\ud83d\udcca \u5e02\u573a\u5206\u6790", callback_data: "ai:\u73b0\u5728\u5e02\u573a\u600e\u4e48\u6837" }, { text: "\ud83c\udfaf \u5165\u573a\u5efa\u8bae", callback_data: "ai:\u73b0\u5728\u9002\u5408\u5f00\u4ed3\u5417" }],
+                [{ text: "\u26a0\ufe0f \u98ce\u63a7\u68c0\u67e5", callback_data: "ai:\u6211\u7684\u98ce\u63a7\u72b6\u6001\u5982\u4f55" }, { text: "\ud83d\udcf0 \u65b0\u95fb\u60c5\u7eea", callback_data: "ai:\u6700\u8fd1\u65b0\u95fb\u60c5\u7eea\u5982\u4f55" }],
               ] },
             });
           } else if (cmd === "/signals") {
-            await sendTelegram("<b>交易信号</b>\n\n选择要查看的交易对:", {
+            await sendTelegram("\ud83d\udce1 <b>\u4ea4\u6613\u4fe1\u53f7</b>\n\n\u9009\u62e9\u8981\u67e5\u770b\u7684\u4ea4\u6613\u5bf9:", {
               chatId,
               replyMarkup: { inline_keyboard: [
                 [{ text: "BTC", callback_data: "signals:BTC" }, { text: "ETH", callback_data: "signals:ETH" }, { text: "SOL", callback_data: "signals:SOL" }],
-                [{ text: "全部信号", callback_data: "signals:all" }],
+                [{ text: "\u5168\u90e8\u4fe1\u53f7", callback_data: "signals:all" }],
               ] },
             });
           } else if (cmd === "/model") {
             const current = getTgModel(chatId);
-            await sendTelegram(`<b>当前模型:</b> ${current}\n\n点击按钮切换模型:`, {
+            await sendTelegram(`\ud83e\udd16 <b>\u5f53\u524d\u6a21\u578b:</b> ${current}\n\n\u70b9\u51fb\u6309\u94ae\u5207\u6362:`, {
               chatId,
               replyMarkup: { inline_keyboard: [
                 [{ text: `Claude Opus${current === "claude-opus-4-6" ? " ✓" : ""}`, callback_data: "model:claude-opus-4-6" }, { text: `Claude Sonnet${current === "claude-sonnet-4-6" ? " ✓" : ""}`, callback_data: "model:claude-sonnet-4-6" }],
@@ -1528,10 +1662,10 @@ module.exports = function createLumiTraderRouter(deps) {
             await handleFreqtradeStatus(chatId);
           }
         } else if (data.startsWith("execute:")) {
-          await sendTelegram("Executing...", { chatId });
+          await sendTelegram("\u23f3 \u6267\u884c\u4e2d...", { chatId });
           // TODO: parse trade plan from data and execute via trade-engine
         } else if (data.startsWith("reject:")) {
-          await sendTelegram("Rejected.", { chatId });
+          await sendTelegram("\u274c \u5df2\u53d6\u6d88", { chatId });
         }
       }
     } catch (err) {
