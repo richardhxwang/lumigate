@@ -36,6 +36,15 @@ if 'self.features_in is not None and' not in src:
     src = src.replace(old2, new2, 1)
     assert 'self.features_in is not None and' in src, 'patch2 failed'
 
+# Patch 3: __getitem__ logs warning for missing optional steps (e.g. "di")
+# which freqtrade intentionally queries with `if pipeline["di"]:`.
+# Downgrade from warning → debug to stop log spam (~10 per inference cycle).
+old3 = 'logger.warning(f"Could not find step {name} in pipeline, returning None")'
+new3 = 'logger.debug(f"Could not find step {name} in pipeline, returning None")'
+if old3 in src:
+    src = src.replace(old3, new3, 1)
+    assert new3 in src, 'patch3 failed'
+
 open(path, 'w').write(src)
 print('datasieve pipeline.py patched OK')
 EOF

@@ -51,7 +51,14 @@
       "XRP/USDT:USDT",
       "ADA/USDT:USDT",
       "DOGE/USDT:USDT",
-      "AVAX/USDT:USDT"
+      "AVAX/USDT:USDT",
+      "DOT/USDT:USDT",
+      "LINK/USDT:USDT",
+      "UNI/USDT:USDT",
+      "ATOM/USDT:USDT",
+      "LTC/USDT:USDT",
+      "FIL/USDT:USDT",
+      "APT/USDT:USDT"
     ],
     "pair_blacklist": [
       ".*DOWN/USDT:USDT",

@@ -8,8 +8,9 @@ Supported sources:
   1. PANews          — panewslab.com
   2. BlockBeats      — theblockbeats.info (API v2)
   3. Odaily          — odaily.news
-  4. Jinse (金色财经) — via RSSHub (jinse.cn has no native RSS)
-  5. Wu Blockchain   — wublock.substack.com (no native RSS; Substack provides one)
+  4. ChainCatcher    — via RSSHub (chaincatcher.com has no native RSS)
+  5. Foresight News  — via RSSHub (foresightnews.pro has no native RSS)
+  6. Wu Blockchain   — wublock.substack.com (no native RSS; Substack provides one)
 
 Sentiment fields are left null — Chinese text is not suitable for FinBERT
 (English-only). LumiGate LLM deep analysis fills them later.
@@ -24,7 +25,7 @@ from email.utils import parsedate_to_datetime
 import feedparser
 import httpx
 
-from config import settings
+from config import settings, pb_api
 
 logger = logging.getLogger("lumitrade.news.rss_collector")
 
@@ -49,11 +50,17 @@ RSS_FEEDS: list[dict] = [
         "url": "https://rss.odaily.news/rss/post",
     },
     {
-        "name": "rss_jinse",
-        "label": "金色财经",
-        # Jinse has no native RSS — use public RSSHub instance.
+        "name": "rss_chaincatcher",
+        "label": "ChainCatcher",
+        # ChainCatcher has no native RSS — use public RSSHub instance.
         # Self-host RSSHub if rate-limited: https://docs.rsshub.app/
-        "url": "https://rsshub.app/jinse/lives",
+        "url": "https://rsshub.app/chaincatcher/news",
+    },
+    {
+        "name": "rss_foresightnews",
+        "label": "Foresight News",
+        # Foresight News has no native RSS — use public RSSHub instance.
+        "url": "https://rsshub.app/foresightnews/news",
     },
     {
         "name": "rss_wublockchain",
@@ -149,7 +156,7 @@ async def _article_exists(
     token: str,
 ) -> bool:
     """Check if an article with this headline+source already exists in PB."""
-    base_url = f"{settings.pb_url}/api/collections/trade_news/records"
+    base_url = f"{settings.pb_url}{pb_api('/api/collections/trade_news/records')}"
     # Escape double quotes in headline for PB filter syntax
     safe_headline = headline.replace('"', '\\"').replace("'", "\\'")
     filter_expr = f'headline="{safe_headline}" && news_source="{news_source}"'
@@ -188,11 +195,18 @@ async def fetch_single_feed(
 
     result = {"source": name, "label": label, "fetched": 0, "saved": 0, "errors": 0}
 
-    # Fetch RSS XML
+    # Fetch RSS XML — use browser-like UA for RSSHub (blocks bot UAs)
+    fetch_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    }
     try:
         resp = await http_client.get(
             url,
-            headers={"User-Agent": "LumiTrade/1.0 RSS Collector"},
+            headers=fetch_headers,
             timeout=20,
             follow_redirects=True,
         )
@@ -222,7 +236,7 @@ async def fetch_single_feed(
         return result
 
     headers = {"Authorization": token, "Content-Type": "application/json"}
-    base_url = f"{settings.pb_url}/api/collections/trade_news/records"
+    base_url = f"{settings.pb_url}{pb_api('/api/collections/trade_news/records')}"
 
     saved_count = 0
     for entry in entries[:30]:  # cap per feed to avoid flooding

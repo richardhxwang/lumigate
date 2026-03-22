@@ -3704,26 +3704,37 @@ async function codexOAuthLogin() {
   if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
   try {
     const d = await fetch(`${B}/admin/codex/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
-    if (!d.success || !d.authUrl) { showT(d.error || 'Failed to start OAuth', 'error'); return; }
-    showT('Opening OpenAI login... Complete sign-in in the browser window.', 'success');
-    window.open(d.authUrl, '_blank', 'width=500,height=700');
+    if (!d.success || !d.authUrl) { showT(d.error || 'Failed to start OAuth', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
+    showT('Opening OpenAI login...', 'success');
+    // Try popup first, fallback to new tab, fallback to same-window redirect
+    const popup = window.open(d.authUrl, 'codex_oauth', 'width=520,height=700,left=100,top=100');
+    if (!popup || popup.closed) {
+      // Popup blocked — open in new tab instead
+      const tab = window.open(d.authUrl, '_blank');
+      if (!tab) {
+        // All blocked — copy URL to clipboard and show it
+        navigator.clipboard?.writeText(d.authUrl).catch(()=>{});
+        showT('Popup blocked! Open this URL manually: ' + d.authUrl.substring(0, 60) + '...', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; }
+        return;
+      }
+    }
     // Poll for completion
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
-      if (attempts > 60) { clearInterval(poll); showT('OAuth timeout — try again', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
+      if (attempts > 90) { clearInterval(poll); showT('OAuth timeout — try again', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } return; }
       try {
         const s = await fetch(`${B}/admin/codex/status`).then(r => r.json());
         if (s.connected) {
           clearInterval(poll);
           showT(`ChatGPT connected! Account: ${s.accountId}`, 'success');
-          if (btn) { btn.disabled = false; btn.textContent = 'Connected'; btn.style.background = '#0d9268'; }
+          if (btn) { btn.disabled = false; btn.textContent = '✓ Connected'; btn.style.background = '#0d9268'; }
           load();
         }
       } catch {}
     }, 2000);
-  } catch (e) { showT(e.message, 'error'); }
-  finally { if (btn && btn.disabled) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } }
+  } catch (e) { showT(e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'ChatGPT OAuth'; } }
 }
 
 async function saveNewKey() {

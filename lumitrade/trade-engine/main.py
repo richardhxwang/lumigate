@@ -49,7 +49,7 @@ class SafeJSONResponse(JSONResponse):
             ensure_ascii=False,
         ).encode("utf-8")
 
-from config import settings
+from config import settings, pb_api
 from connectors.ibkr import IBKRConnector
 from connectors.freqtrade import FreqtradeConnector, MultiBotConnector
 from risk.manager import RiskManager
@@ -585,24 +585,24 @@ async def get_pb_token() -> str:
     return ""
 
 async def pb_get(path: str, params: dict = None) -> httpx.Response:
-    """GET from PocketBase with admin auth."""
+    """GET from PocketBase with admin auth (project-isolated)."""
     token = await get_pb_token()
     headers = {"Authorization": token} if token else {}
-    return await http_client.get(f"{settings.pb_url}{path}", params=params, headers=headers)
+    return await http_client.get(f"{settings.pb_url}{pb_api(path)}", params=params, headers=headers)
 
 
 async def pb_post(path: str, data: dict) -> httpx.Response:
-    """POST JSON to PocketBase with admin auth."""
+    """POST JSON to PocketBase with admin auth (project-isolated)."""
     token = await get_pb_token()
     headers = {"Authorization": token, "Content-Type": "application/json"} if token else {"Content-Type": "application/json"}
-    return await http_client.post(f"{settings.pb_url}{path}", json=data, headers=headers)
+    return await http_client.post(f"{settings.pb_url}{pb_api(path)}", json=data, headers=headers)
 
 
 async def pb_patch(path: str, data: dict) -> httpx.Response:
-    """PATCH JSON to PocketBase with admin auth."""
+    """PATCH JSON to PocketBase with admin auth (project-isolated)."""
     token = await get_pb_token()
     headers = {"Authorization": token, "Content-Type": "application/json"} if token else {"Content-Type": "application/json"}
-    return await http_client.patch(f"{settings.pb_url}{path}", json=data, headers=headers)
+    return await http_client.patch(f"{settings.pb_url}{pb_api(path)}", json=data, headers=headers)
 
 
 async def notify_clients(event_type: str, data: dict):

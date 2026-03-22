@@ -9,6 +9,8 @@ PB 0.23+ requires "fields" key (not "schema") in collection API payloads.
 import httpx
 import logging
 
+from config import pb_api
+
 logger = logging.getLogger("lumitrade.pb_collections")
 
 # ---------------------------------------------------------------------------
@@ -160,7 +162,7 @@ async def ensure_trade_collections(pb_url: str, admin_token: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
-                f"{pb_url}/api/collections",
+                f"{pb_url}{pb_api('/api/collections')}",
                 params={"perPage": 500},
                 headers=headers,
             )
@@ -199,7 +201,7 @@ async def ensure_trade_collections(pb_url: str, admin_token: str) -> dict:
 
             try:
                 resp = await client.post(
-                    f"{pb_url}/api/collections",
+                    f"{pb_url}{pb_api('/api/collections')}",
                     json=body,
                     headers={
                         **headers,

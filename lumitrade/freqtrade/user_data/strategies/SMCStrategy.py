@@ -188,6 +188,18 @@ class SMCStrategy(IStrategy):
             dataframe["liq_swept"].rolling(lb, min_periods=1).max()
         )
 
+        # --- Continuous features for FreqAI (supplement sparse 0/1 signals) ---
+
+        # Swing high/low tracking: forward-fill last known swing high and swing low
+        swing_high_raw = dataframe.loc[dataframe["swing_hl"] == 1, "swing_level"]
+        swing_low_raw = dataframe.loc[dataframe["swing_hl"] == -1, "swing_level"]
+        dataframe["swing_high"] = swing_high_raw.reindex(dataframe.index).ffill().fillna(0)
+        dataframe["swing_low"] = swing_low_raw.reindex(dataframe.index).ffill().fillna(0)
+
+        # ATR for volatility feature
+        dataframe["atr_14"] = ta.ATR(dataframe["high"], dataframe["low"],
+                                     dataframe["close"], timeperiod=14)
+
         # FreqAI / LumiLearning — only run if enabled in config
         if self.freqai and hasattr(self, 'freqai') and self.config.get('freqai', {}).get('enabled', False):
             dataframe = self.freqai.start(dataframe, metadata, self)
@@ -233,6 +245,49 @@ class SMCStrategy(IStrategy):
         ]:
             base = dataframe[src].fillna(0) if src in dataframe.columns else 0
             dataframe[dst] = base + rng.normal(0, 0.001, len(dataframe))
+
+        # --- Continuous-value features (solve LightGBM "No further splits") ---
+        # These give LightGBM real gradients to split on, unlike sparse 0/1 signals.
+
+        close = dataframe["close"]
+
+        # 1. OB distance: how far price is relative to active OB zone
+        ob_top = dataframe["active_ob_top"] if "active_ob_top" in dataframe.columns else 0
+        ob_bot = dataframe["active_ob_bottom"] if "active_ob_bottom" in dataframe.columns else 0
+        ob_range = ob_top - ob_bot
+        ob_range_safe = ob_range.replace(0, np.nan)
+        dataframe["%-ob_distance"] = ((close - ob_bot) / ob_range_safe).fillna(-1)
+        dataframe["%-ob_width"] = (ob_range / close).fillna(0)
+
+        # 2. FVG distance: how far price is relative to last FVG zone
+        fvg_top = dataframe["fvg_top"].replace(0, np.nan).ffill().fillna(0) if "fvg_top" in dataframe.columns else 0
+        fvg_bot = dataframe["fvg_bottom"].replace(0, np.nan).ffill().fillna(0) if "fvg_bottom" in dataframe.columns else 0
+        fvg_range = fvg_top - fvg_bot
+        fvg_range_safe = fvg_range.replace(0, np.nan)
+        dataframe["%-fvg_distance"] = ((close - fvg_bot) / fvg_range_safe).fillna(-1)
+        dataframe["%-fvg_width"] = (fvg_range / close).fillna(0)
+
+        # 3. Liquidity distance: % distance to nearest liquidity level
+        liq_level = dataframe["liq_level"].replace(0, np.nan).ffill().fillna(0) if "liq_level" in dataframe.columns else 0
+        liq_safe = liq_level.replace(0, np.nan)
+        dataframe["%-liq_distance"] = ((close - liq_safe) / close).fillna(0)
+
+        # 4. Structure signal accumulation (rolling counts over 20 candles)
+        dataframe["%-recent_bos_count"] = dataframe["bos"].abs().rolling(20, min_periods=1).sum().fillna(0) if "bos" in dataframe.columns else 0
+        dataframe["%-recent_choch_count"] = dataframe["choch"].abs().rolling(20, min_periods=1).sum().fillna(0) if "choch" in dataframe.columns else 0
+        dataframe["%-recent_fvg_count"] = dataframe["fvg_direction"].abs().rolling(20, min_periods=1).sum().fillna(0) if "fvg_direction" in dataframe.columns else 0
+
+        # 5. Price vs swing structure
+        swing_high = dataframe["swing_high"] if "swing_high" in dataframe.columns else close
+        swing_low = dataframe["swing_low"] if "swing_low" in dataframe.columns else close
+        sh_safe = swing_high.replace(0, np.nan)
+        sl_safe = swing_low.replace(0, np.nan)
+        dataframe["%-price_vs_swing_high"] = ((close - sh_safe) / sh_safe).fillna(0)
+        dataframe["%-price_vs_swing_low"] = ((close - sl_safe) / sl_safe).fillna(0)
+
+        # 6. Normalized volatility
+        dataframe["%-atr_pct"] = (dataframe["atr_14"] / close).fillna(0) if "atr_14" in dataframe.columns else 0
+
         return dataframe
 
     def set_freqai_targets(self, dataframe, metadata, **kwargs):

@@ -210,11 +210,10 @@ function chatToCodexBody(chatBody) {
     parallel_tool_calls: true,
   };
 
-  if (systemMsgs.length) {
-    body.instructions = systemMsgs.map(m => typeof m.content === "string" ? m.content : "").join("\n");
-  }
+  body.instructions = systemMsgs.length
+    ? systemMsgs.map(m => typeof m.content === "string" ? m.content : "").join("\n")
+    : "You are a helpful assistant.";
   if (chatBody.temperature !== undefined) body.temperature = chatBody.temperature;
-  if (chatBody.max_tokens) body.max_tokens = chatBody.max_tokens;
 
   return body;
 }

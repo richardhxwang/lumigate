@@ -21,7 +21,7 @@ import time as _time
 from datetime import datetime, timedelta, timezone
 import httpx
 
-from config import settings
+from config import settings, pb_api
 
 logger = logging.getLogger("lumitrade.news.sentiment")
 
@@ -95,7 +95,7 @@ async def save_news_to_pb(
         "Authorization": token,
         "Content-Type": "application/json",
     }
-    base_url = f"{settings.pb_url}/api/collections/trade_news/records"
+    base_url = f"{settings.pb_url}{pb_api('/api/collections/trade_news/records')}"
     saved: dict[str, str] = {}
 
     for article in articles[:20]:
@@ -238,7 +238,7 @@ async def update_news_pb_sentiments(
 
     try:
         resp = await http_client.patch(
-            f"{settings.pb_url}/api/collections/trade_news/records/{record_id}",
+            f"{settings.pb_url}{pb_api(f'/api/collections/trade_news/records/{record_id}')}",
             json=patch,
             headers={"Authorization": token, "Content-Type": "application/json"},
             timeout=8,

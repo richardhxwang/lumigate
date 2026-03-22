@@ -7,7 +7,7 @@ Fallback: CoinGecko (free, no key) + Alternative.me Fear & Greed Index (free).
 If TRADE_LUNARCRUSH_API_KEY is set AND the subscription is active, uses LunarCrush.
 Otherwise, automatically falls back to CoinGecko + Fear & Greed — no config needed.
 
-Runs every 30 minutes as a background asyncio task.
+Runs every 60 minutes as a background asyncio task.
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from config import settings
+from config import settings, pb_api
 
 logger = logging.getLogger("lumitrade.news.lunarcrush")
 
@@ -54,8 +54,9 @@ COINGECKO_ID_MAP = {
     "SEI": "sei-network",
 }
 
-# Collection interval in minutes
-COLLECT_INTERVAL_MINUTES = 30
+# Collection interval in minutes (60 min to stay well within CoinGecko free-tier
+# rate limits, especially since freqtrade also calls CoinGecko for fiat_convert)
+COLLECT_INTERVAL_MINUTES = 60
 
 # Key metrics to extract and display
 METRIC_KEYS = [
@@ -272,6 +273,21 @@ async def _fetch_coingecko(
             },
             timeout=15,
         )
+        # 429 retry: wait 60s then retry once
+        if resp.status_code == 429:
+            logger.info("CoinGecko markets 429 — waiting 60s then retrying")
+            await asyncio.sleep(60)
+            resp = await http_client.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={
+                    "vs_currency": "usd",
+                    "ids": ",".join(cg_ids),
+                    "order": "market_cap_desc",
+                    "per_page": len(cg_ids),
+                    "sparkline": "false",
+                },
+                timeout=15,
+            )
         resp.raise_for_status()
         for coin in resp.json():
             sym = coin.get("symbol", "").upper()
@@ -288,7 +304,8 @@ async def _fetch_coingecko(
     fng = await _fetch_fear_greed(http_client)
 
     # Step 3: Individual coin sentiment (CoinGecko rate limit: ~10-30 req/min free)
-    # Fetch only for target coins, with small delay between requests
+    # Fetch only for target coins, with generous delay between requests.
+    # freqtrade also calls CoinGecko (fiat_convert), so we must be conservative.
     sentiment_data: dict[str, dict] = {}  # symbol -> sentiment fields
     for sym in target_coins:
         cgid = symbol_to_cgid.get(sym)
@@ -308,8 +325,27 @@ async def _fetch_coingecko(
                 timeout=15,
             )
             if resp.status_code == 429:
-                logger.debug("CoinGecko rate limited — stopping individual fetches")
-                break
+                # Retry once after 60s backoff
+                logger.info("CoinGecko 429 for %s — waiting 60s then retrying", sym)
+                await asyncio.sleep(60)
+                resp = await http_client.get(
+                    f"https://api.coingecko.com/api/v3/coins/{cgid}",
+                    params={
+                        "localization": "false",
+                        "tickers": "false",
+                        "market_data": "true",
+                        "community_data": "true",
+                        "developer_data": "false",
+                        "sparkline": "false",
+                    },
+                    timeout=15,
+                )
+                if resp.status_code == 429:
+                    logger.warning(
+                        "CoinGecko still rate-limited after retry — "
+                        "stopping individual fetches"
+                    )
+                    break
             resp.raise_for_status()
             d = resp.json()
             md = d.get("market_data", {})
@@ -570,7 +606,7 @@ async def save_metrics_to_pb(
         "Authorization": token,
         "Content-Type": "application/json",
     }
-    base_url = f"{settings.pb_url}/api/collections/trade_news/records"
+    base_url = f"{settings.pb_url}{pb_api('/api/collections/trade_news/records')}"
     written = 0
     source_name = metrics_list[0].get("_source", "unknown") if metrics_list else "unknown"
 
@@ -580,7 +616,7 @@ async def save_metrics_to_pb(
         content = _format_content(metrics)
         sentiment_score = _sentiment_to_score(metrics.get("sentiment"))
 
-        # Dedup: check if a record for this symbol+source exists within last 25 min
+        # Dedup: check if a record for this symbol+source exists within last 55 min
         try:
             check_resp = await http_client.get(
                 base_url,
@@ -606,7 +642,7 @@ async def save_metrics_to_pb(
                             age_minutes = (
                                 datetime.now(timezone.utc) - created_dt
                             ).total_seconds() / 60
-                            if age_minutes < 25:
+                            if age_minutes < 55:
                                 logger.debug(
                                     "Sentiment: skipping %s — last record %d min ago",
                                     symbol, int(age_minutes),

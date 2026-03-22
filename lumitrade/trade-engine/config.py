@@ -58,7 +58,31 @@ class Settings(BaseSettings):
     default_symbols: list[str] = ["AAPL", "TSLA", "SPY"]
     default_crypto_pairs: list[str] = ["BTC/USDT", "ETH/USDT"]
 
+    # PocketBase project isolation
+    pb_project: str = "lumitrade"
+
     model_config = {"env_prefix": "TRADE_"}
 
 
 settings = Settings()
+
+
+def pb_api(path: str) -> str:
+    """
+    Rewrite a PocketBase API path for project isolation.
+
+    /api/collections/trade_news/records  →  /api/p/lumitrade/collections/trade_news/records
+    /api/collections (list/create)       →  /api/p/lumitrade/collections
+
+    Paths targeting _superusers (auth) are NOT rewritten — they are global.
+    """
+    project = settings.pb_project
+    if not project:
+        return path
+    # Don't rewrite superuser auth paths
+    if "/_superusers/" in path or "/_superusers" == path.split("/")[-1]:
+        return path
+    # Rewrite /api/collections/... → /api/p/{project}/collections/...
+    if path.startswith("/api/collections"):
+        return f"/api/p/{project}/collections{path[len('/api/collections'):]}"
+    return path

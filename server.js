@@ -1778,6 +1778,10 @@ app.post("/lumitrade/frequi-token", async (req, res) => {
 
 // Serve LumiTrade interface (nonce injected into HTML for CSP)
 // LumiTrade auto-auth — returns freqtrade credentials + server-side tokens for all 6 bots
+// Token cache: { botName -> { accessToken, refreshToken, expiresAt } }
+const _ftTokenCache = new Map();
+const FT_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
+
 app.get("/lumitrade/auto-auth", async (req, res) => {
   const ftUser = process.env.TRADE_FREQTRADE_USERNAME || "freqtrader";
   const ftPass = process.env.TRADE_FREQTRADE_PASSWORD || "";
@@ -1796,8 +1800,20 @@ app.get("/lumitrade/auto-auth", async (req, res) => {
     { id: "ftbot.5", botName: "AI-Enhanced-Lev",    internalUrl: "http://lumigate-freqtrade-ai-lev:8080",  browserPath: "/ai-lev",   sortId: 5 },
   ];
 
-  // Login to each bot in parallel; failures don't block others (container may not be up)
+  // Login to each bot in parallel; use cached token if valid, otherwise re-login with 5s timeout
   const bots = await Promise.all(botDefs.map(async (def) => {
+    const now = Date.now();
+    const cached = _ftTokenCache.get(def.botName);
+    // Use cache if token exists and not expired
+    if (cached && cached.expiresAt > now) {
+      return {
+        id: def.id, botName: def.botName, sortId: def.sortId,
+        apiUrl: browserBase + def.browserPath,
+        accessToken: cached.accessToken,
+        refreshToken: cached.refreshToken,
+        cached: true,
+      };
+    }
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 5000);
@@ -1807,15 +1823,23 @@ app.get("/lumitrade/auto-auth", async (req, res) => {
         signal: ctrl.signal,
       });
       clearTimeout(timer);
-      if (!resp.ok) return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, error: `HTTP ${resp.status}` };
+      if (!resp.ok) {
+        // Bot responded but login failed — return cached token if available (stale is better than nothing)
+        if (cached) return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, accessToken: cached.accessToken, refreshToken: cached.refreshToken, cached: true, stale: true };
+        return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, error: `HTTP ${resp.status}` };
+      }
       const tokenData = await resp.json();
+      const entry = { accessToken: tokenData.access_token || null, refreshToken: tokenData.refresh_token || null, expiresAt: now + FT_TOKEN_TTL };
+      _ftTokenCache.set(def.botName, entry);
       return {
         id: def.id, botName: def.botName, sortId: def.sortId,
         apiUrl: browserBase + def.browserPath,
-        accessToken: tokenData.access_token || null,
-        refreshToken: tokenData.refresh_token || null,
+        accessToken: entry.accessToken,
+        refreshToken: entry.refreshToken,
       };
     } catch (e) {
+      // Bot offline — return stale cached token if available so UI can still attempt connection
+      if (cached) return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, accessToken: cached.accessToken, refreshToken: cached.refreshToken, cached: true, stale: true };
       return { id: def.id, botName: def.botName, sortId: def.sortId, apiUrl: browserBase + def.browserPath, error: e.message || "login failed" };
     }
   }));
