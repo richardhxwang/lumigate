@@ -1544,6 +1544,415 @@ module.exports = function createLumiTraderRouter(deps) {
     return "anthropic";
   }
 
+  // ── Manual trading helpers ─────────────────────────────────────────────────
+
+  // In-memory store for pending manual trade proposals (callback_id → proposal data)
+  const _manualPendingProposals = {};
+
+  async function editTelegramMessage(chatId, messageId, text, options = {}) {
+    if (!TG_BOT_TOKEN) return false;
+    try {
+      const body = {
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        parse_mode: options.parseMode || "HTML",
+      };
+      if (options.replyMarkup) body.reply_markup = JSON.stringify(options.replyMarkup);
+      const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/editMessageText`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      return data.ok;
+    } catch (err) {
+      console.error("[telegram] editMessage error:", err.message);
+      return false;
+    }
+  }
+
+  /**
+   * Parse /open command: /open BTC long 30x [SL 68000] [TP 72000]
+   * Returns { symbol, direction, leverage, sl, tp } or null
+   */
+  function parseOpenCommand(text) {
+    // Remove /open prefix
+    const args = text.replace(/^\/open\s+/i, "").trim();
+    if (!args) return null;
+
+    // Match: SYMBOL DIRECTION LEVERAGEx [SL price] [TP price]
+    const match = args.match(/^(\w+)\s+(long|short)\s+(\d+)x(?:\s+SL\s+([\d.]+))?(?:\s+TP\s+([\d.]+))?/i);
+    if (!match) return null;
+
+    let symbol = match[1].toUpperCase();
+    // Auto-append /USDT:USDT for crypto pairs
+    if (!symbol.includes("/")) {
+      symbol = `${symbol}/USDT:USDT`;
+    }
+
+    return {
+      symbol,
+      direction: match[2].toLowerCase(),
+      leverage: parseInt(match[3], 10),
+      sl: match[4] ? parseFloat(match[4]) : null,
+      tp: match[5] ? parseFloat(match[5]) : null,
+    };
+  }
+
+  function fmtUsd(n) {
+    if (n == null) return "?";
+    return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  function fmtPct(n) {
+    if (n == null) return "?";
+    const pct = Number(n);
+    return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+  }
+
+  async function handleOpenCommand(chatId, text) {
+    const parsed = parseOpenCommand(text);
+    if (!parsed) {
+      await sendTelegram(
+        "❌ <b>格式错误</b>\n\n" +
+        "用法: <code>/open BTC long 30x</code>\n" +
+        "可选: <code>/open ETH short 50x SL 3800 TP 3600</code>",
+        { chatId }
+      );
+      return;
+    }
+
+    await sendTyping(chatId);
+
+    try {
+      const res = await engineFetch("/manual/propose", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol: parsed.symbol,
+          direction: parsed.direction,
+          leverage: parsed.leverage,
+          sl: parsed.sl,
+          tp: parsed.tp,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await sendTelegram(`❌ <b>下单失败</b>\n\n${escHtml(err.detail || err.error || "trade-engine 无响应")}`, { chatId });
+        return;
+      }
+
+      const proposal = await res.json();
+      const p = proposal;
+
+      // Generate a unique callback ID
+      const callbackId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      _manualPendingProposals[callbackId] = p;
+
+      // Auto-expire after 5 minutes
+      setTimeout(() => { delete _manualPendingProposals[callbackId]; }, 5 * 60 * 1000);
+
+      const dirLabel = p.direction === "long" ? "做多" : "做空";
+      const entryPrice = fmtUsd(p.entry_price);
+      const slPrice = fmtUsd(p.sl);
+      const tpPrice = fmtUsd(p.tp);
+      const slPct = p.sl_pct != null ? ` (${fmtPct(-Math.abs(p.sl_pct))})` : "";
+      const tpPct = p.tp_pct != null ? ` (${fmtPct(Math.abs(p.tp_pct))})` : "";
+      const margin = fmtUsd(p.margin);
+      const posSize = fmtUsd(p.position_size);
+      const riskAmt = fmtUsd(p.risk_amount);
+      const riskPct = p.risk_pct != null ? `${Number(p.risk_pct).toFixed(1)}%` : "?";
+      const rr = p.rr != null ? `${Number(p.rr).toFixed(1)}:1` : "?";
+
+      // Risk check status
+      const riskChecks = p.risk_checks || {};
+      const allPassed = Object.values(riskChecks).every(v => v === true || v === "pass" || v === "ok");
+      const riskLine = allPassed ? "风控: 全部通过 ✅" : "风控: ⚠️ 有警告";
+      let riskDetail = "";
+      if (!allPassed) {
+        for (const [k, v] of Object.entries(riskChecks)) {
+          if (v !== true && v !== "pass" && v !== "ok") {
+            riskDetail += `\n  ⚠️ ${k}: ${v}`;
+          }
+        }
+      }
+
+      const msg =
+        `📊 <b>${escHtml(p.symbol || parsed.symbol)} ${dirLabel} ${p.leverage || parsed.leverage}x</b>\n\n` +
+        `入场: ${entryPrice} (市价)\n` +
+        `止损: ${slPrice}${slPct}\n` +
+        `止盈: ${tpPrice}${tpPct}\n\n` +
+        `保证金: ${margin} | 仓位: ${posSize}\n` +
+        `风险: ${riskAmt} (${riskPct})\n` +
+        `R:R: ${rr}\n\n` +
+        riskLine + riskDetail;
+
+      await sendTelegram(msg, {
+        chatId,
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              { text: "✅ 确认下单", callback_data: `manual_confirm:${callbackId}` },
+              { text: "❌ 取消", callback_data: `manual_cancel:${callbackId}` },
+            ],
+          ],
+        },
+      });
+    } catch (err) {
+      console.error("[telegram] /open error:", err.message);
+      await sendTelegram(`❌ <b>系统错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
+  async function handleCloseCommand(chatId, text) {
+    const arg = text.replace(/^\/close\s*/i, "").trim();
+
+    if (arg) {
+      // Close specific trade
+      await sendTyping(chatId);
+      try {
+        const res = await engineFetch(`/manual/close/${encodeURIComponent(arg)}`, { method: "POST" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          await sendTelegram(`❌ <b>平仓失败</b>\n\n${escHtml(err.detail || err.error || "未知错误")}`, { chatId });
+          return;
+        }
+        const result = await res.json();
+        const pnl = result.pnl != null ? (result.pnl >= 0 ? "+" : "") + Number(result.pnl).toFixed(2) : "?";
+        await sendTelegram(
+          `✅ <b>已平仓</b>\n\n` +
+          `<b>${escHtml(result.symbol || arg)}</b>\n` +
+          `盈亏: ${pnl} USDT`,
+          { chatId }
+        );
+      } catch (err) {
+        await sendTelegram(`❌ <b>平仓错误</b>\n\n${escHtml(err.message)}`, { chatId });
+      }
+      return;
+    }
+
+    // No arg → show all manual positions with close buttons
+    await sendTyping(chatId);
+    try {
+      const res = await engineFetch("/manual/positions");
+      if (!res.ok) {
+        await sendTelegram("❌ 获取持仓失败", { chatId });
+        return;
+      }
+      const positions = await res.json();
+      const list = Array.isArray(positions) ? positions : (positions.positions || []);
+
+      if (list.length === 0) {
+        await sendTelegram("📭 <b>当前无手动持仓</b>", { chatId });
+        return;
+      }
+
+      let msg = `📊 <b>手动持仓 (${list.length})</b>\n`;
+      const buttons = [];
+
+      for (const pos of list) {
+        const dir = pos.direction === "short" ? "⬇️空" : "⬆️多";
+        const pnl = pos.unrealized_pnl != null ? (pos.unrealized_pnl >= 0 ? "+" : "") + Number(pos.unrealized_pnl).toFixed(2) : "?";
+        const pct = pos.pnl_pct != null ? ` (${fmtPct(pos.pnl_pct)})` : "";
+        msg += `\n<b>${escHtml(pos.symbol)}</b> ${dir} ${pos.leverage || "?"}x\n`;
+        msg += `  入场: ${fmtUsd(pos.entry_price)} | 现价: ${fmtUsd(pos.current_price)}\n`;
+        msg += `  盈亏: ${pnl} USDT${pct}\n`;
+        buttons.push([{ text: `❌ 平仓 ${pos.symbol}`, callback_data: `manual_close:${pos.trade_id || pos.id}` }]);
+      }
+
+      await sendTelegram(msg, { chatId, replyMarkup: { inline_keyboard: buttons } });
+    } catch (err) {
+      await sendTelegram(`❌ <b>获取持仓错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
+  async function handleManualCommand(chatId) {
+    await sendTyping(chatId);
+    try {
+      const res = await engineFetch("/manual/positions");
+      if (!res.ok) {
+        await sendTelegram("❌ 获取持仓失败", { chatId });
+        return;
+      }
+      const positions = await res.json();
+      const list = Array.isArray(positions) ? positions : (positions.positions || []);
+
+      if (list.length === 0) {
+        await sendTelegram("📭 <b>当前无手动持仓</b>", { chatId });
+        return;
+      }
+
+      let msg = `📊 <b>手动持仓 (${list.length})</b>\n`;
+      let totalPnl = 0;
+
+      for (const pos of list) {
+        const dir = pos.direction === "short" ? "⬇️空" : "⬆️多";
+        const upnl = pos.unrealized_pnl != null ? Number(pos.unrealized_pnl) : 0;
+        totalPnl += upnl;
+        const pnlStr = upnl >= 0 ? `+${upnl.toFixed(2)}` : upnl.toFixed(2);
+        const pct = pos.pnl_pct != null ? ` (${fmtPct(pos.pnl_pct)})` : "";
+        msg += `\n<b>${escHtml(pos.symbol)}</b> ${dir} ${pos.leverage || "?"}x\n`;
+        msg += `  入场: ${fmtUsd(pos.entry_price)} | 现价: ${fmtUsd(pos.current_price)}\n`;
+        msg += `  止损: ${fmtUsd(pos.sl)} | 止盈: ${fmtUsd(pos.tp)}\n`;
+        msg += `  盈亏: ${pnlStr} USDT${pct}\n`;
+      }
+
+      const totalSign = totalPnl >= 0 ? "+" : "";
+      msg += `\n💰 <b>总浮盈亏: ${totalSign}${totalPnl.toFixed(2)} USDT</b>`;
+
+      await sendTelegram(msg, { chatId });
+    } catch (err) {
+      await sendTelegram(`❌ <b>获取持仓错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
+  async function handleMoodCommand(chatId, text) {
+    const args = text.replace(/^\/mood\s*/i, "").trim();
+    if (!args) {
+      await sendTelegram(
+        "📝 <b>记录心情</b>\n\n" +
+        "用法: <code>/mood 7 感觉不错今天操作很稳</code>\n" +
+        "分数: 1-10（1=极差, 10=极好）",
+        { chatId }
+      );
+      return;
+    }
+
+    const match = args.match(/^(\d{1,2})(?:\s+(.+))?$/);
+    if (!match || parseInt(match[1], 10) < 1 || parseInt(match[1], 10) > 10) {
+      await sendTelegram("❌ 分数必须在 1-10 之间\n\n用法: <code>/mood 7 备注</code>", { chatId });
+      return;
+    }
+
+    const score = parseInt(match[1], 10);
+    const note = match[2] || "";
+
+    await sendTyping(chatId);
+    try {
+      const res = await engineFetch("/manual/mood", {
+        method: "POST",
+        body: JSON.stringify({ score, note }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await sendTelegram(`❌ 记录失败: ${escHtml(err.detail || err.error || "未知错误")}`, { chatId });
+        return;
+      }
+
+      const noteStr = note ? ` (${escHtml(note)})` : "";
+      await sendTelegram(`📝 <b>心情已记录:</b> ${score}/10${noteStr}`, { chatId });
+    } catch (err) {
+      await sendTelegram(`❌ <b>记录错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
+  async function handleManualJournalCommand(chatId, text) {
+    const arg = text.replace(/^\/journal\s*/i, "").trim();
+    // If arg is a number, treat as days; otherwise fall through to existing journal handler
+    const days = arg && /^\d+$/.test(arg) ? parseInt(arg, 10) : null;
+
+    if (days != null) {
+      await sendTyping(chatId);
+      try {
+        const res = await engineFetch(`/manual/journal?days=${days}`);
+        if (!res.ok) {
+          await sendTelegram("❌ 获取日记失败", { chatId });
+          return;
+        }
+        const data = await res.json();
+        const entries = Array.isArray(data) ? data : (data.entries || []);
+
+        if (entries.length === 0) {
+          await sendTelegram(`📓 最近 ${days} 天没有手动交易记录`, { chatId });
+          return;
+        }
+
+        let msg = `📓 <b>手动交易日记 (最近 ${days} 天)</b>\n`;
+        for (const e of entries.slice(0, 10)) {
+          const date = e.date || e.created || "?";
+          const trades = e.trade_count ?? "?";
+          const pnl = e.pnl != null ? (e.pnl >= 0 ? "+" : "") + Number(e.pnl).toFixed(2) : "?";
+          const wr = e.win_rate != null ? `${(e.win_rate * 100).toFixed(0)}%` : "?";
+          msg += `\n📅 <b>${escHtml(String(date).slice(0, 10))}</b>\n`;
+          msg += `  交易: ${trades} 笔 | 盈亏: ${pnl} USDT | 胜率: ${wr}\n`;
+          if (e.note || e.lesson) msg += `  💡 ${escHtml(e.note || e.lesson)}\n`;
+        }
+
+        await sendTelegram(msg, { chatId });
+      } catch (err) {
+        await sendTelegram(`❌ <b>获取日记错误</b>\n\n${escHtml(err.message)}`, { chatId });
+      }
+      return true; // handled
+    }
+
+    return false; // not handled, let existing handler take over
+  }
+
+  async function handleReviewCommand(chatId, text) {
+    const arg = text.replace(/^\/review\s*/i, "").trim();
+    const days = arg && /^\d+$/.test(arg) ? parseInt(arg, 10) : 7;
+
+    await sendTyping(chatId);
+    try {
+      const res = await engineFetch(`/manual/review?days=${days}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await sendTelegram(`❌ AI 复盘失败: ${escHtml(err.detail || err.error || "未知错误")}`, { chatId });
+        return;
+      }
+
+      const data = await res.json();
+      const review = data.review || data.text || JSON.stringify(data);
+
+      // Convert markdown to Telegram format
+      const formatted = mdToTelegram(review);
+      await sendTelegram(`🔍 <b>AI 复盘 (最近 ${days} 天)</b>\n\n${formatted}`, { chatId });
+    } catch (err) {
+      await sendTelegram(`❌ <b>复盘错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
+  async function handleManualPnlCommand(chatId) {
+    await sendTyping(chatId);
+    try {
+      const res = await engineFetch("/manual/pnl");
+      if (!res.ok) {
+        await sendTelegram("❌ 获取 P&L 失败", { chatId });
+        return;
+      }
+
+      const data = await res.json();
+      const d = data;
+
+      let msg = "💰 <b>手动交易 P&amp;L</b>\n\n";
+      msg += `📊 总交易: ${d.total_trades ?? "?"} 笔\n`;
+      msg += `✅ 盈利: ${d.winning_trades ?? "?"} 笔 | ❌ 亏损: ${d.losing_trades ?? "?"} 笔\n`;
+      msg += `🎯 胜率: ${d.win_rate != null ? (d.win_rate * 100).toFixed(1) + "%" : "?"}\n\n`;
+
+      const totalPnl = d.total_pnl != null ? Number(d.total_pnl) : null;
+      if (totalPnl != null) {
+        const sign = totalPnl >= 0 ? "+" : "";
+        msg += `💵 总盈亏: <b>${sign}${totalPnl.toFixed(2)} USDT</b>\n`;
+      }
+      if (d.today_pnl != null) {
+        const tp = Number(d.today_pnl);
+        msg += `📅 今日盈亏: ${tp >= 0 ? "+" : ""}${tp.toFixed(2)} USDT\n`;
+      }
+      if (d.avg_rr != null) msg += `📐 平均 R:R: ${Number(d.avg_rr).toFixed(1)}:1\n`;
+      if (d.avg_win != null) msg += `📈 平均盈利: +${Number(d.avg_win).toFixed(2)} USDT\n`;
+      if (d.avg_loss != null) msg += `📉 平均亏损: ${Number(d.avg_loss).toFixed(2)} USDT\n`;
+      if (d.max_drawdown != null) msg += `⚠️ 最大回撤: ${Number(d.max_drawdown).toFixed(1)}%\n`;
+      if (d.best_trade) msg += `\n🏆 最佳: ${escHtml(d.best_trade)}`;
+      if (d.worst_trade) msg += `\n💔 最差: ${escHtml(d.worst_trade)}`;
+
+      await sendTelegram(msg, { chatId });
+    } catch (err) {
+      await sendTelegram(`❌ <b>P&L 错误</b>\n\n${escHtml(err.message)}`, { chatId });
+    }
+  }
+
   // ── Telegram webhook — handles slash commands and button callbacks ─────────
 
   router.post("/lumitrader/telegram/webhook", express.json(), async (req, res) => {
@@ -1582,8 +1991,10 @@ module.exports = function createLumiTraderRouter(deps) {
           await handleRiskCommand(chatId);
         } else if (text === "/news") {
           await handleNewsCommand(chatId);
-        } else if (text === "/journal") {
-          await handleJournalCommand(chatId);
+        } else if (text === "/journal" || text.startsWith("/journal ")) {
+          // /journal [days] → manual trade journal; plain /journal → AI journal summary
+          const handled = text.startsWith("/journal ") ? await handleManualJournalCommand(chatId, text) : false;
+          if (!handled) await handleJournalCommand(chatId);
         } else if (text === "/optimize") {
           await handleOptimizeCommand(chatId);
         } else if (text === "/analysis") {
@@ -1598,6 +2009,18 @@ module.exports = function createLumiTraderRouter(deps) {
           await handleFreqtradeCommand(chatId, "start", "交易已启动");
         } else if (text === "/stop") {
           await handleFreqtradeCommand(chatId, "stop", "交易已停止");
+        } else if (text.startsWith("/open ")) {
+          await handleOpenCommand(chatId, text);
+        } else if (text === "/close" || text.startsWith("/close ")) {
+          await handleCloseCommand(chatId, text);
+        } else if (text === "/manual") {
+          await handleManualCommand(chatId);
+        } else if (text.startsWith("/mood")) {
+          await handleMoodCommand(chatId, text);
+        } else if (text === "/review" || text.startsWith("/review ")) {
+          await handleReviewCommand(chatId, text);
+        } else if (text === "/pnl manual" || text === "/pnl Manual") {
+          await handleManualPnlCommand(chatId);
         } else if (text === "/model" || text.startsWith("/model ")) {
           const arg = text.slice(6).trim().toLowerCase();
           if (!arg) {
@@ -1628,6 +2051,14 @@ module.exports = function createLumiTraderRouter(deps) {
             "/optimize \u2014 \u7b56\u7565\u4f18\u5316\u5efa\u8bae\n" +
             "/analysis \u2014 \u626b\u63cf\u5f53\u524d\u4ea4\u6613\u673a\u4f1a\n" +
             "/model [\u540d\u79f0] \u2014 \u5207\u6362 AI \u6a21\u578b\n\n" +
+            "\ud83d\udcb9 <b>\u624b\u52a8\u4ea4\u6613</b>\n" +
+            "/open BTC long 30x \u2014 \u5f00\u4ed3\uff08\u53ef\u52a0 SL/TP\uff09\n" +
+            "/close [trade_id] \u2014 \u5e73\u4ed3\n" +
+            "/manual \u2014 \u5f53\u524d\u624b\u52a8\u6301\u4ed3\n" +
+            "/mood 7 \u5907\u6ce8 \u2014 \u8bb0\u5f55\u5fc3\u60c5\n" +
+            "/journal 7 \u2014 \u624b\u52a8\u4ea4\u6613\u65e5\u8bb0\n" +
+            "/review 7 \u2014 AI \u590d\u76d8\n" +
+            "/pnl manual \u2014 \u624b\u52a8 P&amp;L \u7edf\u8ba1\n\n" +
             "\ud83d\udcca <b>\u4ea4\u6613\u63a7\u5236</b>\n" +
             "/status \u2014 Bot \u72b6\u6001 + \u6301\u4ed3\n" +
             "/profit \u2014 \u76c8\u4e8f\u7edf\u8ba1\n" +
@@ -1714,6 +2145,70 @@ module.exports = function createLumiTraderRouter(deps) {
             await handleNewsCommand(chatId);
           } else if (cmd === "/status") {
             await handleFreqtradeStatus(chatId);
+          }
+        } else if (data.startsWith("manual_confirm:")) {
+          const callbackId = data.slice("manual_confirm:".length);
+          const proposal = _manualPendingProposals[callbackId];
+          if (!proposal) {
+            await sendTelegram("⏰ 交易计划已过期，请重新 /open", { chatId });
+          } else {
+            delete _manualPendingProposals[callbackId];
+            const messageId = update.callback_query.message.message_id;
+            // Update the original message to show "executing"
+            await editTelegramMessage(chatId, messageId,
+              update.callback_query.message.text + "\n\n⏳ 下单中...");
+            try {
+              const res = await engineFetch("/manual/execute", {
+                method: "POST",
+                body: JSON.stringify(proposal),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                await sendTelegram(`❌ <b>下单失败</b>\n\n${escHtml(err.detail || err.error || "未知错误")}`, { chatId });
+              } else {
+                const result = await res.json();
+                const dirLabel = proposal.direction === "long" ? "做多" : "做空";
+                await sendTelegram(
+                  `✅ <b>下单成功</b>\n\n` +
+                  `<b>${escHtml(proposal.symbol)}</b> ${dirLabel} ${proposal.leverage || "?"}x\n` +
+                  `入场: ${fmtUsd(result.entry_price || proposal.entry_price)}\n` +
+                  `止损: ${fmtUsd(result.sl || proposal.sl)}\n` +
+                  `止盈: ${fmtUsd(result.tp || proposal.tp)}\n` +
+                  (result.trade_id ? `\nTrade ID: <code>${escHtml(String(result.trade_id))}</code>` : ""),
+                  { chatId }
+                );
+              }
+            } catch (err) {
+              await sendTelegram(`❌ <b>下单错误</b>\n\n${escHtml(err.message)}`, { chatId });
+            }
+          }
+        } else if (data.startsWith("manual_cancel:")) {
+          const callbackId = data.slice("manual_cancel:".length);
+          delete _manualPendingProposals[callbackId];
+          const messageId = update.callback_query.message.message_id;
+          // Edit original message to show cancelled
+          await editTelegramMessage(chatId, messageId,
+            update.callback_query.message.text + "\n\n❌ 已取消");
+        } else if (data.startsWith("manual_close:")) {
+          const tradeId = data.slice("manual_close:".length);
+          await sendTelegram("⏳ 平仓中...", { chatId });
+          try {
+            const res = await engineFetch(`/manual/close/${encodeURIComponent(tradeId)}`, { method: "POST" });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              await sendTelegram(`❌ <b>平仓失败</b>\n\n${escHtml(err.detail || err.error || "未知错误")}`, { chatId });
+            } else {
+              const result = await res.json();
+              const pnl = result.pnl != null ? (result.pnl >= 0 ? "+" : "") + Number(result.pnl).toFixed(2) : "?";
+              await sendTelegram(
+                `✅ <b>已平仓</b>\n\n` +
+                `<b>${escHtml(result.symbol || tradeId)}</b>\n` +
+                `盈亏: ${pnl} USDT`,
+                { chatId }
+              );
+            }
+          } catch (err) {
+            await sendTelegram(`❌ <b>平仓错误</b>\n\n${escHtml(err.message)}`, { chatId });
           }
         } else if (data.startsWith("execute:")) {
           await sendTelegram("\u23f3 \u6267\u884c\u4e2d...", { chatId });

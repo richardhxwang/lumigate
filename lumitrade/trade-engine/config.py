@@ -53,6 +53,21 @@ class Settings(BaseSettings):
     daily_loss_warn_pct: float = 2.0       # warn before circuit breaker
     losing_streak_threshold: int = 3       # alert after N consecutive losses
 
+    # Manual trading (OKX direct via CCXT)
+    manual_okx_api_key: str = ""
+    manual_okx_api_secret: str = ""
+    manual_okx_passphrase: str = ""
+    manual_capital: float = 5000.0                 # USD capital for manual trading
+    manual_max_leverage: float = 50.0              # max leverage for manual trades
+    manual_risk_pct: float = 3.0                   # max % of capital per trade
+    manual_max_positions: int = 3                  # max concurrent manual positions
+    manual_daily_loss_pct: float = 10.0            # daily loss circuit breaker %
+    manual_allowed_pairs: list[str] = [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT",
+        "SOL/USDT:USDT",
+    ]
+
     # Analysis
     default_timeframes: list[str] = ["15m", "1h", "4h"]
     default_symbols: list[str] = ["AAPL", "TSLA", "SPY"]

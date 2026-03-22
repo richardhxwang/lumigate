@@ -60,6 +60,10 @@ from analytics.reports import generate_performance_report, generate_html_report
 from analytics.mood_correlator import MoodCorrelator
 from analytics.trading_rag import TradingRAG
 from strategies.smc_strategy import SMCAnalyzer
+from connectors.okx_manual import OKXManualConnector
+from manual.risk import ManualRiskManager
+from manual.executor import ManualTradeExecutor
+from manual.models import ProposeTradeRequest, CloseTradeRequest, MoodRequest, ReviewRequest
 
 logger = logging.getLogger("lumitrade")
 
@@ -74,6 +78,11 @@ ft_connector = FreqtradeConnector()
 multi_bot = MultiBotConnector()
 telegram = TelegramNotifier()
 alert_manager = AlertManager()
+
+# Manual trading components (initialized in lifespan after http_client is ready)
+manual_okx: OKXManualConnector | None = None
+manual_risk: ManualRiskManager | None = None
+manual_executor: ManualTradeExecutor | None = None
 
 # Background task handle for bot risk monitor
 _risk_monitor_task: asyncio.Task | None = None
@@ -1072,6 +1081,30 @@ async def lifespan(app: FastAPI):
     _hyperopt_task = asyncio.create_task(_hyperopt_weekly_loop())
     logger.info("Hyperopt weekly scheduler task created")
 
+    # Initialize manual trading system (OKX direct via ccxt)
+    global manual_okx, manual_risk, manual_executor
+    if settings.manual_okx_api_key:
+        try:
+            manual_okx = OKXManualConnector(
+                api_key=settings.manual_okx_api_key,
+                api_secret=settings.manual_okx_api_secret,
+                passphrase=settings.manual_okx_passphrase,
+            )
+            manual_risk = ManualRiskManager(settings)
+            manual_executor = ManualTradeExecutor(
+                okx_connector=manual_okx,
+                risk_manager=manual_risk,
+                telegram_notifier=telegram,
+                pb_post=pb_post,
+                pb_patch=pb_patch,
+                pb_get=pb_get,
+            )
+            logger.info("Manual trading system initialized (OKX direct)")
+        except Exception as e:
+            logger.warning("Manual trading init failed (non-fatal): %s", e)
+    else:
+        logger.info("Manual trading not configured (TRADE_MANUAL_OKX_API_KEY not set)")
+
     yield
 
     # Shutdown
@@ -1098,6 +1131,8 @@ async def lifespan(app: FastAPI):
     stop_rss_periodic_task()
     stop_fng_periodic_task()
     stop_searxng_periodic_task()
+    if manual_okx:
+        await manual_okx.close()
     if ibkr_connector:
         await ibkr_connector.disconnect()
     await http_client.aclose()
@@ -2151,6 +2186,114 @@ async def _execute_via_lumibot(req: ExecuteRequest) -> dict:
         return {"executed": True, "broker": "ibkr", "result": result}
     except Exception as e:
         return {"executed": False, "broker": "ibkr", "error": str(e)}
+
+
+# --- Manual Trading Endpoints ---
+
+
+def _require_manual():
+    """Guard: raise 503 if manual trading system is not initialized."""
+    if manual_executor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Manual trading not configured — set TRADE_MANUAL_OKX_API_KEY",
+        )
+
+
+@app.post("/manual/propose")
+async def manual_propose(req: ProposeTradeRequest):
+    """
+    Submit a trade proposal. Returns a callback_id to confirm within 60s.
+
+    Auto-calculates SL (leverage-based), TP (R:R >= 2:1), and position size
+    if not provided. Runs full risk checks before returning proposal.
+    """
+    _require_manual()
+    return await manual_executor.propose_trade(
+        symbol=req.symbol,
+        direction=req.direction.value,
+        leverage=req.leverage,
+        stop_loss=req.stop_loss,
+        take_profit=req.take_profit,
+        size_usdt=req.size_usdt,
+        mood=req.mood,
+        note=req.note,
+    )
+
+
+@app.post("/manual/confirm/{callback_id}")
+async def manual_confirm(callback_id: str):
+    """
+    Confirm and execute a previously proposed trade.
+
+    Re-checks price (rejects if drift > 0.5%), places market order on OKX,
+    sets SL/TP algo orders, writes to PB trade_history + trade_journal,
+    and sends Telegram notification.
+    """
+    _require_manual()
+    return await manual_executor.confirm_trade(callback_id)
+
+
+@app.post("/manual/close")
+async def manual_close(req: CloseTradeRequest):
+    """
+    Close an open manual trade by trade_id or symbol.
+
+    Closes position on OKX, calculates realized PnL, updates PB records,
+    and sends Telegram notification.
+    """
+    _require_manual()
+    return await manual_executor.close_trade(trade_id=req.trade_id, symbol=req.symbol)
+
+
+@app.get("/manual/positions")
+async def manual_positions():
+    """
+    Get all open manual positions — live OKX data merged with PB tracking.
+    """
+    _require_manual()
+    positions = await manual_executor.get_open_positions()
+    return {"positions": positions, "count": len(positions)}
+
+
+@app.get("/manual/history")
+async def manual_history(limit: int = Query(default=50, ge=1, le=500)):
+    """Get closed manual trade history from PocketBase."""
+    _require_manual()
+    trades = await manual_executor.get_history(limit=limit)
+    return {"trades": trades, "count": len(trades)}
+
+
+@app.get("/manual/pnl")
+async def manual_pnl(days: int = Query(default=30, ge=1, le=365)):
+    """Get PnL statistics for manual trades."""
+    _require_manual()
+    return await manual_executor.get_pnl_stats(days=days)
+
+
+@app.post("/manual/mood")
+async def manual_mood(req: MoodRequest):
+    """Record pre/post-trade mood score (1-5). Affects position sizing if pre-trade."""
+    _require_manual()
+    chat_id = req.chat_id or "default"
+    return await manual_executor.record_mood(chat_id, req.score, req.note)
+
+
+@app.get("/manual/review")
+async def manual_review(days: int = Query(default=7, ge=1, le=90)):
+    """
+    AI-powered review of recent manual trades.
+
+    Analyzes patterns, risk management, mood correlations, and provides
+    actionable improvement suggestions.
+    """
+    _require_manual()
+    return await manual_executor.ai_review(
+        days=days,
+        http_client=http_client,
+        lumigate_url=settings.lumigate_url,
+        project_key=settings.lumigate_project_key,
+    )
 
 
 # --- WebSocket: Market Feed ---

@@ -76,6 +76,9 @@ TRADE_COLLECTIONS = [
             {"name": "strategy", "type": "text"},
             {"name": "signal_id", "type": "text"},
             {"name": "user_id", "type": "text"},
+            {"name": "source", "type": "text"},            # bot / manual
+            {"name": "leverage", "type": "number"},
+            {"name": "mood_score", "type": "number"},
         ],
     },
     {

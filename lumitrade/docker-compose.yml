@@ -26,6 +26,9 @@ services:
       - TRADE_FREQTRADE_PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - TRADE_IBKR_HOST=lumigate-ibgateway
       - TRADE_IBKR_PORT=4002
+      - TRADE_MANUAL_OKX_API_KEY=${OKX_KEY_LUMITRADE:-}
+      - TRADE_MANUAL_OKX_API_SECRET=${OKX_SECRET_LUMITRADE:-}
+      - TRADE_MANUAL_OKX_PASSPHRASE=${OKX_PASSPHRASE:-}
     networks:
       - default
       - lumigate
