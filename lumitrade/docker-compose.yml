@@ -52,9 +52,9 @@ services:
     ports:
       - "127.0.0.1:18790:8080"
     environment:
-      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_KEY_LUMILEARNING:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_SECRET_LUMILEARNING:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__TELEGRAM__TOKEN=${FREQTRADE_TELEGRAM_TOKEN:-}
       - FREQTRADE__TELEGRAM__CHAT_ID=${FREQTRADE_TELEGRAM_CHAT_ID:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
@@ -94,9 +94,9 @@ services:
     ports:
       - "127.0.0.1:18791:8080"
     environment:
-      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_KEY_PURESMC:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_SECRET_PURESMC:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - FREQTRADE__API_SERVER__JWT_SECRET_KEY=${FREQTRADE_JWT_SECRET:-changeme-generate-a-random-key}
       - FREQTRADE__API_SERVER__WS_TOKEN=${FREQTRADE_WS_TOKEN:-changeme-generate-a-random-token}
@@ -133,9 +133,9 @@ services:
     ports:
       - "127.0.0.1:18792:8080"
     environment:
-      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_KEY_AIENHANCED:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_SECRET_AIENHANCED:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - FREQTRADE__API_SERVER__JWT_SECRET_KEY=${FREQTRADE_JWT_SECRET:-changeme-generate-a-random-key}
       - FREQTRADE__API_SERVER__WS_TOKEN=${FREQTRADE_WS_TOKEN:-changeme-generate-a-random-token}
@@ -175,9 +175,9 @@ services:
     ports:
       - "127.0.0.1:18800:8080"
     environment:
-      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_KEY_LUMITRADE:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_SECRET_LUMITRADE:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - FREQTRADE__API_SERVER__JWT_SECRET_KEY=${FREQTRADE_JWT_SECRET:-changeme-generate-a-random-key}
       - FREQTRADE__API_SERVER__WS_TOKEN=${FREQTRADE_WS_TOKEN:-changeme-generate-a-random-token}
@@ -215,9 +215,9 @@ services:
     ports:
       - "127.0.0.1:18801:8080"
     environment:
-      - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
-      - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__KEY=${OKX_KEY_SMC:-}
+      - FREQTRADE__EXCHANGE__SECRET=${OKX_SECRET_SMC:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - FREQTRADE__API_SERVER__JWT_SECRET_KEY=${FREQTRADE_JWT_SECRET:-changeme-generate-a-random-key}
       - FREQTRADE__API_SERVER__WS_TOKEN=${FREQTRADE_WS_TOKEN:-changeme-generate-a-random-token}
@@ -256,7 +256,7 @@ services:
     environment:
       - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
       - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
       - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-changeme}
       - FREQTRADE__API_SERVER__JWT_SECRET_KEY=${FREQTRADE_JWT_SECRET:-changeme-generate-a-random-key}
       - FREQTRADE__API_SERVER__WS_TOKEN=${FREQTRADE_WS_TOKEN:-changeme-generate-a-random-token}
@@ -295,7 +295,7 @@ services:
     environment:
       - FREQTRADE__EXCHANGE__KEY=${OKX_API_KEY:-}
       - FREQTRADE__EXCHANGE__SECRET=${OKX_API_SECRET:-}
-      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_API_PASSPHRASE:-}
+      - FREQTRADE__EXCHANGE__PASSWORD=${OKX_PASSPHRASE:-}
     command: >
       hyperopt
       --config /freqtrade/config.json
@@ -408,7 +408,7 @@ services:
       - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
       - TWS_SETTINGS_PATH=
       - TWS_ACCEPT_INCOMING=accept
-      - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
+      - READ_ONLY_API=${IBKR_READ_ONLY:-no}
       - VNC_SERVER_PASSWORD=${IBKR_VNC_PASSWORD:-lumitrade}
       - TIME_ZONE=Asia/Hong_Kong
     ulimits:
@@ -420,6 +420,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  ib-novnc:
+    image: alpine:3.21
+    container_name: lumigate-ib-novnc
+    restart: unless-stopped
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache python3 py3-pip py3-numpy novnc &&
+        pip3 install --break-system-packages websockify &&
+        ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html 2>/dev/null;
+        websockify --web /usr/share/novnc 8080 lumigate-ibgateway:5900
+    ports:
+      - "6080:8080"
+    depends_on:
+      - ib-gateway
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 networks:
   default:

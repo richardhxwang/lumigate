@@ -120,17 +120,24 @@ class IBKRConnector:
         symbol: str,
         duration: str = "1 M",
         bar_size: str = "1 hour",
-        sec_type: str = "STK",
-        exchange: str = "SMART",
-        currency: str = "USD",
+        sec_type: str | None = None,
+        exchange: str | None = None,
+        currency: str | None = None,
     ) -> list[dict]:
         """
         Fetch historical OHLCV bars.
         duration: e.g. "1 D", "1 W", "1 M", "3 M", "1 Y"
         bar_size: e.g. "1 min", "5 mins", "15 mins", "1 hour", "1 day"
+        Auto-detects market (US/HK/Forex) if sec_type/exchange/currency not specified.
         """
         if not self._ib.isConnected():
             raise ConnectionError("IBKR not connected")
+
+        # Auto-detect market if not explicitly provided
+        det_sec, det_exch, det_curr = self.detect_market(symbol)
+        sec_type = sec_type or det_sec
+        exchange = exchange or det_exch
+        currency = currency or det_curr
 
         contract = self._make_contract(symbol, sec_type, exchange, currency)
         await self._ib.qualifyContractsAsync(contract)
@@ -169,17 +176,23 @@ class IBKRConnector:
         order_type: str = "MKT",
         limit_price: float | None = None,
         stop_price: float | None = None,
-        sec_type: str = "STK",
-        exchange: str = "SMART",
-        currency: str = "USD",
+        sec_type: str | None = None,
+        exchange: str | None = None,
+        currency: str | None = None,
     ) -> dict:
         """
         Place an order. Returns trade info.
         direction: "BUY" or "SELL"
         order_type: "MKT", "LMT", "STP"
+        Auto-detects market (US/HK/Forex) if sec_type/exchange/currency not specified.
         """
         if not self._ib.isConnected():
             raise ConnectionError("IBKR not connected")
+
+        det_sec, det_exch, det_curr = self.detect_market(symbol)
+        sec_type = sec_type or det_sec
+        exchange = exchange or det_exch
+        currency = currency or det_curr
 
         contract = self._make_contract(symbol, sec_type, exchange, currency)
         await self._ib.qualifyContractsAsync(contract)
@@ -218,7 +231,75 @@ class IBKRConnector:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
+    async def place_bracket_order(
+        self,
+        symbol: str,
+        direction: str,
+        quantity: float,
+        entry_price: float,
+        take_profit: float,
+        stop_loss: float,
+        sec_type: str | None = None,
+        exchange: str | None = None,
+        currency: str | None = None,
+    ) -> dict:
+        """Place a bracket order: parent LMT + take-profit LMT + stop-loss STP.
+
+        All three orders are submitted atomically. If the parent is cancelled,
+        the child TP/SL orders are automatically cancelled by IBKR.
+        """
+        if not self._ib.isConnected():
+            raise ConnectionError("IBKR not connected")
+
+        det_sec, det_exch, det_curr = self.detect_market(symbol)
+        sec_type = sec_type or det_sec
+        exchange = exchange or det_exch
+        currency = currency or det_curr
+
+        contract = self._make_contract(symbol, sec_type, exchange, currency)
+        await self._ib.qualifyContractsAsync(contract)
+
+        action = direction.upper()
+        if action not in ("BUY", "SELL"):
+            raise ValueError(f"Invalid direction: {direction}, must be BUY or SELL")
+
+        bracket = self._ib.bracketOrder(action, quantity, entry_price, take_profit, stop_loss)
+
+        trades = []
+        for order in bracket:
+            trades.append(self._ib.placeOrder(contract, order))
+
+        await asyncio.sleep(0.5)
+
+        return {
+            "parent_id": bracket[0].orderId,
+            "tp_id": bracket[1].orderId,
+            "sl_id": bracket[2].orderId,
+            "symbol": symbol,
+            "action": action,
+            "quantity": quantity,
+            "entry_price": entry_price,
+            "take_profit": take_profit,
+            "stop_loss": stop_loss,
+            "parent_status": trades[0].orderStatus.status if trades else "Unknown",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
     # --- Helpers ---
+
+    @staticmethod
+    def detect_market(symbol: str) -> tuple[str, str, str]:
+        """Auto-detect (sec_type, exchange, currency) from symbol format.
+
+        - Digits only or starts with digit (e.g. "0700", "9988") → HK stock (SEHK, HKD)
+        - Contains "/" → Forex (CASH)
+        - Otherwise → US stock (SMART, USD)
+        """
+        if "/" in symbol:
+            return "CASH", "IDEALPRO", "USD"
+        if symbol.isdigit() or (len(symbol) <= 5 and symbol[0].isdigit()):
+            return "STK", "SEHK", "HKD"
+        return "STK", "SMART", "USD"
 
     @staticmethod
     def _make_contract(

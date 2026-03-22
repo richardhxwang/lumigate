@@ -79,11 +79,14 @@ alert_manager = AlertManager()
 _risk_monitor_task: asyncio.Task | None = None
 # Background task handle for trade sync (freqtrade → PB)
 _trade_sync_task: asyncio.Task | None = None
+# Background task handle for IBKR trade sync (executions → PB)
+_ibkr_sync_task: asyncio.Task | None = None
 # Background task handle for weekly hyperopt
 _hyperopt_task: asyncio.Task | None = None
 
 BOT_POLL_INTERVAL = 30  # seconds
 TRADE_SYNC_INTERVAL = 5 * 60  # 5 minutes
+IBKR_SYNC_INTERVAL = 60  # 1 minute
 
 # Previous open trades snapshot for detecting new opens/closes
 # Key: "{bot_label}_{trade_id}", Value: trade dict
@@ -401,6 +404,55 @@ async def _trade_sync_loop():
         except Exception as e:
             logger.warning("Trade sync error (will retry): %s", e)
         await asyncio.sleep(TRADE_SYNC_INTERVAL)
+
+
+async def _ibkr_trade_sync_loop():
+    """
+    Periodic task: every 60s, check IBKR fills and sync completed trades to PB.
+    Only runs when IBKR connector is connected.
+    """
+    logger.info("IBKR trade sync started (interval=%ds)", IBKR_SYNC_INTERVAL)
+    _seen_exec_ids: set[str] = set()
+    await asyncio.sleep(30)  # wait for IBKR to connect
+    while True:
+        try:
+            if ibkr_connector and ibkr_connector.connected:
+                fills = self._ib.fills() if hasattr(ibkr_connector, '_ib') else []
+                fills = ibkr_connector._ib.fills()
+                for fill in fills:
+                    exec_id = fill.execution.execId
+                    if exec_id in _seen_exec_ids:
+                        continue
+                    _seen_exec_ids.add(exec_id)
+
+                    record = {
+                        "symbol": fill.contract.symbol,
+                        "broker": "ibkr",
+                        "direction": "long" if fill.execution.side == "BOT" else "short",
+                        "entry_price": fill.execution.price,
+                        "exit_price": fill.execution.price,
+                        "quantity": fill.execution.shares,
+                        "pnl": fill.commissionReport.realizedPNL if fill.commissionReport else 0,
+                        "pnl_pct": 0,
+                        "duration": "",
+                        "entry_time": fill.execution.time.isoformat() if fill.execution.time else "",
+                        "exit_time": fill.execution.time.isoformat() if fill.execution.time else "",
+                        "strategy": "smc_ibkr",
+                        "signal_id": f"ibkr_{exec_id}",
+                    }
+                    try:
+                        await pb_post("/api/collections/trade_history/records", record)
+                        logger.info("IBKR trade synced: %s %s %.0f @ %.2f",
+                                    record["direction"], record["symbol"],
+                                    record["quantity"], record["entry_price"])
+                    except Exception as e:
+                        logger.warning("IBKR trade sync PB write failed: %s", e)
+        except asyncio.CancelledError:
+            logger.info("IBKR trade sync stopped")
+            break
+        except Exception as e:
+            logger.warning("IBKR trade sync error (will retry): %s", e)
+        await asyncio.sleep(IBKR_SYNC_INTERVAL)
 
 
 async def _sync_all_bot_trades() -> dict:
@@ -1010,6 +1062,11 @@ async def lifespan(app: FastAPI):
     _trade_sync_task = asyncio.create_task(_trade_sync_loop())
     logger.info("Trade sync task created (interval=%ds)", TRADE_SYNC_INTERVAL)
 
+    # Start IBKR trade sync (executions → PB every 60s)
+    global _ibkr_sync_task
+    _ibkr_sync_task = asyncio.create_task(_ibkr_trade_sync_loop())
+    logger.info("IBKR trade sync task created (interval=%ds)", IBKR_SYNC_INTERVAL)
+
     # Start weekly hyperopt scheduler (Sunday 02:00 UTC)
     global _hyperopt_task
     _hyperopt_task = asyncio.create_task(_hyperopt_weekly_loop())
@@ -1170,7 +1227,7 @@ async def analyze(req: AnalyzeRequest):
     """Run SMC analysis on a symbol across timeframes."""
     timeframes = req.timeframes or settings.default_timeframes
     try:
-        result = await smc_analyzer.analyze(req.symbol, timeframes)
+        result = await smc_analyzer.analyze(req.symbol, timeframes, ibkr_connector=ibkr_connector)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2073,13 +2130,24 @@ async def _execute_via_lumibot(req: ExecuteRequest) -> dict:
     quantity = max(1, int(risk_amount / risk_per_share)) if risk_per_share > 0 else 1
 
     try:
-        result = await ibkr_connector.place_order(
-            symbol=req.symbol,
-            direction=action,
-            quantity=quantity,
-            order_type="LMT",
-            limit_price=req.entry,
-        )
+        # Use bracket order (entry + TP + SL) when both SL and TP are provided
+        if req.stop_loss and req.take_profit:
+            result = await ibkr_connector.place_bracket_order(
+                symbol=req.symbol,
+                direction=action,
+                quantity=quantity,
+                entry_price=req.entry,
+                take_profit=req.take_profit,
+                stop_loss=req.stop_loss,
+            )
+        else:
+            result = await ibkr_connector.place_order(
+                symbol=req.symbol,
+                direction=action,
+                quantity=quantity,
+                order_type="LMT",
+                limit_price=req.entry,
+            )
         return {"executed": True, "broker": "ibkr", "result": result}
     except Exception as e:
         return {"executed": False, "broker": "ibkr", "error": str(e)}

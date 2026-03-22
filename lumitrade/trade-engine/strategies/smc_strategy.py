@@ -33,6 +33,16 @@ logger = logging.getLogger(__name__)
 
 SWING_LENGTH = 10  # default lookback for swing detection
 
+# Timeframe → IBKR historical_bars parameters
+TF_DURATION_MAP = {
+    "5m": "1 D", "15m": "2 D", "30m": "1 W",
+    "1h": "1 W", "4h": "1 M", "1d": "3 M",
+}
+TF_BARSIZE_MAP = {
+    "5m": "5 mins", "15m": "15 mins", "30m": "30 mins",
+    "1h": "1 hour", "4h": "4 hours", "1d": "1 day",
+}
+
 
 def _generate_sample_ohlcv(symbol: str, periods: int = 200) -> pd.DataFrame:
     """Generate synthetic OHLCV data for development/testing.
@@ -83,15 +93,18 @@ class SMCAnalyzer:
         self,
         symbol: str,
         timeframes: list[str],
+        ibkr_connector=None,
     ) -> dict:
         """Run SMC analysis across multiple timeframes and generate signals.
 
         Parameters
         ----------
         symbol : str
-            Instrument symbol (e.g. "EURUSD", "BTC-USDT").
+            Instrument symbol (e.g. "AAPL", "0700", "BTC-USDT").
         timeframes : list[str]
             List of timeframe strings (e.g. ["15m", "1h", "4h"]).
+        ibkr_connector : IBKRConnector, optional
+            If provided and connected, fetches real IBKR historical data.
 
         Returns
         -------
@@ -101,13 +114,20 @@ class SMCAnalyzer:
                 "timeframes": {tf: analysis_dict, ...},
                 "signals": [signal_dict, ...],
                 "market_structure": str,       # dominant structure
-                "analyzed_at": str             # ISO timestamp
+                "analyzed_at": str,            # ISO timestamp
+                "data_source": str             # "ibkr" or "sample"
             }
         """
         analyses: dict[str, dict] = {}
+        data_source = "sample"
 
         for tf in timeframes:
-            ohlc = _generate_sample_ohlcv(symbol, periods=200)
+            ohlc = await self._fetch_ohlcv(symbol, tf, ibkr_connector)
+            if ohlc is not None and not ohlc.empty:
+                data_source = "ibkr" if (ibkr_connector and ibkr_connector.connected) else "sample"
+            else:
+                ohlc = _generate_sample_ohlcv(symbol, periods=200)
+                data_source = "sample"
             analysis = await asyncio.to_thread(self._analyze_timeframe, ohlc, tf)
             analyses[tf] = analysis
 
@@ -125,7 +145,39 @@ class SMCAnalyzer:
             "signals": signals,
             "market_structure": dominant_structure,
             "analyzed_at": datetime.now(tz=timezone.utc).isoformat(),
+            "data_source": data_source,
         }
+
+    # ------------------------------------------------------------------
+    # Data fetching
+    # ------------------------------------------------------------------
+
+    async def _fetch_ohlcv(
+        self, symbol: str, tf: str, ibkr_connector=None
+    ) -> Optional[pd.DataFrame]:
+        """Fetch real OHLCV data from IBKR if available, else return None."""
+        if ibkr_connector is None or not ibkr_connector.connected:
+            return None
+        if tf not in TF_DURATION_MAP:
+            logger.warning("Unknown timeframe %s, falling back to sample data", tf)
+            return None
+        try:
+            bars = await ibkr_connector.historical_bars(
+                symbol,
+                duration=TF_DURATION_MAP[tf],
+                bar_size=TF_BARSIZE_MAP[tf],
+            )
+            if not bars:
+                return None
+            df = pd.DataFrame(bars)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date")
+            # Ensure lowercase columns for SMC library
+            df.columns = [c.lower() for c in df.columns]
+            return df
+        except Exception as exc:
+            logger.warning("IBKR historical_bars failed for %s/%s: %s", symbol, tf, exc)
+            return None
 
     # ------------------------------------------------------------------
     # Single-timeframe analysis

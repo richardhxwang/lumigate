@@ -9,8 +9,9 @@ and pauses new entries across all freqtrade bots.
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, time as dt_time
 from dataclasses import dataclass, field
+from zoneinfo import ZoneInfo
 
 from news.sentiment import check_news_blackout, get_upcoming_events
 
@@ -171,7 +172,13 @@ class RiskManager:
                 "REJECTED %s %s: %s", direction, symbol, nb_detail,
             )
 
-        # --- 6. Leverage checks ---
+        # --- 6. Market hours (stocks only) ---
+        mh_ok, mh_detail = self._check_market_hours(symbol)
+        checks.append({"rule": "market_hours", "passed": mh_ok, "detail": mh_detail})
+        if not mh_ok:
+            logger.warning("REJECTED %s %s: %s", direction, symbol, mh_detail)
+
+        # --- 7. Leverage checks ---
         if leverage > 1.0:
             # Effective max leverage — lower for illiquid pairs
             HIGH_LIQUIDITY_PAIRS = {"BTC/USDT", "ETH/USDT", "SOL/USDT"}
@@ -265,6 +272,45 @@ class RiskManager:
             "potential_reward_usd": round(potential_reward_usd, 2),
             "risk_reward_ratio": round(rr_ratio, 4),
         }
+
+    # ------------------------------------------------------------------
+    # Market hours
+    # ------------------------------------------------------------------
+
+    # (start_hour, start_min, end_hour, end_min)
+    _MARKET_SESSIONS = {
+        "US": {"tz": "US/Eastern", "sessions": [(9, 30, 16, 0)], "days": (0, 1, 2, 3, 4)},
+        "HK": {"tz": "Asia/Hong_Kong", "sessions": [(9, 30, 12, 0), (13, 0, 16, 0)], "days": (0, 1, 2, 3, 4)},
+    }
+
+    @staticmethod
+    def _detect_stock_market(symbol: str) -> str | None:
+        """Return 'US', 'HK', or None (crypto — no hours restriction)."""
+        if "/" in symbol:
+            return None  # crypto pair
+        if symbol.isdigit() or (len(symbol) <= 5 and symbol[0].isdigit()):
+            return "HK"
+        return "US"
+
+    def _check_market_hours(self, symbol: str) -> tuple[bool, str]:
+        """Check if the market for this symbol is currently open."""
+        market = self._detect_stock_market(symbol)
+        if market is None:
+            return True, "Crypto — no market hours restriction"
+
+        info = self._MARKET_SESSIONS[market]
+        tz = ZoneInfo(info["tz"])
+        now = datetime.now(tz)
+
+        if now.weekday() not in info["days"]:
+            return False, f"{market} market closed (weekend)"
+
+        for sh, sm, eh, em in info["sessions"]:
+            if dt_time(sh, sm) <= now.time() <= dt_time(eh, em):
+                return True, f"{market} market open ({sh}:{sm:02d}-{eh}:{em:02d} {info['tz']})"
+
+        sessions_str = ", ".join(f"{s[0]}:{s[1]:02d}-{s[2]}:{s[3]:02d}" for s in info["sessions"])
+        return False, f"{market} market closed (hours: {sessions_str} {info['tz']})"
 
     # ------------------------------------------------------------------
     # Position tracking

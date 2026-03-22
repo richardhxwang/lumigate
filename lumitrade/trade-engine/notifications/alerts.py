@@ -32,7 +32,7 @@ class AlertCooldowns:
 
 
 COOLDOWN_DAILY_LOSS = 30 * 60      # 30 minutes
-COOLDOWN_BOT_OFFLINE = 5 * 60      # 5 minutes
+COOLDOWN_BOT_OFFLINE = 30 * 60  # 30 minutes
 COOLDOWN_DRAWDOWN = 60 * 60        # 1 hour
 COOLDOWN_FREQAI_FAIL = 60 * 60     # 1 hour
 
