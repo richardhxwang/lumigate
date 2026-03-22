@@ -77,6 +77,7 @@ module.exports = function createChatRouter(deps) {
     PB_URL,
     userMemory, // optional: UserMemory instance for long-term memory
     patchAnthropicBodyForOAuth,
+    anthropicAuthHeaders, // OAuth-aware auth headers for Anthropic (handles sk-ant-oat tokens)
   } = deps;
 
   const router = express.Router();
@@ -516,6 +517,10 @@ function getChatUrl(providerName, provider) {
 
 function getChatHeaders(providerName, apiKey) {
   if (providerName === "anthropic") {
+    // Use OAuth-aware headers when available (handles sk-ant-oat setup tokens)
+    if (anthropicAuthHeaders) {
+      return { "Content-Type": "application/json", ...anthropicAuthHeaders(apiKey) };
+    }
     return { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   }
   return { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };

@@ -93,6 +93,7 @@ module.exports = function createLumiChatRouter(deps) {
     _collector,
     userMemory, // optional: UserMemory instance for long-term memory
     patchAnthropicBodyForOAuth,
+    anthropicAuthHeaders,
   } = deps;
 
 // FurNote auth middleware — analogous to requireAuth but reads fn_token cookie
@@ -5322,6 +5323,7 @@ router.use("/v1/chat", require("./chat")({
   LC_MODEL_ATTACHMENT_FULL_CHARS,
   userMemory,
   patchAnthropicBodyForOAuth,
+  anthropicAuthHeaders,
 }));
 
 // ── FurNote / LumiChat: Long-term Memory API ──────────────────────────────────
