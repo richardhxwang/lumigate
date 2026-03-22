@@ -333,15 +333,15 @@
 // ========== DATA (update this section periodically) ==========
 
 const DATA = {
-  lastUpdated: "2026-03-22 23:30 HKT",
+  lastUpdated: "2026-03-23 00:15 HKT",
 
   overview: {
     systemStatus: "online",      // online | offline | degraded
     botCount: 6,
     botsOnline: 6,               // currently running bots
     todayTrades: 0,              // dry-run, waiting for signals
-    backtestStatus: "Hyperopt 200 epochs (in progress)",
-    trainingStatus: "FreqAI 15-pair backtest queued"
+    backtestStatus: "Hyperopt 36/200 epochs (best Sharpe 51.97)",
+    trainingStatus: "FreqAI 15-pair backtest re-running (cache cleared, 18 new features)"
   },
 
   containers: [
@@ -408,11 +408,12 @@ const DATA = {
       },
       {
         title: "Leverage & Validation",
-        count: "3/3",
+        count: "4/4",
         items: [
           "Leverage system full implementation (1.5x verified, +33% returns)",
           "Out-of-sample validation (low overfitting risk confirmed)",
-          "IBKR asyncio event loop fix"
+          "IBKR asyncio event loop fix",
+          "Leverage mode clarification: unlimited mode leverage ineffective; fixed stake_amount=1250 with leverage yields +31%. Group B switched to fixed stake."
         ]
       },
       {
@@ -428,12 +429,21 @@ const DATA = {
           "Project Status Dashboard (this page)",
           "Backtest vs Actual Dashboard"
         ]
+      },
+      {
+        title: "Bug Fixes & Config",
+        count: "3/3",
+        items: [
+          "chat.js proxyApiKey fix",
+          "FreqAI correlated pair crash fix",
+          "config-hyperopt.json created for independent Hyperopt runs"
+        ]
       }
     ],
     inProgress: [
-      { text: "Hyperopt 200 epochs (FreqAI disabled for speed)", pct: 50 },
-      { text: "FreqAI 15-pair backtest (queued after Hyperopt)", pct: 0 },
-      { text: "Opus 46-question AI benchmark (re-running)", pct: 30 },
+      { text: "Hyperopt 200 epochs (independent container, 36/200 done, best Sharpe 51.97)", pct: 18 },
+      { text: "FreqAI 15-pair backtest re-run (old cache cleared, 18 new features)", pct: 5 },
+      { text: "Opus 46-question AI benchmark — Data Accuracy 4.63/5, SMC Concepts 5.00/5, remaining 4 groups in progress", pct: 40 },
       { text: "Live bot dry run — 6 bots online, accumulating data", pct: 10 }
     ],
     todo: [
@@ -482,7 +492,7 @@ const DATA = {
 
   goLiveChecklist: [
     { text: "Strategy validation (backtest + out-of-sample)", done: true },
-    { text: "Leverage validation (1.5x, +33% returns confirmed)", done: true },
+    { text: "Leverage validation (fixed stake +31%, unlimited mode ineffective — Group B switched to fixed)", done: true },
     { text: "Risk circuit breaker tested and confirmed", done: true },
     { text: "Telegram alerts working (trade + error notifications)", done: true },
     { text: "PocketBase trade sync verified (no missing trades)", done: true },
@@ -493,6 +503,10 @@ const DATA = {
   ],
 
   timeline: [
+    { date: "2026-03-23", text: "<strong>Bug fixes</strong> — chat.js proxyApiKey fix, FreqAI correlated pair crash fix, config-hyperopt.json created." },
+    { date: "2026-03-23", text: "<strong>Opus benchmark partial results</strong> — Data Accuracy 4.63/5 (up from GPT-4o 4.0), SMC Concepts 5.00/5 (up from 3.5). Remaining 4 groups in progress." },
+    { date: "2026-03-23", text: "<strong>Leverage mode clarification</strong> — unlimited stake_amount ignores leverage; fixed stake_amount=1250 yields +31%. Group B bots switched to fixed stake." },
+    { date: "2026-03-23", text: "<strong>Hyperopt running</strong> — independent container, 36/200 epochs, best Sharpe 51.97. FreqAI 15-pair backtest re-running with cleared cache and 18 new features." },
     { date: "2026-03-22", text: "<strong>Project Status Dashboard</strong> — full data update reflecting all completed tasks, go-live checklist, and current status." },
     { date: "2026-03-22", text: "<strong>Leverage system verified</strong> — 1.5x leverage confirmed +33% returns. Out-of-sample validation passed (low overfitting risk)." },
     { date: "2026-03-22", text: "<strong>Independent Hyperopt container</strong> + weekly automation (Sunday midnight cron). No more conflicts with live bots." },
