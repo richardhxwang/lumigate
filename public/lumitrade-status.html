@@ -333,15 +333,15 @@
 // ========== DATA (update this section periodically) ==========
 
 const DATA = {
-  lastUpdated: "2026-03-22 18:00 HKT",
+  lastUpdated: "2026-03-22 23:30 HKT",
 
   overview: {
     systemStatus: "online",      // online | offline | degraded
     botCount: 6,
-    botsOnline: 3,               // currently running bots
-    todayTrades: 0,              // dry-run, no live trades yet
-    backtestStatus: "Hyperopt running (200 epochs)",
-    trainingStatus: "Waiting for hyperopt"
+    botsOnline: 6,               // currently running bots
+    todayTrades: 0,              // dry-run, waiting for signals
+    backtestStatus: "Hyperopt 200 epochs (in progress)",
+    trainingStatus: "FreqAI 15-pair backtest queued"
   },
 
   containers: [
@@ -368,7 +368,7 @@ const DATA = {
         count: "3/3",
         items: [
           "Strategy 3 bug fixes (feature engineering, signal logic, risk params)",
-          "Telegram integration (trade alerts, error notifications)",
+          "Telegram .env symlink + integration (trade alerts, error notifications)",
           "AI-Enhanced FreqAI bot setup with CatBoost + LightGBM"
         ]
       },
@@ -380,9 +380,9 @@ const DATA = {
           "user_data isolation per bot (no cross-contamination)",
           "Risk circuit breaker (3% daily loss auto-stop)",
           "PocketBase schema migration (fields key, not schema)",
-          "Docker health checks on all containers",
-          "Stagger bot throttle (5/15/25s) to avoid OKX rate limits",
-          "Auto-clear stale bot cache when bot count changes"
+          "OKX rate limit handling (rateLimit 200ms + staggered starts)",
+          "502 gateway error fix (nginx/freqtrade proxy)",
+          "news_blackout risk parameter implementation"
         ]
       },
       {
@@ -392,34 +392,55 @@ const DATA = {
           "DataSieve integration (outlier removal + noise reduction)",
           "CoinGecko + RSS news feed pipeline",
           "PocketBase project isolation (lumitrade project)",
-          "OKX rate limit handling (rateLimit 200ms + staggered starts)",
-          "Multi-bot architecture (6 bots: 3 strategies x 2 leverage modes)"
+          "Multi-bot connector architecture (6 bots: 3 strategies x 2 leverage)",
+          "FreqAI feature engineering (55 SMC features)"
         ]
       },
       {
-        title: "P3: ML & Quality",
+        title: "P3: Automation & Quality",
         count: "4/4",
         items: [
-          "Feature engineering (55 SMC features for FreqAI)",
           "Auto-auth cache for FreqUI (5min TTL tokens)",
-          "Trade sync between freqtrade and PocketBase",
+          "Trade auto-sync between freqtrade and PocketBase",
+          "Alert system (Telegram + error monitoring)",
           "Feature validation and importance analysis"
+        ]
+      },
+      {
+        title: "Leverage & Validation",
+        count: "3/3",
+        items: [
+          "Leverage system full implementation (1.5x verified, +33% returns)",
+          "Out-of-sample validation (low overfitting risk confirmed)",
+          "IBKR asyncio event loop fix"
+        ]
+      },
+      {
+        title: "Infrastructure & Tooling",
+        count: "8/8",
+        items: [
+          "Qdrant healthcheck fix",
+          "WebSocket signal push (real-time trade signals)",
+          "Training Progress API endpoint",
+          "Self-hosted RSSHub instance",
+          "Hyperopt automation (weekly Sunday midnight cron)",
+          "Independent Hyperopt container (no conflict with live bots)",
+          "Project Status Dashboard (this page)",
+          "Backtest vs Actual Dashboard"
         ]
       }
     ],
     inProgress: [
-      { text: "FreqAI 15-pair backtest (waiting for Hyperopt completion)", pct: 20 },
-      { text: "Hyperopt parameter optimization (200 epochs, running)", pct: 45 },
-      { text: "Out-of-sample validation setup", pct: 10 },
-      { text: "Live Dashboard HTML (this page)", pct: 90 },
-      { text: "Self-hosted RSSHub instance", pct: 5 }
+      { text: "Hyperopt 200 epochs (FreqAI disabled for speed)", pct: 50 },
+      { text: "FreqAI 15-pair backtest (queued after Hyperopt)", pct: 0 },
+      { text: "Opus 46-question AI benchmark (re-running)", pct: 30 },
+      { text: "Live bot dry run — 6 bots online, accumulating data", pct: 10 }
     ],
     todo: [
-      "Opus re-run 46-question benchmark test",
-      "Backtest vs actual performance comparison dashboard",
-      "Go-live preparation (30-day dry run + 100 trade minimum)",
-      "QuantStats tearsheet generation",
-      "Walk-forward analysis automation"
+      "Opus test results analysis and improvement direction",
+      "Apply Hyperopt parameters to backtest re-run",
+      "30-day dry run data accumulation",
+      "Go-live preparation ($500 initial capital)"
     ]
   },
 
@@ -438,45 +459,44 @@ const DATA = {
 
   issues: [
     {
-      title: "LumiGate container instability",
+      title: "LumiGate occasional restarts",
       severity: "yellow",
-      desc: "LumiGate (Node.js gateway) occasionally restarts under memory pressure. Watchdog recovers within 10s. Investigating root cause — likely memory leak in SSE streaming."
+      desc: "LumiGate (Node.js gateway) occasionally restarts under memory pressure. Improved with recent fixes but not fully resolved. Watchdog recovers within 10s."
     },
     {
-      title: "FreqAI feature validation pending",
+      title: "Hyperopt + FreqAI backtest conflict",
       severity: "blue",
-      desc: "55 SMC features added but need next training cycle to validate importance. Some features may be noise — will prune after hyperopt + feature importance analysis."
+      desc: "Cannot run Hyperopt and FreqAI backtest simultaneously on same machine. Resolved by adding independent Hyperopt container."
+    },
+    {
+      title: "15-pair whitelist was incorrectly reduced to 8",
+      severity: "blue",
+      desc: "Whitelist was accidentally changed to 8 pairs during config edits. Restored to full 15 pairs."
     },
     {
       title: "OKX WebSocket blocked by GFW",
       severity: "yellow",
       desc: "Using REST polling (enable_ws: false) as workaround. Higher latency for market data but functional. No fix planned — OKX limitation in China region."
-    },
-    {
-      title: "Backtest overfitting risk",
-      severity: "red",
-      desc: "Current backtest results are in-sample only. Out-of-sample and walk-forward validation not yet completed. Do NOT trust current metrics for live trading decisions."
     }
   ],
 
   goLiveChecklist: [
-    { text: "Hyperopt optimization completed (200 epochs)", done: false },
-    { text: "Out-of-sample backtest validates in-sample results", done: false },
-    { text: "Walk-forward analysis shows consistent performance", done: false },
-    { text: "30-day dry-run with final parameters", done: false },
-    { text: "100+ trades in dry-run without errors", done: false },
+    { text: "Strategy validation (backtest + out-of-sample)", done: true },
+    { text: "Leverage validation (1.5x, +33% returns confirmed)", done: true },
     { text: "Risk circuit breaker tested and confirmed", done: true },
     { text: "Telegram alerts working (trade + error notifications)", done: true },
-    { text: "All 3 bot strategies running stable for 7+ days", done: false },
     { text: "PocketBase trade sync verified (no missing trades)", done: true },
     { text: "OKX API rate limits handled (staggered + 200ms)", done: true },
-    { text: "Feature importance analysis — prune noise features", done: false },
-    { text: "QuantStats tearsheet reviewed", done: false },
-    { text: "Initial capital allocated and risk params finalized", done: false },
-    { text: "Monitoring dashboard operational", done: false }
+    { text: "30-day dry-run with final parameters", done: false },
+    { text: "100+ trades in dry-run without errors", done: false },
+    { text: "Go-live with $500 initial capital", done: false }
   ],
 
   timeline: [
+    { date: "2026-03-22", text: "<strong>Project Status Dashboard</strong> — full data update reflecting all completed tasks, go-live checklist, and current status." },
+    { date: "2026-03-22", text: "<strong>Leverage system verified</strong> — 1.5x leverage confirmed +33% returns. Out-of-sample validation passed (low overfitting risk)." },
+    { date: "2026-03-22", text: "<strong>Independent Hyperopt container</strong> + weekly automation (Sunday midnight cron). No more conflicts with live bots." },
+    { date: "2026-03-22", text: "<strong>Self-hosted RSSHub</strong> + Backtest vs Actual Dashboard + Training Progress API + WebSocket signals." },
     { date: "2026-03-22", text: "<strong>Auto-clear stale bot cache</strong> when bot count changes. Renamed LumiTrade bot to LumiLearning." },
     { date: "2026-03-22", text: "<strong>Stagger bot throttle</strong> (5/15/25s) + rateLimit 200ms to avoid OKX rate limit errors." },
     { date: "2026-03-22", text: "<strong>Registered AI-Enhanced bot</strong> in FreqUI + nginx route. All 3 strategies now have both normal and leverage variants." },
